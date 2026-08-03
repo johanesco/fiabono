@@ -1,7 +1,7 @@
 "use client";
 import { useState, useEffect } from "react";
 import { 
-  collection, addDoc, getDocs, query, doc, updateDoc, where, setDoc, getDoc 
+  collection, addDoc, getDocs, query, doc, updateDoc, where, setDoc, getDoc, deleteDoc 
 } from "firebase/firestore";
 import { 
   signInWithEmailAndPassword, createUserWithEmailAndPassword, onAuthStateChanged, signOut, updatePassword 
@@ -10,7 +10,8 @@ import { db, auth } from "../firebase";
 import { 
   Search, Home as HomeIcon, PieChart, Clock, UserCog, 
   ShoppingBag, Banknote, Users, CheckCircle2, ChevronRight, 
-  X, MessageCircle, ArrowDownRight, ArrowUpRight, LogOut, CalendarDays
+  X, MessageCircle, ArrowDownRight, ArrowUpRight, LogOut, CalendarDays,
+  Trash2, Edit2, Share2, AlertCircle
 } from 'lucide-react';
 
 export default function Home() {
@@ -26,7 +27,7 @@ export default function Home() {
   const [nuevaPassword, setNuevaPassword] = useState("");
   const [mensajePerfil, setMensajePerfil] = useState({ texto: "", tipo: "" });
 
-  // --- ARQUITECTURA (4 VISTAS) ---
+  // --- ARQUITECTURA ---
   const [vistaActiva, setVistaActiva] = useState<'principal' | 'estadisticas' | 'historial' | 'perfil'>('principal');
 
   // --- DATOS GLOBALES ---
@@ -36,19 +37,23 @@ export default function Home() {
   const [busquedaDirectorio, setBusquedaDirectorio] = useState("");
   const [mesSeleccionado, setMesSeleccionado] = useState<number>(new Date().getMonth());
 
-  // --- ESTADOS DEL HISTORIAL (NUEVO) ---
   const [busquedaHistorial, setBusquedaHistorial] = useState("");
   const [filtroTiempoHistorial, setFiltroTiempoHistorial] = useState<'hoy' | 'semana' | 'mes' | 'todos'>('hoy');
 
   // --- PERFIL DE CLIENTE Y FLUJOS ---
   const [clienteActivo, setClienteActivo] = useState<any | null>(null);
   const [movimientosCliente, setMovimientosCliente] = useState<any[]>([]);
+  const [modoEdicionCliente, setModoEdicionCliente] = useState(false);
+  const [editNombreCliente, setEditNombreCliente] = useState("");
+  const [editCelularCliente, setEditCelularCliente] = useState("");
+
   const [modalRegistro, setModalRegistro] = useState(false);
   const [accionRegistro, setAccionRegistro] = useState<'fiado' | 'abono' | null>(null);
   const [pasoRegistro, setPasoRegistro] = useState<1 | 2>(1);
   const [clienteTransaccion, setClienteTransaccion] = useState<any | null>(null);
   const [filasRegistro, setFilasRegistro] = useState<{ descripcion: string; valor: string }[]>([{ descripcion: "", valor: "" }]);
   const [modalExito, setModalExito] = useState<{ visible: boolean, cliente: any, accion: any, detalles: any[], montoTotal: number } | null>(null);
+  
   const [modalNuevoCliente, setModalNuevoCliente] = useState(false);
   const [verTodosClientes, setVerTodosClientes] = useState(false);
   const [nombreNuevo, setNombreNuevo] = useState("");
@@ -93,14 +98,19 @@ export default function Home() {
     } catch (error: any) { alert("Error de autenticación: Verifica tus datos."); }
   };
 
-  // --- PERFIL ---
+  // --- FUNCIONES DEL PERFIL ---
   const guardarDatosPerfil = async () => {
     if (!usuario) return;
     try {
-      await updateDoc(doc(db, "usuarios", usuario.uid), { nombreNegocio, telefonoNegocio });
+      await updateDoc(doc(db, "usuarios", usuario.uid), { 
+        nombreNegocio: nombreNegocio, 
+        telefonoNegocio: telefonoNegocio 
+      });
       setMensajePerfil({ texto: "Datos actualizados correctamente", tipo: "exito" });
       setTimeout(() => setMensajePerfil({ texto: "", tipo: "" }), 3000);
-    } catch (error) { setMensajePerfil({ texto: "Error al guardar los datos", tipo: "error" }); }
+    } catch (error) { 
+      setMensajePerfil({ texto: "Error al guardar los datos", tipo: "error" }); 
+    }
   };
 
   const cambiarPassword = async () => {
@@ -110,10 +120,11 @@ export default function Home() {
       setMensajePerfil({ texto: "Contraseña actualizada", tipo: "exito" });
       setNuevaPassword("");
       setTimeout(() => setMensajePerfil({ texto: "", tipo: "" }), 3000);
-    } catch (error: any) { setMensajePerfil({ texto: "Error de seguridad. Cierra sesión y vuelve a entrar.", tipo: "error" }); }
+    } catch (error: any) { 
+      setMensajePerfil({ texto: "Error de seguridad. Cierra sesión y vuelve a entrar.", tipo: "error" }); 
+    }
   };
 
-  // --- DATOS ---
   const cargarDatosGlobales = async (uid: string) => {
     try {
       const qC = query(collection(db, "clientes"), where("usuarioId", "==", uid));
@@ -145,11 +156,48 @@ export default function Home() {
     const cliente = clientes.find(c => c.id === clienteId);
     if (cliente) {
       setClienteActivo(cliente);
+      setModoEdicionCliente(false);
       await cargarMovimientosClienteDirecto(clienteId);
     }
   };
 
-  // --- LÓGICA DE FILAS Y REGISTRO ---
+  // --- CRUD CLIENTES ---
+  const guardarClienteNuevo = async () => {
+    if (!nombreNuevo.trim()) return alert("El nombre del cliente es obligatorio.");
+    setGuardandoCliente(true);
+    try {
+      const docRef = await addDoc(collection(db, "clientes"), { 
+        nombre: nombreNuevo.trim(), celular: celularNuevo.trim(), deudaTotal: 0, usuarioId: usuario.uid, fecha_creacion: new Date() 
+      });
+      const nuevoObj = { id: docRef.id, nombre: nombreNuevo.trim(), celular: celularNuevo.trim(), deudaTotal: 0 };
+      setModalNuevoCliente(false); setNombreNuevo(""); setCelularNuevo("");
+      await cargarDatosGlobales(usuario.uid);
+      if (modalRegistro && pasoRegistro === 1) { setClienteTransaccion(nuevoObj); setPasoRegistro(2); }
+    } catch (error) { alert("Error al guardar cliente."); } finally { setGuardandoCliente(false); }
+  };
+
+  const actualizarCliente = async () => {
+    if (!editNombreCliente.trim()) return alert("El nombre no puede estar vacío");
+    try {
+      await updateDoc(doc(db, "clientes", clienteActivo.id), { nombre: editNombreCliente.trim(), celular: editCelularCliente.trim() });
+      setClienteActivo({ ...clienteActivo, nombre: editNombreCliente.trim(), celular: editCelularCliente.trim() });
+      setModoEdicionCliente(false);
+      await cargarDatosGlobales(usuario.uid);
+    } catch (error) { alert("Error al actualizar cliente."); }
+  };
+
+  const eliminarCliente = async () => {
+    const confirmacion = window.confirm(`¿Estás seguro de eliminar a ${clienteActivo.nombre}? Se borrará de tu directorio.`);
+    if (confirmacion) {
+      try {
+        await deleteDoc(doc(db, "clientes", clienteActivo.id));
+        setClienteActivo(null);
+        await cargarDatosGlobales(usuario.uid);
+      } catch (error) { alert("Error al eliminar cliente."); }
+    }
+  };
+
+  // --- LÓGICA DE REGISTRO ---
   const agregarFila = () => setFilasRegistro([...filasRegistro, { descripcion: "", valor: "" }]);
   const actualizarFila = (index: number, campo: 'descripcion' | 'valor', valor: string) => {
     const nuevasFilas = [...filasRegistro]; nuevasFilas[index][campo] = valor; setFilasRegistro(nuevasFilas);
@@ -181,6 +229,9 @@ export default function Home() {
       await updateDoc(refCliente, { deudaTotal: nuevoSaldoTotal });
       const clienteActualizado = { ...clienteTransaccion, deudaTotal: nuevoSaldoTotal };
       
+      // Feedback Háptico Nativo (Vibración)
+      if (typeof navigator !== 'undefined' && navigator.vibrate) navigator.vibrate([100, 50, 100]);
+
       setModalExito({ visible: true, cliente: clienteActualizado, accion: accionRegistro, detalles: detallesParaComprobante, montoTotal: montoAcumulado });
       setModalRegistro(false); setFilasRegistro([{ descripcion: "", valor: "" }]); setClienteTransaccion(null);
       await cargarDatosGlobales(usuario.uid);
@@ -190,19 +241,49 @@ export default function Home() {
     } catch (error) { alert("Error al procesar el registro."); }
   };
 
-  const guardarClienteNuevo = async () => {
-    if (!nombreNuevo.trim() || !celularNuevo.trim()) return alert("Llena el nombre y el celular.");
-    setGuardandoCliente(true);
-    try {
-      const docRef = await addDoc(collection(db, "clientes"), { nombre: nombreNuevo.trim(), celular: celularNuevo.trim(), deudaTotal: 0, usuarioId: usuario.uid, fecha_creacion: new Date() });
-      const nuevoObj = { id: docRef.id, nombre: nombreNuevo.trim(), celular: celularNuevo.trim(), deudaTotal: 0 };
-      setModalNuevoCliente(false); setNombreNuevo(""); setCelularNuevo("");
-      await cargarDatosGlobales(usuario.uid);
-      if (modalRegistro && pasoRegistro === 1) { setClienteTransaccion(nuevoObj); setPasoRegistro(2); }
-    } catch (error) { alert("Error al guardar cliente."); } finally { setGuardandoCliente(false); }
+  // --- TEXTOS COMPROBANTES Y COMPARTIR ---
+  const generarTextoComprobante = (tipo: 'estado' | 'comprobante', cliente: any, accion?: 'fiado' | 'abono' | null, detallesArray?: {descripcion: string, valor: number}[], totalMov?: number) => {
+    let texto = "";
+    const saldoFormat = `$${Math.abs(cliente.deudaTotal || 0).toLocaleString('es-CO')}`;
+
+    if (tipo === 'estado') {
+      texto = `¡Hola *${cliente.nombre}*! 👋 Somos *${nombreNegocio}*.\n\n`;
+      texto += `📊 *ESTADO DE TU CUENTA*\n`;
+      if (cliente.deudaTotal === 0) texto += `Tu cuenta está totalmente al día ($0). ¡Gracias por tu confianza! ✨`;
+      else if ((cliente.deudaTotal || 0) < 0) texto += `Tienes un *saldo a favor* de: *${saldoFormat}*. 🛍️`;
+      else texto += `Tu saldo pendiente actual es de: *${saldoFormat}*.`;
+    } 
+    else if (tipo === 'comprobante') {
+      texto = `¡Hola *${cliente.nombre}*! 👋\nRegistramos un nuevo *${accion}* en *${nombreNegocio}*.\n\n`;
+      if (detallesArray && detallesArray.length > 0) {
+        texto += `🧾 *DETALLE DEL REGISTRO*\n`;
+        detallesArray.forEach(d => { texto += `▪ ${d.descripcion}: $${d.valor.toLocaleString('es-CO')}\n`; });
+        texto += `\n*Total de la operación:* $${totalMov?.toLocaleString('es-CO')}\n\n`;
+      }
+      texto += `📊 *NUEVO ESTADO DE CUENTA*\n`;
+      if (cliente.deudaTotal === 0) texto += `Con esto, tu cuenta ha quedado saldada ($0). ¡Muchas gracias! ✨`;
+      else if ((cliente.deudaTotal || 0) < 0) texto += `Tu nuevo saldo a favor es de: *${saldoFormat}*.`;
+      else texto += `Tu nuevo saldo pendiente es de: *${saldoFormat}*.`;
+    }
+    return texto;
   };
 
-  // --- HELPERS (FECHAS, SALUDOS, WHATSAPP) ---
+  const abrirWhatsApp = (texto: string, celular?: string) => {
+    const celularLimpio = celular ? celular.replace(/\D/g, '') : '';
+    const url = celularLimpio ? `https://api.whatsapp.com/send?phone=57${celularLimpio}&text=${encodeURIComponent(texto)}` : `https://api.whatsapp.com/send?text=${encodeURIComponent(texto)}`;
+    window.open(url, '_blank');
+  };
+
+  const compartirNativo = async (texto: string) => {
+    if (navigator.share) {
+      try { await navigator.share({ title: `Comprobante ${nombreNegocio}`, text: texto }); } 
+      catch (error) { console.log('Error compartiendo', error); }
+    } else {
+      alert("Tu navegador no soporta la opción de compartir. Usa el botón de WhatsApp.");
+    }
+  };
+
+  // --- HELPERS (FECHAS, SALUDOS) ---
   const obtenerSaludo = () => {
     const hora = new Date().getHours();
     if (hora >= 5 && hora < 12) return "Buenos días";
@@ -210,36 +291,14 @@ export default function Home() {
     return "Buenas noches";
   };
 
-  // Fechas Humanizadas
   const hoyDate = new Date();
   const diaSemanaNombre = hoyDate.toLocaleDateString('es-CO', { weekday: 'long' });
   const diaSemanaCapitalizado = diaSemanaNombre.charAt(0).toUpperCase() + diaSemanaNombre.slice(1);
-  const diaActualNum = hoyDate.getDay() === 0 ? 6 : hoyDate.getDay() - 1; // 0=Lunes
+  const diaActualNum = hoyDate.getDay() === 0 ? 6 : hoyDate.getDay() - 1; 
   const inicioSemanaDate = new Date(hoyDate.getFullYear(), hoyDate.getMonth(), hoyDate.getDate() - diaActualNum);
   const finSemanaDate = new Date(inicioSemanaDate.getFullYear(), inicioSemanaDate.getMonth(), inicioSemanaDate.getDate() + 6);
   const formatCorto = (d: Date) => d.toLocaleDateString('es-CO', { day: 'numeric', month: 'short' });
   const textoRangoSemana = `${formatCorto(inicioSemanaDate)} - ${formatCorto(finSemanaDate)}`;
-
-  const generarEnlaceWhatsApp = (tipo: 'estado' | 'comprobante', cliente: any, accion?: 'fiado' | 'abono' | null, detallesArray?: {descripcion: string, valor: number}[], totalMov?: number) => {
-    if (!cliente.celular) return null;
-    const celularLimpio = cliente.celular.replace(/\D/g, '');
-    let mensaje = "";
-    const esSaldoAFavor = (cliente.deudaTotal || 0) < 0;
-    const saldoFormat = `$${Math.abs(cliente.deudaTotal || 0).toLocaleString('es-CO')}`;
-
-    if (tipo === 'estado') {
-      if (cliente.deudaTotal === 0) mensaje = `¡Hola ${cliente.nombre}! 👋 Somos *${nombreNegocio}*. Te contamos que tu cuenta está totalmente al día ($0). ¡Gracias por tu confianza! ✨`;
-      else if (esSaldoAFavor)       mensaje = `¡Hola ${cliente.nombre}! 👋 Somos *${nombreNegocio}*. Te informamos que tienes un *saldo a favor* de *${saldoFormat}*. ¡Te esperamos pronto! 🛍️`;
-      else                          mensaje = `¡Hola ${cliente.nombre}! 👋 Somos *${nombreNegocio}*. Te recordamos amablemente que tu saldo pendiente es de *${saldoFormat}*. ¡Cualquier duda nos avisas! 😊`;
-    } 
-    else if (tipo === 'comprobante') {
-      mensaje = `¡Hola ${cliente.nombre}! 👋 Registramos un nuevo *${accion === 'fiado' ? 'fiado' : 'abono'}* por *$${totalMov?.toLocaleString('es-CO')}* en *${nombreNegocio}*.\n\n`;
-      if (cliente.deudaTotal === 0) mensaje += `Con esto, tu cuenta ha quedado al día ($0). ¡Muchas gracias! ✨`;
-      else if (esSaldoAFavor) mensaje += `Tu nuevo saldo a favor es de *${saldoFormat}*.`;
-      else mensaje += `Tu nuevo saldo pendiente es de *${saldoFormat}*.`;
-    }
-    return `https://api.whatsapp.com/send?phone=57${celularLimpio}&text=${encodeURIComponent(mensaje)}`;
-  };
 
   const calcularMetricas = () => {
     let deudaTotal = 0, clientesConCredito = 0, totalClientes = clientes.length;
@@ -258,16 +317,14 @@ export default function Home() {
       if (ms >= inicioSemana) { m.tipo === 'abono' ? abonosSemana += m.monto : fiadosSemana += m.monto; }
       if (ms >= inicioMesFiltro && ms <= finMesFiltro) { m.tipo === 'abono' ? abonosMes += m.monto : fiadosMes += m.monto; }
     });
-
     return { deudaTotal, clientesConCredito, totalClientes, abonosHoy, fiadosHoy, abonosSemana, fiadosSemana, abonosMes, fiadosMes };
   };
 
   const metricas = calcularMetricas();
-  const getNombreCliente = (id: string) => clientes.find(c => c.id === id)?.nombre || "Desconocido";
+  const getNombreCliente = (id: string) => clientes.find(c => c.id === id)?.nombre || "Cliente Eliminado";
   const clientesFiltrados = clientes.filter(c => c.nombre?.toLowerCase().includes(busqueda.toLowerCase()));
   const directorioFiltrado = clientes.filter(c => c.nombre?.toLowerCase().includes(busquedaDirectorio.toLowerCase()));
 
-  // Filtrado inteligente del Historial
   const historialFiltrado = todosMovimientos.filter(mov => {
     const cliente = clientes.find(c => c.id === mov.clienteId);
     const nombreMatch = cliente ? cliente.nombre.toLowerCase().includes(busquedaHistorial.toLowerCase()) : false;
@@ -281,7 +338,7 @@ export default function Home() {
     if (filtroTiempoHistorial === 'hoy') return ms >= inicioHoy;
     if (filtroTiempoHistorial === 'semana') return ms >= inicioSemana;
     if (filtroTiempoHistorial === 'mes') return ms >= inicioMes;
-    return true; // 'todos'
+    return true; 
   });
 
   const nombresMeses = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
@@ -291,7 +348,6 @@ export default function Home() {
   // ============================================================================
 
   if (cargandoAuth) return <div className="flex h-screen items-center justify-center font-bold text-slate-500 bg-slate-50 dark:bg-slate-950">Cargando...</div>;
-  
   if (!usuario) {
     return (
       <main className="flex min-h-screen items-center justify-center bg-slate-50 dark:bg-slate-950 p-4 transition-colors duration-500">
@@ -320,16 +376,10 @@ export default function Home() {
     <div className="min-h-screen w-full bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 transition-colors duration-500">
       <main className="flex flex-col relative max-w-4xl mx-auto min-h-screen pb-28">
         
-        {/* HEADER SUPERIOR (Saludo Inteligente) */}
+        {/* HEADER SUPERIOR */}
         <header className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl px-6 py-5 shadow-sm dark:shadow-none border-b border-slate-200/50 dark:border-slate-800/50 flex flex-col justify-center z-10 sticky top-0 transition-colors duration-500">
-          <h1 className="text-lg font-black text-indigo-600 dark:text-indigo-400 tracking-wide mb-1">
-            Fiabono.
-          </h1>
-          {vistaActiva === 'principal' && (
-            <p className="text-slate-500 dark:text-slate-400 font-medium text-sm">
-              {obtenerSaludo()}, <span className="font-bold text-slate-900 dark:text-white">{nombreNegocio}</span>
-            </p>
-          )}
+          <h1 className="text-lg font-black text-indigo-600 dark:text-indigo-400 tracking-wide mb-1">Fiabono.</h1>
+          {vistaActiva === 'principal' && ( <p className="text-slate-500 dark:text-slate-400 font-medium text-sm">{obtenerSaludo()}, <span className="font-bold text-slate-900 dark:text-white">{nombreNegocio}</span></p> )}
           {vistaActiva === 'estadisticas' && <p className="text-slate-500 dark:text-slate-400 font-medium text-sm">Reportes y Estadísticas</p>}
           {vistaActiva === 'historial' && <p className="text-slate-500 dark:text-slate-400 font-medium text-sm">Registro de Movimientos</p>}
           {vistaActiva === 'perfil' && <p className="text-slate-500 dark:text-slate-400 font-medium text-sm">Configuración de cuenta</p>}
@@ -361,9 +411,9 @@ export default function Home() {
                       ))
                     ) : (
                       <div className="p-6 text-center text-slate-500">
-                        <p className="mb-4">No se encontró el cliente.</p>
-                        <button onClick={() => setModalNuevoCliente(true)} className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-6 rounded-2xl text-sm transition-colors flex items-center justify-center gap-2 mx-auto">
-                          <UserCog size={16} /> Crear Cliente Nuevo
+                        <p className="mb-4">"{busqueda}" no está en tu directorio.</p>
+                        <button onClick={() => { setNombreNuevo(busqueda); setModalNuevoCliente(true); setBusqueda(""); }} className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-6 rounded-2xl text-sm transition-colors flex items-center justify-center gap-2 mx-auto">
+                          <UserCog size={16} /> Crear como Cliente Nuevo
                         </button>
                       </div>
                     )}
@@ -390,24 +440,19 @@ export default function Home() {
             </div>
           )}
 
-          {/* VISTA 2: ESTADÍSTICAS Y REPORTES */}
+          {/* VISTA 2: ESTADÍSTICAS */}
           {vistaActiva === 'estadisticas' && (
             <div className="flex flex-col gap-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-              
               <div className="bg-gradient-to-br from-indigo-900 via-slate-900 to-black rounded-[2rem] p-8 text-white shadow-2xl relative overflow-hidden border border-slate-800">
                 <div className="absolute -right-10 -top-10 opacity-20 blur-2xl w-64 h-64 bg-indigo-500 rounded-full pointer-events-none"></div>
-                <p className="text-indigo-200 font-bold uppercase tracking-wider text-xs mb-2 flex items-center gap-2">
-                  <span className="w-2 h-2 rounded-full bg-indigo-400 animate-pulse"></span> Cartera Activa en la calle
-                </p>
+                <p className="text-indigo-200 font-bold uppercase tracking-wider text-xs mb-2 flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-indigo-400 animate-pulse"></span> Cartera Activa en la calle</p>
                 <p className="text-5xl sm:text-6xl font-black mb-6 tracking-tighter">${metricas.deudaTotal.toLocaleString('es-CO')}</p>
                 <div className="flex gap-2 flex-wrap">
                   <div className="inline-flex items-center gap-2 bg-white/10 backdrop-blur-md px-4 py-2 rounded-2xl border border-white/5">
-                    <UserCog size={16} />
-                    <p className="font-medium text-sm">Con saldo: <span className="font-bold text-white">{metricas.clientesConCredito}</span></p>
+                    <UserCog size={16} /> <p className="font-medium text-sm">Con saldo: <span className="font-bold text-white">{metricas.clientesConCredito}</span></p>
                   </div>
                   <div className="inline-flex items-center gap-2 bg-white/10 backdrop-blur-md px-4 py-2 rounded-2xl border border-white/5">
-                    <Users size={16} />
-                    <p className="font-medium text-sm">Total: <span className="font-bold text-white">{metricas.totalClientes} clientes</span></p>
+                    <Users size={16} /> <p className="font-medium text-sm">Total: <span className="font-bold text-white">{metricas.totalClientes} clientes</span></p>
                   </div>
                 </div>
               </div>
@@ -437,29 +482,17 @@ export default function Home() {
               <div className="bg-white dark:bg-slate-900 p-6 rounded-[2rem] shadow-sm border border-slate-100 dark:border-slate-800">
                 <div className="flex justify-between items-center mb-6">
                   <h3 className="font-black text-lg text-slate-800 dark:text-slate-100">Desempeño Mensual</h3>
-                  <select 
-                    value={mesSeleccionado} 
-                    onChange={(e) => setMesSeleccionado(Number(e.target.value))}
-                    className="bg-slate-50 dark:bg-slate-800 text-slate-800 dark:text-white font-bold p-2 px-3 rounded-xl outline-none border border-slate-200 dark:border-slate-700 text-sm"
-                  >
-                    {nombresMeses.map((mes, index) => (
-                      <option key={index} value={index}>{mes}</option>
-                    ))}
+                  <select value={mesSeleccionado} onChange={(e) => setMesSeleccionado(Number(e.target.value))} className="bg-slate-50 dark:bg-slate-800 text-slate-800 dark:text-white font-bold p-2 px-3 rounded-xl outline-none border border-slate-200 dark:border-slate-700 text-sm">
+                    {nombresMeses.map((mes, index) => ( <option key={index} value={index}>{mes}</option> ))}
                   </select>
                 </div>
                 <div className="flex flex-col gap-3">
                   <div className="flex justify-between items-center p-4 bg-emerald-50 dark:bg-emerald-950/30 rounded-2xl border border-emerald-100 dark:border-emerald-900/50">
-                    <div className="flex items-center gap-3">
-                      <ArrowDownRight className="text-emerald-500" size={24} />
-                      <p className="text-sm font-bold text-emerald-700 dark:text-emerald-400">Total Abonos</p>
-                    </div>
+                    <div className="flex items-center gap-3"><ArrowDownRight className="text-emerald-500" size={24} /><p className="text-sm font-bold text-emerald-700 dark:text-emerald-400">Total Abonos</p></div>
                     <p className="font-black text-xl text-emerald-600 dark:text-emerald-500">${metricas.abonosMes.toLocaleString('es-CO')}</p>
                   </div>
                   <div className="flex justify-between items-center p-4 bg-rose-50 dark:bg-rose-950/30 rounded-2xl border border-rose-100 dark:border-rose-900/50">
-                    <div className="flex items-center gap-3">
-                      <ArrowUpRight className="text-rose-500" size={24} />
-                      <p className="text-sm font-bold text-rose-700 dark:text-rose-400">Total Fiado</p>
-                    </div>
+                    <div className="flex items-center gap-3"><ArrowUpRight className="text-rose-500" size={24} /><p className="text-sm font-bold text-rose-700 dark:text-rose-400">Total Fiado</p></div>
                     <p className="font-black text-xl text-rose-600 dark:text-rose-500">${metricas.fiadosMes.toLocaleString('es-CO')}</p>
                   </div>
                 </div>
@@ -467,19 +500,15 @@ export default function Home() {
             </div>
           )}
 
-          {/* VISTA 3: HISTORIAL DE MOVIMIENTOS GLOBALES INTELIGENTE */}
+          {/* VISTA 3: HISTORIAL INTELIGENTE */}
           {vistaActiva === 'historial' && (
             <div className="flex flex-col animate-in fade-in slide-in-from-bottom-4 duration-500 bg-white dark:bg-slate-900 rounded-[2rem] shadow-sm border border-slate-100 dark:border-slate-800 overflow-hidden min-h-[70vh]">
               <div className="bg-slate-50 dark:bg-slate-800/50 p-5 border-b border-slate-100 dark:border-slate-800 flex flex-col gap-4 sticky top-0 z-10">
-                
-                {/* Buscador de Historial */}
                 <div className="relative">
                   <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
                   <input type="text" value={busquedaHistorial} onChange={(e) => setBusquedaHistorial(e.target.value)} placeholder="Buscar nombre en historial..." 
                     className="w-full p-3.5 pl-11 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl outline-none focus:border-indigo-500 text-sm transition-all shadow-sm" />
                 </div>
-
-                {/* Filtros de Tiempo (Pills) */}
                 <div className="flex bg-slate-200/50 dark:bg-slate-900/50 p-1 rounded-xl">
                   {['hoy', 'semana', 'mes', 'todos'].map((filtro) => (
                     <button key={filtro} onClick={() => setFiltroTiempoHistorial(filtro as any)}
@@ -489,7 +518,6 @@ export default function Home() {
                   ))}
                 </div>
               </div>
-
               <div className="p-2 overflow-y-auto">
                 {historialFiltrado.map((mov) => (
                   <div key={mov.id} onClick={() => abrirPerfilDesdePanel(mov.clienteId)} className="p-4 mx-2 my-2 rounded-2xl flex justify-between items-center bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 shadow-sm cursor-pointer hover:border-indigo-300 dark:hover:border-indigo-500 hover:shadow-md transition-all">
@@ -518,7 +546,7 @@ export default function Home() {
             </div>
           )}
 
-          {/* VISTA 4: PERFIL DE USUARIO */}
+          {/* VISTA 4: PERFIL */}
           {vistaActiva === 'perfil' && (
             <div className="flex flex-col gap-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
               <div className="bg-white dark:bg-slate-900 p-8 rounded-[2rem] shadow-sm border border-slate-100 dark:border-slate-800 text-center relative">
@@ -528,13 +556,11 @@ export default function Home() {
                 <h2 className="text-2xl font-black text-slate-900 dark:text-white">{nombreNegocio}</h2>
                 <p className="text-slate-500 dark:text-slate-400 font-medium">{usuario?.email}</p>
               </div>
-
               {mensajePerfil.texto && (
                 <div className={`p-4 rounded-2xl text-sm font-bold text-center flex items-center justify-center gap-2 ${mensajePerfil.tipo === 'exito' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-300' : 'bg-rose-100 text-rose-700 dark:bg-rose-900/50 dark:text-rose-300'}`}>
                   {mensajePerfil.tipo === 'exito' && <CheckCircle2 size={18} />} {mensajePerfil.texto}
                 </div>
               )}
-
               <div className="bg-white dark:bg-slate-900 p-6 sm:p-8 rounded-[2rem] shadow-sm border border-slate-100 dark:border-slate-800">
                 <h3 className="font-black text-lg text-slate-800 dark:text-slate-100 mb-6 border-b border-slate-100 dark:border-slate-800 pb-4 flex items-center gap-2"><UserCog size={20}/> Información del Negocio</h3>
                 <div className="flex flex-col gap-4">
@@ -549,7 +575,6 @@ export default function Home() {
                   <button onClick={guardarDatosPerfil} className="mt-2 w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-4 rounded-2xl shadow-md transition-transform transform active:scale-95">Guardar Cambios</button>
                 </div>
               </div>
-
               <div className="bg-white dark:bg-slate-900 p-6 sm:p-8 rounded-[2rem] shadow-sm border border-slate-100 dark:border-slate-800">
                 <h3 className="font-black text-lg text-slate-800 dark:text-slate-100 mb-6 border-b border-slate-100 dark:border-slate-800 pb-4 flex items-center gap-2"><Clock size={20}/> Seguridad</h3>
                 <div className="flex flex-col gap-4">
@@ -560,7 +585,6 @@ export default function Home() {
                   <button onClick={cambiarPassword} className="mt-2 w-full bg-slate-800 dark:bg-slate-800 hover:bg-black dark:hover:bg-slate-700 text-white font-bold py-4 rounded-2xl transition-colors">Actualizar Contraseña</button>
                 </div>
               </div>
-
               <button onClick={() => signOut(auth)} className="w-full bg-rose-50 dark:bg-rose-950/30 text-rose-600 dark:text-rose-400 font-bold py-5 rounded-[2rem] border border-rose-200 dark:border-rose-900/50 hover:bg-rose-100 dark:hover:bg-rose-900/80 transition-colors mb-4 flex justify-center items-center gap-2">
                 <LogOut size={20} /> Cerrar Sesión
               </button>
@@ -568,24 +592,20 @@ export default function Home() {
           )}
         </div>
 
-        {/* BARRA DE NAVEGACIÓN INFERIOR (GLASSMORPHISM) */}
+        {/* NAVEGACIÓN INFERIOR */}
         <nav className="fixed bottom-0 left-0 right-0 bg-white/90 dark:bg-slate-900/90 backdrop-blur-xl border-t border-slate-200 dark:border-slate-800 shadow-[0_-10px_40px_rgba(0,0,0,0.05)] dark:shadow-[0_-10px_40px_rgba(0,0,0,0.2)] z-40 pb-safe transition-colors duration-500">
           <div className="max-w-4xl mx-auto flex px-2">
             <button onClick={() => setVistaActiva('principal')} className={`flex-1 py-4 flex flex-col items-center gap-1.5 transition-colors ${vistaActiva === 'principal' ? 'text-indigo-600 dark:text-indigo-400' : 'text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300'}`}>
-              <HomeIcon size={24} />
-              <span className="text-[10px] font-black uppercase tracking-widest mt-1">Inicio</span>
+              <HomeIcon size={24} /> <span className="text-[10px] font-black uppercase tracking-widest mt-1">Inicio</span>
             </button>
             <button onClick={() => setVistaActiva('estadisticas')} className={`flex-1 py-4 flex flex-col items-center gap-1.5 transition-colors ${vistaActiva === 'estadisticas' ? 'text-indigo-600 dark:text-indigo-400' : 'text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300'}`}>
-              <PieChart size={24} />
-              <span className="text-[10px] font-black uppercase tracking-widest mt-1">Reportes</span>
+              <PieChart size={24} /> <span className="text-[10px] font-black uppercase tracking-widest mt-1">Reportes</span>
             </button>
             <button onClick={() => setVistaActiva('historial')} className={`flex-1 py-4 flex flex-col items-center gap-1.5 transition-colors ${vistaActiva === 'historial' ? 'text-indigo-600 dark:text-indigo-400' : 'text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300'}`}>
-              <Clock size={24} />
-              <span className="text-[10px] font-black uppercase tracking-widest mt-1">Historial</span>
+              <Clock size={24} /> <span className="text-[10px] font-black uppercase tracking-widest mt-1">Historial</span>
             </button>
             <button onClick={() => setVistaActiva('perfil')} className={`flex-1 py-4 flex flex-col items-center gap-1.5 transition-colors ${vistaActiva === 'perfil' ? 'text-indigo-600 dark:text-indigo-400' : 'text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300'}`}>
-              <UserCog size={24} />
-              <span className="text-[10px] font-black uppercase tracking-widest mt-1">Perfil</span>
+              <UserCog size={24} /> <span className="text-[10px] font-black uppercase tracking-widest mt-1">Perfil</span>
             </button>
           </div>
         </nav>
@@ -600,10 +620,15 @@ export default function Home() {
               <h2 className="text-2xl font-black text-slate-900 dark:text-white mb-2">¡Registro Exitoso!</h2>
               <p className="text-slate-500 dark:text-slate-400 text-sm mb-8">Se guardó el {modalExito.accion} de <strong className="text-slate-800 dark:text-slate-200">${modalExito.montoTotal.toLocaleString('es-CO')}</strong> en la cuenta de {modalExito.cliente.nombre}.</p>
               
-              <a href={generarEnlaceWhatsApp('comprobante', modalExito.cliente, modalExito.accion, modalExito.detalles, modalExito.montoTotal) || "#"} target="_blank" onClick={() => setModalExito(null)} 
-                 className="block w-full bg-[#25D366] hover:bg-[#1ebd5a] text-white font-bold py-4 rounded-2xl shadow-lg transition-transform transform active:scale-95 mb-3 flex justify-center items-center gap-2">
-                <MessageCircle size={20} /> Enviar Comprobante
-              </a>
+              <div className="flex gap-2 mb-3">
+                <button onClick={() => abrirWhatsApp(generarTextoComprobante('comprobante', modalExito.cliente, modalExito.accion, modalExito.detalles, modalExito.montoTotal), modalExito.cliente.celular)} className="flex-1 bg-[#25D366] hover:bg-[#1ebd5a] text-white font-bold py-4 rounded-2xl shadow-lg transition-transform transform active:scale-95 flex justify-center items-center gap-2">
+                  <MessageCircle size={20} /> WhatsApp
+                </button>
+                <button onClick={() => compartirNativo(generarTextoComprobante('comprobante', modalExito.cliente, modalExito.accion, modalExito.detalles, modalExito.montoTotal))} className="bg-slate-800 dark:bg-slate-800 hover:bg-black text-white font-bold px-5 rounded-2xl shadow-lg transition-transform transform active:scale-95 flex justify-center items-center">
+                  <Share2 size={20} />
+                </button>
+              </div>
+              
               <button onClick={() => setModalExito(null)} className="w-full bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 font-bold py-4 rounded-2xl transition-colors">
                 Cerrar y continuar
               </button>
@@ -611,34 +636,49 @@ export default function Home() {
           </div>
         )}
 
-        {/* PERFIL DEL CLIENTE E HISTORIAL DESGLOSADO */}
+        {/* PERFIL DEL CLIENTE E HISTORIAL */}
         {clienteActivo && (
           <div className="fixed inset-0 bg-black/60 dark:bg-black/80 backdrop-blur-sm flex items-end sm:items-center justify-center sm:p-4 z-50 transition-opacity">
             <div className="bg-white dark:bg-slate-900 rounded-t-[2.5rem] sm:rounded-[2.5rem] w-full max-w-lg shadow-2xl relative flex flex-col max-h-[90vh] sm:max-h-[85vh] mb-[4.5rem] sm:mb-0 border border-slate-100 dark:border-slate-800">
-              {/* Header Sticky del Modal Cliente */}
-              <div className="p-5 pb-3 flex justify-between items-start sticky top-0 bg-white dark:bg-slate-900 rounded-t-[2.5rem] z-10 shrink-0">
-                <div>
-                  <h2 className="text-3xl font-black text-slate-900 dark:text-white tracking-tight">{clienteActivo.nombre}</h2>
-                  <p className="text-slate-500 dark:text-slate-400 font-medium">{clienteActivo.celular}</p>
+              
+              {/* Header Sticky */}
+              <div className="p-5 pb-3 flex justify-between items-center sticky top-0 bg-white dark:bg-slate-900 rounded-t-[2.5rem] z-10 shrink-0">
+                <div className="flex gap-2">
+                  <button onClick={() => { setModoEdicionCliente(!modoEdicionCliente); setEditNombreCliente(clienteActivo.nombre); setEditCelularCliente(clienteActivo.celular || ""); }} className="bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 rounded-full p-3 font-bold hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"><Edit2 size={20}/></button>
+                  <button onClick={eliminarCliente} className="bg-rose-50 dark:bg-rose-900/30 text-rose-500 dark:text-rose-400 rounded-full p-3 font-bold hover:bg-rose-100 dark:hover:bg-rose-900/50 transition-colors"><Trash2 size={20}/></button>
                 </div>
                 <button onClick={() => setClienteActivo(null)} className="bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 rounded-full p-3 font-bold hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"><X size={20}/></button>
               </div>
               
-              <div className="p-6 pt-2 text-center shrink-0">
-                <p className="text-slate-400 dark:text-slate-500 font-bold mb-2 tracking-widest text-xs uppercase">
-                  {clienteActivo.deudaTotal === 0 ? 'CUENTA AL DÍA' : ((clienteActivo.deudaTotal || 0) < 0 ? 'SALDO A FAVOR' : 'SALDO PENDIENTE')}
-                </p>
-                <p className={`text-6xl font-black tracking-tighter ${clienteActivo.deudaTotal === 0 ? 'text-slate-300 dark:text-slate-700' : ((clienteActivo.deudaTotal || 0) < 0 ? 'text-emerald-500' : 'text-slate-800 dark:text-white')}`}>
-                  ${Math.abs(clienteActivo.deudaTotal || 0).toLocaleString('es-CO')}
-                </p>
+              <div className="p-6 pt-0 text-center shrink-0">
+                {modoEdicionCliente ? (
+                  <div className="bg-slate-50 dark:bg-slate-950 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 mb-4 animate-in fade-in zoom-in-95 duration-200">
+                    <input type="text" value={editNombreCliente} onChange={(e) => setEditNombreCliente(e.target.value)} placeholder="Nombre del cliente" className="w-full p-3 mb-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl outline-none text-sm font-bold dark:text-white" />
+                    <input type="tel" value={editCelularCliente} onChange={(e) => setEditCelularCliente(e.target.value)} placeholder="Celular (opcional)" className="w-full p-3 mb-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl outline-none text-sm font-bold dark:text-white" />
+                    <button onClick={actualizarCliente} className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 rounded-xl transition-colors">Guardar Cambios</button>
+                  </div>
+                ) : (
+                  <div>
+                    <h2 className="text-3xl font-black text-slate-900 dark:text-white tracking-tight">{clienteActivo.nombre}</h2>
+                    {clienteActivo.celular ? <p className="text-slate-500 dark:text-slate-400 font-medium mb-4">{clienteActivo.celular}</p> : <p className="text-amber-500 dark:text-amber-400 text-xs font-bold mb-4 flex items-center justify-center gap-1"><AlertCircle size={14}/> Sin WhatsApp</p>}
+                    <p className="text-slate-400 dark:text-slate-500 font-bold mb-2 tracking-widest text-xs uppercase">{clienteActivo.deudaTotal === 0 ? 'CUENTA AL DÍA' : ((clienteActivo.deudaTotal || 0) < 0 ? 'SALDO A FAVOR' : 'SALDO PENDIENTE')}</p>
+                    <p className={`text-6xl font-black tracking-tighter ${clienteActivo.deudaTotal === 0 ? 'text-slate-300 dark:text-slate-700' : ((clienteActivo.deudaTotal || 0) < 0 ? 'text-emerald-500' : 'text-slate-800 dark:text-white')}`}>${Math.abs(clienteActivo.deudaTotal || 0).toLocaleString('es-CO')}</p>
+                  </div>
+                )}
                 
                 <div className="grid grid-cols-2 gap-3 mt-6">
-                  <button onClick={() => { setAccionRegistro('fiado'); setClienteTransaccion(clienteActivo); setPasoRegistro(2); setFilasRegistro([{ descripcion: "", valor: "" }]); setModalRegistro(true); }} className="bg-rose-50 dark:bg-rose-950/30 text-rose-700 dark:text-rose-400 hover:bg-rose-100 dark:hover:bg-rose-900/50 font-bold py-4 rounded-2xl border border-rose-200 dark:border-rose-900/50 transition-colors flex justify-center items-center gap-2 shadow-sm"><ShoppingBag size={18}/> Fiar Aquí</button>
-                  <button onClick={() => { setAccionRegistro('abono'); setClienteTransaccion(clienteActivo); setPasoRegistro(2); setFilasRegistro([{ descripcion: "", valor: "" }]); setModalRegistro(true); }} className="bg-emerald-50 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-100 dark:hover:bg-emerald-900/50 font-bold py-4 rounded-2xl border border-emerald-200 dark:border-emerald-900/50 transition-colors flex justify-center items-center gap-2 shadow-sm"><Banknote size={18}/> Abonar Aquí</button>
+                  <button onClick={() => { setAccionRegistro('fiado'); setClienteTransaccion(clienteActivo); setPasoRegistro(2); setFilasRegistro([{ descripcion: "", valor: "" }]); setModalRegistro(true); }} className="bg-rose-50 dark:bg-rose-950/30 text-rose-700 dark:text-rose-400 hover:bg-rose-100 dark:hover:bg-rose-900/50 font-bold py-4 rounded-2xl border border-rose-200 dark:border-rose-900/50 transition-colors flex justify-center items-center gap-2 shadow-sm"><ShoppingBag size={18}/> Fiar</button>
+                  <button onClick={() => { setAccionRegistro('abono'); setClienteTransaccion(clienteActivo); setPasoRegistro(2); setFilasRegistro([{ descripcion: "", valor: "" }]); setModalRegistro(true); }} className="bg-emerald-50 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-100 dark:hover:bg-emerald-900/50 font-bold py-4 rounded-2xl border border-emerald-200 dark:border-emerald-900/50 transition-colors flex justify-center items-center gap-2 shadow-sm"><Banknote size={18}/> Abonar</button>
                 </div>
-                <a href={generarEnlaceWhatsApp('estado', clienteActivo) || "#"} target="_blank" className="mt-3 w-full bg-slate-900 dark:bg-slate-800 hover:bg-black dark:hover:bg-slate-700 text-white font-bold py-4 rounded-2xl transition-colors shadow-md border border-transparent dark:border-slate-700 flex justify-center items-center gap-2">
-                  <MessageCircle size={20} /> Enviar Estado de Cuenta
-                </a>
+                
+                <div className="flex gap-2 mt-3">
+                  <button onClick={() => abrirWhatsApp(generarTextoComprobante('estado', clienteActivo), clienteActivo.celular)} className="flex-1 bg-slate-900 dark:bg-slate-800 hover:bg-black dark:hover:bg-slate-700 text-white font-bold py-4 rounded-2xl transition-colors shadow-md border border-transparent dark:border-slate-700 flex justify-center items-center gap-2">
+                    <MessageCircle size={20} /> Estado de Cuenta
+                  </button>
+                  <button onClick={() => compartirNativo(generarTextoComprobante('estado', clienteActivo))} className="bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 text-slate-800 dark:text-white font-bold px-5 rounded-2xl transition-colors shadow-md flex justify-center items-center">
+                    <Share2 size={20} />
+                  </button>
+                </div>
               </div>
               
               <div className="bg-slate-50 dark:bg-slate-950 p-6 flex-1 overflow-y-auto rounded-b-[2.5rem] border-t border-slate-100 dark:border-slate-800">
@@ -653,28 +693,19 @@ export default function Home() {
                             <div className="flex flex-col gap-2.5">
                               {mov.detalles.map((d: any, idx: number) => (
                                 <div key={idx} className="flex justify-between items-center">
-                                  <p className="font-medium text-slate-700 dark:text-slate-300 text-sm flex items-center gap-2">
-                                    <span className="w-1.5 h-1.5 rounded-full bg-slate-300 dark:bg-slate-600"></span>
-                                    {d.descripcion}
-                                  </p>
-                                  <p className="font-bold text-sm text-slate-600 dark:text-slate-400">
-                                    ${d.valor.toLocaleString('es-CO')}
-                                  </p>
+                                  <p className="font-medium text-slate-700 dark:text-slate-300 text-sm flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full bg-slate-300 dark:bg-slate-600"></span>{d.descripcion}</p>
+                                  <p className="font-bold text-sm text-slate-600 dark:text-slate-400">${d.valor.toLocaleString('es-CO')}</p>
                                 </div>
                               ))}
                               <div className="flex justify-between items-center mt-3 pt-3 border-t-2 border-dashed border-slate-200 dark:border-slate-700">
                                 <p className="text-sm font-black uppercase tracking-widest text-slate-800 dark:text-slate-200">Total {mov.tipo}</p>
-                                <p className={`font-black text-2xl ${mov.tipo === 'fiado' ? 'text-rose-500' : 'text-emerald-500'}`}>
-                                  {mov.tipo === 'fiado' ? '-' : '+'}${mov.monto.toLocaleString('es-CO')}
-                                </p>
+                                <p className={`font-black text-2xl ${mov.tipo === 'fiado' ? 'text-rose-500' : 'text-emerald-500'}`}>{mov.tipo === 'fiado' ? '-' : '+'}${mov.monto.toLocaleString('es-CO')}</p>
                               </div>
                             </div>
                           ) : (
                             <div className="flex justify-between items-center mb-1">
                               <p className="font-bold text-slate-800 dark:text-slate-200">{mov.descripcion}</p>
-                              <p className={`font-black text-2xl ${mov.tipo === 'fiado' ? 'text-rose-500' : 'text-emerald-500'}`}>
-                                {mov.tipo === 'fiado' ? '-' : '+'}${mov.monto.toLocaleString('es-CO')}
-                              </p>
+                              <p className={`font-black text-2xl ${mov.tipo === 'fiado' ? 'text-rose-500' : 'text-emerald-500'}`}>{mov.tipo === 'fiado' ? '-' : '+'}${mov.monto.toLocaleString('es-CO')}</p>
                             </div>
                           )}
                           <div className="flex justify-between items-center mt-4 pt-3 border-t border-slate-50 dark:border-slate-800/50">
@@ -720,7 +751,7 @@ export default function Home() {
                           <span className="font-bold text-slate-800 dark:text-slate-200 flex items-center gap-2"><ChevronRight size={16} className="text-slate-300"/> {c.nombre}</span>
                         </div>
                       ))}
-                      {clientesFiltrados.length === 0 && <button onClick={() => setModalNuevoCliente(true)} className="w-full bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-bold py-4 rounded-2xl hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors flex justify-center items-center gap-2"><UserCog size={18}/> Crear Cliente Nuevo</button>}
+                      {clientesFiltrados.length === 0 && <button onClick={() => { setNombreNuevo(busqueda); setModalNuevoCliente(true); setBusqueda(""); }} className="w-full bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-bold py-4 rounded-2xl hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors flex justify-center items-center gap-2"><UserCog size={18}/> Crear "{busqueda}" como nuevo</button>}
                     </div>
                   </div>
                 )}
@@ -798,10 +829,12 @@ export default function Home() {
         {modalNuevoCliente && (
           <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 z-[90]">
             <div className="bg-white dark:bg-slate-900 p-8 rounded-[2.5rem] w-full max-w-md shadow-2xl border border-slate-100 dark:border-slate-800 animate-in zoom-in-95 duration-200">
-              <h3 className="text-2xl font-black text-slate-900 dark:text-white mb-6 flex items-center gap-2"><UserCog size={24}/> Registrar Cliente</h3>
+              <h3 className="text-2xl font-black text-slate-900 dark:text-white mb-2 flex items-center gap-2"><UserCog size={24}/> Registrar Cliente</h3>
+              <p className="text-xs text-slate-500 dark:text-slate-400 mb-6 font-medium bg-slate-50 dark:bg-slate-950 p-3 rounded-xl border border-slate-100 dark:border-slate-800">💡 Tip: Si no pones número, podrás usar el botón de <Share2 size={12} className="inline"/> Compartir.</p>
+              
               <div className="flex flex-col gap-4 mb-8">
-                <input type="text" value={nombreNuevo} onChange={(e) => setNombreNuevo(e.target.value)} placeholder="Nombre completo" className="p-4 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-2xl outline-none focus:border-indigo-500 dark:focus:border-indigo-500 dark:text-white transition-all" />
-                <input type="tel" value={celularNuevo} onChange={(e) => setCelularNuevo(e.target.value)} placeholder="Celular (para WhatsApp)" className="p-4 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-2xl outline-none focus:border-indigo-500 dark:focus:border-indigo-500 dark:text-white transition-all" />
+                <input type="text" value={nombreNuevo} onChange={(e) => setNombreNuevo(e.target.value)} placeholder="Nombre completo" className="p-4 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-2xl outline-none focus:border-indigo-500 dark:focus:border-indigo-500 dark:text-white transition-all font-bold" />
+                <input type="tel" value={celularNuevo} onChange={(e) => setCelularNuevo(e.target.value)} placeholder="Celular (Opcional)" className="p-4 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-2xl outline-none focus:border-indigo-500 dark:focus:border-indigo-500 dark:text-white transition-all font-bold" />
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <button onClick={() => setModalNuevoCliente(false)} className="bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold py-4 rounded-2xl transition-colors">Cancelar</button>
