@@ -1,1 +1,8 @@
 @import "tailwindcss";
+
+/* Esta línea mágica activa el botón de la luna y el sol en la nueva versión */
+@custom-variant dark (&:is(.dark *));
+
+:root {
+  color-scheme: light dark;
+}
