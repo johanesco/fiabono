@@ -1,10 +1,10 @@
 "use client";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { 
   collection, addDoc, getDocs, query, doc, updateDoc, where, setDoc, getDoc, deleteDoc 
 } from "firebase/firestore";
 import { 
-  signInWithEmailAndPassword, createUserWithEmailAndPassword, onAuthStateChanged, signOut, updatePassword, EmailAuthProvider, reauthenticateWithCredential
+  signInWithEmailAndPassword, createUserWithEmailAndPassword, onAuthStateChanged, signOut, updatePassword, EmailAuthProvider, reauthenticateWithCredential, updateEmail
 } from "firebase/auth";
 import { db, auth } from "../firebase";
 import { 
@@ -26,7 +26,7 @@ export default function Home() {
   const [password, setPassword] = useState("");
   const [inputNegocio, setInputNegocio] = useState("");
   
-  // Seguridad y Contraseña Mejorada
+  // Seguridad y Contraseña
   const [modoEdicionPerfil, setModoEdicionPerfil] = useState(false);
   const [cambiandoPass, setCambiandoPass] = useState(false);
   const [passwordData, setPasswordData] = useState({ actual: "", nueva: "", confirmar: "" });
@@ -75,6 +75,18 @@ export default function Home() {
   const [passSeguridad, setPassSeguridad] = useState("");
   const [errorSeguridad, setErrorSeguridad] = useState("");
   const [cargandoSeguridad, setCargandoSeguridad] = useState(false);
+
+  // --- AUTO-SCROLL REF ---
+  const finalListaRef = useRef<HTMLDivElement>(null);
+
+  // Efecto para auto-scroll cuando se añaden filas
+  useEffect(() => {
+    if (modalRegistro && pasoRegistro === 2 && finalListaRef.current) {
+      setTimeout(() => {
+        finalListaRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }, 100);
+    }
+  }, [filasRegistro.length, pasoRegistro, modalRegistro]);
 
   // --- TEMA (LIGHT/DARK/AUTO) ---
   useEffect(() => {
@@ -139,18 +151,21 @@ export default function Home() {
       const qC = query(collection(db, "clientes"), where("usuarioId", "==", uid));
       const snapC = await getDocs(qC);
       const listaC: any[] = [];
-      snapC.forEach((doc) => listaC.push({ id: doc.id, ...doc.data() }));
+      snapC.forEach((doc) => pushClienteSeguro(listaC, doc));
       listaC.sort((a, b) => a.nombre.localeCompare(b.nombre));
       setClientes(listaC);
 
       const qM = query(collection(db, "movimientos"), where("usuarioId", "==", uid));
       const snapM = await getDocs(qM);
       const listaM: any[] = [];
-      snapM.forEach((doc) => listaM.push({ id: doc.id, ...doc.data() }));
+      snapM.forEach((doc) => pushMovimientoSeguro(listaM, doc));
       listaM.sort((a, b) => b.fecha.toMillis() - a.fecha.toMillis());
       setTodosMovimientos(listaM);
     } catch (error) { console.error(error); }
   };
+
+  const pushClienteSeguro = (lista: any[], doc: any) => lista.push({ id: doc.id, ...doc.data() });
+  const pushMovimientoSeguro = (lista: any[], doc: any) => lista.push({ id: doc.id, ...doc.data() });
 
   const cargarMovimientosClienteDirecto = async (clienteId: string) => {
     const qM = query(collection(db, "movimientos"), where("clienteId", "==", clienteId));
@@ -182,7 +197,6 @@ export default function Home() {
   };
 
   const procesarCambioPassword = async () => {
-    // Resetear errores
     setPassErrores({ actual: "", nueva: "", confirmar: "", general: "" });
     setMensajePerfil({ texto: "", tipo: "" });
 
@@ -287,8 +301,10 @@ export default function Home() {
     } catch (error) { alert("Error al eliminar cliente."); }
   };
 
-  // --- LÓGICA DE REGISTRO (CON CANTIDADES) ---
-  const agregarFila = () => setFilasRegistro([...filasRegistro, { descripcion: "", valor: "", cantidad: 1 }]);
+  // --- LÓGICA DE REGISTRO (CON CANTIDADES Y SCROLL) ---
+  const agregarFila = () => {
+    setFilasRegistro([...filasRegistro, { descripcion: "", valor: "", cantidad: 1 }]);
+  };
   const actualizarFila = (index: number, campo: 'descripcion' | 'valor', valor: string) => {
     const nuevasFilas = [...filasRegistro]; nuevasFilas[index][campo] = valor as never; setFilasRegistro(nuevasFilas);
   };
@@ -359,7 +375,7 @@ export default function Home() {
     } catch (error) { alert("Error al procesar el registro."); }
   };
 
-  // --- TEXTOS WHATSAPP MEJORADOS CON PRECIO UNITARIO ---
+  // --- TEXTOS WHATSAPP ---
   const generarTextoComprobante = (tipo: 'estado' | 'comprobante', cliente: any, accion?: 'fiado' | 'abono' | null, detallesArray?: any[], totalMov?: number) => {
     let texto = "";
     const saldoFormat = `$${Math.abs(cliente.deudaTotal || 0).toLocaleString('es-CO')}`;
@@ -492,8 +508,8 @@ export default function Home() {
     <div className="min-h-screen w-full bg-slate-50 dark:bg-[#020617] text-slate-900 dark:text-slate-200 transition-colors duration-500">
       <main className="flex flex-col relative max-w-4xl mx-auto min-h-screen pb-28">
         
-        {/* HEADER SUPERIOR */}
-        <header className="bg-white/80 dark:bg-[#0f172a]/80 backdrop-blur-xl px-6 py-5 shadow-sm dark:shadow-none border-b border-slate-200/50 dark:border-slate-800/60 flex flex-col justify-center z-10 sticky top-0 transition-colors duration-500">
+        {/* HEADER SUPERIOR (Z-INDEX 50 SOLUCIONADO) */}
+        <header className="bg-white/80 dark:bg-[#0f172a]/80 backdrop-blur-xl px-6 py-5 shadow-sm dark:shadow-none border-b border-slate-200/50 dark:border-slate-800/60 flex flex-col justify-center z-50 sticky top-0 transition-colors duration-500">
           <h1 className="text-2xl sm:text-3xl font-black text-indigo-600 dark:text-indigo-400 tracking-tight mb-1">Fiabono.com</h1>
           {vistaActiva === 'principal' && ( <p className="text-slate-500 dark:text-slate-400 font-medium text-base">{obtenerSaludo()}, <span className="font-black text-slate-900 dark:text-white text-2xl ml-1">{nombreNegocio}</span></p> )}
           {vistaActiva === 'estadisticas' && <p className="text-slate-500 dark:text-slate-400 font-medium text-base">Reportes y Estadísticas</p>}
@@ -556,11 +572,10 @@ export default function Home() {
             </div>
           )}
 
-          {/* VISTA 2: ESTADÍSTICAS (REDISEÑO UI/UX ACCESIBLE) */}
+          {/* VISTA 2: ESTADÍSTICAS */}
           {vistaActiva === 'estadisticas' && (
             <div className="flex flex-col gap-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
               
-              {/* Tarjeta Principal */}
               <div className="bg-gradient-to-br from-indigo-900 via-slate-900 to-black rounded-[2.5rem] p-8 text-white shadow-2xl relative overflow-hidden border border-slate-800">
                 <div className="absolute -right-10 -top-10 opacity-20 blur-2xl w-64 h-64 bg-indigo-500 rounded-full pointer-events-none"></div>
                 <p className="text-indigo-200 font-bold uppercase tracking-wider text-xs mb-2 flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-indigo-400 animate-pulse"></span> Cartera Activa (En la calle)</p>
@@ -692,7 +707,7 @@ export default function Home() {
                       <div className={`w-10 h-10 shrink-0 rounded-full flex items-center justify-center ${mov.tipo === 'fiado' ? 'bg-rose-100 text-rose-600 dark:bg-rose-500/20 dark:text-rose-400' : 'bg-emerald-100 text-emerald-600 dark:bg-emerald-500/20 dark:text-emerald-400'}`}>
                         {mov.tipo === 'fiado' ? <ShoppingBag size={18} /> : <Banknote size={18} />}
                       </div>
-                      <div className="flex-1">
+                      <div className="flex-1 min-w-0">
                         <p className="font-bold text-sm text-slate-900 dark:text-slate-200 whitespace-normal break-words">{getNombreCliente(mov.clienteId)}</p>
                         <p className="text-[11px] text-slate-500 dark:text-slate-400 whitespace-normal break-words mt-0.5">{mov.descripcion}</p>
                         <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-1">{mov.fecha?.toDate().toLocaleString('es-CO', {day:'2-digit', month:'short', hour:'2-digit', minute:'2-digit'})}</p>
@@ -835,7 +850,7 @@ export default function Home() {
         </div>
 
         {/* NAVEGACIÓN INFERIOR */}
-        <nav className="fixed bottom-0 left-0 right-0 bg-white/90 dark:bg-[#0f172a]/90 backdrop-blur-xl border-t border-slate-200 dark:border-slate-800/60 shadow-[0_-10px_40px_rgba(0,0,0,0.05)] dark:shadow-[0_-10px_40px_rgba(0,0,0,0.5)] z-40 pb-safe transition-colors duration-500">
+        <nav className="fixed bottom-0 left-0 right-0 bg-white/90 dark:bg-[#0f172a]/90 backdrop-blur-xl border-t border-slate-200 dark:border-slate-800/60 shadow-[0_-10px_40px_rgba(0,0,0,0.05)] dark:shadow-[0_-10px_40px_rgba(0,0,0,0.5)] z-50 pb-safe transition-colors duration-500">
           <div className="max-w-4xl mx-auto flex px-2">
             <button onClick={() => setVistaActiva('principal')} className={`flex-1 py-4 flex flex-col items-center gap-1.5 transition-colors ${vistaActiva === 'principal' ? 'text-indigo-600 dark:text-indigo-400' : 'text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300'}`}>
               <HomeIcon size={24} /> <span className="text-[10px] font-black uppercase tracking-widest mt-1">Inicio</span>
@@ -862,10 +877,9 @@ export default function Home() {
               <h2 className="text-2xl font-black text-slate-900 dark:text-white mb-2">¡Registro Exitoso!</h2>
               <p className="text-slate-500 dark:text-slate-400 text-sm mb-8">Se guardó el {modalExito.accion} de <strong className="text-slate-800 dark:text-slate-200">${modalExito.montoTotal.toLocaleString('es-CO')}</strong> en la cuenta de {modalExito.cliente.nombre}.</p>
               
-              {/* Lógica Inteligente WhatsApp Modal Exito */}
               {modalExito.cliente.celular ? (
                 <button onClick={() => abrirWhatsApp(generarTextoComprobante('comprobante', modalExito.cliente, modalExito.accion, modalExito.detalles, modalExito.montoTotal), modalExito.cliente.celular)} className="w-full mb-3 bg-[#25D366] hover:bg-[#1ebd5a] text-white font-bold py-4 rounded-2xl shadow-lg transition-transform transform active:scale-95 flex justify-center items-center gap-2">
-                  <MessageCircle size={20} /> Enviar comprobante por WhatsApp
+                  <MessageCircle size={20} /> Enviar recibo por WhatsApp
                 </button>
               ) : (
                 <div className="bg-amber-50 dark:bg-amber-500/10 text-amber-600 dark:text-amber-400 p-4 rounded-2xl mb-4 flex flex-col items-center justify-center gap-2 border border-amber-100 dark:border-amber-500/20">
@@ -939,7 +953,6 @@ export default function Home() {
                   <button onClick={() => { setAccionRegistro('abono'); setClienteTransaccion(clienteActivo); setPasoRegistro(2); setFilasRegistro([{ descripcion: "", valor: "", cantidad: 1 }]); setModalRegistro(true); }} className="bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-100 dark:hover:bg-emerald-500/20 font-bold py-4 rounded-2xl border border-emerald-200 dark:border-emerald-500/20 transition-colors flex justify-center items-center gap-2 shadow-sm"><Banknote size={18}/> Abonar</button>
                 </div>
                 
-                {/* Lógica Inteligente WhatsApp Perfil */}
                 {!modoEdicionCliente && (
                   clienteActivo.celular ? (
                     <button onClick={() => abrirWhatsApp(generarTextoComprobante('estado', clienteActivo), clienteActivo.celular)} className="w-full bg-slate-900 dark:bg-[#020617] hover:bg-black dark:hover:bg-[#1e293b] text-white font-bold py-4 rounded-2xl transition-colors shadow-md border border-transparent dark:border-slate-800/80 flex justify-center items-center gap-2">
@@ -1050,27 +1063,34 @@ export default function Home() {
                         <span className="text-sm text-slate-500 dark:text-slate-400 shrink-0">Cliente:</span>
                         <span className="font-black text-slate-900 dark:text-white whitespace-normal break-words text-right ml-4">{clienteTransaccion.nombre}</span>
                       </div>
-                      <div className="flex flex-col gap-3">
+                      <div className="flex flex-col gap-3 pb-4">
                         {filasRegistro.map((fila, index) => (
                           <div key={index} className="flex flex-col gap-2 p-3 bg-slate-50 dark:bg-[#020617] rounded-2xl border border-slate-100 dark:border-slate-800/80 shadow-sm relative">
                             {filasRegistro.length > 1 && (
                               <button onClick={() => eliminarFila(index)} className="absolute -top-2 -right-2 bg-rose-100 dark:bg-rose-900/80 text-rose-500 dark:text-rose-300 rounded-full p-1 shadow-sm"><X size={16}/></button>
                             )}
                             <input type="text" value={fila.descripcion} onChange={(e) => actualizarFila(index, 'descripcion', e.target.value)} placeholder={accionRegistro === 'fiado' ? "Descripción del artículo" : "Descripción del abono"} className="w-full p-3 bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-700 rounded-xl outline-none focus:border-indigo-500 dark:focus:border-indigo-400 dark:text-white transition-all text-sm font-bold" />
-                            <div className="flex gap-2 items-center">
+                            <div className="flex gap-2 items-center w-full">
                               {accionRegistro === 'fiado' && (
                                 <div className="flex items-center bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-700 rounded-xl overflow-hidden shrink-0 h-[46px]">
-                                  <button onClick={() => actualizarCantidadFila(index, -1)} className="px-3 h-full hover:bg-slate-100 dark:hover:bg-[#1e293b] transition-colors text-slate-500"><Minus size={16}/></button>
-                                  <span className="w-8 text-center font-black text-slate-800 dark:text-white">{fila.cantidad}</span>
-                                  <button onClick={() => actualizarCantidadFila(index, 1)} className="px-3 h-full hover:bg-slate-100 dark:hover:bg-[#1e293b] transition-colors text-slate-500"><Plus size={16}/></button>
+                                  <button onClick={() => actualizarCantidadFila(index, -1)} className="px-2.5 sm:px-3 h-full hover:bg-slate-100 dark:hover:bg-[#1e293b] transition-colors text-slate-500"><Minus size={16}/></button>
+                                  <span className="w-6 sm:w-8 text-center font-black text-slate-800 dark:text-white text-sm">{fila.cantidad}</span>
+                                  <button onClick={() => actualizarCantidadFila(index, 1)} className="px-2.5 sm:px-3 h-full hover:bg-slate-100 dark:hover:bg-[#1e293b] transition-colors text-slate-500"><Plus size={16}/></button>
                                 </div>
                               )}
-                              {accionRegistro === 'fiado' && <span className="text-slate-400 font-bold shrink-0">x</span>}
-                              <input type="number" value={fila.valor} onChange={(e) => actualizarFila(index, 'valor', e.target.value)} placeholder={accionRegistro === 'fiado' ? "$ Valor Unitario" : "$ Valor del Abono"} className="flex-1 p-3 bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-700 rounded-xl outline-none focus:border-indigo-500 dark:focus:border-indigo-400 font-black text-slate-900 dark:text-white transition-all h-[46px]" />
+                              {accionRegistro === 'fiado' && <span className="text-slate-400 font-bold shrink-0 text-sm">x</span>}
+                              
+                              <div className="relative flex-1 min-w-0">
+                                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-sm">$</span>
+                                <input type="number" value={fila.valor} onChange={(e) => actualizarFila(index, 'valor', e.target.value)} placeholder={accionRegistro === 'fiado' ? "Unitario" : "Valor"} className="w-full pl-7 pr-3 py-3 bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-700 rounded-xl outline-none focus:border-indigo-500 dark:focus:border-indigo-400 font-black text-slate-900 dark:text-white transition-all h-[46px] min-w-0" />
+                              </div>
                             </div>
                           </div>
                         ))}
-                        <button onClick={agregarFila} className="mt-1 text-sm font-bold text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-500/10 hover:bg-indigo-100 dark:hover:bg-indigo-500/20 px-5 py-3 rounded-xl self-start transition-colors flex items-center gap-1 border dark:border-indigo-500/20"><Plus size={16}/> Añadir fila</button>
+                        
+                        <div ref={finalListaRef} className="h-1"></div>
+                        
+                        <button onClick={agregarFila} className="text-sm font-bold text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-500/10 hover:bg-indigo-100 dark:hover:bg-indigo-500/20 px-5 py-3 rounded-xl self-start transition-colors flex items-center gap-1 border dark:border-indigo-500/20"><Plus size={16}/> Añadir fila</button>
                       </div>
                     </div>
                     
@@ -1080,7 +1100,7 @@ export default function Home() {
                         <span className={`text-3xl font-black tracking-tight ${accionRegistro === 'fiado' ? 'text-rose-400' : 'text-emerald-400'}`}>${totalFilas.toLocaleString('es-CO')}</span>
                       </div>
                       <button onClick={procesarRegistro} className={`w-full text-white font-black text-xl py-4 rounded-2xl shadow-lg transition-transform transform active:scale-95 flex justify-center items-center gap-2 ${accionRegistro === 'fiado' ? 'bg-gradient-to-r from-rose-500 to-rose-600 dark:from-rose-600 dark:to-rose-800 hover:from-rose-600 hover:to-rose-700' : 'bg-gradient-to-r from-emerald-500 to-emerald-600 dark:from-emerald-600 dark:to-emerald-800 hover:from-emerald-600 hover:to-emerald-700'}`}>
-                        Confirmar Registro <CheckCircle2 size={24}/>
+                        {accionRegistro === 'fiado' ? 'Confirmar Fiado' : 'Confirmar Abono'} <CheckCircle2 size={24}/>
                       </button>
                     </div>
                   </>
@@ -1145,6 +1165,7 @@ export default function Home() {
           <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-start sm:items-center justify-center p-4 pt-10 sm:pt-4 z-[90]">
             <div className="bg-white dark:bg-[#0f172a] p-8 rounded-[2.5rem] w-full max-w-md shadow-2xl border border-slate-100 dark:border-slate-800/60 animate-in zoom-in-95 duration-200">
               <h3 className="text-2xl font-black text-slate-900 dark:text-white mb-6 flex items-center gap-2"><UserCog size={24}/> Registrar Cliente</h3>
+              
               <div className="flex flex-col gap-4 mb-8">
                 <input type="text" value={nombreNuevo} onChange={(e) => setNombreNuevo(e.target.value)} placeholder="Nombre completo" className="p-4 bg-slate-50 dark:bg-[#020617] border border-slate-200 dark:border-slate-800/80 rounded-2xl outline-none focus:border-indigo-500 dark:focus:border-indigo-400 dark:text-white transition-all font-bold" />
                 <input type="tel" value={celularNuevo} onChange={(e) => setCelularNuevo(e.target.value)} placeholder="WhatsApp (Opcional)" className="p-4 bg-slate-50 dark:bg-[#020617] border border-slate-200 dark:border-slate-800/80 rounded-2xl outline-none focus:border-indigo-500 dark:focus:border-indigo-400 dark:text-white transition-all font-bold" />
