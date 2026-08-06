@@ -176,7 +176,6 @@ export default function Home() {
       if (user) {
         const userDoc = await getDoc(doc(db, "usuarios", user.uid));
         
-        // CORTAFUEGOS: Si el documento no existe en la BD
         if (!userDoc.exists()) {
           await signOut(auth);
           setUsuarioAuth(null);
@@ -191,7 +190,6 @@ export default function Home() {
 
         const data = userDoc.data();
         
-        // CORTAFUEGOS PARA COLABORADORES DESACTIVADOS
         if (data.rol === 'cajero' && data.activo === false) {
           await signOut(auth);
           setUsuarioAuth(null);
@@ -267,20 +265,24 @@ export default function Home() {
   };
 
   const toggleEstadoColaborador = async (colaborador: any) => {
-    const nuevoEstado = !(colaborador.activo !== false); 
+    const estaActivo = colaborador.activo === true || colaborador.activo === undefined;
+    const nuevoEstado = !estaActivo;
     
     if (nuevoEstado === true && planActual === 'basico') {
-        const activos = colaboradoresRegistrados.filter(c => c.activo !== false).length;
+        const activos = colaboradoresRegistrados.filter(c => c.activo === true || c.activo === undefined).length;
         if (activos >= 1) {
             abrirUpsell("Límite de Colaboradores", "En el plan básico solo puedes tener 1 colaborador ACTIVO a la vez. Apaga al actual para encender a otro, o pásate a PRO.");
             return;
         }
     }
     
+    // Actualización optimista para evitar bugs de clicks rápidos
+    setColaboradoresRegistrados(prev => prev.map(c => c.id === colaborador.id ? { ...c, activo: nuevoEstado } : c));
+
     try {
       await updateDoc(doc(db, "usuarios", colaborador.id), { activo: nuevoEstado });
-      cargarListaColaboradores(usuarioAuth.uid);
     } catch (error) {
+      cargarListaColaboradores(usuarioAuth.uid);
       console.error("Error al cambiar estado");
     }
   };
@@ -329,7 +331,7 @@ export default function Home() {
           rol: "cajero",
           adminId: usuarioAuth.uid,
           permisos: formColaborador.permisos,
-          activo: true
+          activo: true 
         });
         await secondaryAuthObj.signOut();
         setModalAvisoColaborador({ visible: true, titulo: "¡Acceso Creado!", mensaje: `El colaborador fue creado exitosamente.\n\nUsuario para entrar: \n${correoGenerado}`, icono: 'exito' });
@@ -769,6 +771,7 @@ export default function Home() {
   const formatCorto = (d: Date) => d.toLocaleDateString('es-CO', { day: 'numeric', month: 'short' });
   const textoRangoSemana = `${formatCorto(inicioSemanaDate)} - ${formatCorto(finSemanaDate)}`;
 
+  // --- MATEMÁTICAS Y CONTEOS (REPORTES) ---
   const calcularMetricas = () => {
     let deudaTotal = 0, clientesConCredito = 0, totalClientes = clientes.length;
     clientes.forEach(c => { if ((c.deudaTotal || 0) > 0) { deudaTotal += c.deudaTotal; clientesConCredito++; } });
@@ -1233,7 +1236,7 @@ export default function Home() {
                                 <p className="font-bold text-slate-700 dark:text-slate-300 text-lg leading-none truncate">Total Abonos</p>
                               </div>
                             </div>
-                            <p className="text-sm font-bold text-emerald-600/80 dark:text-emerald-400/80 bg-emerald-100 dark:bg-emerald-500/20 px-2.5 py-1 rounded-lg shrink-0">{metricas.abonosHoyCount} pagos</p>
+                            <p className="text-sm font-bold text-emerald-600/80 dark:text-emerald-400/80 bg-emerald-100 dark:bg-emerald-500/20 px-2.5 py-1 rounded-lg shrink-0">{metricas.abonosHoyCount}</p>
                           </div>
                           <p className="font-black text-3xl sm:text-4xl text-emerald-600 dark:text-emerald-400 truncate mt-1">${metricas.abonosHoy.toLocaleString('es-CO')}</p>
                         </div>
@@ -1246,7 +1249,7 @@ export default function Home() {
                                 <p className="font-bold text-slate-700 dark:text-slate-300 text-lg leading-none truncate">Total Fiados</p>
                               </div>
                             </div>
-                            <p className="text-sm font-bold text-rose-600/80 dark:text-rose-400/80 bg-rose-100 dark:bg-rose-500/20 px-2.5 py-1 rounded-lg shrink-0">{metricas.fiadosHoyCount} entregas</p>
+                            <p className="text-sm font-bold text-rose-600/80 dark:text-rose-400/80 bg-rose-100 dark:bg-rose-500/20 px-2.5 py-1 rounded-lg shrink-0">{metricas.fiadosHoyCount}</p>
                           </div>
                           <p className="font-black text-3xl sm:text-4xl text-rose-600 dark:text-rose-400 truncate mt-1">${metricas.fiadosHoy.toLocaleString('es-CO')}</p>
                         </div>
@@ -1269,7 +1272,7 @@ export default function Home() {
                                 <p className="font-bold text-slate-700 dark:text-slate-300 text-lg leading-none truncate">Total Abonos</p>
                               </div>
                             </div>
-                            <p className="text-sm font-bold text-emerald-600/80 dark:text-emerald-400/80 bg-emerald-100 dark:bg-emerald-500/20 px-2.5 py-1 rounded-lg shrink-0">{metricas.abonosSemanaCount} pagos</p>
+                            <p className="text-sm font-bold text-emerald-600/80 dark:text-emerald-400/80 bg-emerald-100 dark:bg-emerald-500/20 px-2.5 py-1 rounded-lg shrink-0">{metricas.abonosSemanaCount}</p>
                           </div>
                           <p className="font-black text-3xl sm:text-4xl text-emerald-600 dark:text-emerald-400 truncate mt-1">${metricas.abonosSemana.toLocaleString('es-CO')}</p>
                         </div>
@@ -1282,7 +1285,7 @@ export default function Home() {
                                 <p className="font-bold text-slate-700 dark:text-slate-300 text-lg leading-none truncate">Total Fiados</p>
                               </div>
                             </div>
-                            <p className="text-sm font-bold text-rose-600/80 dark:text-rose-400/80 bg-rose-100 dark:bg-rose-500/20 px-2.5 py-1 rounded-lg shrink-0">{metricas.fiadosSemanaCount} entregas</p>
+                            <p className="text-sm font-bold text-rose-600/80 dark:text-rose-400/80 bg-rose-100 dark:bg-rose-500/20 px-2.5 py-1 rounded-lg shrink-0">{metricas.fiadosSemanaCount}</p>
                           </div>
                           <p className="font-black text-3xl sm:text-4xl text-rose-600 dark:text-rose-400 truncate mt-1">${metricas.fiadosSemana.toLocaleString('es-CO')}</p>
                         </div>
@@ -1307,7 +1310,7 @@ export default function Home() {
                                 <p className="font-bold text-slate-700 dark:text-slate-300 text-lg leading-none truncate">Total Abonos</p>
                               </div>
                             </div>
-                            <p className="text-sm font-bold text-emerald-600/80 dark:text-emerald-400/80 bg-emerald-100 dark:bg-emerald-500/20 px-2.5 py-1 rounded-lg shrink-0">{metricas.abonosMesCount} pagos</p>
+                            <p className="text-sm font-bold text-emerald-600/80 dark:text-emerald-400/80 bg-emerald-100 dark:bg-emerald-500/20 px-2.5 py-1 rounded-lg shrink-0">{metricas.abonosMesCount}</p>
                           </div>
                           <p className="font-black text-3xl sm:text-4xl text-emerald-600 dark:text-emerald-400 truncate mt-1">${metricas.abonosMes.toLocaleString('es-CO')}</p>
                         </div>
@@ -1320,7 +1323,7 @@ export default function Home() {
                                 <p className="font-bold text-slate-700 dark:text-slate-300 text-lg leading-none truncate">Total Fiados</p>
                               </div>
                             </div>
-                            <p className="text-sm font-bold text-rose-600/80 dark:text-rose-400/80 bg-rose-100 dark:bg-rose-500/20 px-2.5 py-1 rounded-lg shrink-0">{metricas.fiadosMesCount} entregas</p>
+                            <p className="text-sm font-bold text-rose-600/80 dark:text-rose-400/80 bg-rose-100 dark:bg-rose-500/20 px-2.5 py-1 rounded-lg shrink-0">{metricas.fiadosMesCount}</p>
                           </div>
                           <p className="font-black text-3xl sm:text-4xl text-rose-600 dark:text-rose-400 truncate mt-1">${metricas.fiadosMes.toLocaleString('es-CO')}</p>
                         </div>
@@ -1351,6 +1354,7 @@ export default function Home() {
             {vistaActiva === 'historial' && (
               <div className="flex flex-col animate-in fade-in slide-in-from-bottom-4 duration-500 bg-white dark:bg-[#0f172a] rounded-[2rem] shadow-sm border border-slate-100 dark:border-slate-800/60 overflow-hidden h-[75vh]">
                 <div className="bg-slate-50 dark:bg-[#0f172a] p-6 border-b border-slate-100 dark:border-slate-800/60 flex flex-col gap-5 sticky top-0 z-10 shrink-0">
+                  
                   <div className="relative">
                     <Search className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-400" size={24} />
                     <input type="text" value={busquedaHistorial} onChange={(e) => setBusquedaHistorial(e.target.value)} placeholder="Buscar nombre en historial..." 
