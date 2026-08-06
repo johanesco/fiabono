@@ -10,10 +10,10 @@ import { getApps, initializeApp } from "firebase/app";
 import { db, auth } from "../firebase";
 import { 
   Search, Home as HomeIcon, PieChart, Clock, UserCog, 
-  ShoppingBag, Banknote, Users, CheckCircle2, ChevronRight, 
+  ShoppingBag, Banknote, Users, CheckCircle2, ChevronRight, ChevronDown, ChevronUp, Info,
   X, MessageCircle, ArrowDownRight, ArrowUpRight, LogOut, CalendarDays,
   Trash2, Edit2, AlertCircle, Sun, Moon, Monitor, Plus, Minus, Filter, ShieldAlert, Mail,
-  Smartphone, Lock, Star, Sparkles, TimerReset, BookX, PenTool, Store, Wallet, Shirt, BarChart3, UserPlus, BadgeCheck, EyeOff
+  Lock, Star, Sparkles, TimerReset, BookX, PenTool, Store, Wallet, Shirt, BarChart3, UserPlus, BadgeCheck, EyeOff
 } from 'lucide-react';
 
 export default function Home() {
@@ -44,15 +44,19 @@ export default function Home() {
   const [passErrores, setPassErrores] = useState({ actual: "", nueva: "", confirmar: "", general: "" });
   const [mensajePerfil, setMensajePerfil] = useState({ texto: "", tipo: "" });
 
-  // Creación de Cajeros (Colaboradores)
+  // Creación y Edición de Cajeros
+  const [mostrarCajeros, setMostrarCajeros] = useState(false);
   const [modoCrearCajero, setModoCrearCajero] = useState(false);
+  const [cajeroEnEdicion, setCajeroEnEdicion] = useState<any | null>(null);
   const [formCajero, setFormCajero] = useState({ 
-    nombre: "", email: "", password: "",
+    nombre: "", usuarioAcceso: "", password: "", confirmPassword: "",
     permisos: { verCelulares: false, verDirectorio: false, verReportes: false }
   });
+  const [errorFormCajero, setErrorFormCajero] = useState({ usuarioAcceso: "", general: "" });
   const [cajerosRegistrados, setCajerosRegistrados] = useState<any[]>([]);
   const [creandoCajero, setCreandoCajero] = useState(false);
   const [cajeroAEliminar, setCajeroAEliminar] = useState<any | null>(null);
+  const [modalAvisoCajero, setModalAvisoCajero] = useState<{ visible: boolean, titulo: string, mensaje: string, icono: 'exito'|'error'|'info' }>({ visible: false, titulo: "", mensaje: "", icono: 'exito' });
 
   // Suscripción Inteligente (Upsell)
   const [modalSuscripcion, setModalSuscripcion] = useState({ visible: false, titulo: "", mensaje: "" });
@@ -63,7 +67,7 @@ export default function Home() {
   const [cargandoPromo, setCargandoPromo] = useState(false);
 
   // Apariencia
-  const [temaApariencia, setTemaApariencia] = useState<'clara' | 'oscura' | 'auto'>('auto');
+  const [temaApariencia, setTemaApariencia] = useState<'clara' | 'oscura' | 'auto'>('clara');
 
   // --- ARQUITECTURA APP ---
   const [vistaActiva, setVistaActiva] = useState<'principal' | 'estadisticas' | 'historial' | 'perfil'>('principal');
@@ -145,6 +149,7 @@ export default function Home() {
   useEffect(() => {
     const temaGuardado = localStorage.getItem('temaFiabono') as any;
     if (temaGuardado) setTemaApariencia(temaGuardado);
+    else setTemaApariencia('clara');
   }, []);
 
   useEffect(() => {
@@ -161,59 +166,67 @@ export default function Home() {
     aplicarTema();
   }, [temaApariencia]);
 
-  // --- INICIALIZACIÓN DE SESIÓN (ROLES INTELIGENTES) ---
+  // --- INICIALIZACIÓN DE SESIÓN (ROLES E INTEGRIDAD) ---
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       if (user) {
-        setUsuarioAuth(user);
         const userDoc = await getDoc(doc(db, "usuarios", user.uid));
         
-        if (userDoc.exists()) {
-          const data = userDoc.data();
-          setDatosUsuario(data);
-          
-          let idParaConsultar = user.uid; 
-          
-          if (data.rol === 'cajero') {
-            idParaConsultar = data.adminId; 
-            const adminDoc = await getDoc(doc(db, "usuarios", idParaConsultar));
-            if (adminDoc.exists()) {
-              const adminData = adminDoc.data();
-              setNombreNegocio(adminData.nombreNegocio);
-              setPlanActual(adminData.plan || 'basico');
-            }
-            setNombreUsuario(data.nombreUsuario);
-            setCorreoNegocio(user.email || "");
-          } else {
-            setNombreUsuario(data.nombreUsuario || "Usuario");
-            setNombreNegocio(data.nombreNegocio || "Mi Negocio");
-            setTelefonoNegocio(data.telefonoNegocio || "");
-            setCorreoNegocio(user.email || "");
-            
-            let miPlan = data.plan || "basico";
-            if (miPlan === 'pro' && data.planVence) {
-              const timeRemaining = data.planVence.toDate().getTime() - new Date().getTime();
-              const daysLeft = Math.ceil(timeRemaining / (1000 * 3600 * 24));
-              if (daysLeft <= 0) {
-                miPlan = 'basico'; setDiasPro(null);
-                await updateDoc(doc(db, "usuarios", user.uid), { plan: 'basico' });
-              } else {
-                setDiasPro(daysLeft);
-                if (daysLeft <= 5) setAvisoExpiracion(true); 
-              }
-            }
-            setPlanActual(miPlan);
-            cargarListaCajeros(user.uid);
-          }
-          
-          setCuentaPrincipalId(idParaConsultar);
-          await cargarDatosGlobales(idParaConsultar);
-          setVistaActiva('principal');
-
-        } else {
-          setNombreUsuario("Usuario");
-          setNombreNegocio("Mi Negocio");
+        // CORTAFUEGOS: Si el documento no existe (fue eliminado por el admin), cerramos sesión.
+        if (!userDoc.exists()) {
+          await signOut(auth);
+          setUsuarioAuth(null);
+          setDatosUsuario(null);
+          setClientes([]);
+          setTodosMovimientos([]);
+          setCargandoAuth(false);
+          setAuthErrores(p => ({...p, general: "Tu acceso ha sido revocado o eliminado por el administrador."}));
+          setModalLandingInfo({ visible: true, tipo: 'login' });
+          return;
         }
+
+        setUsuarioAuth(user);
+        const data = userDoc.data();
+        setDatosUsuario(data);
+        
+        let idParaConsultar = user.uid; 
+        
+        if (data.rol === 'cajero') {
+          idParaConsultar = data.adminId; 
+          const adminDoc = await getDoc(doc(db, "usuarios", idParaConsultar));
+          if (adminDoc.exists()) {
+            const adminData = adminDoc.data();
+            setNombreNegocio(adminData.nombreNegocio);
+            setPlanActual(adminData.plan || 'basico');
+          }
+          setNombreUsuario(data.nombreUsuario);
+          setCorreoNegocio(user.email || "");
+        } else {
+          setNombreUsuario(data.nombreUsuario || "Usuario");
+          setNombreNegocio(data.nombreNegocio || "Mi Negocio");
+          setTelefonoNegocio(data.telefonoNegocio || "");
+          setCorreoNegocio(user.email || "");
+          
+          let miPlan = data.plan || "basico";
+          if (miPlan === 'pro' && data.planVence) {
+            const timeRemaining = data.planVence.toDate().getTime() - new Date().getTime();
+            const daysLeft = Math.ceil(timeRemaining / (1000 * 3600 * 24));
+            if (daysLeft <= 0) {
+              miPlan = 'basico'; setDiasPro(null);
+              await updateDoc(doc(db, "usuarios", user.uid), { plan: 'basico' });
+            } else {
+              setDiasPro(daysLeft);
+              if (daysLeft <= 5) setAvisoExpiracion(true); 
+            }
+          }
+          setPlanActual(miPlan);
+          cargarListaCajeros(user.uid);
+        }
+        
+        setCuentaPrincipalId(idParaConsultar);
+        await cargarDatosGlobales(idParaConsultar);
+        setVistaActiva('principal');
+
       } else {
         setUsuarioAuth(null);
         setDatosUsuario(null);
@@ -235,53 +248,81 @@ export default function Home() {
     } catch(e) {}
   };
 
-  // --- CREAR Y ELIMINAR CAJERO ---
-  const registrarNuevoCajero = async () => {
-    if(!formCajero.nombre.trim() || !formCajero.email.trim() || !formCajero.password.trim()) {
-      return setMensajePerfil({texto: "Llena todos los campos del cajero.", tipo: "error"});
-    }
-    if(formCajero.password.length < 6) return setMensajePerfil({texto: "La contraseña debe tener 6 caracteres.", tipo: "error"});
+  // --- GUARDAR O EDITAR CAJERO ---
+  const guardarCajero = async () => {
+    setErrorFormCajero({ usuarioAcceso: "", general: "" });
+    if(!formCajero.nombre.trim()) return setErrorFormCajero(p => ({...p, general: "El nombre es obligatorio."}));
     
+    if (!cajeroEnEdicion) {
+      if(!formCajero.usuarioAcceso.trim() || !formCajero.password.trim() || !formCajero.confirmPassword.trim()) {
+        return setErrorFormCajero(p => ({...p, general: "Llena todos los campos."}));
+      }
+      if(formCajero.password.length < 6) return setErrorFormCajero(p => ({...p, general: "La contraseña debe tener mínimo 6 caracteres."}));
+      if(formCajero.password !== formCajero.confirmPassword) return setErrorFormCajero(p => ({...p, general: "Las contraseñas no coinciden."}));
+      
+      if (planActual === 'basico' && cajerosRegistrados.length >= 1) {
+        setModoCrearCajero(false);
+        abrirUpsell("Cajeros Ilimitados", "El plan básico te permite tener 1 cajero de prueba. Pásate a PRO para añadir cajeros ilimitados y controlar todos sus permisos.");
+        return;
+      }
+
+      if(planActual === 'pro' && cajerosRegistrados.length >= 4) {
+        return setModalAvisoCajero({ visible: true, titulo: "Límite Alcanzado", mensaje: "Tu plan PRO permite un máximo de 4 cajeros para tu negocio.", icono: 'error' });
+      }
+    }
+
     setCreandoCajero(true);
-    setMensajePerfil({texto: "", tipo: ""});
 
     try {
-      const secondaryApp = getApps().find(app => app.name === "SecondaryAuthApp") || initializeApp(auth.app.options, "SecondaryAuthApp");
-      const secondaryAuthObj = getAuth(secondaryApp);
-      
-      const cred = await createUserWithEmailAndPassword(secondaryAuthObj, formCajero.email.trim(), formCajero.password);
-      
-      await setDoc(doc(db, "usuarios", cred.user.uid), { 
-        nombreUsuario: formCajero.nombre.trim(),
-        email: formCajero.email.trim(),
-        rol: "cajero",
-        adminId: usuarioAuth.uid,
-        permisos: formCajero.permisos
-      });
+      if (cajeroEnEdicion) {
+        await updateDoc(doc(db, "usuarios", cajeroEnEdicion.id), {
+          nombreUsuario: formCajero.nombre.trim(),
+          permisos: formCajero.permisos
+        });
+        setModalAvisoCajero({ visible: true, titulo: "Cajero Actualizado", mensaje: `Los datos de ${formCajero.nombre} se han actualizado correctamente.`, icono: 'exito' });
+      } else {
+        const correoGenerado = `${formCajero.usuarioAcceso.replace(/\s/g, '').toLowerCase()}@fiabono.caja`;
+        const secondaryApp = getApps().find(app => app.name === "SecondaryAuthApp") || initializeApp(auth.app.options, "SecondaryAuthApp");
+        const secondaryAuthObj = getAuth(secondaryApp);
+        
+        const cred = await createUserWithEmailAndPassword(secondaryAuthObj, correoGenerado, formCajero.password);
+        
+        await setDoc(doc(db, "usuarios", cred.user.uid), { 
+          nombreUsuario: formCajero.nombre.trim(),
+          email: correoGenerado,
+          rol: "cajero",
+          adminId: usuarioAuth.uid,
+          permisos: formCajero.permisos
+        });
+        await secondaryAuthObj.signOut();
+        setModalAvisoCajero({ visible: true, titulo: "¡Acceso Creado!", mensaje: `El cajero fue creado exitosamente.\n\nUsuario para entrar: \n${correoGenerado}`, icono: 'exito' });
+      }
 
-      await secondaryAuthObj.signOut();
-
-      setMensajePerfil({ texto: `Cajero ${formCajero.nombre} creado con éxito.`, tipo: "exito" });
-      setFormCajero({ nombre:"", email:"", password:"", permisos: { verCelulares: false, verDirectorio: false, verReportes: false } });
+      setFormCajero({ nombre:"", usuarioAcceso:"", password:"", confirmPassword: "", permisos: { verCelulares: false, verDirectorio: false, verReportes: false } });
       setModoCrearCajero(false);
+      setCajeroEnEdicion(null);
       cargarListaCajeros(usuarioAuth.uid);
-      setTimeout(() => setMensajePerfil({texto: "", tipo:""}), 4000);
 
     } catch (error: any) {
       if (error.code === 'auth/email-already-in-use') {
-        setMensajePerfil({ texto: "Ese correo ya existe. Usa otro o agrega un número (Ej: caja1@minegocio.com)", tipo: "error" });
+        setErrorFormCajero(p => ({...p, usuarioAcceso: "Este usuario ya existe. Intenta agregarle un número (Ej: caja2)."}));
       } else {
-        setMensajePerfil({ texto: "Error al crear cajero. Intenta de nuevo.", tipo: "error" });
+        setErrorFormCajero(p => ({...p, general: "Ocurrió un error al guardar. Intenta de nuevo."}));
       }
     }
     setCreandoCajero(false);
   };
 
-  // --- VALIDACIÓN Y AUTH (LANDING PAGE) ---
+  // --- VALIDACIÓN Y AUTH (LOGIN/REGISTRO) ---
   const manejarAuth = async (e: React.FormEvent) => {
     e.preventDefault();
     setAuthErrores({ email: "", password: "", confirmPassword: "", general: "" });
     let hayError = false;
+
+    let loginEmail = authForm.email.trim();
+    if (modalLandingInfo.tipo === 'login' && loginEmail && !loginEmail.includes('@')) {
+      loginEmail = `${loginEmail.toLowerCase()}@fiabono.caja`;
+    }
 
     if (modalLandingInfo.tipo === 'registro') {
       if (!authForm.nombreUsuario.trim()) { setAuthErrores(p => ({...p, general: "Tu nombre es obligatorio"})); hayError = true; }
@@ -291,11 +332,11 @@ export default function Home() {
       if (hayError) return;
 
       try {
-        const credencial = await createUserWithEmailAndPassword(auth, authForm.email, authForm.password);
+        const credencial = await createUserWithEmailAndPassword(auth, loginEmail, authForm.password);
         await setDoc(doc(db, "usuarios", credencial.user.uid), { 
           nombreUsuario: authForm.nombreUsuario.trim(),
           nombreNegocio: authForm.negocio.trim(), 
-          email: authForm.email, 
+          email: loginEmail, 
           telefonoNegocio: "",
           rol: "admin",
           plan: "basico",
@@ -309,9 +350,9 @@ export default function Home() {
         else setAuthErrores(p => ({...p, general: "Ocurrió un error. Intenta de nuevo."}));
       }
     } else {
-      if (!authForm.email || !authForm.password) { setAuthErrores(p => ({...p, general: "Llena todos los campos"})); return; }
+      if (!loginEmail || !authForm.password) { setAuthErrores(p => ({...p, general: "Llena todos los campos"})); return; }
       try {
-        await signInWithEmailAndPassword(auth, authForm.email, authForm.password);
+        await signInWithEmailAndPassword(auth, loginEmail, authForm.password);
         setModalLandingInfo({ visible: false, tipo: null });
         setVistaActiva('principal');
       } catch (error: any) {
@@ -443,7 +484,7 @@ export default function Home() {
   };
 
   const verificarSeguridadYEjecutar = async () => {
-    if (!passSeguridad) return setErrorSeguridad("Ingresa tu contraseña para continuar.");
+    if (!passSeguridad) return setErrorSeguridad("Ingresa tu contraseña de Administrador para confirmar.");
     setCargandoSeguridad(true); setErrorSeguridad("");
 
     try {
@@ -465,8 +506,7 @@ export default function Home() {
         await deleteDoc(doc(db, "usuarios", cajeroAEliminar.id));
         setCajeroAEliminar(null);
         cargarListaCajeros(usuarioAuth.uid);
-        setMensajePerfil({ texto: "Cajero eliminado y revocado.", tipo: "exito" });
-        setTimeout(() => setMensajePerfil({texto: "", tipo:""}), 4000);
+        setModalAvisoCajero({ visible: true, titulo: "Cajero Eliminado", mensaje: "El acceso de este cajero ha sido revocado y su cuenta borrada permanentemente del sistema.", icono: 'info' });
       }
     } catch (error: any) {
       setCargandoSeguridad(false);
@@ -509,7 +549,7 @@ export default function Home() {
 
     if (planActual === 'basico' && movsHoy >= 10) {
       setModalRegistro(false);
-      abrirUpsell("Límite de Movimientos", "El límite de 10 apuntes diarios ha sido alcanzado. Dile al Administrador que active el plan PRO.");
+      abrirUpsell("Límite de Movimientos", "Has alcanzado tu límite de 10 apuntes diarios en el plan básico. Activa el plan PRO para registrar fiados y abonos ilimitados todo el día.");
       return;
     }
 
@@ -580,11 +620,27 @@ export default function Home() {
     } catch (error) { alert("Error al eliminar cliente."); }
   };
 
-  // --- HELPERS ---
-  const agregarFila = () => setFilasRegistro([...filasRegistro, { descripcion: "", valor: "", cantidad: 1 }]);
-  const actualizarFila = (index: number, campo: 'descripcion' | 'valor', valor: string) => {
-    const nuevasFilas = [...filasRegistro]; nuevasFilas[index][campo] = valor as never; setFilasRegistro(nuevasFilas);
+  // --- HELPERS PARA MONEDA (FORMATO EN VIVO) ---
+  const formatearMonedaInput = (valor: string) => {
+    if (!valor) return "";
+    const numeroStr = valor.replace(/\D/g, ''); 
+    if (!numeroStr) return "";
+    return parseInt(numeroStr, 10).toLocaleString('es-CO');
   };
+
+  const agregarFila = () => setFilasRegistro([...filasRegistro, { descripcion: "", valor: "", cantidad: 1 }]);
+  
+  const actualizarFila = (index: number, campo: 'descripcion' | 'valor', valorNuevo: string) => {
+    const nuevasFilas = [...filasRegistro]; 
+    if (campo === 'valor') {
+      const numeroLimpio = valorNuevo.replace(/\D/g, '');
+      nuevasFilas[index][campo] = numeroLimpio as never;
+    } else {
+      nuevasFilas[index][campo] = valorNuevo as never;
+    }
+    setFilasRegistro(nuevasFilas);
+  };
+
   const actualizarCantidadFila = (index: number, delta: number) => {
     const nuevasFilas = [...filasRegistro];
     const nuevaCant = nuevasFilas[index].cantidad + delta;
@@ -672,7 +728,6 @@ export default function Home() {
   const directorioFiltrado = clientes.filter(c => c.nombre?.toLowerCase().includes(busquedaDirectorio.toLowerCase()));
 
   const historialFiltrado = todosMovimientos.filter(mov => {
-    // Si no tiene permiso de ver reportes completos, forzamos a que solo vea lo de hoy
     const filtroForzado = (!puedeVerReportes || planActual === 'basico') ? 'hoy' : filtroTiempoHistorial;
 
     const cliente = clientes.find(c => c.id === mov.clienteId);
@@ -800,7 +855,7 @@ export default function Home() {
   };
 
   const totalFilasRegistro = filasRegistro.reduce((acc, fila) => { 
-    const val = parseFloat(fila.valor); 
+    const val = parseFloat(fila.valor || "0"); 
     const multiplicador = accionRegistro === 'fiado' ? fila.cantidad : 1;
     return acc + (isNaN(val) ? 0 : val * multiplicador); 
   }, 0);
@@ -815,7 +870,7 @@ export default function Home() {
     return (
       <div className="min-h-screen bg-slate-50 dark:bg-[#020617] text-slate-900 dark:text-slate-200 font-sans selection:bg-blue-500 selection:text-white transition-colors duration-500">
         
-        <header className="fixed top-0 left-0 right-0 bg-white/80 dark:bg-[#0f172a]/80 backdrop-blur-xl border-b border-slate-200/50 dark:border-slate-800/60 z-40 px-6 py-4 flex justify-between items-center transition-colors duration-500">
+        <header className="fixed top-0 left-0 right-0 bg-white/80 dark:bg-[#0f172a]/80 backdrop-blur-xl border-b border-slate-200/50 dark:border-slate-800/60 z-30 pt-[max(env(safe-area-inset-top),1rem)] pb-4 px-6 flex justify-between items-center transition-colors duration-500">
           <div className="flex items-center gap-2 cursor-pointer" onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}>
             <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center shadow-lg shadow-blue-600/30">
               <CheckCircle2 size={20} className="text-white"/>
@@ -983,7 +1038,7 @@ export default function Home() {
                 )}
                 
                 <div>
-                  <input type="email" placeholder="Correo electrónico" value={authForm.email} onChange={e => {setAuthForm({...authForm, email: e.target.value}); setAuthErrores({...authErrores, email: ""})}} className={`w-full p-5 bg-slate-50 dark:bg-[#020617] border ${authErrores.email ? 'border-rose-500' : 'border-slate-200 dark:border-slate-800/80'} rounded-2xl outline-none focus:border-blue-500 dark:focus:border-blue-400 dark:text-white transition-all font-bold text-lg`} />
+                  <input type="text" placeholder={modalLandingInfo.tipo === 'login' ? "Correo electrónico o Usuario" : "Correo electrónico"} value={authForm.email} onChange={e => {setAuthForm({...authForm, email: e.target.value}); setAuthErrores({...authErrores, email: ""})}} className={`w-full p-5 bg-slate-50 dark:bg-[#020617] border ${authErrores.email ? 'border-rose-500' : 'border-slate-200 dark:border-slate-800/80'} rounded-2xl outline-none focus:border-blue-500 dark:focus:border-blue-400 dark:text-white transition-all font-bold text-lg`} />
                   {authErrores.email && <p className="text-rose-500 text-sm font-bold mt-2 ml-2 flex items-center gap-1"><AlertCircle size={14}/>{authErrores.email}</p>}
                 </div>
 
@@ -1041,43 +1096,47 @@ export default function Home() {
           </div>
         )}
 
-        <header className="bg-white/80 dark:bg-[#0f172a]/80 backdrop-blur-xl px-6 py-5 shadow-sm dark:shadow-none border-b border-slate-200/50 dark:border-slate-800/60 flex flex-col justify-center z-[140] sticky top-0 transition-colors duration-500">
-          <div className="flex justify-between items-center">
+        <header className="fixed top-0 left-0 right-0 bg-white/80 dark:bg-[#0f172a]/80 backdrop-blur-xl border-b border-slate-200/50 dark:border-slate-800/60 z-30 pt-[max(env(safe-area-inset-top),1.5rem)] pb-4 px-6 flex flex-col justify-center transition-colors duration-500">
+          <div className="flex justify-between items-center max-w-4xl mx-auto w-full">
             <h1 className="text-2xl sm:text-3xl font-black text-blue-600 dark:text-blue-500 tracking-tight mb-1">Fiabono<span className="text-emerald-500">.com</span></h1>
             {planActual === 'pro' && <span className="bg-gradient-to-r from-emerald-500 to-blue-500 text-white text-[10px] font-black uppercase tracking-widest px-3 py-1 rounded-full shadow-sm">PRO</span>}
           </div>
           
-          {datosUsuario?.rol === 'cajero' ? (
-            <p className="text-slate-500 dark:text-slate-400 font-medium text-lg mt-1 flex items-center gap-2">
-              <BadgeCheck size={18} className="text-blue-500"/> Modo Caja • <span className="font-black text-slate-900 dark:text-white">{nombreUsuario.split(' ')[0]}</span>
-            </p>
-          ) : (
-            <>
-              {vistaActiva === 'principal' && ( <p className="text-slate-500 dark:text-slate-400 font-medium text-lg mt-1">{obtenerSaludo()}, <span className="font-black text-slate-900 dark:text-white text-xl ml-1">{nombreUsuario.split(' ')[0]} - {nombreNegocio}</span></p> )}
-              {vistaActiva === 'estadisticas' && <p className="text-slate-500 dark:text-slate-400 font-medium text-lg mt-1">Reportes y Estadísticas</p>}
-              {vistaActiva === 'historial' && <p className="text-slate-500 dark:text-slate-400 font-medium text-lg mt-1">Registro de Movimientos</p>}
-              {vistaActiva === 'perfil' && <p className="text-slate-500 dark:text-slate-400 font-medium text-lg mt-1">Configuración de cuenta</p>}
-            </>
-          )}
+          <div className="max-w-4xl mx-auto w-full">
+            {datosUsuario?.rol === 'cajero' ? (
+              <p className="text-slate-500 dark:text-slate-400 font-medium text-lg mt-1 flex items-center gap-2">
+                <BadgeCheck size={18} className="text-blue-500"/> Modo Caja • <span className="font-black text-slate-900 dark:text-white">{nombreUsuario.split(' ')[0]}</span>
+              </p>
+            ) : (
+              <>
+                {vistaActiva === 'principal' && ( <p className="text-slate-500 dark:text-slate-400 font-medium text-lg mt-1">{obtenerSaludo()}, <span className="font-black text-slate-900 dark:text-white text-xl ml-1">{nombreUsuario.split(' ')[0]} - {nombreNegocio}</span></p> )}
+                {vistaActiva === 'estadisticas' && <p className="text-slate-500 dark:text-slate-400 font-medium text-lg mt-1">Reportes y Estadísticas</p>}
+                {vistaActiva === 'historial' && <p className="text-slate-500 dark:text-slate-400 font-medium text-lg mt-1">Registro de Movimientos</p>}
+                {vistaActiva === 'perfil' && <p className="text-slate-500 dark:text-slate-400 font-medium text-lg mt-1">Configuración de cuenta</p>}
+              </>
+            )}
+          </div>
         </header>
 
-        <div className="p-4 sm:p-6 flex-1">
+        {/* CONTENIDO PRINCIPAL */}
+        <div className="p-4 sm:p-6 flex-1 pt-[120px] sm:pt-[110px]">
+          
           {vistaActiva === 'principal' && (
             <div className="flex flex-col gap-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
               <section className="relative z-20">
                 <div className="relative shadow-sm rounded-[2rem]">
                   <Search className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-400" size={28} />
                   <input type="text" value={busqueda} onChange={(e) => setBusqueda(e.target.value)} placeholder="Buscar cliente registrado..." 
-                    className="w-full text-xl p-6 pl-16 bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-800/60 rounded-[2rem] focus:border-blue-500 dark:focus:border-blue-400 outline-none shadow-sm dark:shadow-none transition-all placeholder:text-slate-400 dark:placeholder:text-slate-500 font-medium" />
+                    className="w-full text-lg sm:text-xl p-5 sm:p-6 pl-14 sm:pl-16 bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-800/60 rounded-[2rem] focus:border-blue-500 dark:focus:border-blue-400 outline-none shadow-sm dark:shadow-none transition-all placeholder:text-slate-400 dark:placeholder:text-slate-500 font-medium" />
                 </div>
                 
                 {busqueda.length > 0 && (
-                  <div className="absolute top-full left-0 right-0 bg-white dark:bg-[#0f172a] border border-slate-100 dark:border-slate-800/80 rounded-3xl mt-2 shadow-2xl max-h-[60vh] overflow-y-auto z-30 p-3">
+                  <div className="absolute top-full left-0 right-0 bg-white dark:bg-[#0f172a] border border-slate-100 dark:border-slate-800/80 rounded-3xl mt-2 shadow-2xl max-h-[60vh] overflow-y-auto z-40 p-3">
                     {clientesFiltrados.length > 0 ? (
                       clientesFiltrados.map((c) => (
-                        <div key={c.id} onClick={() => { setClienteActivo(c); cargarMovimientosClienteDirecto(c.id); setBusqueda(""); }} className="p-5 hover:bg-slate-50 dark:hover:bg-[#1e293b] rounded-2xl cursor-pointer flex justify-between items-center transition-colors mb-2">
-                          <span className="font-bold text-slate-800 dark:text-slate-200 text-xl">{c.nombre}</span>
-                          <span className={`text-base font-black tracking-tight ${c.deudaTotal === 0 ? 'text-slate-400 dark:text-slate-500' : (c.deudaTotal < 0 ? 'text-emerald-500 dark:text-emerald-400' : 'text-rose-500 dark:text-rose-400')}`}>
+                        <div key={c.id} onClick={() => { setClienteActivo(c); cargarMovimientosClienteDirecto(c.id); setBusqueda(""); }} className="p-5 hover:bg-slate-50 dark:hover:bg-[#1e293b] rounded-2xl cursor-pointer flex justify-between items-center transition-colors mb-2 gap-2">
+                          <span className="font-bold text-slate-800 dark:text-slate-200 text-xl truncate min-w-0 flex-1">{c.nombre}</span>
+                          <span className={`text-base font-black tracking-tight shrink-0 whitespace-nowrap ${c.deudaTotal === 0 ? 'text-slate-400 dark:text-slate-500' : (c.deudaTotal < 0 ? 'text-emerald-500 dark:text-emerald-400' : 'text-rose-500 dark:text-rose-400')}`}>
                             {c.deudaTotal === 0 ? '$0 (Al día)' : (c.deudaTotal < 0 ? `A favor: $${Math.abs(c.deudaTotal).toLocaleString('es-CO')}` : `Deuda: $${c.deudaTotal.toLocaleString('es-CO')}`)}
                           </span>
                         </div>
@@ -1101,14 +1160,14 @@ export default function Home() {
                   FIAR
                 </button>
                 <button onClick={() => { setAccionRegistro('abono'); setPasoRegistro(1); setClienteTransaccion(null); setFilasRegistro([{ descripcion: "", valor: "", cantidad: 1 }]); setModalRegistro(true); }} 
-                  className="bg-gradient-to-br from-emerald-400 to-green-600 dark:from-emerald-600 dark:to-emerald-800 hover:from-emerald-500 hover:to-green-700 text-white font-black text-2xl sm:text-4xl py-16 rounded-[2rem] shadow-lg flex flex-col items-center justify-center transition-transform transform active:scale-95 border border-emerald-400/30 dark:border-emerald-500/20">
+                  className="bg-gradient-to-br from-emerald-400 to-green-600 dark:from-emerald-600 dark:to-emerald-800 hover:from-emerald-50 hover:to-green-700 text-white font-black text-2xl sm:text-4xl py-16 rounded-[2rem] shadow-lg flex flex-col items-center justify-center transition-transform transform active:scale-95 border border-emerald-400/30 dark:border-emerald-500/20">
                   <Banknote size={52} className="mb-4 opacity-90" />
                   ABONAR
                 </button>
               </section>
 
               {puedeVerDirectorio && (
-                <button onClick={() => setVerTodosClientes(true)} className="bg-white dark:bg-[#0f172a] hover:bg-slate-50 dark:hover:bg-[#1e293b] text-blue-900 dark:text-blue-400 font-bold text-xl py-6 rounded-[2rem] shadow-sm transition-colors border border-slate-200 dark:border-slate-800/60 flex justify-center items-center gap-3">
+                <button onClick={() => setVerTodosClientes(true)} className="bg-white dark:bg-[#0f172a] hover:bg-slate-50 dark:hover:bg-[#1e293b] text-blue-900 dark:text-blue-400 font-bold text-xl py-6 rounded-[2rem] shadow-sm transition-colors border border-slate-200 dark:border-slate-800/60 flex justify-center items-center gap-3 relative z-10">
                   <Users size={28} /> Directorio de clientes
                 </button>
               )}
@@ -1118,16 +1177,20 @@ export default function Home() {
           {vistaActiva === 'estadisticas' && puedeVerReportes && (
             <div className="flex flex-col gap-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
               
-              <div className="bg-gradient-to-br from-blue-900 via-slate-900 to-black rounded-[2.5rem] p-8 sm:p-10 text-white shadow-2xl relative overflow-hidden border border-slate-800">
-                <div className="absolute -right-10 -top-10 opacity-20 blur-2xl w-64 h-64 bg-blue-500 rounded-full pointer-events-none"></div>
-                <p className="text-blue-200 font-bold uppercase tracking-widest text-sm mb-4 flex items-center gap-2"><span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse"></span> Cartera Activa (En la calle)</p>
-                <p className="text-6xl sm:text-8xl font-black mb-10 tracking-tighter">${metricas.deudaTotal.toLocaleString('es-CO')}</p>
-                <div className="flex gap-4 flex-wrap">
-                  <div className="inline-flex items-center gap-2 bg-white/10 backdrop-blur-md px-5 py-3 rounded-2xl border border-white/5">
-                    <UserCog size={20} /> <p className="font-medium text-base">Con saldo: <span className="font-bold text-white text-lg ml-1">{metricas.clientesConCredito}</span></p>
-                  </div>
-                  <div className="inline-flex items-center gap-2 bg-white/10 backdrop-blur-md px-5 py-3 rounded-2xl border border-white/5">
-                    <Users size={20} /> <p className="font-medium text-base">Total: <span className="font-bold text-white text-lg ml-1">{metricas.totalClientes} clientes</span></p>
+              <div className="bg-gradient-to-br from-blue-900 via-slate-900 to-black rounded-[2rem] p-6 text-white shadow-xl relative overflow-hidden border border-slate-800 flex flex-col gap-4">
+                <div className="absolute -right-10 -top-10 opacity-20 blur-2xl w-40 h-40 bg-blue-500 rounded-full pointer-events-none"></div>
+                <div className="relative z-10 flex flex-col gap-3">
+                  <p className="text-blue-200 font-bold uppercase tracking-wider text-xs flex items-center gap-2">
+                    <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse shrink-0"></span> Cartera en la calle
+                  </p>
+                  <p className="text-4xl sm:text-5xl font-black tracking-tighter truncate">${metricas.deudaTotal.toLocaleString('es-CO')}</p>
+                  <div className="flex flex-wrap gap-2">
+                    <div className="inline-flex items-center gap-1.5 bg-white/10 backdrop-blur-md px-3 py-1.5 rounded-xl border border-white/5 text-sm font-medium">
+                      <Users size={16} /> <span><b className="text-white">{metricas.totalClientes}</b> totales</span>
+                    </div>
+                    <div className="inline-flex items-center gap-1.5 bg-white/10 backdrop-blur-md px-3 py-1.5 rounded-xl border border-white/5 text-sm font-medium">
+                      <UserCog size={16} /> <span><b className="text-white">{metricas.clientesConCredito}</b> con deuda</span>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -1137,28 +1200,28 @@ export default function Home() {
                   
                   <div className="bg-white dark:bg-[#0f172a] p-8 rounded-[2.5rem] shadow-sm border border-slate-100 dark:border-slate-800/60">
                     <h3 className="font-black text-2xl text-slate-800 dark:text-slate-100 mb-6 flex items-center gap-2">
-                      <Clock className="text-blue-500" size={28}/> Hoy, {diaSemanaCapitalizado}
+                      <Clock className="text-blue-500 shrink-0" size={28}/> Hoy, {diaSemanaCapitalizado}
                     </h3>
                     <div className="flex flex-col gap-4">
-                      <div className="flex items-center justify-between p-6 bg-emerald-50 dark:bg-emerald-500/10 rounded-2xl">
-                        <div className="flex items-center gap-4">
-                          <div className="bg-emerald-100 dark:bg-emerald-500/20 p-3 rounded-2xl text-emerald-600 dark:text-emerald-400"><ArrowDownRight size={28}/></div>
-                          <div>
-                            <p className="font-bold text-slate-700 dark:text-slate-300 text-xl leading-tight">Dinero que Entró</p>
-                            <p className="text-base font-medium text-emerald-600/80 dark:text-emerald-400/80">Abonos recibidos</p>
+                      <div className="flex flex-col gap-3 p-5 sm:p-6 bg-emerald-50 dark:bg-emerald-500/10 rounded-3xl border border-emerald-100 dark:border-emerald-500/20">
+                        <div className="flex items-center gap-3 min-w-0">
+                          <div className="bg-emerald-100 dark:bg-emerald-500/20 p-2.5 rounded-xl text-emerald-600 dark:text-emerald-400 shrink-0"><ArrowDownRight size={24}/></div>
+                          <div className="min-w-0 flex-1">
+                            <p className="font-bold text-slate-700 dark:text-slate-300 text-lg leading-none truncate">Entró</p>
+                            <p className="text-sm font-medium text-emerald-600/80 dark:text-emerald-400/80 mt-1 truncate">Abonos recibidos</p>
                           </div>
                         </div>
-                        <p className="font-black text-3xl text-emerald-600 dark:text-emerald-400">${metricas.abonosHoy.toLocaleString('es-CO')}</p>
+                        <p className="font-black text-3xl sm:text-4xl text-emerald-600 dark:text-emerald-400 truncate mt-1">${metricas.abonosHoy.toLocaleString('es-CO')}</p>
                       </div>
-                      <div className="flex items-center justify-between p-6 bg-rose-50 dark:bg-rose-500/10 rounded-2xl">
-                        <div className="flex items-center gap-4">
-                          <div className="bg-rose-100 dark:bg-rose-500/20 p-3 rounded-2xl text-rose-600 dark:text-rose-400"><ArrowUpRight size={28}/></div>
-                          <div>
-                            <p className="font-bold text-slate-700 dark:text-slate-300 text-xl leading-tight">Dinero que Salió</p>
-                            <p className="text-base font-medium text-rose-600/80 dark:text-rose-400/80">Fiados entregados</p>
+                      <div className="flex flex-col gap-3 p-5 sm:p-6 bg-rose-50 dark:bg-rose-500/10 rounded-3xl border border-rose-100 dark:border-rose-500/20">
+                        <div className="flex items-center gap-3 min-w-0">
+                          <div className="bg-rose-100 dark:bg-rose-500/20 p-2.5 rounded-xl text-rose-600 dark:text-rose-400 shrink-0"><ArrowUpRight size={24}/></div>
+                          <div className="min-w-0 flex-1">
+                            <p className="font-bold text-slate-700 dark:text-slate-300 text-lg leading-none truncate">Salió</p>
+                            <p className="text-sm font-medium text-rose-600/80 dark:text-rose-400/80 mt-1 truncate">Fiados entregados</p>
                           </div>
                         </div>
-                        <p className="font-black text-3xl text-rose-600 dark:text-rose-400">${metricas.fiadosHoy.toLocaleString('es-CO')}</p>
+                        <p className="font-black text-3xl sm:text-4xl text-rose-600 dark:text-rose-400 truncate mt-1">${metricas.fiadosHoy.toLocaleString('es-CO')}</p>
                       </div>
                     </div>
                   </div>
@@ -1166,24 +1229,24 @@ export default function Home() {
                   <div className="bg-white dark:bg-[#0f172a] p-8 rounded-[2.5rem] shadow-sm border border-slate-100 dark:border-slate-800/60">
                     <div className="mb-6">
                       <h3 className="font-black text-2xl text-slate-800 dark:text-slate-100 flex items-center gap-2">
-                        <CalendarDays className="text-blue-500" size={28}/> Esta Semana
+                        <CalendarDays className="text-blue-500 shrink-0" size={28}/> Esta Semana
                       </h3>
-                      <p className="text-base font-medium text-slate-500 dark:text-slate-400 ml-9 mt-1">{textoRangoSemana}</p>
+                      <p className="text-sm font-medium text-slate-500 dark:text-slate-400 ml-9 mt-1 truncate">{textoRangoSemana}</p>
                     </div>
                     <div className="flex flex-col gap-4">
-                      <div className="flex items-center justify-between p-6 bg-emerald-50 dark:bg-emerald-500/10 rounded-2xl">
-                        <div className="flex items-center gap-4">
-                          <div className="bg-emerald-100 dark:bg-emerald-500/20 p-3 rounded-2xl text-emerald-600 dark:text-emerald-400"><ArrowDownRight size={28}/></div>
-                          <p className="font-bold text-slate-700 dark:text-slate-300 text-xl">Total Entró</p>
+                      <div className="flex items-center justify-between gap-3 p-5 sm:p-6 bg-emerald-50 dark:bg-emerald-500/10 rounded-3xl border border-emerald-100 dark:border-emerald-500/20">
+                        <div className="flex items-center gap-3 min-w-0 flex-1">
+                          <div className="bg-emerald-100 dark:bg-emerald-500/20 p-2.5 rounded-xl text-emerald-600 dark:text-emerald-400 shrink-0"><ArrowDownRight size={24}/></div>
+                          <p className="font-bold text-slate-700 dark:text-slate-300 text-lg truncate">Total Entró</p>
                         </div>
-                        <p className="font-black text-3xl text-emerald-600 dark:text-emerald-400">${metricas.abonosSemana.toLocaleString('es-CO')}</p>
+                        <p className="font-black text-xl sm:text-2xl text-emerald-600 dark:text-emerald-400 truncate shrink-0 text-right max-w-[50%]">${metricas.abonosSemana.toLocaleString('es-CO')}</p>
                       </div>
-                      <div className="flex items-center justify-between p-6 bg-rose-50 dark:bg-rose-500/10 rounded-2xl">
-                        <div className="flex items-center gap-4">
-                          <div className="bg-rose-100 dark:bg-rose-500/20 p-3 rounded-2xl text-rose-600 dark:text-rose-400"><ArrowUpRight size={28}/></div>
-                          <p className="font-bold text-slate-700 dark:text-slate-300 text-xl">Total Salió</p>
+                      <div className="flex items-center justify-between gap-3 p-5 sm:p-6 bg-rose-50 dark:bg-rose-500/10 rounded-3xl border border-rose-100 dark:border-rose-500/20">
+                        <div className="flex items-center gap-3 min-w-0 flex-1">
+                          <div className="bg-rose-100 dark:bg-rose-500/20 p-2.5 rounded-xl text-rose-600 dark:text-rose-400 shrink-0"><ArrowUpRight size={24}/></div>
+                          <p className="font-bold text-slate-700 dark:text-slate-300 text-lg truncate">Total Salió</p>
                         </div>
-                        <p className="font-black text-3xl text-rose-600 dark:text-rose-400">${metricas.fiadosSemana.toLocaleString('es-CO')}</p>
+                        <p className="font-black text-xl sm:text-2xl text-rose-600 dark:text-rose-400 truncate shrink-0 text-right max-w-[50%]">${metricas.fiadosSemana.toLocaleString('es-CO')}</p>
                       </div>
                     </div>
                   </div>
@@ -1192,23 +1255,19 @@ export default function Home() {
                     <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4 mb-8">
                       <h3 className="font-black text-2xl text-slate-800 dark:text-slate-100">Desempeño Mensual</h3>
                       <div className="bg-slate-50 dark:bg-[#020617] border border-slate-200 dark:border-slate-800 p-2 rounded-xl">
-                        <select value={mesSeleccionado} onChange={(e) => setMesSeleccionado(Number(e.target.value))} className="bg-transparent text-slate-800 dark:text-slate-200 font-bold p-2 w-full outline-none text-lg cursor-pointer">
+                        <select value={mesSeleccionado} onChange={(e) => setMesSeleccionado(Number(e.target.value))} className="bg-transparent text-slate-800 dark:text-slate-200 font-bold px-3 py-1 w-full outline-none text-lg cursor-pointer">
                           {nombresMeses.map((mes, index) => ( <option key={index} value={index} className="bg-white dark:bg-[#0f172a]">{mes}</option> ))}
                         </select>
                       </div>
                     </div>
                     <div className="flex flex-col gap-4">
-                      <div className="flex items-center justify-between p-6 bg-emerald-50 dark:bg-emerald-500/10 rounded-2xl">
-                        <div className="flex items-center gap-3">
-                          <p className="font-bold text-slate-700 dark:text-slate-300 text-xl">Abonos en el mes</p>
-                        </div>
-                        <p className="font-black text-3xl text-emerald-600 dark:text-emerald-400">${metricas.abonosMes.toLocaleString('es-CO')}</p>
+                      <div className="flex items-center justify-between gap-3 p-5 sm:p-6 bg-emerald-50 dark:bg-emerald-500/10 rounded-3xl border border-emerald-100 dark:border-emerald-500/20">
+                        <p className="font-bold text-slate-700 dark:text-slate-300 text-lg truncate min-w-0 flex-1">Abonos</p>
+                        <p className="font-black text-xl sm:text-2xl text-emerald-600 dark:text-emerald-400 truncate shrink-0 text-right max-w-[60%]">${metricas.abonosMes.toLocaleString('es-CO')}</p>
                       </div>
-                      <div className="flex items-center justify-between p-6 bg-rose-50 dark:bg-rose-500/10 rounded-2xl">
-                        <div className="flex items-center gap-3">
-                          <p className="font-bold text-slate-700 dark:text-slate-300 text-xl">Fiados en el mes</p>
-                        </div>
-                        <p className="font-black text-3xl text-rose-600 dark:text-rose-400">${metricas.fiadosMes.toLocaleString('es-CO')}</p>
+                      <div className="flex items-center justify-between gap-3 p-5 sm:p-6 bg-rose-50 dark:bg-rose-500/10 rounded-3xl border border-rose-100 dark:border-rose-500/20">
+                        <p className="font-bold text-slate-700 dark:text-slate-300 text-lg truncate min-w-0 flex-1">Fiados</p>
+                        <p className="font-black text-xl sm:text-2xl text-rose-600 dark:text-rose-400 truncate shrink-0 text-right max-w-[60%]">${metricas.fiadosMes.toLocaleString('es-CO')}</p>
                       </div>
                     </div>
                   </div>
@@ -1275,23 +1334,30 @@ export default function Home() {
                 onScroll={(e) => { historialScrollPos.current = e.currentTarget.scrollTop; }}
               >
                 {historialFiltrado.map((mov) => (
-                  <div key={mov.id} onClick={() => abrirPerfilDesdePanel(mov.clienteId)} className="p-5 mx-2 my-3 rounded-2xl flex justify-between items-center bg-white dark:bg-[#0f172a] border border-slate-100 dark:border-slate-800/60 shadow-sm cursor-pointer hover:border-blue-300 dark:hover:border-blue-500 hover:shadow-md transition-all">
-                    <div className="flex pr-4 items-center gap-4">
-                      <div className={`w-14 h-14 shrink-0 rounded-full flex items-center justify-center ${mov.tipo === 'fiado' ? 'bg-rose-100 text-rose-600 dark:bg-rose-500/20 dark:text-rose-400' : 'bg-emerald-100 text-emerald-600 dark:bg-emerald-500/20 dark:text-emerald-400'}`}>
-                        {mov.tipo === 'fiado' ? <ShoppingBag size={24} /> : <Banknote size={24} />}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="font-bold text-lg text-slate-900 dark:text-slate-200 whitespace-normal break-words">{getNombreCliente(mov.clienteId)}</p>
-                        <p className="text-sm text-slate-500 dark:text-slate-400 whitespace-normal break-words mt-1">{mov.descripcion}</p>
-                        <div className="flex items-center gap-2 mt-2">
-                          <p className="text-xs text-slate-400 dark:text-slate-500">{mov.fecha?.toDate().toLocaleString('es-CO', {day:'2-digit', month:'short', hour:'2-digit', minute:'2-digit'})}</p>
-                          {mov.registradoPor && <p className="text-[10px] bg-slate-100 dark:bg-[#1e293b] text-slate-500 px-2 py-0.5 rounded-md font-bold">Por: {mov.registradoPor}</p>}
+                  <div key={mov.id} onClick={() => abrirPerfilDesdePanel(mov.clienteId)} className="p-5 mx-2 my-3 rounded-2xl flex flex-col gap-3 bg-white dark:bg-[#0f172a] border border-slate-100 dark:border-slate-800/60 shadow-sm cursor-pointer hover:border-blue-300 dark:hover:border-blue-500 hover:shadow-md transition-all relative overflow-hidden">
+                    <div className={`absolute left-0 top-0 bottom-0 w-1.5 ${mov.tipo === 'fiado' ? 'bg-rose-500' : 'bg-emerald-500'}`}></div>
+                    
+                    <div className="flex justify-between items-start gap-3 pl-2">
+                      <div className="flex items-center gap-4 min-w-0 flex-1">
+                        <div className={`w-12 h-12 shrink-0 rounded-full flex items-center justify-center ${mov.tipo === 'fiado' ? 'bg-rose-100 text-rose-600 dark:bg-rose-500/20 dark:text-rose-400' : 'bg-emerald-100 text-emerald-600 dark:bg-emerald-500/20 dark:text-emerald-400'}`}>
+                          {mov.tipo === 'fiado' ? <ShoppingBag size={20} /> : <Banknote size={20} />}
+                        </div>
+                        <div className="flex flex-col min-w-0 flex-1">
+                          <p className="font-bold text-lg text-slate-900 dark:text-slate-200 truncate">{getNombreCliente(mov.clienteId)}</p>
+                          <p className="text-sm text-slate-500 dark:text-slate-400 truncate mt-0.5">{mov.descripcion}</p>
                         </div>
                       </div>
                     </div>
-                    <p className={`font-black whitespace-nowrap text-2xl shrink-0 ${mov.tipo === 'fiado' ? 'text-rose-500 dark:text-rose-400' : 'text-emerald-500 dark:text-emerald-400'}`}>
-                      {mov.tipo === 'fiado' ? '-' : '+'}${mov.monto.toLocaleString('es-CO')}
-                    </p>
+
+                    <div className="flex justify-between items-end pl-2 pt-2 border-t border-slate-50 dark:border-slate-800/50">
+                      <div className="flex flex-col gap-1 min-w-0">
+                        <p className="text-xs text-slate-400 dark:text-slate-500 truncate">{mov.fecha?.toDate().toLocaleString('es-CO', {day:'2-digit', month:'short', hour:'2-digit', minute:'2-digit'})}</p>
+                        {mov.registradoPor && <p className="text-[10px] bg-slate-100 dark:bg-[#1e293b] text-slate-500 px-2 py-0.5 rounded-md font-bold self-start truncate max-w-[120px]">Caja: {mov.registradoPor}</p>}
+                      </div>
+                      <p className={`font-black text-xl sm:text-2xl shrink-0 truncate max-w-[40%] text-right ${mov.tipo === 'fiado' ? 'text-rose-500 dark:text-rose-400' : 'text-emerald-500 dark:text-emerald-400'}`}>
+                        {mov.tipo === 'fiado' ? '-' : '+'}${mov.monto.toLocaleString('es-CO')}
+                      </p>
+                    </div>
                   </div>
                 ))}
                 {historialFiltrado.length === 0 && (
@@ -1312,9 +1378,18 @@ export default function Home() {
                    <div className="w-24 h-24 bg-slate-200 dark:bg-slate-800 rounded-full mx-auto flex items-center justify-center text-slate-600 dark:text-slate-300 text-4xl font-black mb-6 shadow-inner">
                     <UserCog size={40}/>
                   </div>
-                  <h2 className="text-3xl font-black text-slate-900 dark:text-white mb-2">{nombreUsuario}</h2>
-                  <p className="text-slate-500 dark:text-slate-400 font-medium text-lg mb-6">Cajero en {nombreNegocio}</p>
+                  <h2 className="text-3xl font-black text-slate-900 dark:text-white mb-2 truncate">{nombreUsuario}</h2>
+                  <p className="text-slate-500 dark:text-slate-400 font-medium text-lg mb-6 truncate">Cajero en {nombreNegocio}</p>
                   
+                  <div className="bg-white dark:bg-[#0f172a] p-6 sm:p-8 rounded-[2rem] shadow-sm border border-slate-100 dark:border-slate-800/60 mt-6 text-left">
+                    <h3 className="font-black text-lg text-slate-800 dark:text-slate-100 mb-6 border-b border-slate-100 dark:border-slate-800/60 pb-4 flex items-center gap-2">Apariencia</h3>
+                    <div className="flex bg-slate-100 dark:bg-[#020617] p-1.5 rounded-2xl">
+                      <button onClick={() => setTemaApariencia('clara')} className={`flex-1 flex flex-col items-center justify-center gap-1.5 py-3 rounded-xl text-sm font-bold transition-all ${temaApariencia === 'clara' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700 dark:text-slate-400'}`}><Sun size={20}/> Clara</button>
+                      <button onClick={() => setTemaApariencia('auto')} className={`flex-1 flex flex-col items-center justify-center gap-1.5 py-3 rounded-xl text-sm font-bold transition-all ${temaApariencia === 'auto' ? 'bg-white dark:bg-[#1e293b] text-blue-600 dark:text-blue-400 shadow-sm' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300'}`}><Monitor size={20}/> Auto</button>
+                      <button onClick={() => setTemaApariencia('oscura')} className={`flex-1 flex flex-col items-center justify-center gap-1.5 py-3 rounded-xl text-sm font-bold transition-all ${temaApariencia === 'oscura' ? 'bg-slate-700 dark:bg-[#1e293b] text-white dark:text-blue-400 shadow-sm' : 'text-slate-500 dark:text-slate-400 hover:text-slate-300'}`}><Moon size={20}/> Oscura</button>
+                    </div>
+                  </div>
+
                   <button onClick={() => signOut(auth)} className="w-full bg-rose-50 dark:bg-rose-500/10 text-rose-600 dark:text-rose-400 font-bold py-6 rounded-[2rem] border border-rose-200 dark:border-rose-500/20 hover:bg-rose-100 dark:hover:bg-rose-500/30 transition-colors mb-4 flex justify-center items-center gap-2 text-lg mt-8">
                     <LogOut size={24} /> Cerrar Sesión de Caja
                   </button>
@@ -1325,15 +1400,15 @@ export default function Home() {
                     <div className="w-24 h-24 bg-gradient-to-br from-blue-500 to-blue-700 rounded-full mx-auto flex items-center justify-center text-white text-4xl font-black mb-4 shadow-lg">
                       {nombreNegocio.charAt(0).toUpperCase()}
                     </div>
-                    <h2 className="text-2xl font-black text-slate-900 dark:text-white">{nombreNegocio}</h2>
-                    <p className="text-slate-500 dark:text-slate-400 font-medium mb-4">{correoNegocio}</p>
+                    <h2 className="text-2xl font-black text-slate-900 dark:text-white truncate">{nombreNegocio}</h2>
+                    <p className="text-slate-500 dark:text-slate-400 font-medium mb-4 truncate">{correoNegocio}</p>
                     {planActual === 'pro' ? (
                       <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-black text-xs uppercase tracking-widest border border-emerald-100 dark:border-emerald-500/20">
-                        <Star size={14} className="fill-current"/> Plan Pro Activo {diasPro !== null && `(${diasPro} días)`}
+                        <Star size={14} className="fill-current shrink-0"/> <span className="truncate">Plan Pro Activo {diasPro !== null && `(${diasPro} días)`}</span>
                       </div>
                     ) : (
                       <button onClick={() => abrirUpsell("Mejora tu plan hoy", "Disfruta de clientes y registros ilimitados, además de historial completo.")} className="inline-flex items-center gap-2 px-5 py-2 rounded-full bg-slate-900 dark:bg-white text-white dark:text-slate-900 font-black text-xs uppercase tracking-widest shadow-md hover:scale-105 transition-transform">
-                        <Lock size={14} /> Subir a Pro
+                        <Lock size={14} className="shrink-0"/> Subir a Pro
                       </button>
                     )}
                   </div>
@@ -1341,7 +1416,12 @@ export default function Home() {
                   {/* Colaboradores (Modo Caja con Permisos) */}
                   <div className="bg-white dark:bg-[#0f172a] p-6 sm:p-8 rounded-[2rem] shadow-sm border border-slate-100 dark:border-slate-800/60">
                     <div className="flex justify-between items-center mb-6 border-b border-slate-100 dark:border-slate-800/60 pb-4">
-                      <h3 className="font-black text-lg text-slate-800 dark:text-slate-100 flex items-center gap-2"><UserPlus size={20} className="text-blue-500"/> Colaboradores (Caja)</h3>
+                      <h3 className="font-black text-lg text-slate-800 dark:text-slate-100 flex items-center gap-2"><UserPlus size={20} className="text-blue-500 shrink-0"/> Colaboradores</h3>
+                      {cajerosRegistrados.length > 0 && (
+                        <button onClick={() => setMostrarCajeros(!mostrarCajeros)} className="text-sm font-bold text-blue-600 hover:text-blue-700 flex items-center gap-1 transition-colors bg-blue-50 dark:bg-blue-500/10 px-3 py-1.5 rounded-lg shrink-0">
+                          {mostrarCajeros ? 'Ocultar' : 'Ver todos'} {mostrarCajeros ? <ChevronUp size={16}/> : <ChevronDown size={16}/>}
+                        </button>
+                      )}
                     </div>
                     
                     {!modoCrearCajero ? (
@@ -1349,16 +1429,25 @@ export default function Home() {
                         {cajerosRegistrados.length === 0 ? (
                           <p className="text-sm text-slate-500 dark:text-slate-400 text-center py-4 bg-slate-50 dark:bg-[#020617] rounded-xl border border-slate-100 dark:border-slate-800/60">No tienes cajeros registrados.</p>
                         ) : (
-                          cajerosRegistrados.map((c: any, i: number) => (
-                            <div key={i} className="flex flex-col p-5 bg-slate-50 dark:bg-[#020617] rounded-xl border border-slate-100 dark:border-slate-800/60 gap-3">
-                              <div className="flex justify-between items-start">
-                                <div>
-                                  <p className="font-bold text-slate-800 dark:text-slate-200 text-lg">{c.nombreUsuario}</p>
-                                  <p className="text-sm text-slate-500">{c.email}</p>
+                          mostrarCajeros && cajerosRegistrados.map((c: any, i: number) => (
+                            <div key={i} className="flex flex-col p-5 bg-slate-50 dark:bg-[#020617] rounded-xl border border-slate-100 dark:border-slate-800/60 gap-3 animate-in fade-in slide-in-from-top-2">
+                              <div className="flex justify-between items-start gap-2">
+                                <div className="min-w-0 flex-1">
+                                  <p className="font-bold text-slate-800 dark:text-slate-200 text-lg truncate">{c.nombreUsuario}</p>
+                                  <p className="text-sm text-slate-500 truncate">{c.email}</p>
                                 </div>
-                                <button onClick={() => { setCajeroAEliminar(c); setModalSeguridad({visible: true, accion: 'eliminar_cajero'}); }} className="bg-white dark:bg-[#0f172a] p-2 rounded-lg border border-rose-200 dark:border-rose-900 hover:bg-rose-50 dark:hover:bg-rose-900/30 transition-colors shadow-sm">
-                                  <Trash2 size={18} className="text-rose-500" />
-                                </button>
+                                <div className="flex gap-2 shrink-0">
+                                  <button onClick={() => { 
+                                    setCajeroEnEdicion(c); 
+                                    setFormCajero({nombre: c.nombreUsuario, usuarioAcceso: c.email.split('@')[0], password: '', confirmPassword: '', permisos: c.permisos || {verCelulares: false, verDirectorio: false, verReportes: false}}); 
+                                    setModoCrearCajero(true); 
+                                  }} className="bg-white dark:bg-[#0f172a] p-2.5 rounded-lg border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors shadow-sm">
+                                    <Edit2 size={20} className="text-slate-500" />
+                                  </button>
+                                  <button onClick={() => { setCajeroAEliminar(c); setModalSeguridad({visible: true, accion: 'eliminar_cajero'}); }} className="bg-white dark:bg-[#0f172a] p-2.5 rounded-lg border border-rose-200 dark:border-rose-900 hover:bg-rose-50 dark:hover:bg-rose-900/30 transition-colors shadow-sm">
+                                    <Trash2 size={20} className="text-rose-500" />
+                                  </button>
+                                </div>
                               </div>
                               <div className="flex flex-wrap gap-1.5 mt-1 border-t border-slate-200 dark:border-slate-800 pt-3">
                                 {c.permisos?.verCelulares ? <span className="text-[10px] bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-400 font-bold px-2 py-1 rounded-md">Celulares</span> : null}
@@ -1374,44 +1463,76 @@ export default function Home() {
                           if (planActual === 'basico' && cajerosRegistrados.length >= 1) {
                             abrirUpsell("Cajeros Ilimitados", "El plan básico te permite tener 1 cajero de prueba. Pásate a PRO para añadir cajeros ilimitados y controlar todos sus permisos.");
                           } else {
+                            setCajeroEnEdicion(null);
+                            setFormCajero({ nombre:"", usuarioAcceso:"", password:"", confirmPassword: "", permisos: { verCelulares: false, verDirectorio: false, verReportes: false } });
+                            setErrorFormCajero({ usuarioAcceso: "", general: "" });
                             setModoCrearCajero(true);
+                            setMostrarCajeros(true);
                           }
-                        }} className="w-full bg-slate-100 dark:bg-[#020617] hover:bg-slate-200 dark:hover:bg-[#1e293b] text-blue-600 dark:text-blue-400 font-bold py-4 rounded-xl transition-colors border dark:border-slate-800/80 mt-2 flex items-center justify-center gap-2">
-                          <UserPlus size={18} /> Añadir Cajero {planActual === 'basico' && cajerosRegistrados.length >= 1 && <Lock size={14} className="opacity-50"/>}
+                        }} className="w-full bg-slate-100 dark:bg-[#020617] hover:bg-slate-200 dark:hover:bg-[#1e293b] text-blue-600 dark:text-blue-400 font-bold py-4 rounded-xl transition-colors border dark:border-slate-800/80 mt-2 flex items-center justify-center gap-2 text-lg">
+                          <UserPlus size={20} className="shrink-0" /> Añadir Cajero {planActual === 'basico' && cajerosRegistrados.length >= 1 && <Lock size={16} className="opacity-50 shrink-0"/>}
                         </button>
-                        <p className="text-xs text-slate-400 text-center">Crea accesos separados para tus empleados y elige qué pueden ver.</p>
+                        <p className="text-sm text-slate-400 text-center">Crea accesos separados para tus empleados y elige qué pueden ver.</p>
                       </div>
                     ) : (
                       <div className="flex flex-col gap-4 animate-in fade-in">
-                        <div className="bg-blue-50 dark:bg-blue-500/10 p-4 rounded-xl border border-blue-100 dark:border-blue-500/20">
-                          <p className="text-sm text-blue-700 dark:text-blue-300 font-medium leading-relaxed">
-                            💡 Usa el correo real de tu empleado o inventa uno fácil (ej: <strong>caja1@tunegocio.com</strong>).
-                          </p>
-                        </div>
-                        <input type="text" value={formCajero.nombre} onChange={e => setFormCajero({...formCajero, nombre: e.target.value})} placeholder="Nombre del Cajero (Ej: Carlos)" className="w-full p-4 bg-slate-50 dark:bg-[#020617] border border-slate-200 dark:border-slate-800/80 rounded-xl outline-none focus:border-blue-500 font-bold text-lg" />
-                        <input type="email" value={formCajero.email} onChange={e => setFormCajero({...formCajero, email: e.target.value})} placeholder="Correo del Cajero" className="w-full p-4 bg-slate-50 dark:bg-[#020617] border border-slate-200 dark:border-slate-800/80 rounded-xl outline-none focus:border-blue-500 font-bold text-lg" />
-                        <input type="password" value={formCajero.password} onChange={e => setFormCajero({...formCajero, password: e.target.value})} placeholder="Contraseña (Mínimo 6)" className="w-full p-4 bg-slate-50 dark:bg-[#020617] border border-slate-200 dark:border-slate-800/80 rounded-xl outline-none focus:border-blue-500 font-bold text-lg" />
+                        {!cajeroEnEdicion && (
+                          <div className="bg-blue-50 dark:bg-blue-500/10 p-4 rounded-xl border border-blue-100 dark:border-blue-500/20">
+                            <p className="text-sm text-blue-700 dark:text-blue-300 font-medium leading-relaxed flex gap-2">
+                              <Info size={20} className="shrink-0"/>
+                              <span>Para crear un cajero solo ingresa un usuario (Ej: <strong>caja1</strong>). El sistema le agregará el dominio de forma automática.</span>
+                            </p>
+                          </div>
+                        )}
+                        <input type="text" value={formCajero.nombre} onChange={e => {setFormCajero({...formCajero, nombre: e.target.value}); setErrorFormCajero({...errorFormCajero, general:""})}} placeholder="Nombre de la persona (Ej: Carlos)" className="w-full p-4 bg-slate-50 dark:bg-[#020617] border border-slate-200 dark:border-slate-800/80 rounded-xl outline-none focus:border-blue-500 font-bold text-lg" />
+                        
+                        {!cajeroEnEdicion ? (
+                          <>
+                            <div>
+                              <input type="text" value={formCajero.usuarioAcceso} onChange={e => {setFormCajero({...formCajero, usuarioAcceso: e.target.value}); setErrorFormCajero({...errorFormCajero, usuarioAcceso:""})}} placeholder="Usuario de acceso (Ej: caja1)" className={`w-full p-4 bg-slate-50 dark:bg-[#020617] border rounded-xl outline-none transition-all font-bold text-lg ${errorFormCajero.usuarioAcceso ? 'border-rose-500 focus:border-rose-500' : 'border-slate-200 dark:border-slate-800/80 focus:border-blue-500'}`} />
+                              {errorFormCajero.usuarioAcceso && <p className="text-rose-500 text-xs font-bold mt-1.5 ml-2">{errorFormCajero.usuarioAcceso}</p>}
+                            </div>
+                            <input type="password" value={formCajero.password} onChange={e => {setFormCajero({...formCajero, password: e.target.value}); setErrorFormCajero({...errorFormCajero, general:""})}} placeholder="Contraseña (Mínimo 6)" className="w-full p-4 bg-slate-50 dark:bg-[#020617] border border-slate-200 dark:border-slate-800/80 rounded-xl outline-none focus:border-blue-500 font-bold text-lg" />
+                            <input type="password" value={formCajero.confirmPassword} onChange={e => {setFormCajero({...formCajero, confirmPassword: e.target.value}); setErrorFormCajero({...errorFormCajero, general:""})}} placeholder="Confirmar Contraseña" className="w-full p-4 bg-slate-50 dark:bg-[#020617] border border-slate-200 dark:border-slate-800/80 rounded-xl outline-none focus:border-blue-500 font-bold text-lg" />
+                          </>
+                        ) : (
+                          <div className="bg-slate-100 dark:bg-[#020617] p-5 rounded-xl border border-slate-200 dark:border-slate-800/80">
+                            <p className="text-sm font-bold text-slate-500 dark:text-slate-400 mb-1">Usuario de acceso:</p>
+                            <p className="text-lg font-black text-slate-800 dark:text-slate-200 mb-4 break-all">{formCajero.usuarioAcceso}@fiabono.caja</p>
+                            
+                            <button onClick={() => alert("Por restricciones de seguridad de Firebase sin un servidor central, no es posible cambiar la contraseña de otro usuario directamente. \n\nPara asignar una nueva clave, por favor cancela esta edición, elimina este cajero y vuelve a crearlo con la contraseña nueva.")} className="text-sm font-bold text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-500/10 px-4 py-2 rounded-lg border border-blue-200 dark:border-blue-500/20 w-full mb-2">
+                              ¿Olvidó su contraseña?
+                            </button>
+                            <p className="text-[10px] text-slate-400 text-center leading-tight">Por seguridad, el usuario y la contraseña no pueden modificarse desde aquí.</p>
+                          </div>
+                        )}
+                        
+                        {errorFormCajero.general && (
+                          <div className="bg-rose-50 dark:bg-rose-500/10 text-rose-600 dark:text-rose-400 p-4 rounded-xl text-base font-bold text-center border border-rose-200 dark:border-rose-500/20">
+                            {errorFormCajero.general}
+                          </div>
+                        )}
                         
                         {/* Permisos */}
-                        <div className="flex flex-col gap-3 mt-2 mb-2 bg-slate-50 dark:bg-[#020617] p-5 rounded-xl border border-slate-200 dark:border-slate-800">
-                           <p className="text-sm font-black text-slate-800 dark:text-slate-200 mb-1">Permisos Especiales:</p>
-                           <label className="flex items-center gap-3 text-sm font-medium text-slate-600 dark:text-slate-300 cursor-pointer">
-                             <input type="checkbox" className="w-5 h-5 accent-blue-600" checked={formCajero.permisos.verCelulares} onChange={e => setFormCajero({...formCajero, permisos: {...formCajero.permisos, verCelulares: e.target.checked}})}/> 
-                             Ver números de celular de clientes
+                        <div className="flex flex-col gap-4 mt-2 mb-2 bg-slate-50 dark:bg-[#020617] p-5 rounded-xl border border-slate-200 dark:border-slate-800">
+                           <p className="text-base font-black text-slate-800 dark:text-slate-200 mb-1">Permisos Especiales:</p>
+                           <label className="flex items-center gap-3 text-base font-medium text-slate-600 dark:text-slate-300 cursor-pointer">
+                             <input type="checkbox" className="w-6 h-6 accent-blue-600 shrink-0" checked={formCajero.permisos.verCelulares} onChange={e => setFormCajero({...formCajero, permisos: {...formCajero.permisos, verCelulares: e.target.checked}})}/> 
+                             <span className="truncate">Ver números de celular</span>
                            </label>
-                           <label className="flex items-center gap-3 text-sm font-medium text-slate-600 dark:text-slate-300 cursor-pointer">
-                             <input type="checkbox" className="w-5 h-5 accent-blue-600" checked={formCajero.permisos.verDirectorio} onChange={e => setFormCajero({...formCajero, permisos: {...formCajero.permisos, verDirectorio: e.target.checked}})}/> 
-                             Abrir Directorio completo de clientes
+                           <label className="flex items-center gap-3 text-base font-medium text-slate-600 dark:text-slate-300 cursor-pointer">
+                             <input type="checkbox" className="w-6 h-6 accent-blue-600 shrink-0" checked={formCajero.permisos.verDirectorio} onChange={e => setFormCajero({...formCajero, permisos: {...formCajero.permisos, verDirectorio: e.target.checked}})}/> 
+                             <span className="truncate">Abrir Directorio completo</span>
                            </label>
-                           <label className="flex items-center gap-3 text-sm font-medium text-slate-600 dark:text-slate-300 cursor-pointer">
-                             <input type="checkbox" className="w-5 h-5 accent-blue-600" checked={formCajero.permisos.verReportes} onChange={e => setFormCajero({...formCajero, permisos: {...formCajero.permisos, verReportes: e.target.checked}})}/> 
-                             Ver pestaña de Reportes y Estadísticas
+                           <label className="flex items-center gap-3 text-base font-medium text-slate-600 dark:text-slate-300 cursor-pointer">
+                             <input type="checkbox" className="w-6 h-6 accent-blue-600 shrink-0" checked={formCajero.permisos.verReportes} onChange={e => setFormCajero({...formCajero, permisos: {...formCajero.permisos, verReportes: e.target.checked}})}/> 
+                             <span className="truncate">Ver Estadísticas de dinero</span>
                            </label>
                         </div>
 
                         <div className="grid grid-cols-2 gap-3 mt-2">
-                          <button onClick={() => setModoCrearCajero(false)} className="bg-slate-100 dark:bg-[#020617] text-slate-700 dark:text-slate-300 font-bold py-4 rounded-xl text-lg">Cancelar</button>
-                          <button onClick={registrarNuevoCajero} disabled={creandoCajero} className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 rounded-xl shadow-md text-lg transition-transform active:scale-95">{creandoCajero ? 'Guardando...' : 'Guardar Cajero'}</button>
+                          <button onClick={() => { setModoCrearCajero(false); setCajeroEnEdicion(null); setErrorFormCajero({usuarioAcceso:"", general:""}); }} className="bg-slate-100 dark:bg-[#020617] text-slate-700 dark:text-slate-300 font-bold py-4 rounded-xl text-lg">Cancelar</button>
+                          <button onClick={guardarCajero} disabled={creandoCajero} className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 rounded-xl shadow-md transition-transform active:scale-95 text-lg truncate">{creandoCajero ? '...' : (cajeroEnEdicion ? 'Actualizar' : 'Guardar')}</button>
                         </div>
                       </div>
                     )}
@@ -1430,7 +1551,7 @@ export default function Home() {
                     <div className="flex justify-between items-center mb-6 border-b border-slate-100 dark:border-slate-800/60 pb-4">
                       <h3 className="font-black text-lg text-slate-800 dark:text-slate-100 flex items-center gap-2"><UserCog size={20}/> Perfil del Negocio</h3>
                       {!modoEdicionPerfil && (
-                        <button onClick={() => { setEditNombreUsuario(nombreUsuario); setModoEdicionPerfil(true); }} className="text-blue-600 dark:text-blue-400 text-sm font-bold flex items-center gap-1 bg-blue-50 dark:bg-blue-500/10 px-3 py-1.5 rounded-lg"><Edit2 size={14}/> Modificar</button>
+                        <button onClick={() => { setEditNombreUsuario(nombreUsuario); setModoEdicionPerfil(true); }} className="text-blue-600 dark:text-blue-400 text-sm font-bold flex items-center gap-1 bg-blue-50 dark:bg-blue-500/10 px-3 py-1.5 rounded-lg shrink-0"><Edit2 size={14}/> Modificar</button>
                       )}
                     </div>
                     
@@ -1459,17 +1580,17 @@ export default function Home() {
                       </div>
                     ) : (
                       <div className="flex flex-col gap-6">
-                        <div>
+                        <div className="min-w-0">
                           <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">Tu Nombre</p>
-                          <p className="font-bold text-slate-800 dark:text-slate-200 text-xl">{nombreUsuario}</p>
+                          <p className="font-bold text-slate-800 dark:text-slate-200 text-xl truncate">{nombreUsuario}</p>
                         </div>
-                        <div>
+                        <div className="min-w-0">
                           <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">Negocio</p>
-                          <p className="font-bold text-slate-800 dark:text-slate-200 text-xl">{nombreNegocio}</p>
+                          <p className="font-bold text-slate-800 dark:text-slate-200 text-xl truncate">{nombreNegocio}</p>
                         </div>
-                        <div>
+                        <div className="min-w-0">
                           <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">WhatsApp</p>
-                          <p className="font-bold text-slate-800 dark:text-slate-200 text-xl">{telefonoNegocio || "No registrado"}</p>
+                          <p className="font-bold text-slate-800 dark:text-slate-200 text-xl truncate">{telefonoNegocio || "No registrado"}</p>
                         </div>
                       </div>
                     )}
@@ -1529,7 +1650,7 @@ export default function Home() {
           )}
         </div>
 
-        <nav className="fixed bottom-0 left-0 right-0 bg-white/90 dark:bg-[#0f172a]/90 backdrop-blur-xl border-t border-slate-200 dark:border-slate-800/60 shadow-[0_-10px_40px_rgba(0,0,0,0.05)] dark:shadow-[0_-10px_40px_rgba(0,0,0,0.5)] z-40 pb-safe transition-colors duration-500">
+        <nav className="fixed bottom-0 left-0 right-0 bg-white/90 dark:bg-[#0f172a]/90 backdrop-blur-xl border-t border-slate-200 dark:border-slate-800/60 shadow-[0_-10px_40px_rgba(0,0,0,0.05)] dark:shadow-[0_-10px_40px_rgba(0,0,0,0.5)] z-[100] pb-safe transition-colors duration-500">
           <div className="max-w-4xl mx-auto flex px-2">
             <button onClick={() => setVistaActiva('principal')} className={`flex-1 py-4 flex flex-col items-center gap-1.5 transition-colors ${vistaActiva === 'principal' ? 'text-blue-600 dark:text-blue-400' : 'text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300'}`}>
               <HomeIcon size={24} /> <span className="text-[10px] font-black uppercase tracking-widest mt-1">Inicio</span>
@@ -1552,7 +1673,7 @@ export default function Home() {
 
         {/* MODAL SUSCRIPCIÓN UPSELL CON EFECTO DE ÉXITO */}
         {modalSuscripcion.visible && (
-          <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 z-[100] animate-in zoom-in-95 duration-200">
+          <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 z-[300] animate-in zoom-in-95 duration-200">
             <div className={`bg-white dark:bg-[#0f172a] p-8 rounded-[2.5rem] w-full max-w-sm shadow-2xl border ${exitoPromo ? 'border-emerald-500' : 'border-slate-100 dark:border-slate-800/60'} text-center relative overflow-hidden transition-colors duration-500`}>
               
               {!exitoPromo && <button onClick={() => setModalSuscripcion({ visible: false, titulo: "", mensaje: "" })} className="absolute top-4 right-4 bg-white/20 hover:bg-white/40 text-white rounded-full p-2 transition-colors z-10"><X size={24}/></button>}
@@ -1601,9 +1722,78 @@ export default function Home() {
           </div>
         )}
 
+        {/* DIRECTORIO MODAL DE CLIENTES (CORREGIDO CAPA Y FUNCIONAMIENTO) */}
+        {verTodosClientes && (
+          <div className="fixed inset-0 bg-black/60 dark:bg-black/80 backdrop-blur-sm flex items-start justify-center p-4 pt-10 z-[200] overflow-y-auto">
+            <div className="bg-white dark:bg-[#0f172a] rounded-[2.5rem] w-full max-w-2xl shadow-2xl overflow-hidden relative mb-24 border border-slate-100 dark:border-slate-800/60 flex flex-col max-h-[85vh]">
+              <div className="bg-blue-600 dark:bg-blue-900 p-6 sm:p-8 flex justify-between items-center shrink-0 sticky top-0 z-10">
+                <h2 className="text-3xl font-black text-white tracking-wide flex items-center gap-2"><Users size={28}/> Directorio</h2>
+                <button onClick={() => setVerTodosClientes(false)} className="text-blue-200 hover:text-white transition-colors bg-blue-700/50 dark:bg-blue-800/50 p-2 rounded-full"><X size={28}/></button>
+              </div>
+              <div className="p-5 sm:p-6 bg-white dark:bg-[#020617] shrink-0 border-b border-slate-100 dark:border-slate-800/80">
+                <div className="relative">
+                  <Search className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-400" size={24} />
+                  <input type="text" value={busquedaDirectorio} onChange={(e) => setBusquedaDirectorio(e.target.value)} placeholder="Buscar en el directorio..." className="w-full p-5 pl-14 bg-slate-50 dark:bg-[#0f172a] border border-slate-200 dark:border-slate-800/60 rounded-2xl outline-none focus:border-blue-500 dark:focus:border-blue-400 dark:text-white transition-all shadow-sm text-lg" />
+                </div>
+              </div>
+              <div className="p-4 sm:p-6 overflow-y-auto bg-slate-50 dark:bg-[#020617] flex-1">
+                {directorioFiltrado.map(c => (
+                  <div key={c.id} onClick={() => { setClienteActivo(c); cargarMovimientosClienteDirecto(c.id); setVerTodosClientes(false); }} className="p-5 sm:p-6 my-3 mx-1 bg-white dark:bg-[#0f172a] rounded-[1.5rem] border border-slate-100 dark:border-slate-800/60 shadow-sm cursor-pointer hover:border-blue-300 dark:hover:border-blue-500 hover:shadow-md flex justify-between items-center transition-all gap-3">
+                    <div className="flex-1 min-w-0 pr-2">
+                      <p className="font-bold text-lg sm:text-xl text-slate-900 dark:text-slate-100 truncate">{c.nombre}</p>
+                      <p className="text-sm sm:text-base text-slate-500 dark:text-slate-400 truncate">{c.celular || "Sin celular"}</p>
+                    </div>
+                    <div className="text-right shrink-0 max-w-[50%]">
+                      {c.deudaTotal !== 0 && <p className="text-[10px] sm:text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-1">{(c.deudaTotal || 0) < 0 ? 'A FAVOR' : 'DEUDA'}</p>}
+                      <p className={`font-black text-xl sm:text-3xl tracking-tighter truncate ${c.deudaTotal === 0 ? 'text-slate-400 dark:text-slate-500' : ((c.deudaTotal || 0) < 0 ? 'text-emerald-500 dark:text-emerald-400' : 'text-rose-500 dark:text-rose-400')}`}>
+                        {c.deudaTotal === 0 ? '$0' : `$${Math.abs(c.deudaTotal || 0).toLocaleString('es-CO')}`}
+                      </p>
+                    </div>
+                  </div>
+                ))}
+                
+                {directorioFiltrado.length === 0 ? (
+                  <div className="p-10 text-center flex flex-col items-center justify-center gap-3 text-slate-400">
+                    <Search size={40} className="opacity-20 mb-2"/>
+                    <p className="text-lg">No se encontraron clientes.</p>
+                    {busquedaDirectorio && (
+                      <button onClick={() => { setNombreNuevo(busquedaDirectorio); setModalNuevoCliente(true); setVerTodosClientes(false); }} className="mt-4 bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 px-8 rounded-2xl text-base transition-colors flex items-center justify-center gap-2 mx-auto shadow-md">
+                        <UserCog size={20} /> Crear Cliente
+                      </button>
+                    )}
+                  </div>
+                ) : (
+                  <button onClick={() => { setNombreNuevo(""); setModalNuevoCliente(true); setVerTodosClientes(false); }} className="w-full mt-6 bg-transparent border-2 border-dashed border-slate-300 dark:border-slate-700 hover:border-blue-400 dark:hover:border-blue-500 hover:bg-blue-50 dark:hover:bg-blue-500/10 text-blue-600 dark:text-blue-400 font-bold py-5 rounded-2xl transition-colors flex justify-center items-center gap-2 text-lg">
+                    <UserCog size={20} /> + Crear nuevo cliente
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* MODAL AVISOS CAJERO */}
+        {modalAvisoCajero.visible && (
+          <div className="fixed inset-0 bg-black/60 dark:bg-black/80 backdrop-blur-md flex items-center justify-center p-4 z-[300] animate-in zoom-in duration-300">
+            <div className="bg-white dark:bg-[#0f172a] rounded-[2.5rem] w-full max-w-sm shadow-2xl p-8 text-center border border-slate-100 dark:border-slate-800/60 relative">
+              <div className={`w-24 h-24 rounded-full flex items-center justify-center mx-auto mb-6 shadow-inner ${modalAvisoCajero.icono === 'exito' ? 'bg-emerald-100 dark:bg-emerald-500/20 text-emerald-500 dark:text-emerald-400' : (modalAvisoCajero.icono === 'error' ? 'bg-rose-100 dark:bg-rose-500/20 text-rose-500 dark:text-rose-400' : 'bg-blue-100 dark:bg-blue-500/20 text-blue-500 dark:text-blue-400')}`}>
+                {modalAvisoCajero.icono === 'exito' && <CheckCircle2 size={50} />}
+                {modalAvisoCajero.icono === 'error' && <AlertCircle size={50} />}
+                {modalAvisoCajero.icono === 'info' && <Info size={50} />}
+              </div>
+              <h2 className="text-2xl font-black text-slate-900 dark:text-white mb-2">{modalAvisoCajero.titulo}</h2>
+              <p className="text-slate-600 dark:text-slate-400 text-base mb-8 font-medium leading-relaxed whitespace-pre-line">{modalAvisoCajero.mensaje}</p>
+              
+              <button onClick={() => setModalAvisoCajero({ visible: false, titulo: "", mensaje: "", icono: 'exito' })} className={`w-full text-white font-black py-5 rounded-2xl transition-colors shadow-lg text-lg ${modalAvisoCajero.icono === 'exito' ? 'bg-emerald-500 hover:bg-emerald-600' : (modalAvisoCajero.icono === 'error' ? 'bg-rose-500 hover:bg-rose-600' : 'bg-blue-500 hover:bg-blue-600')}`}>
+                Entendido
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* MODAL ÉXITO REGISTROS */}
         {modalExito && modalExito.visible && (
-          <div className="fixed inset-0 bg-black/60 dark:bg-black/80 backdrop-blur-md flex items-start sm:items-center justify-center p-4 pt-10 sm:pt-4 z-[70] animate-in zoom-in duration-300 overflow-y-auto">
+          <div className="fixed inset-0 bg-black/60 dark:bg-black/80 backdrop-blur-md flex items-start sm:items-center justify-center p-4 pt-10 sm:pt-4 z-[200] animate-in zoom-in duration-300 overflow-y-auto">
             <div className="bg-white dark:bg-[#0f172a] rounded-[2.5rem] w-full max-w-sm shadow-2xl p-8 text-center border border-slate-100 dark:border-slate-800/60 relative my-auto">
               <div className="w-24 h-24 bg-emerald-100 dark:bg-emerald-500/20 text-emerald-500 dark:text-emerald-400 rounded-full flex items-center justify-center mx-auto mb-6 shadow-inner">
                 <CheckCircle2 size={50} />
@@ -1633,13 +1823,13 @@ export default function Home() {
 
         {/* MODAL SEGURIDAD (EDITAR/ELIMINAR) */}
         {modalSeguridad.visible && (
-          <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 z-[100] animate-in zoom-in-95 duration-200">
+          <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 z-[300] animate-in zoom-in-95 duration-200">
             <div className="bg-white dark:bg-[#0f172a] p-8 rounded-[2.5rem] w-full max-w-sm shadow-2xl border border-slate-100 dark:border-slate-800/60">
               <div className="w-20 h-20 bg-blue-100 dark:bg-blue-500/20 text-blue-600 dark:text-blue-400 rounded-full flex items-center justify-center mx-auto mb-6">
                 <ShieldAlert size={40} />
               </div>
               <h3 className="text-2xl font-black text-slate-900 dark:text-white mb-2 text-center">Acción Protegida</h3>
-              <p className="text-base text-slate-500 dark:text-slate-400 text-center mb-8">Por seguridad, ingresa tu contraseña para {modalSeguridad.accion === 'eliminar_cliente' ? 'eliminar' : (modalSeguridad.accion === 'eliminar_cajero' ? 'borrar este acceso' : 'editar')} este registro.</p>
+              <p className="text-base text-slate-500 dark:text-slate-400 text-center mb-8">Por seguridad, ingresa tu contraseña de Administrador para {modalSeguridad.accion === 'eliminar_cliente' ? 'eliminar este cliente.' : (modalSeguridad.accion === 'eliminar_cajero' ? 'borrar este acceso de cajero.' : 'editar este cliente.')}</p>
               
               <input type="password" value={passSeguridad} onChange={e => setPassSeguridad(e.target.value)} placeholder="Tu contraseña actual" className="w-full p-5 bg-slate-50 dark:bg-[#020617] border border-slate-200 dark:border-slate-800/80 rounded-2xl outline-none focus:border-blue-500 dark:focus:border-blue-400 dark:text-white mb-2 transition-all font-bold text-lg" />
               {errorSeguridad && <p className="text-rose-500 dark:text-rose-400 text-sm font-bold text-center mb-4 flex items-center justify-center gap-1"><AlertCircle size={14}/>{errorSeguridad}</p>}
@@ -1654,7 +1844,7 @@ export default function Home() {
 
         {/* PERFIL DEL CLIENTE E HISTORIAL */}
         {clienteActivo && (
-          <div className="fixed inset-0 bg-black/60 dark:bg-black/80 backdrop-blur-sm flex items-end sm:items-center justify-center pt-6 sm:p-4 z-50 transition-opacity">
+          <div className="fixed inset-0 bg-black/60 dark:bg-black/80 backdrop-blur-sm flex items-end sm:items-center justify-center pt-6 sm:p-4 z-[150] transition-opacity">
             <div className="bg-white dark:bg-[#0f172a] rounded-t-[2.5rem] sm:rounded-[2.5rem] w-full max-w-lg shadow-2xl relative flex flex-col h-[90vh] sm:h-[85vh] mb-[4.5rem] sm:mb-0 border border-slate-100 dark:border-slate-800/60 mx-2 sm:mx-0 overflow-hidden">
               
               <div className="p-4 sm:p-5 flex justify-between items-start bg-slate-50 dark:bg-[#020617] rounded-t-[2.5rem] shrink-0">
@@ -1683,7 +1873,7 @@ export default function Home() {
                 </div>
               ) : (
                 <div className="px-6 pb-6 bg-slate-50 dark:bg-[#020617] text-center shrink-0 flex flex-col items-center border-b border-slate-200 dark:border-slate-800/80">
-                  <h2 className="text-3xl font-black text-slate-900 dark:text-white tracking-tight mb-1">{clienteActivo.nombre}</h2>
+                  <h2 className="text-3xl font-black text-slate-900 dark:text-white tracking-tight mb-1 truncate w-full">{clienteActivo.nombre}</h2>
                   
                   {!puedeVerCelulares ? (
                      <p className="text-slate-400 dark:text-slate-500 text-sm font-bold flex items-center justify-center gap-1 mt-0.5"><EyeOff size={16}/> Celular protegido</p>
@@ -1691,9 +1881,9 @@ export default function Home() {
                     clienteActivo.celular ? <p className="text-slate-500 dark:text-slate-400 font-medium text-base">{clienteActivo.celular}</p> : <p className="text-amber-500 dark:text-amber-400 text-sm font-bold flex items-center justify-center gap-1 mt-0.5"><AlertCircle size={16}/> Sin WhatsApp</p>
                   )}
                   
-                  <div className="mt-6 flex flex-col items-center justify-center bg-white dark:bg-[#0f172a] w-full py-5 rounded-[1.5rem] border border-slate-100 dark:border-slate-800/60 shadow-sm">
+                  <div className="mt-6 flex flex-col items-center justify-center bg-white dark:bg-[#0f172a] w-full py-5 px-2 rounded-[1.5rem] border border-slate-100 dark:border-slate-800/60 shadow-sm">
                     <p className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-1">{clienteActivo.deudaTotal === 0 ? 'CUENTA AL DÍA' : ((clienteActivo.deudaTotal || 0) < 0 ? 'SALDO A FAVOR' : 'SALDO PENDIENTE')}</p>
-                    <p className={`text-6xl sm:text-7xl font-black tracking-tighter leading-none ${clienteActivo.deudaTotal === 0 ? 'text-slate-300 dark:text-slate-600' : ((clienteActivo.deudaTotal || 0) < 0 ? 'text-emerald-500 dark:text-emerald-400' : 'text-rose-500 dark:text-rose-400')}`}>${Math.abs(clienteActivo.deudaTotal || 0).toLocaleString('es-CO')}</p>
+                    <p className={`text-5xl sm:text-6xl font-black tracking-tighter leading-none break-words w-full ${clienteActivo.deudaTotal === 0 ? 'text-slate-300 dark:text-slate-600' : ((clienteActivo.deudaTotal || 0) < 0 ? 'text-emerald-500 dark:text-emerald-400' : 'text-rose-500 dark:text-rose-400')}`}>${Math.abs(clienteActivo.deudaTotal || 0).toLocaleString('es-CO')}</p>
                   </div>
 
                   <div className="flex gap-4 w-full mt-6">
@@ -1722,36 +1912,36 @@ export default function Home() {
                           {mov.detalles && mov.detalles.length > 0 ? (
                             <div className="flex flex-col gap-3">
                               {mov.detalles.map((d: any, idx: number) => (
-                                <div key={idx} className="flex justify-between items-center">
-                                  <p className="font-medium text-slate-700 dark:text-slate-300 text-base flex items-start gap-2 whitespace-normal break-words flex-1">
+                                <div key={idx} className="flex justify-between items-center gap-2">
+                                  <p className="font-medium text-slate-700 dark:text-slate-300 text-base flex items-start gap-2 min-w-0 flex-1">
                                     <span className="w-2 h-2 rounded-full bg-slate-300 dark:bg-slate-600 shrink-0 mt-2"></span>
-                                    <span>
+                                    <span className="truncate">
                                       {d.cantidad && d.cantidad > 1 ? <span className="font-black mr-1 text-blue-500 dark:text-blue-400">{d.cantidad}x</span> : null}
                                       {d.descripcion}
                                       {d.cantidad && d.cantidad > 1 ? <span className="text-xs text-slate-400 dark:text-slate-500 block mt-0.5">(${(d.valorUnitario || d.valor/d.cantidad).toLocaleString('es-CO')} c/u)</span> : null}
                                     </span>
                                   </p>
-                                  <p className="font-bold text-base text-slate-600 dark:text-slate-400 shrink-0 ml-3">${d.valor.toLocaleString('es-CO')}</p>
+                                  <p className="font-bold text-base text-slate-600 dark:text-slate-400 shrink-0 text-right">${d.valor.toLocaleString('es-CO')}</p>
                                 </div>
                               ))}
-                              <div className="flex justify-between items-center mt-3 pt-3 border-t-2 border-dashed border-slate-200 dark:border-slate-700">
-                                <p className="text-sm font-black uppercase tracking-widest text-slate-800 dark:text-slate-200">Total {mov.tipo}</p>
-                                <p className={`font-black text-2xl ${mov.tipo === 'fiado' ? 'text-rose-500 dark:text-rose-400' : 'text-emerald-500 dark:text-emerald-400'}`}>{mov.tipo === 'fiado' ? '-' : '+'}${mov.monto.toLocaleString('es-CO')}</p>
+                              <div className="flex justify-between items-center mt-3 pt-3 border-t-2 border-dashed border-slate-200 dark:border-slate-700 gap-2">
+                                <p className="text-sm font-black uppercase tracking-widest text-slate-800 dark:text-slate-200 shrink-0">Total {mov.tipo}</p>
+                                <p className={`font-black text-xl sm:text-2xl break-words text-right ${mov.tipo === 'fiado' ? 'text-rose-500 dark:text-rose-400' : 'text-emerald-500 dark:text-emerald-400'}`}>{mov.tipo === 'fiado' ? '-' : '+'}${mov.monto.toLocaleString('es-CO')}</p>
                               </div>
                             </div>
                           ) : (
-                            <div className="flex justify-between items-center">
-                              <p className="font-bold text-slate-800 dark:text-slate-200 whitespace-normal break-words flex-1 text-base">{mov.descripcion}</p>
-                              <p className={`font-black text-2xl shrink-0 ml-3 ${mov.tipo === 'fiado' ? 'text-rose-500 dark:text-rose-400' : 'text-emerald-500 dark:text-emerald-400'}`}>{mov.tipo === 'fiado' ? '-' : '+'}${mov.monto.toLocaleString('es-CO')}</p>
+                            <div className="flex justify-between items-center gap-2">
+                              <p className="font-bold text-slate-800 dark:text-slate-200 truncate flex-1 text-base">{mov.descripcion}</p>
+                              <p className={`font-black text-xl sm:text-2xl shrink-0 break-words text-right ${mov.tipo === 'fiado' ? 'text-rose-500 dark:text-rose-400' : 'text-emerald-500 dark:text-emerald-400'}`}>{mov.tipo === 'fiado' ? '-' : '+'}${mov.monto.toLocaleString('es-CO')}</p>
                             </div>
                           )}
                           <div className="flex justify-between items-center mt-4 pt-3 border-t border-slate-200 dark:border-slate-800/50">
-                            <div className="flex flex-col gap-1">
-                              <p className="text-xs text-slate-400 font-medium tracking-wide">{mov.fecha?.toDate().toLocaleString('es-CO', {day:'2-digit', month:'short', hour:'2-digit', minute:'2-digit'})}</p>
-                              {mov.registradoPor && <p className="text-[10px] bg-slate-200 dark:bg-[#1e293b] text-slate-600 dark:text-slate-400 px-2 py-0.5 rounded-md font-bold self-start">Caja: {mov.registradoPor}</p>}
+                            <div className="flex flex-col gap-1 min-w-0">
+                              <p className="text-xs text-slate-400 font-medium tracking-wide truncate">{mov.fecha?.toDate().toLocaleString('es-CO', {day:'2-digit', month:'short', hour:'2-digit', minute:'2-digit'})}</p>
+                              {mov.registradoPor && <p className="text-[10px] bg-slate-200 dark:bg-[#1e293b] text-slate-600 dark:text-slate-400 px-2 py-0.5 rounded-md font-bold self-start truncate max-w-[120px]">Caja: {mov.registradoPor}</p>}
                             </div>
                             {mov.saldoResultante !== undefined && mov.saldoResultante <= 0 && mov.tipo === 'abono' && (
-                              <span className={`text-[10px] font-black px-2.5 py-1 rounded-md uppercase tracking-wider shadow-sm ${mov.saldoResultante < 0 ? 'bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-300' : 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300'}`}>
+                              <span className={`text-[10px] font-black px-2.5 py-1 rounded-md uppercase tracking-wider shadow-sm shrink-0 ${mov.saldoResultante < 0 ? 'bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-300' : 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300'}`}>
                                 {mov.saldoResultante < 0 ? 'Saldo a favor' : 'Saldada'}
                               </span>
                             )}
@@ -1768,7 +1958,7 @@ export default function Home() {
 
         {/* MODAL FORMULARIO FIADO/ABONO */}
         {modalRegistro && (
-          <div className="fixed inset-0 bg-black/70 dark:bg-black/80 backdrop-blur-sm flex items-start sm:items-center justify-center p-4 pt-10 sm:pt-4 z-[80] animate-in zoom-in-95 duration-200 px-2 sm:px-4">
+          <div className="fixed inset-0 bg-black/70 dark:bg-black/80 backdrop-blur-sm flex items-start sm:items-center justify-center p-4 pt-10 sm:pt-4 z-[250] animate-in zoom-in-95 duration-200 px-2 sm:px-4">
             <div className="bg-white dark:bg-[#0f172a] rounded-[2.5rem] w-full max-w-lg shadow-2xl flex flex-col max-h-[90vh] sm:max-h-[85vh] border border-slate-100 dark:border-slate-800/60 overflow-hidden">
               
               <div className={`p-6 text-white flex justify-between items-center shrink-0 ${accionRegistro === 'fiado' ? 'bg-gradient-to-r from-rose-500 to-rose-600 dark:from-rose-600 dark:to-rose-800' : 'bg-gradient-to-r from-emerald-500 to-emerald-600 dark:from-emerald-600 dark:to-emerald-800'}`}>
@@ -1800,8 +1990,8 @@ export default function Home() {
 
                 {pasoRegistro === 2 && clienteTransaccion && (
                   <>
-                    <div className="p-5 sm:p-8 overflow-y-auto flex-1 bg-white dark:bg-[#0f172a]">
-                      <div className="bg-slate-50 dark:bg-[#020617] p-5 rounded-2xl border border-slate-100 dark:border-slate-800/80 flex justify-between items-center mb-6">
+                    <div className="p-4 sm:p-6 overflow-y-auto flex-1 bg-white dark:bg-[#0f172a]">
+                      <div className="bg-slate-50 dark:bg-[#020617] p-4 sm:p-5 rounded-2xl border border-slate-100 dark:border-slate-800/80 flex justify-between items-center mb-5">
                         <span className="text-base text-slate-500 dark:text-slate-400 shrink-0">Cliente:</span>
                         <span className="font-black text-slate-900 dark:text-white whitespace-normal break-words text-right ml-4 text-xl">{clienteTransaccion.nombre}</span>
                       </div>
@@ -1812,19 +2002,26 @@ export default function Home() {
                               <button onClick={() => eliminarFila(index)} className="absolute -top-3 -right-3 bg-rose-100 dark:bg-rose-900/80 text-rose-500 dark:text-rose-300 rounded-full p-2 shadow-md"><X size={18}/></button>
                             )}
                             <input type="text" value={fila.descripcion} onChange={(e) => actualizarFila(index, 'descripcion', e.target.value)} placeholder={accionRegistro === 'fiado' ? "Descripción del artículo" : "Descripción del abono"} className="w-full p-4 bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-700 rounded-xl outline-none focus:border-blue-500 dark:focus:border-blue-400 dark:text-white transition-all text-base font-bold" />
-                            <div className="flex gap-3 items-center w-full">
+                            <div className="flex gap-2 sm:gap-3 items-center w-full">
                               {accionRegistro === 'fiado' && (
-                                <div className="flex items-center bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-700 rounded-xl overflow-hidden shrink-0 h-[56px]">
-                                  <button onClick={() => actualizarCantidadFila(index, -1)} className="px-4 h-full hover:bg-slate-100 dark:hover:bg-[#1e293b] transition-colors text-slate-500"><Minus size={20}/></button>
-                                  <span className="w-10 text-center font-black text-slate-800 dark:text-white text-lg">{fila.cantidad}</span>
-                                  <button onClick={() => actualizarCantidadFila(index, 1)} className="px-4 h-full hover:bg-slate-100 dark:hover:bg-[#1e293b] transition-colors text-slate-500"><Plus size={20}/></button>
+                                <div className="flex items-center bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-700 rounded-xl overflow-hidden shrink-0 h-[56px] w-[110px]">
+                                  <button onClick={() => actualizarCantidadFila(index, -1)} className="px-3 h-full hover:bg-slate-100 dark:hover:bg-[#1e293b] transition-colors text-slate-500"><Minus size={20}/></button>
+                                  <span className="flex-1 text-center font-black text-slate-800 dark:text-white text-lg">{fila.cantidad}</span>
+                                  <button onClick={() => actualizarCantidadFila(index, 1)} className="px-3 h-full hover:bg-slate-100 dark:hover:bg-[#1e293b] transition-colors text-slate-500"><Plus size={20}/></button>
                                 </div>
                               )}
                               {accionRegistro === 'fiado' && <span className="text-slate-400 font-bold shrink-0 text-base">x</span>}
                               
                               <div className="relative flex-1 min-w-0">
                                 <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-xl">$</span>
-                                <input type="number" value={fila.valor} onChange={(e) => actualizarFila(index, 'valor', e.target.value)} placeholder={accionRegistro === 'fiado' ? "Valor Unidad" : "Valor"} className="w-full pl-9 pr-4 py-4 bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-700 rounded-xl outline-none focus:border-blue-500 dark:focus:border-blue-400 font-black text-slate-900 dark:text-white transition-all h-[56px] min-w-0 text-xl" />
+                                <input 
+                                  type="text" 
+                                  inputMode="numeric"
+                                  value={formatearMonedaInput(fila.valor)} 
+                                  onChange={(e) => actualizarFila(index, 'valor', e.target.value)} 
+                                  placeholder={accionRegistro === 'fiado' ? "Valor Uni." : "Valor"} 
+                                  className="w-full pl-9 pr-4 py-4 bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-700 rounded-xl outline-none focus:border-blue-500 dark:focus:border-blue-400 font-black text-slate-900 dark:text-white transition-all h-[56px] min-w-0 text-xl" 
+                                />
                               </div>
                             </div>
                           </div>
@@ -1836,12 +2033,12 @@ export default function Home() {
                       </div>
                     </div>
                     
-                    <div className="bg-white/95 dark:bg-[#0f172a]/95 backdrop-blur-md p-5 sm:p-8 border-t border-slate-100 dark:border-slate-800/60 shrink-0 z-20 shadow-[0_-10px_20px_rgba(0,0,0,0.02)] dark:shadow-[0_-10px_20px_rgba(0,0,0,0.3)]">
-                      <div className="flex justify-between items-center p-5 bg-slate-900 dark:bg-black text-white rounded-2xl mb-4 shadow-inner border border-slate-800">
-                        <span className="font-medium text-slate-300 text-lg">Total a registrar:</span>
-                        <span className={`text-4xl font-black tracking-tight ${accionRegistro === 'fiado' ? 'text-rose-400' : 'text-emerald-400'}`}>${totalFilasRegistro.toLocaleString('es-CO')}</span>
+                    <div className="bg-white/95 dark:bg-[#0f172a]/95 backdrop-blur-md p-4 sm:p-6 border-t border-slate-100 dark:border-slate-800/60 shrink-0 z-20 shadow-[0_-10px_20px_rgba(0,0,0,0.02)] dark:shadow-[0_-10px_20px_rgba(0,0,0,0.3)]">
+                      <div className="flex justify-between items-center gap-2 p-4 bg-slate-900 dark:bg-black text-white rounded-2xl mb-4 shadow-inner border border-slate-800">
+                        <span className="font-medium text-slate-300 text-lg shrink-0">Total a registrar:</span>
+                        <span className={`text-3xl sm:text-4xl font-black tracking-tight break-words text-right ${accionRegistro === 'fiado' ? 'text-rose-400' : 'text-emerald-400'}`}>${totalFilasRegistro.toLocaleString('es-CO')}</span>
                       </div>
-                      <button onClick={procesarRegistro} className={`w-full text-white font-black text-2xl py-5 rounded-2xl shadow-lg transition-transform transform active:scale-95 flex justify-center items-center gap-2 ${accionRegistro === 'fiado' ? 'bg-gradient-to-r from-rose-500 to-rose-600 dark:from-rose-600 dark:to-rose-800 hover:from-rose-600 hover:to-rose-700' : 'bg-gradient-to-r from-emerald-500 to-emerald-600 dark:from-emerald-600 dark:to-emerald-800 hover:from-emerald-600 hover:to-emerald-700'}`}>
+                      <button onClick={procesarRegistro} className={`w-full text-white font-black text-2xl py-4 rounded-2xl shadow-lg transition-transform transform active:scale-95 flex justify-center items-center gap-2 ${accionRegistro === 'fiado' ? 'bg-gradient-to-r from-rose-500 to-rose-600 dark:from-rose-600 dark:to-rose-800 hover:from-rose-600 hover:to-rose-700' : 'bg-gradient-to-r from-emerald-500 to-emerald-600 dark:from-emerald-600 dark:to-emerald-800 hover:from-emerald-600 hover:to-emerald-700'}`}>
                         {accionRegistro === 'fiado' ? 'Confirmar Fiado' : 'Confirmar Abono'} <CheckCircle2 size={28}/>
                       </button>
                     </div>
