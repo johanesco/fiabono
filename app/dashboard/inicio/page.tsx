@@ -4,7 +4,7 @@ import { collection, addDoc, getDocs, query, doc, updateDoc, where, deleteDoc } 
 import { EmailAuthProvider, reauthenticateWithCredential } from "firebase/auth";
 import { db, auth } from "../../../firebase";
 import { Search, ShoppingBag, Banknote, Users, CheckCircle2, ChevronRight, X, MessageCircle, AlertCircle, UserCog, ShoppingCart, Plus, Minus, EyeOff, Edit2, Trash2, Lock, Star, ShieldAlert, Clock, ArrowLeft } from 'lucide-react';
-import toast from "react-hot-toast";
+import toast from "react-hot-toast"; 
 import { useAuth } from "../../../hooks/AuthContext";
 
 export default function InicioPage() {
@@ -391,7 +391,6 @@ export default function InicioPage() {
                   <div key={c.id} onClick={() => { 
                     setClienteActivo(c); 
                     cargarMovimientosClienteDirecto(c.id); 
-                    if (window.innerWidth < 768) { setVerTodosClientes(false); }
                   }} className={`p-4 rounded-2xl border cursor-pointer flex justify-between items-center transition-all ${clienteActivo?.id === c.id ? 'bg-blue-50 dark:bg-blue-500/10 border-blue-500 dark:border-blue-500/50 shadow-sm' : 'bg-white dark:bg-[#0f172a] border-slate-100 dark:border-slate-800/80 hover:border-blue-300'}`}>
                     <div className="min-w-0 pr-2">
                       <p className="font-bold text-base text-slate-900 dark:text-slate-100 truncate">{c.nombre}</p>
@@ -420,7 +419,7 @@ export default function InicioPage() {
               </div>
             </div>
 
-            {/* Panel Derecho de Escritorio (Perfil Completo al lado) */}
+            {/* Panel Derecho de Escritorio */}
             <div className="hidden md:flex flex-1 flex-col h-full bg-white dark:bg-[#0f172a] overflow-hidden">
               {clienteActivo ? (
                 <div className="flex flex-col h-full">
@@ -459,12 +458,11 @@ export default function InicioPage() {
                     )}
                   </div>
 
-                  {/* Historial en Escritorio con barras de colores */}
+                  {/* Historial con Fecha, Hora y Colaborador */}
                   <div className="p-6 overflow-y-auto flex-1 space-y-4 bg-slate-50/50 dark:bg-[#020617]/50">
                     <h4 className="font-bold text-slate-400 uppercase text-xs tracking-wider">Historial Detallado de Operaciones</h4>
                     {movimientosCliente.map(mov => (
                       <div key={mov.id} className="p-5 bg-white dark:bg-[#0f172a] rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm relative overflow-hidden space-y-3">
-                        {/* Barra Lateral Color */}
                         <div className={`absolute left-0 top-0 bottom-0 w-1.5 ${mov.tipo === 'fiado' ? 'bg-rose-500' : (mov.tipo === 'venta' ? 'bg-emerald-500' : 'bg-blue-500')}`}></div>
                         
                         <div className="pl-2">
@@ -472,7 +470,11 @@ export default function InicioPage() {
                             <span className={`text-xs font-black uppercase px-3 py-1 rounded-lg ${mov.tipo === 'fiado' ? 'bg-rose-100 text-rose-700 dark:bg-rose-500/20 dark:text-rose-300' : (mov.tipo === 'venta' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300' : 'bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-300')}`}>
                               {mov.tipo}
                             </span>
-                            <span className="text-xs font-medium text-slate-400">{mov.fecha?.toDate().toLocaleDateString('es-CO', {day:'2-digit', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit'})}</span>
+                            
+                            <div className="flex items-center gap-1.5 text-[11px] font-bold text-slate-400 uppercase">
+                              {mov.registradoPor && <span className="truncate max-w-[120px]">👤 {mov.registradoPor} •</span>}
+                              <span>{mov.fecha?.toDate().toLocaleDateString('es-CO', {day:'2-digit', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit'})}</span>
+                            </div>
                           </div>
 
                           {mov.detalles && mov.detalles.length > 0 ? (
@@ -519,9 +521,57 @@ export default function InicioPage() {
         </div>
       )}
 
-      {/* PERFIL DEL CLIENTE EN MÓVIL (Con z-index 500 y colores consistentes) */}
+      {/* NUEVO CLIENTE MODAL */}
+      {modalNuevoCliente && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 z-[210]">
+          <div className="bg-white dark:bg-[#0f172a] p-8 rounded-[2.5rem] w-full max-w-md shadow-2xl border border-slate-100 dark:border-slate-800/60 animate-in zoom-in-95 duration-200">
+            <h3 className="text-3xl font-black text-slate-900 dark:text-white mb-6 flex items-center gap-2"><UserCog size={28}/> Registrar Cliente</h3>
+            <div className="flex flex-col gap-4 mb-8">
+              <input type="text" value={nombreNuevo} onChange={(e) => setNombreNuevo(e.target.value)} placeholder="Nombre completo" className="w-full p-5 bg-slate-50 dark:bg-[#020617] border border-slate-200 dark:border-slate-800/80 rounded-2xl outline-none focus:border-blue-500 dark:text-white font-bold text-lg" />
+              <input type="tel" value={celularNuevo} onChange={(e) => setCelularNuevo(e.target.value)} placeholder="WhatsApp (Opcional)" className="w-full p-5 bg-slate-50 dark:bg-[#020617] border border-slate-200 dark:border-slate-800/80 rounded-2xl outline-none focus:border-blue-500 dark:text-white font-bold text-lg" />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <button onClick={() => setModalNuevoCliente(false)} className="bg-slate-100 dark:bg-[#020617] hover:bg-slate-200 text-slate-700 dark:text-slate-300 font-bold py-4 rounded-2xl text-lg">Cancelar</button>
+              <button onClick={guardarClienteNuevo} disabled={guardandoCliente} className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-4 rounded-2xl shadow-lg flex justify-center items-center gap-2 text-lg">Guardar <CheckCircle2 size={20}/></button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL ÉXITO REGISTROS */}
+      {modalExito && modalExito.visible && (
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-md flex items-center justify-center p-4 z-[300] animate-in zoom-in duration-300">
+          <div className="bg-white dark:bg-[#0f172a] rounded-[2.5rem] w-full max-w-sm shadow-2xl p-8 text-center border border-slate-100 dark:border-slate-800/60">
+            <div className="w-24 h-24 bg-emerald-100 dark:bg-emerald-500/20 text-emerald-500 rounded-full flex items-center justify-center mx-auto mb-6 shadow-inner">
+              <CheckCircle2 size={50} />
+            </div>
+            <h2 className="text-2xl font-black text-slate-900 dark:text-white mb-2">¡Registro Exitoso!</h2>
+            {modalExito.accion === 'venta' ? (
+              <div className="mb-8 text-slate-500 dark:text-slate-400 text-base flex flex-col gap-2">
+                <p>Venta por <strong className="text-slate-800 dark:text-slate-200">${modalExito.montoTotal.toLocaleString('es-CO')}</strong> completada.</p>
+                {(modalExito.devuelta || 0) > 0 && <p className="text-emerald-600 font-bold bg-emerald-50 p-2 rounded-lg">Devuelta: ${modalExito.devuelta?.toLocaleString('es-CO')}</p>}
+                {(modalExito.fiadoAdicional || 0) > 0 && <p className="text-rose-600 font-bold bg-rose-50 p-2 rounded-lg">Fiado a {modalExito.cliente.nombre}: ${modalExito.fiadoAdicional?.toLocaleString('es-CO')}</p>}
+              </div>
+            ) : (
+              <p className="text-slate-500 dark:text-slate-400 text-base mb-8">Se guardó el {modalExito.accion} de <strong className="text-slate-800 dark:text-slate-200">${modalExito.montoTotal.toLocaleString('es-CO')}</strong>.</p>
+            )}
+            
+            {modalExito.cliente.celular && datosSesion?.rol !== 'cajero' && (
+              <button onClick={() => abrirWhatsApp(generarTextoComprobante('comprobante', modalExito.cliente, modalExito.accion, modalExito.detalles, modalExito.montoTotal), modalExito.cliente.celular)} className="w-full mb-3 bg-[#25D366] hover:bg-[#1ebd5a] text-white font-bold py-4 rounded-2xl shadow-lg flex justify-center items-center gap-2 text-lg">
+                <MessageCircle size={24} /> Notificar por WhatsApp
+              </button>
+            )}
+            
+            <button onClick={() => setModalExito(null)} className="w-full bg-slate-100 dark:bg-[#020617] hover:bg-slate-200 text-slate-600 dark:text-slate-300 font-bold py-4 rounded-2xl text-lg">
+              Continuar
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* PERFIL DEL CLIENTE EN MÓVIL */}
       {clienteActivo && !verTodosClientes && (
-        <div className="fixed inset-0 bg-black/70 dark:bg-black/85 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4 z-[500] md:hidden">
+        <div className="fixed inset-0 bg-black/70 dark:bg-black/85 backdrop-blur-md flex items-end sm:items-center justify-center p-0 sm:p-4 z-[500] md:hidden">
           <div className="bg-white dark:bg-[#0f172a] rounded-t-[2.5rem] sm:rounded-[2.5rem] w-full max-w-xl shadow-2xl relative flex flex-col h-[90vh] sm:h-[85vh] overflow-hidden border border-slate-100 dark:border-slate-800/60">
             
             <div className="p-4 sm:p-5 flex justify-between items-center bg-slate-50 dark:bg-[#020617] shrink-0 border-b border-slate-100 dark:border-slate-800">
@@ -553,20 +603,24 @@ export default function InicioPage() {
               )}
             </div>
             
-            {/* Historial en Móvil con barras de colores */}
             <div className="bg-white dark:bg-[#0f172a] p-6 flex-1 overflow-y-auto space-y-3">
               <h4 className="font-bold text-slate-400 uppercase text-xs tracking-wider mb-3">Historial Reciente</h4>
               {movimientosCliente.map(mov => (
-                <div key={mov.id} className="p-4 bg-slate-50 dark:bg-[#020617] rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm relative overflow-hidden space-y-2">
+                <div key={mov.id} className="p-4 bg-slate-50 dark:bg-[#020617] rounded-2xl border border-slate-100 dark:border-slate-800 space-y-2 relative overflow-hidden">
                   <div className={`absolute left-0 top-0 bottom-0 w-1.5 ${mov.tipo === 'fiado' ? 'bg-rose-500' : (mov.tipo === 'venta' ? 'bg-emerald-500' : 'bg-blue-500')}`}></div>
                   
                   <div className="pl-1">
-                    <div className="flex justify-between items-center pb-1">
+                    <div className="flex justify-between items-center pb-2 mb-2 border-b border-slate-100 dark:border-slate-800/80">
                       <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded-md ${mov.tipo === 'fiado' ? 'bg-rose-100 text-rose-700' : (mov.tipo === 'venta' ? 'bg-emerald-100 text-emerald-700' : 'bg-blue-100 text-blue-700')}`}>{mov.tipo}</span>
-                      <span className="text-[10px] text-slate-400">{mov.fecha?.toDate().toLocaleDateString('es-CO')}</span>
+                      
+                      <div className="flex items-center gap-1.5 text-[10px] font-bold text-slate-400 uppercase">
+                        {mov.registradoPor && <span className="truncate max-w-[80px]">👤 {mov.registradoPor} •</span>}
+                        <span>{mov.fecha?.toDate().toLocaleDateString('es-CO', {day:'2-digit', month:'short', hour:'2-digit', minute:'2-digit'})}</span>
+                      </div>
                     </div>
+
                     {mov.detalles && mov.detalles.length > 0 ? (
-                      <div className="space-y-1 pt-1 border-t border-slate-200 dark:border-slate-700">
+                      <div className="space-y-1">
                         {mov.detalles.map((d: any, idx: number) => (
                           <div key={idx} className="flex justify-between text-xs">
                             <span className="text-slate-600 dark:text-slate-300">
@@ -596,27 +650,10 @@ export default function InicioPage() {
         </div>
       )}
 
-      {/* NUEVO CLIENTE MODAL */}
-      {modalNuevoCliente && (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 z-[210]">
-          <div className="bg-white dark:bg-[#0f172a] p-8 rounded-[2.5rem] w-full max-w-md shadow-2xl border border-slate-100 dark:border-slate-800/60 animate-in zoom-in-95 duration-200">
-            <h3 className="text-3xl font-black text-slate-900 dark:text-white mb-6 flex items-center gap-2"><UserCog size={28}/> Registrar Cliente</h3>
-            <div className="flex flex-col gap-4 mb-8">
-              <input type="text" value={nombreNuevo} onChange={(e) => setNombreNuevo(e.target.value)} placeholder="Nombre completo" className="w-full p-5 bg-slate-50 dark:bg-[#020617] border border-slate-200 dark:border-slate-800/80 rounded-2xl outline-none focus:border-blue-500 dark:text-white font-bold text-lg" />
-              <input type="tel" value={celularNuevo} onChange={(e) => setCelularNuevo(e.target.value)} placeholder="WhatsApp (Opcional)" className="w-full p-5 bg-slate-50 dark:bg-[#020617] border border-slate-200 dark:border-slate-800/80 rounded-2xl outline-none focus:border-blue-500 dark:text-white font-bold text-lg" />
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <button onClick={() => setModalNuevoCliente(false)} className="bg-slate-100 dark:bg-[#020617] hover:bg-slate-200 text-slate-700 dark:text-slate-300 font-bold py-4 rounded-2xl text-lg">Cancelar</button>
-              <button onClick={guardarClienteNuevo} disabled={guardandoCliente} className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-4 rounded-2xl shadow-lg flex justify-center items-center gap-2 text-lg">Guardar <CheckCircle2 size={20}/></button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* VISTA EXPANDIDA EN ESCRITORIO PARA MÓDULOS (VENDER, FIAR, ABONAR) */}
+      {/* VISTA EXPANDIDA EN ESCRITORIO PARA MÓDULOS (VENDER, FIAR, ABONAR) - ANCHO MÁX-W-6XL */}
       {modalRegistro && (
         <div className="fixed inset-0 bg-black/70 dark:bg-black/85 backdrop-blur-md flex items-center justify-center p-0 md:p-6 z-[250] overflow-hidden">
-          <div className="bg-white dark:bg-[#0f172a] rounded-none md:rounded-[2.5rem] w-full h-full md:h-[90vh] md:max-w-5xl shadow-2xl flex flex-col border border-slate-100 dark:border-slate-800/60 overflow-hidden animate-in zoom-in-95 duration-200">
+          <div className="bg-white dark:bg-[#0f172a] rounded-none md:rounded-[2.5rem] w-full h-full md:h-[90vh] md:max-w-7xl shadow-2xl flex flex-col border border-slate-100 dark:border-slate-800/60 overflow-hidden animate-in zoom-in-95 duration-200">
             
             <div className={`p-6 text-white flex justify-between items-center shrink-0 ${accionRegistro === 'fiado' ? 'bg-gradient-to-r from-rose-500 to-rose-700' : (accionRegistro === 'venta' ? 'bg-gradient-to-r from-emerald-500 to-green-700' : 'bg-gradient-to-r from-blue-500 to-blue-700')}`}>
               <h2 className="text-3xl font-black uppercase tracking-wide flex items-center gap-3">
@@ -660,30 +697,42 @@ export default function InicioPage() {
                       )}
 
                       <h4 className="font-bold text-slate-400 uppercase text-xs tracking-wider mb-3">Artículos o Conceptos</h4>
-                      <div className="space-y-4">
+                      <div className="space-y-4 md:space-y-5">
                         {filasRegistro.map((fila, index) => (
-                          <div key={index} className="flex flex-col md:flex-row gap-3 p-4 bg-slate-50 dark:bg-[#020617] rounded-2xl border border-slate-200 dark:border-slate-800 relative shadow-sm">
+                          <div key={index} className="flex flex-col md:flex-row gap-3 md:gap-4 p-4 md:p-5 bg-slate-50 dark:bg-[#020617] rounded-2xl border border-slate-200 dark:border-slate-800 relative shadow-sm">
                             {filasRegistro.length > 1 && (
-                              <button onClick={() => eliminarFila(index)} className="absolute -top-3 -right-3 bg-rose-100 text-rose-500 rounded-full p-1.5 shadow-md"><X size={16}/></button>
+                              <button onClick={() => eliminarFila(index)} className="absolute -top-3 -right-3 bg-rose-100 text-rose-500 rounded-full p-2 shadow-md hover:bg-rose-200 transition-colors z-10"><X size={16}/></button>
                             )}
-                            <input type="text" value={fila.descripcion} onChange={(e) => actualizarFila(index, 'descripcion', e.target.value)} placeholder="Ej. Producto o servicio A" className="flex-1 p-4 bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-700 rounded-xl outline-none font-bold text-base min-w-0" />
                             
-                            {(accionRegistro === 'fiado' || accionRegistro === 'venta') && (
-                              <div className="flex items-center bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-700 rounded-xl overflow-hidden shrink-0 h-[56px] w-[120px]">
-                                <button onClick={() => actualizarCantidadFila(index, -1)} className="px-3 h-full hover:bg-slate-100 dark:hover:bg-[#1e293b]"><Minus size={18}/></button>
-                                <span className="flex-1 text-center font-black text-lg">{fila.cantidad}</span>
-                                <button onClick={() => actualizarCantidadFila(index, 1)} className="px-3 h-full hover:bg-slate-100 dark:hover:bg-[#1e293b]"><Plus size={18}/></button>
-                              </div>
-                            )}
+                            <div className="flex-1 min-w-0">
+                               <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5 block md:hidden">Producto o Servicio</label>
+                               <input type="text" value={fila.descripcion} onChange={(e) => actualizarFila(index, 'descripcion', e.target.value)} placeholder="Ej. Producto o servicio A" className="w-full p-4 h-[60px] bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-700 rounded-xl outline-none font-bold text-lg md:text-xl min-w-0 shadow-sm focus:border-blue-500 transition-colors" />
+                            </div>
+                            
+                            <div className="flex flex-row gap-3 md:gap-4 w-full md:w-auto">
+                              {(accionRegistro === 'fiado' || accionRegistro === 'venta') && (
+                                <div className="flex flex-col">
+                                  <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5 block md:hidden">Cant.</label>
+                                  <div className="flex items-center bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-700 rounded-xl overflow-hidden shrink-0 h-[60px] w-[110px] md:w-[130px] shadow-sm">
+                                    <button onClick={() => actualizarCantidadFila(index, -1)} className="px-3 h-full hover:bg-slate-100 dark:hover:bg-[#1e293b] transition-colors"><Minus size={18}/></button>
+                                    <span className="flex-1 text-center font-black text-xl">{fila.cantidad}</span>
+                                    <button onClick={() => actualizarCantidadFila(index, 1)} className="px-3 h-full hover:bg-slate-100 dark:hover:bg-[#1e293b] transition-colors"><Plus size={18}/></button>
+                                  </div>
+                                </div>
+                              )}
 
-                            <div className="relative w-full md:w-56 shrink-0 min-w-0">
-                              <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-lg">$</span>
-                              <input type="text" inputMode="numeric" value={formatearMonedaInput(fila.valor)} onChange={(e) => actualizarFila(index, 'valor', e.target.value)} placeholder="Valor" className="w-full pl-9 pr-3 py-4 bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-700 rounded-xl outline-none font-black text-lg md:text-xl h-[56px] box-border min-w-0" />
+                              <div className="flex flex-col flex-1 md:w-[220px] shrink-0 min-w-0">
+                                <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5 block md:hidden">Valor Uni.</label>
+                                <div className="relative w-full h-[60px] shadow-sm rounded-xl">
+                                  <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-xl">$</span>
+                                  <input type="text" inputMode="numeric" value={formatearMonedaInput(fila.valor)} onChange={(e) => actualizarFila(index, 'valor', e.target.value)} placeholder="0" className="w-full pl-9 pr-3 py-4 bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-700 rounded-xl outline-none font-black text-xl md:text-2xl h-[60px] box-border min-w-0 focus:border-blue-500 transition-colors" />
+                                </div>
+                              </div>
                             </div>
                           </div>
                         ))}
 
-                        <button onClick={agregarFila} className="font-bold text-blue-600 bg-blue-50 dark:bg-blue-500/10 hover:bg-blue-100 px-5 py-3 rounded-xl transition-colors flex items-center gap-2 text-sm"><Plus size={18}/> Añadir otra fila</button>
+                        <button onClick={agregarFila} className="font-bold text-blue-600 bg-blue-50 dark:bg-blue-500/10 hover:bg-blue-100 px-6 py-4 rounded-xl transition-colors flex items-center justify-center sm:justify-start gap-2 text-base md:text-lg shadow-sm w-full sm:w-auto"><Plus size={20}/> Añadir otro artículo</button>
                       </div>
                     </div>
                   )}
@@ -691,7 +740,7 @@ export default function InicioPage() {
                 <div ref={finalListaRef}></div>
               </div>
 
-              <div className="w-full md:w-5/12 bg-slate-50 dark:bg-[#020617] p-6 md:p-8 border-t md:border-t-0 md:border-l border-slate-100 dark:border-slate-800 flex flex-col justify-between shrink-0">
+              <div className="w-full md:w-[380px] lg:w-[420px] bg-slate-50 dark:bg-[#020617] p-6 md:p-8 border-t md:border-t-0 md:border-l border-slate-100 dark:border-slate-800 flex flex-col justify-between shrink-0">
                 <div className="space-y-6">
                   <h3 className="font-black text-xl text-slate-900 dark:text-white">Resumen de Operación</h3>
                   
@@ -739,37 +788,6 @@ export default function InicioPage() {
 
             </div>
 
-          </div>
-        </div>
-      )}
-
-      {/* MODAL ÉXITO REGISTROS */}
-      {modalExito && modalExito.visible && (
-        <div className="fixed inset-0 bg-black/70 backdrop-blur-md flex items-center justify-center p-4 z-[300] animate-in zoom-in duration-300">
-          <div className="bg-white dark:bg-[#0f172a] rounded-[2.5rem] w-full max-w-sm shadow-2xl p-8 text-center border border-slate-100 dark:border-slate-800/60">
-            <div className="w-24 h-24 bg-emerald-100 dark:bg-emerald-500/20 text-emerald-500 rounded-full flex items-center justify-center mx-auto mb-6 shadow-inner">
-              <CheckCircle2 size={50} />
-            </div>
-            <h2 className="text-2xl font-black text-slate-900 dark:text-white mb-2">¡Registro Exitoso!</h2>
-            {modalExito.accion === 'venta' ? (
-              <div className="mb-8 text-slate-500 dark:text-slate-400 text-base flex flex-col gap-2">
-                <p>Venta por <strong className="text-slate-800 dark:text-slate-200">${modalExito.montoTotal.toLocaleString('es-CO')}</strong> completada.</p>
-                {(modalExito.devuelta || 0) > 0 && <p className="text-emerald-600 font-bold bg-emerald-50 p-2 rounded-lg">Devuelta: ${modalExito.devuelta?.toLocaleString('es-CO')}</p>}
-                {(modalExito.fiadoAdicional || 0) > 0 && <p className="text-rose-600 font-bold bg-rose-50 p-2 rounded-lg">Fiado a {modalExito.cliente.nombre}: ${modalExito.fiadoAdicional?.toLocaleString('es-CO')}</p>}
-              </div>
-            ) : (
-              <p className="text-slate-500 dark:text-slate-400 text-base mb-8">Se guardó el {modalExito.accion} de <strong className="text-slate-800 dark:text-slate-200">${modalExito.montoTotal.toLocaleString('es-CO')}</strong>.</p>
-            )}
-            
-            {modalExito.cliente.celular && datosSesion?.rol !== 'cajero' && (
-              <button onClick={() => abrirWhatsApp(generarTextoComprobante('comprobante', modalExito.cliente, modalExito.accion, modalExito.detalles, modalExito.montoTotal), modalExito.cliente.celular)} className="w-full mb-3 bg-[#25D366] hover:bg-[#1ebd5a] text-white font-bold py-4 rounded-2xl shadow-lg flex justify-center items-center gap-2 text-lg">
-                <MessageCircle size={24} /> Notificar por WhatsApp
-              </button>
-            )}
-            
-            <button onClick={() => setModalExito(null)} className="w-full bg-slate-100 dark:bg-[#020617] hover:bg-slate-200 text-slate-600 dark:text-slate-300 font-bold py-4 rounded-2xl text-lg">
-              Continuar
-            </button>
           </div>
         </div>
       )}

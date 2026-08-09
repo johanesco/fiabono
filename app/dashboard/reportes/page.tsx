@@ -98,10 +98,22 @@ export default function ReportesPage() {
   const totalClientesRegistrados = clientes.length;
   const clientesConCredito = clientes.filter(c => c.deudaTotal > 0).length;
 
-  const totalVentas = movimientosGenerales.filter(m => m.tipo === 'venta').reduce((acc, m) => acc + m.monto, 0);
-  const totalFiados = movimientosGenerales.filter(m => m.tipo === 'fiado').reduce((acc, m) => acc + m.monto, 0);
-  const totalAbonos = movimientosGenerales.filter(m => m.tipo === 'abono').reduce((acc, m) => acc + m.monto, 0);
+  // Cálculos de montos y contadores
+  const movsVentas = movimientosGenerales.filter(m => m.tipo === 'venta');
+  const movsFiados = movimientosGenerales.filter(m => m.tipo === 'fiado');
+  const movsAbonos = movimientosGenerales.filter(m => m.tipo === 'abono');
+
+  const totalVentas = movsVentas.reduce((acc, m) => acc + m.monto, 0);
+  const countVentas = movsVentas.length;
+
+  const totalFiados = movsFiados.reduce((acc, m) => acc + m.monto, 0);
+  const countFiados = movsFiados.length;
+
+  const totalAbonos = movsAbonos.reduce((acc, m) => acc + m.monto, 0);
+  const countAbonos = movsAbonos.length;
+
   const ingresosCaja = totalVentas + totalAbonos;
+  const countIngresos = countVentas + countAbonos;
 
   const obtenerDatosGrafica = () => {
     const movsGrafica = filtroGrafica === 'semana' 
@@ -243,43 +255,63 @@ export default function ReportesPage() {
 
       </div>
 
-      {/* BLOQUE 2: MÉTRICAS FINANCIERAS CON COLORES SÓLIDOS */}
+      {/* BLOQUE 2: MÉTRICAS FINANCIERAS CON CONTADORES E INTEGRACIÓN ESTÉTICA */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         
         {/* Ventas: Verde Sólido */}
         <div className="bg-gradient-to-br from-emerald-500 to-green-600 p-6 rounded-[2rem] shadow-lg flex flex-col justify-between text-white transform transition-transform hover:-translate-y-1">
-          <div className="flex justify-between items-center mb-4">
-            <span className="text-xs font-black uppercase tracking-widest text-emerald-100 opacity-90">Total Ventas</span>
-            <div className="p-3 bg-white/20 backdrop-blur-sm rounded-2xl"><ShoppingCart size={20}/></div>
+          <div className="flex justify-between items-start mb-2">
+            <div className="flex flex-col gap-1.5">
+              <span className="text-xs font-black uppercase tracking-widest text-emerald-100 opacity-90">Total Ventas</span>
+              <span className="inline-block bg-white/20 backdrop-blur-md px-2.5 py-0.5 rounded-lg text-[10px] font-bold w-max shadow-sm border border-white/10">
+                {countVentas} {countVentas === 1 ? 'venta' : 'ventas'}
+              </span>
+            </div>
+            <div className="p-3 bg-white/20 backdrop-blur-sm rounded-2xl shrink-0"><ShoppingCart size={20}/></div>
           </div>
-          <p className="text-2xl sm:text-3xl font-black tracking-tight">${totalVentas.toLocaleString('es-CO')}</p>
+          <p className="text-2xl sm:text-3xl font-black tracking-tight mt-4">${totalVentas.toLocaleString('es-CO')}</p>
         </div>
 
         {/* Fiados: Rojo Sólido */}
         <div className="bg-gradient-to-br from-rose-500 to-red-600 p-6 rounded-[2rem] shadow-lg flex flex-col justify-between text-white transform transition-transform hover:-translate-y-1">
-          <div className="flex justify-between items-center mb-4">
-            <span className="text-xs font-black uppercase tracking-widest text-rose-100 opacity-90">Total Fiados</span>
-            <div className="p-3 bg-white/20 backdrop-blur-sm rounded-2xl"><ShoppingBag size={20}/></div>
+          <div className="flex justify-between items-start mb-2">
+            <div className="flex flex-col gap-1.5">
+              <span className="text-xs font-black uppercase tracking-widest text-rose-100 opacity-90">Total Fiados</span>
+              <span className="inline-block bg-white/20 backdrop-blur-md px-2.5 py-0.5 rounded-lg text-[10px] font-bold w-max shadow-sm border border-white/10">
+                {countFiados} {countFiados === 1 ? 'fiado' : 'fiados'}
+              </span>
+            </div>
+            <div className="p-3 bg-white/20 backdrop-blur-sm rounded-2xl shrink-0"><ShoppingBag size={20}/></div>
           </div>
-          <p className="text-2xl sm:text-3xl font-black tracking-tight">${totalFiados.toLocaleString('es-CO')}</p>
+          <p className="text-2xl sm:text-3xl font-black tracking-tight mt-4">${totalFiados.toLocaleString('es-CO')}</p>
         </div>
 
         {/* Abonos: Azul Sólido */}
         <div className="bg-gradient-to-br from-blue-500 to-blue-700 p-6 rounded-[2rem] shadow-lg flex flex-col justify-between text-white transform transition-transform hover:-translate-y-1">
-          <div className="flex justify-between items-center mb-4">
-            <span className="text-xs font-black uppercase tracking-widest text-blue-100 opacity-90">Total Abonos</span>
-            <div className="p-3 bg-white/20 backdrop-blur-sm rounded-2xl"><Banknote size={20}/></div>
+          <div className="flex justify-between items-start mb-2">
+            <div className="flex flex-col gap-1.5">
+              <span className="text-xs font-black uppercase tracking-widest text-blue-100 opacity-90">Total Abonos</span>
+              <span className="inline-block bg-white/20 backdrop-blur-md px-2.5 py-0.5 rounded-lg text-[10px] font-bold w-max shadow-sm border border-white/10">
+                {countAbonos} {countAbonos === 1 ? 'abono' : 'abonos'}
+              </span>
+            </div>
+            <div className="p-3 bg-white/20 backdrop-blur-sm rounded-2xl shrink-0"><Banknote size={20}/></div>
           </div>
-          <p className="text-2xl sm:text-3xl font-black tracking-tight">${totalAbonos.toLocaleString('es-CO')}</p>
+          <p className="text-2xl sm:text-3xl font-black tracking-tight mt-4">${totalAbonos.toLocaleString('es-CO')}</p>
         </div>
 
-        {/* Ingresos de Caja: Oscuro Sólido (Resalta el dinero real que entró) */}
+        {/* Ingresos de Caja: Oscuro Sólido */}
         <div className="bg-gradient-to-br from-slate-800 to-slate-900 p-6 rounded-[2rem] shadow-lg flex flex-col justify-between text-white border border-slate-700 transform transition-transform hover:-translate-y-1">
-          <div className="flex justify-between items-center mb-4">
-            <span className="text-[11px] font-black uppercase tracking-widest text-slate-300 opacity-90">Ingresos (Ventas + Abonos)</span>
-            <div className="p-3 bg-white/10 backdrop-blur-sm rounded-2xl"><TrendingUp size={20}/></div>
+          <div className="flex justify-between items-start mb-2">
+            <div className="flex flex-col gap-1.5">
+              <span className="text-[11px] font-black uppercase tracking-widest text-slate-300 opacity-90">Ingresos (V+A)</span>
+              <span className="inline-block bg-white/10 backdrop-blur-md px-2.5 py-0.5 rounded-lg text-[10px] font-bold w-max shadow-sm border border-white/5 text-slate-300">
+                {countIngresos} {countIngresos === 1 ? 'movimiento en caja' : 'movimientos en caja'}
+              </span>
+            </div>
+            <div className="p-3 bg-white/10 backdrop-blur-sm rounded-2xl shrink-0"><TrendingUp size={20}/></div>
           </div>
-          <p className="text-2xl sm:text-3xl font-black tracking-tight text-emerald-400">${ingresosCaja.toLocaleString('es-CO')}</p>
+          <p className="text-2xl sm:text-3xl font-black tracking-tight mt-4 text-emerald-400">${ingresosCaja.toLocaleString('es-CO')}</p>
         </div>
 
       </div>
