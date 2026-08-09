@@ -1,20 +1,38 @@
-import './globals.css'
+import type { Metadata } from "next";
+import { Inter } from "next/font/google";
+import "./globals.css";
+import { Toaster } from "react-hot-toast"; // <-- Importamos el sistema de alertas
 
-export const metadata = {
-  title: 'Fiabono - Gestión Inteligente',
-  description: 'Software de gestión de cartera, fiados y abonos.',
-}
+const inter = Inter({ subsets: ["latin"] });
+
+export const metadata: Metadata = {
+  title: "Fiabono",
+  description: "La app de los negocios locales",
+};
 
 export default function RootLayout({
   children,
-}: {
-  children: React.ReactNode
-}) {
+}: Readonly<{
+  children: React.ReactNode;
+}>) {
   return (
     <html lang="es">
-      <body className="bg-gray-100 text-gray-900 antialiased selection:bg-blue-200">
+      <body className={inter.className}>
+        {/* Aquí vive toda tu aplicación */}
         {children}
+        
+        {/* Aquí agregamos el lanzador global de alertas elegantes */}
+        <Toaster 
+          position="top-center" 
+          toastOptions={{
+            duration: 4000,
+            style: {
+              fontWeight: 'bold',
+              borderRadius: '1rem',
+            },
+          }} 
+        />
       </body>
     </html>
-  )
+  );
 }
