@@ -38,8 +38,9 @@ function FiarContenido() {
     const [modalNuevoCliente, setModalNuevoCliente] = useState(false);
     const [modalExito, setModalExito] = useState<{ visible: boolean, cliente: any, montoTotal: number } | null>(null);
 
-    // Estado para el modal de la cámara QR en Fiar
+    // Estado para el modal de la cámara QR y el aviso flotante en Fiar
     const [modalEscanner, setModalEscanner] = useState(false);
+    const [mensajeScaneo, setMensajeScaneo] = useState<{ texto: string; tipo: 'exito' | 'error' } | null>(null);
 
     const [nombreNuevo, setNombreNuevo] = useState("");
     const [celularNuevo, setCelularNuevo] = useState("");
@@ -61,7 +62,7 @@ function FiarContenido() {
             const timer = setTimeout(() => {
                 scanner = new Html5QrcodeScanner(
                     "reader-fiar",
-                    { fps: 10, qrbox: { width: 220, height: 220 } },
+                    { fps: 15, qrbox: { width: 240, height: 240 } },
                     false
                 );
 
@@ -70,7 +71,7 @@ function FiarContenido() {
                         manejarProductoScaneado(decodedText);
                     },
                     (error) => {
-                        // Ignorar errores mientras busca enfocar
+                        // Ignorar errores while scanning
                     }
                 );
             }, 200);
@@ -111,6 +112,40 @@ function FiarContenido() {
         } catch (error) { console.error(error); }
     };
 
+    // FUNCIONES DE AUDIO Y VIBRO-FEEDBACK PARA FIAR
+    const reproducirSonidoExito = () => {
+        try {
+            const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(800, ctx.currentTime);
+            osc.frequency.exponentialRampToValueAtTime(1200, ctx.currentTime + 0.1);
+            gain.gain.setValueAtTime(0.1, ctx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.1);
+            osc.connect(gain);
+            gain.connect(ctx.destination);
+            osc.start();
+            osc.stop(ctx.currentTime + 0.1);
+        } catch (e) {
+            // Ignorar bloqueo de autoplay del navegador
+        }
+    };
+
+    const dispararFeedback = (tipo: 'exito' | 'error', texto: string) => {
+        setMensajeScaneo({ texto, tipo });
+        if (tipo === 'exito') {
+            reproducirSonidoExito();
+            if (navigator.vibrate) navigator.vibrate(100);
+        } else {
+            if (navigator.vibrate) navigator.vibrate([50, 50, 50]);
+        }
+
+        setTimeout(() => {
+            setMensajeScaneo(null);
+        }, 2500);
+    };
+
     // LÓGICA MÁGICA AL ESCANEAR UN CÓDIGO QR EN FIAR
     const manejarProductoScaneado = (skuScaneado: string) => {
         const skuLimpio = skuScaneado.trim().toLowerCase();
@@ -119,7 +154,7 @@ function FiarContenido() {
         );
 
         if (!productoEncontrado) {
-            toast.error(`Producto con código "${skuScaneado}" no encontrado.`);
+            dispararFeedback('error', `❌ Código "${skuScaneado}" no registrado`);
             return;
         }
 
@@ -134,17 +169,17 @@ function FiarContenido() {
             const stockDisp = productoEncontrado.stock - cantEnOtras;
 
             if (fila.cantidad + 1 > stockDisp) {
-                toast.error(`¡Límite alcanzado! No hay más stock de ${productoEncontrado.nombre}.`);
+                dispararFeedback('error', `⚠️ Límite alcanzado (${productoEncontrado.nombre})`);
                 return;
             }
 
             fila.cantidad += 1;
-            toast.success(`+1 ${productoEncontrado.nombre} agregado`);
+            dispararFeedback('exito', `✓ +1 ${productoEncontrado.nombre} (${fila.cantidad})`);
         } else {
             const indexVacio = nuevasFilas.findIndex(f => f.descripcion.trim() === "" && parseFloat(f.valor || "0") === 0);
 
             if (productoEncontrado.stock <= 0) {
-                toast.error(`El producto ${productoEncontrado.nombre} está agotado.`);
+                dispararFeedback('error', `❌ Agotado: ${productoEncontrado.nombre}`);
                 return;
             }
 
@@ -161,7 +196,7 @@ function FiarContenido() {
                     cantidad: 1
                 });
             }
-            toast.success(`${productoEncontrado.nombre} añadido al fiado`);
+            dispararFeedback('exito', `✓ Añadido al fiado: ${productoEncontrado.nombre}`);
         }
 
         setFilasRegistro(nuevasFilas);
@@ -582,13 +617,21 @@ function FiarContenido() {
 
             <div className="h-24 lg:hidden w-full bg-slate-50 dark:bg-[#020617] shrink-0"></div>
 
-            {/* MODAL DEL ESCÁNER DE CÁMARA QR EN FIAR */}
+            {/* MODAL DEL ESCÁNER DE CÁMARA QR EN FIAR CON AVISO FLOTANTE Y FEEDBACK */}
             {modalEscanner && (
-                <div className="fixed inset-0 bg-black/85 backdrop-blur-md flex items-center justify-center p-4 z-[999] animate-in fade-in duration-200">
-                    <div className="bg-white dark:bg-[#0f172a] p-6 sm:p-8 rounded-[2.5rem] w-full max-w-md shadow-2xl border border-slate-100 dark:border-slate-800 flex flex-col items-center">
+                <div className="fixed inset-0 bg-black/90 backdrop-blur-md flex items-center justify-center p-4 z-[999] animate-in fade-in duration-200">
+                    <div className="bg-white dark:bg-[#0f172a] p-6 sm:p-8 rounded-[2.5rem] w-full max-w-md shadow-2xl border border-slate-100 dark:border-slate-800 flex flex-col items-center relative overflow-hidden">
+                        
+                        {/* NOTIFICACIÓN FLOTANTE DENTRO DE LA CÁMARA */}
+                        {mensajeScaneo && (
+                            <div className={`absolute top-4 left-4 right-4 z-50 p-4 rounded-2xl text-white font-black text-center shadow-2xl animate-in slide-in-from-top duration-300 flex items-center justify-center gap-2 ${mensajeScaneo.tipo === 'exito' ? 'bg-emerald-600 text-lg' : 'bg-rose-600'}`}>
+                                {mensajeScaneo.texto}
+                            </div>
+                        )}
+
                         <div className="flex justify-between items-center w-full mb-4">
                             <h3 className="text-xl font-black text-slate-900 dark:text-white flex items-center gap-2">
-                                <QrCode size={24}/> Escanear Código QR
+                                <QrCode size={24}/> Escáner Continuo (Fiar)
                             </h3>
                             <button 
                                 onClick={() => setModalEscanner(false)} 
@@ -599,7 +642,7 @@ function FiarContenido() {
                         </div>
                         
                         <p className="text-xs text-slate-500 mb-4 text-center">
-                            Apunta con la cámara de tu dispositivo hacia el código QR de la etiqueta para agregar al fiado.
+                            Apunta de forma continua. Cada vez que escanees un producto se sumará al fiado automáticamente.
                         </p>
 
                         <style jsx global>{`
@@ -623,6 +666,7 @@ function FiarContenido() {
                             border: 1px solid #cbd5e1 !important;
                             margin-bottom: 10px !important;
                             background: white !important;
+                            color: #0f172a !important;
                             font-weight: bold !important;
                             width: 100% !important;
                           }
