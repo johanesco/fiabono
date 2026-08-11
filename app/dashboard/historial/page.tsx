@@ -326,7 +326,7 @@ export default function HistorialPage() {
       
       <div className="p-3 overflow-y-auto scroll-smooth flex-1" ref={scrollHistorialRef}>
         
-        {/* VISTA MÓVIL: TARJETAS CON HORA Y COLABORADOR SUTIL */}
+        {/* VISTA MÓVIL: TARJETAS DE HISTORIAL MEJORADAS */}
         <div className="md:hidden">
           {historialFiltrado.map((mov) => (
             <div 
@@ -340,14 +340,15 @@ export default function HistorialPage() {
                   <p className="font-bold text-lg text-slate-900 dark:text-slate-200 truncate">{getNombreCliente(mov.clienteId)}</p>
                   <p className="text-sm text-slate-500 dark:text-slate-400 truncate mt-0.5">{mov.descripcion}</p>
                   
-                  {/* Etiqueta de Hora y Colaborador sutil */}
-                  <div className="flex items-center gap-1.5 mt-1.5">
+                  {/* Etiqueta de Hora y Colaborador SIN truncate y con whitespace-nowrap */}
+                  <div className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5 mt-2 text-[10px] font-bold uppercase">
                     {mov.registradoPor && (
-                      <span className="text-[10px] font-bold text-slate-400 truncate">
-                        👤 {mov.registradoPor} •
+                      <span className="text-slate-500 dark:text-slate-400 whitespace-nowrap">
+                        👤 {mov.registradoPor}
                       </span>
                     )}
-                    <span className="text-[10px] font-bold text-slate-400 uppercase">
+                    {mov.registradoPor && <span className="text-slate-300 dark:text-slate-600 whitespace-nowrap">•</span>}
+                    <span className="text-slate-400 whitespace-nowrap">
                       {mov.fecha?.toDate().toLocaleDateString('es-CO', { day:'2-digit', month:'short', hour:'2-digit', minute:'2-digit' })}
                     </span>
                   </div>
@@ -380,7 +381,10 @@ export default function HistorialPage() {
           ========================================================================= */}
       {clienteActivo && (
         <div className="fixed inset-0 bg-black/70 dark:bg-black/85 backdrop-blur-md flex items-end md:items-center justify-center p-0 md:p-6 z-[500] overflow-hidden">
-          <div className="bg-white dark:bg-[#0f172a] rounded-t-[2.5rem] md:rounded-[2.5rem] w-full h-[90vh] md:max-w-7xl shadow-2xl flex flex-col md:flex-row overflow-hidden border border-slate-100 dark:border-slate-800/60 animate-in slide-in-from-bottom-8 md:zoom-in-95 duration-300">
+          
+          {/* MÓVIL Y ESCRITORIO: CONTENEDOR PRINCIPAL */}
+          {/* NOTA: Para móvil, aumentamos el h-[96vh] para usar más espacio */}
+          <div className="bg-white dark:bg-[#0f172a] rounded-t-[2.5rem] md:rounded-[2.5rem] w-full h-[96vh] md:h-[90vh] md:max-w-7xl shadow-2xl flex flex-col md:flex-row overflow-hidden border border-slate-100 dark:border-slate-800/60 animate-in slide-in-from-bottom-8 md:zoom-in-95 duration-300">
             
             {/* PANEL IZQUIERDO: DIRECTORIO (SOLO ESCRITORIO) */}
             <div className="hidden md:flex w-5/12 flex-col border-r border-slate-100 dark:border-slate-800 h-full bg-slate-50/50 dark:bg-[#020617]/50">
@@ -472,7 +476,7 @@ export default function HistorialPage() {
               </div>
 
               {/* HISTORIAL INTERNO DEL PERFIL CON COLABORADOR SUTIL Y ALINEADO */}
-              <div className="bg-white dark:bg-[#0f172a] p-6 flex-1 overflow-y-auto space-y-3 md:space-y-4">
+              <div className="bg-white dark:bg-[#0f172a] p-6 pb-10 flex-1 overflow-y-auto space-y-3 md:space-y-4">
                 <h4 className="font-bold text-slate-400 uppercase text-xs tracking-wider mb-3 flex items-center gap-2"><Clock size={16}/> Historial Completo</h4>
                 {movimientosCliente.map(mov => (
                   <div key={mov.id} className="p-4 md:p-5 bg-slate-50 dark:bg-[#020617] rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm relative overflow-hidden space-y-2 md:space-y-3">
@@ -482,14 +486,17 @@ export default function HistorialPage() {
                       <div className="flex justify-between items-center pb-1 md:pb-2 md:border-b md:border-slate-100 dark:border-slate-800/80">
                         <span className={`text-[10px] md:text-xs font-black uppercase px-2.5 py-0.5 md:px-3 md:py-1 rounded-md md:rounded-lg ${mov.tipo === 'fiado' ? 'bg-rose-100 text-rose-700 dark:bg-rose-500/20 dark:text-rose-300' : (mov.tipo === 'venta' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300' : 'bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-300')}`}>{mov.tipo}</span>
                         
-                        {/* Etiqueta de Hora y Colaborador sutil */}
-                        <div className="flex items-center gap-1.5 text-[10px] md:text-[11px] font-bold text-slate-400 uppercase">
+                        {/* Etiqueta de Hora y Colaborador arreglada (SIN truncate, SIN saltos molestos) */}
+                        <div className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[10px] md:text-[11px] font-bold uppercase">
                           {mov.registradoPor && (
-                            <span className="truncate max-w-[80px] sm:max-w-none">
-                              👤 {mov.registradoPor} •
+                            <span className="text-slate-500 dark:text-slate-400 whitespace-nowrap">
+                              👤 {mov.registradoPor}
                             </span>
                           )}
-                          <span>{mov.fecha?.toDate().toLocaleDateString('es-CO', {day:'2-digit', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit'})}</span>
+                          {mov.registradoPor && <span className="text-slate-300 dark:text-slate-600 whitespace-nowrap">•</span>}
+                          <span className="text-slate-400 whitespace-nowrap">
+                            {mov.fecha?.toDate().toLocaleDateString('es-CO', {day:'2-digit', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit'})}
+                          </span>
                         </div>
                       </div>
                       

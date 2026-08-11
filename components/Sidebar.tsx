@@ -16,7 +16,7 @@ export default function Sidebar({ sidebarAbierto, setSidebarAbierto, puedeVerRep
   const pathname = usePathname();
 
   const enlaces = [
-    { href: "/dashboard/inicio", label: "Inicio / Caja", icon: Home },
+    { href: "/dashboard/inicio", label: "Inicio", icon: Home },
     ...(puedeVerReportes ? [{ href: "/dashboard/reportes", label: "Reportes", icon: PieChart }] : []),
     { href: "/dashboard/historial", label: "Historial", icon: Clock },
     { href: "/dashboard/perfil", label: "Ajustes", icon: UserCog },
@@ -72,6 +72,8 @@ export default function Sidebar({ sidebarAbierto, setSidebarAbierto, puedeVerRep
         <LogOut size={24} className="shrink-0" />
         {sidebarAbierto && <span>Salir</span>}
       </button>
+      
     </aside>
   );
+  
 }

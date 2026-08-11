@@ -1,37 +1,22 @@
-import type { Metadata } from "next";
-import { Inter } from "next/font/google";
 import "./globals.css";
-import { Toaster } from "react-hot-toast"; // <-- Importamos el sistema de alertas
+import { AuthProvider } from "../hooks/AuthContext";
 
-const inter = Inter({ subsets: ["latin"] });
-
-export const metadata: Metadata = {
+export const metadata = {
   title: "Fiabono",
-  description: "La app de los negocios locales",
+  description: "Sistema de gestión y control de inventario y fiados",
 };
 
 export default function RootLayout({
   children,
-}: Readonly<{
+}: {
   children: React.ReactNode;
-}>) {
+}) {
   return (
     <html lang="es">
-      <body className={inter.className}>
-        {/* Aquí vive toda tu aplicación */}
-        {children}
-        
-        {/* Aquí agregamos el lanzador global de alertas elegantes */}
-        <Toaster 
-          position="top-center" 
-          toastOptions={{
-            duration: 4000,
-            style: {
-              fontWeight: 'bold',
-              borderRadius: '1rem',
-            },
-          }} 
-        />
+      <body className="font-sans antialiased bg-slate-100 dark:bg-slate-950">
+        <AuthProvider>
+          {children}
+        </AuthProvider>
       </body>
     </html>
   );
