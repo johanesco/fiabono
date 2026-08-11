@@ -3,13 +3,13 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { collection, addDoc, getDocs, query, where } from "firebase/firestore";
 import { db } from "../../../firebase";
-import { Search, ShoppingBag, Banknote, Users, CheckCircle2, ChevronRight, X, MessageCircle, UserCog, ShoppingCart, Star, Clock } from 'lucide-react';
+import { Search, ShoppingBag, Banknote, Users, CheckCircle2, ChevronRight, X, MessageCircle, UserCog, ShoppingCart, Star, Clock, Store } from 'lucide-react';
 import toast from "react-hot-toast";
 import { useAuth } from "../../../hooks/AuthContext";
 
 export default function InicioPage() {
   const { datosSesion } = useAuth();
-  const router = useRouter(); // <-- Agregamos el router para navegar a las nuevas páginas
+  const router = useRouter();
 
   const cuentaPrincipalId = datosSesion?.cuentaPrincipalId;
   const planActual = datosSesion?.planActual;
@@ -96,7 +96,6 @@ export default function InicioPage() {
       if (detallesArray && detallesArray.length > 0) {
         texto += `📝 *DETALLE DE LA OPERACIÓN:*\n`;
         detallesArray.forEach(d => {
-          // Usamos el guion limpio (-)
           texto += `- ${d.cantidad || 1}x ${d.descripcion} ($${(d.valorUnitario || d.valor).toLocaleString('es-CO')} c/u) = $${d.valor.toLocaleString('es-CO')}\n`;
         });
         texto += `\n💰 *TOTAL:* $${totalMov?.toLocaleString('es-CO')}\n\n`;
@@ -131,36 +130,77 @@ export default function InicioPage() {
     (c.nombre || "").toLowerCase().includes(busqueda.toLowerCase()) ||
     (c.celular || "").toString().includes(busqueda)
   );
-  const directorioFiltrado = clientes.filter(c => c.nombre?.toLowerCase().includes(busquedaDirectorio.toLowerCase()));
+  const directorioFiltrado = clientes.filter(c => 
+    (c.nombre || "").toLowerCase().includes(busquedaDirectorio.toLowerCase()) ||
+    (c.celular || "").toString().includes(busquedaDirectorio)
+  );
+
+  const getSaludo = () => {
+    const hora = new Date().getHours();
+    if (hora >= 5 && hora < 12) return "Buenos días";
+    if (hora >= 12 && hora < 19) return "Buenas tardes";
+    return "Buenas noches";
+  };
 
   return (
     <>
-      <div className="flex flex-col gap-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+      {/* REDUCIMOS LOS GAPS PARA ESCRITORIO: md:gap-3 lg:gap-4 xl:gap-4. Móvil sigue intacto (gap-6 sm:gap-8) */}
+      <div className="flex flex-col gap-6 sm:gap-8 md:gap-3 lg:gap-4 xl:gap-4 animate-in fade-in slide-in-from-bottom-4 duration-500 px-4 sm:px-6 lg:px-8 pt-4 md:pt-2 h-full w-full max-w-[1600px] mx-auto">
+
+        {/* ENCABEZADO DE BIENVENIDA */}
+        <header className="flex flex-col gap-1 px-1 md:mb-1 lg:mb-2">
+          {/* LOGO DE FIABONO (Solo visible en celular) */}
+          <div className="md:hidden flex items-center mb-1">
+            <span className="text-[22px] font-black tracking-tighter text-blue-600 dark:text-blue-500 flex items-center gap-1">
+              Fiabono
+            </span>
+          </div>
+
+          <div className="flex flex-col min-w-0">
+            <h1 className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-white truncate tracking-tight">
+              {getSaludo()}, <span className="text-blue-600 dark:text-blue-500">{datosSesion?.nombreUsuario?.split(' ')[0] || 'Usuario'}</span> 👋
+            </h1>
+            <div className="flex items-center gap-2 mt-2">
+              <span className="bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-300 text-[10px] md:text-xs font-black uppercase tracking-wider px-2 py-1 rounded-md flex items-center gap-1.5">
+                <Store size={14}/> {nombreNegocio || 'Cargando...'}
+              </span>
+              <span className="bg-blue-100 dark:bg-blue-500/20 text-blue-700 dark:text-blue-400 text-[10px] md:text-xs font-black uppercase tracking-wider px-2 py-1 rounded-md">
+                {datosSesion?.rol === 'cajero' ? 'Colaborador' : 'Administrador'}
+              </span>
+            </div>
+          </div>
+        </header>
 
         {/* BUSCADOR */}
         <section className="relative z-20">
           <div className="relative shadow-sm rounded-[2rem]">
-            <Search className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-400" size={28} />
+            <Search className="absolute left-4 sm:left-5 md:left-4 top-1/2 -translate-y-1/2 text-slate-400 w-5 h-5 sm:w-7 sm:h-7 md:w-5 md:h-5" />
+            {/* Input más compacto en escritorio: md:p-3 lg:p-4 */}
             <input type="text" value={busqueda} onChange={(e) => setBusqueda(e.target.value)} placeholder="Buscar cliente registrado..."
-              className="w-full text-lg sm:text-xl p-5 sm:p-6 pl-14 sm:pl-16 bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-800/60 rounded-[2rem] focus:border-blue-500 dark:focus:border-blue-400 outline-none shadow-sm dark:shadow-none transition-all placeholder:text-slate-400 dark:placeholder:text-slate-500 font-medium" />
+              className="w-full text-lg sm:text-xl md:text-base lg:text-lg p-5 sm:p-6 md:p-3 lg:p-4 pl-12 sm:pl-16 md:pl-12 lg:pl-12 bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-800/60 rounded-[2rem] md:rounded-2xl lg:rounded-3xl focus:border-blue-500 dark:focus:border-blue-400 outline-none shadow-sm dark:shadow-none transition-all placeholder:text-slate-400 dark:placeholder:text-slate-500 font-medium" />
           </div>
 
           {busqueda.length > 0 && (
             <div className="absolute top-full left-0 right-0 bg-white dark:bg-[#0f172a] border border-slate-100 dark:border-slate-800/80 rounded-3xl mt-2 shadow-2xl max-h-[60vh] overflow-y-auto z-40 p-3">
               {clientesFiltrados.length > 0 ? (
                 clientesFiltrados.map((c) => (
-                  <div key={c.id} onClick={() => { setClienteActivo(c); cargarMovimientosClienteDirecto(c.id); setBusqueda(""); }} className="p-5 hover:bg-slate-50 dark:hover:bg-[#1e293b] rounded-2xl cursor-pointer flex justify-between items-center transition-colors mb-2 gap-2">
-                    <span className="font-bold text-slate-800 dark:text-slate-200 text-xl truncate min-w-0 flex-1">{c.nombre}</span>
-                    <span className={`text-base font-black tracking-tight shrink-0 whitespace-nowrap ${c.deudaTotal === 0 ? 'text-slate-400 dark:text-slate-500' : (c.deudaTotal < 0 ? 'text-emerald-500 dark:text-emerald-400' : 'text-rose-500 dark:text-rose-400')}`}>
+                  <div key={c.id} onClick={() => { 
+                    setClienteActivo(c); 
+                    cargarMovimientosClienteDirecto(c.id); 
+                    setBusqueda(""); 
+                    setVerTodosClientes(true);
+                  }} className="p-5 hover:bg-slate-50 dark:hover:bg-[#1e293b] rounded-2xl cursor-pointer flex justify-between items-center transition-colors mb-2 gap-2">
+                    <span className="font-bold text-slate-800 dark:text-slate-200 text-xl md:text-lg truncate min-w-0 flex-1">{c.nombre}</span>
+                    <span className={`text-base md:text-sm font-black tracking-tight shrink-0 whitespace-nowrap ${c.deudaTotal === 0 ? 'text-slate-400 dark:text-slate-500' : (c.deudaTotal < 0 ? 'text-emerald-500 dark:text-emerald-400' : 'text-rose-500 dark:text-rose-400')}`}>
                       {c.deudaTotal === 0 ? '$0 (Al día)' : (c.deudaTotal < 0 ? `A favor: $${Math.abs(c.deudaTotal).toLocaleString('es-CO')}` : `Deuda: $${c.deudaTotal.toLocaleString('es-CO')}`)}
                     </span>
                   </div>
                 ))
               ) : (
                 <div className="p-8 text-center text-slate-500 dark:text-slate-400">
-                  <p className="mb-6 text-xl">"{busqueda}" no está en tu directorio.</p>
-                  <button onClick={() => { setNombreNuevo(busqueda); setModalNuevoCliente(true); setBusqueda(""); }} className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-4 px-8 rounded-2xl text-lg transition-colors flex items-center justify-center gap-2 mx-auto shadow-md">
-                    <UserCog size={24} /> Crear Cliente
+                  <p className="mb-6 text-xl md:text-lg">"{busqueda}" no está en tu directorio.</p>
+                  <button onClick={() => { setNombreNuevo(busqueda); setModalNuevoCliente(true); setBusqueda(""); }} className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-4 md:py-3 px-8 rounded-2xl text-lg md:text-base transition-colors flex items-center justify-center gap-2 mx-auto shadow-md">
+                    <UserCog size={24} className="md:w-5 md:h-5" /> Crear Cliente
                   </button>
                 </div>
               )}
@@ -168,31 +208,34 @@ export default function InicioPage() {
           )}
         </section>
 
-        {/* BOTONES PRINCIPALES (AHORA NAVEGAN A LAS NUEVAS RUTAS) */}
-        <section className="flex flex-col gap-4 sm:gap-6">
+        {/* BOTONES PRINCIPALES: Altura dramáticamente reducida en Escritorio */}
+        <section className="flex flex-col gap-4 sm:gap-6 md:gap-3 lg:gap-4">
+          {/* Botón VENDER: py-12 (Móvil) vs md:py-5 lg:py-6 (Escritorio) */}
           <button onClick={() => router.push('/dashboard/vender')}
-            className="w-full bg-gradient-to-br from-emerald-500 to-green-700 hover:from-emerald-600 hover:to-green-800 text-white font-black text-2xl sm:text-4xl py-12 rounded-[2rem] shadow-lg flex flex-col items-center justify-center transition-transform transform active:scale-95 border border-emerald-400/30 dark:border-emerald-500/20">
-            <ShoppingCart size={48} className="mb-3 opacity-90 shrink-0" />
+            className="w-full bg-gradient-to-br from-emerald-500 to-green-700 hover:from-emerald-600 hover:to-green-800 text-white font-black text-2xl sm:text-4xl md:text-2xl lg:text-3xl xl:text-4xl py-12 md:py-5 lg:py-6 xl:py-8 rounded-[2rem] md:rounded-2xl lg:rounded-3xl shadow-lg flex flex-col items-center justify-center transition-transform transform active:scale-95 border border-emerald-400/30 dark:border-emerald-500/20">
+            <ShoppingCart className="mb-2 sm:mb-3 opacity-90 shrink-0 w-12 h-12 sm:w-16 sm:h-16 md:w-10 md:h-10 lg:w-12 lg:h-12" />
             VENDER
           </button>
 
-          <div className="grid grid-cols-2 gap-4 sm:gap-6">
+          <div className="grid grid-cols-2 gap-4 sm:gap-6 md:gap-3 lg:gap-4">
+            {/* Botones FIAR / ABONAR: py-10 (Móvil) vs md:py-4 lg:py-5 (Escritorio) */}
             <button onClick={() => router.push('/dashboard/fiar')}
-              className="bg-gradient-to-br from-rose-500 to-red-600 dark:from-rose-600 dark:to-rose-800 hover:from-rose-600 hover:to-red-700 text-white font-black text-2xl sm:text-3xl py-10 rounded-[2rem] shadow-lg flex flex-col items-center justify-center transition-transform transform active:scale-95 border border-rose-400/30 dark:border-rose-500/20">
-              <ShoppingBag size={40} className="mb-3 opacity-90 shrink-0" />
+              className="bg-gradient-to-br from-rose-500 to-red-600 dark:from-rose-600 dark:to-rose-800 hover:from-rose-600 hover:to-red-700 text-white font-black text-2xl sm:text-3xl md:text-xl lg:text-2xl xl:text-3xl py-10 md:py-4 lg:py-5 xl:py-6 rounded-[2rem] md:rounded-2xl lg:rounded-3xl shadow-lg flex flex-col items-center justify-center transition-transform transform active:scale-95 border border-rose-400/30 dark:border-rose-500/20">
+              <ShoppingBag className="mb-2 sm:mb-3 opacity-90 shrink-0 w-10 h-10 sm:w-12 sm:h-12 md:w-8 md:h-8 lg:w-10 lg:h-10" />
               FIAR
             </button>
             <button onClick={() => router.push('/dashboard/abonar')}
-              className="bg-gradient-to-br from-blue-500 to-blue-700 dark:from-blue-600 dark:to-blue-800 hover:from-blue-600 hover:to-blue-700 text-white font-black text-2xl sm:text-3xl py-10 rounded-[2rem] shadow-lg flex flex-col items-center justify-center transition-transform transform active:scale-95 border border-blue-400/30 dark:border-blue-500/20">
-              <Banknote size={40} className="mb-3 opacity-90 shrink-0" />
+              className="bg-gradient-to-br from-blue-500 to-blue-700 dark:from-blue-600 dark:to-blue-800 hover:from-blue-600 hover:to-blue-700 text-white font-black text-2xl sm:text-3xl md:text-xl lg:text-2xl xl:text-3xl py-10 md:py-4 lg:py-5 xl:py-6 rounded-[2rem] md:rounded-2xl lg:rounded-3xl shadow-lg flex flex-col items-center justify-center transition-transform transform active:scale-95 border border-blue-400/30 dark:border-blue-500/20">
+              <Banknote className="mb-2 sm:mb-3 opacity-90 shrink-0 w-10 h-10 sm:w-12 sm:h-12 md:w-8 md:h-8 lg:w-10 lg:h-10" />
               ABONAR
             </button>
           </div>
         </section>
 
+        {/* DIRECTORIO DE CLIENTES: py-6 (Móvil) vs md:py-3 lg:py-4 (Escritorio) */}
         {puedeVerDirectorio && (
-          <button onClick={() => setVerTodosClientes(true)} className="bg-white dark:bg-[#0f172a] hover:bg-slate-50 dark:hover:bg-[#1e293b] text-blue-900 dark:text-blue-400 font-bold text-xl py-6 rounded-[2rem] shadow-sm transition-colors border border-slate-200 dark:border-slate-800/60 flex justify-center items-center gap-3 relative z-10">
-            <Users size={28} className="shrink-0" /> Directorio de clientes
+          <button onClick={() => setVerTodosClientes(true)} className="bg-white dark:bg-[#0f172a] hover:bg-slate-50 dark:hover:bg-[#1e293b] text-blue-900 dark:text-blue-400 font-bold text-xl md:text-base lg:text-lg py-6 md:py-3 lg:py-4 xl:py-4 rounded-[2rem] md:rounded-2xl lg:rounded-3xl shadow-sm transition-colors border border-slate-200 dark:border-slate-800/60 flex justify-center items-center gap-3 relative z-10 mb-4 md:mb-0">
+            <Users className="shrink-0 w-7 h-7 sm:w-8 sm:h-8 md:w-5 md:h-5 lg:w-6 lg:h-6" /> Directorio de clientes
           </button>
         )}
       </div>
@@ -211,7 +254,7 @@ export default function InicioPage() {
               <div className="p-4 bg-white dark:bg-[#0f172a] shrink-0 border-b border-slate-100 dark:border-slate-800">
                 <div className="relative">
                   <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
-                  <input type="text" value={busquedaDirectorio} onChange={(e) => setBusquedaDirectorio(e.target.value)} placeholder="Buscar en el directorio..." className="w-full p-4 pl-12 bg-slate-50 dark:bg-[#020617] border border-slate-200 dark:border-slate-800 rounded-2xl outline-none focus:border-blue-500 dark:text-white text-base font-medium" />
+                  <input type="text" value={busquedaDirectorio} onChange={(e) => setBusquedaDirectorio(e.target.value)} placeholder="Buscar nombre o celular..." className="w-full p-4 pl-12 bg-slate-50 dark:bg-[#020617] border border-slate-200 dark:border-slate-800 rounded-2xl outline-none focus:border-blue-500 dark:text-white text-base font-medium" />
                 </div>
               </div>
 
@@ -268,33 +311,60 @@ export default function InicioPage() {
                       <button onClick={() => router.push(`/dashboard/abonar?clienteId=${clienteActivo.id}`)} className="flex-1 bg-blue-500 hover:bg-blue-600 text-white font-bold py-3 rounded-xl text-sm uppercase shadow-sm">+ Abonar</button>
                     </div>
                     {clienteActivo.celular && datosSesion?.rol !== 'cajero' && (
-                      <button onClick={() => abrirWhatsApp(generarTextoComprobante(clienteActivo), clienteActivo.celular)} className="w-full bg-[#25D366]/10 hover:bg-[#25D366]/20 text-[#1ebd5a] dark:text-[#25D366] font-bold py-2.5 rounded-xl transition-colors flex justify-center items-center gap-2 text-sm border border-[#25D366]/20">
+                      <button onClick={() => abrirWhatsApp(generarTextoComprobante('estado', clienteActivo), clienteActivo.celular)} className="w-full bg-[#25D366]/10 hover:bg-[#25D366]/20 text-[#1ebd5a] dark:text-[#25D366] font-bold py-2.5 rounded-xl transition-colors flex justify-center items-center gap-2 text-sm border border-[#25D366]/20">
                         <MessageCircle size={18} /> Enviar estado por WhatsApp
                       </button>
                     )}
                   </div>
 
                   <div className="p-6 overflow-y-auto flex-1 space-y-4 bg-slate-50/50 dark:bg-[#020617]/50">
-                    <h4 className="font-bold text-slate-400 uppercase text-xs tracking-wider">Historial Detallado</h4>
+                    <h4 className="font-bold text-slate-400 uppercase text-xs tracking-wider mb-3 flex items-center gap-2"><Clock size={16}/> Historial Detallado</h4>
                     {movimientosCliente.map(mov => (
-                      <div key={mov.id} className="p-5 bg-white dark:bg-[#0f172a] rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm relative overflow-hidden space-y-3">
+                      <div key={mov.id} className="p-4 md:p-5 bg-white dark:bg-[#0f172a] rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm relative overflow-hidden space-y-2 md:space-y-3">
                         <div className={`absolute left-0 top-0 bottom-0 w-1.5 ${mov.tipo === 'fiado' ? 'bg-rose-500' : (mov.tipo === 'venta' ? 'bg-emerald-500' : 'bg-blue-500')}`}></div>
-                        <div className="pl-2">
-                          <div className="flex justify-between items-center pb-2 border-b border-slate-100 dark:border-slate-800/80">
-                            <span className={`text-xs font-black uppercase px-3 py-1 rounded-lg ${mov.tipo === 'fiado' ? 'bg-rose-100 text-rose-700' : (mov.tipo === 'venta' ? 'bg-emerald-100 text-emerald-700' : 'bg-blue-100 text-blue-700')}`}>{mov.tipo}</span>
-                            <div className="flex items-center gap-1.5 text-[11px] font-bold text-slate-400 uppercase">
-                              {mov.registradoPor && <span className="truncate max-w-[120px]">👤 {mov.registradoPor} •</span>}
-                              <span>{mov.fecha?.toDate().toLocaleDateString('es-CO', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>
+                        <div className="pl-1 md:pl-2">
+                          <div className="flex justify-between items-center pb-1 md:pb-2 md:border-b md:border-slate-100 dark:border-slate-800/80">
+                            <span className={`text-[10px] md:text-xs font-black uppercase px-2.5 py-0.5 md:px-3 md:py-1 rounded-md md:rounded-lg ${mov.tipo === 'fiado' ? 'bg-rose-100 text-rose-700 dark:bg-rose-500/20 dark:text-rose-300' : (mov.tipo === 'venta' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300' : 'bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-300')}`}>{mov.tipo}</span>
+                            
+                            <div className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[10px] md:text-[11px] font-bold uppercase">
+                              {mov.registradoPor && (
+                                <span className="text-slate-500 dark:text-slate-400 whitespace-nowrap">
+                                  👤 {mov.registradoPor}
+                                </span>
+                              )}
+                              {mov.registradoPor && <span className="text-slate-300 dark:text-slate-600 whitespace-nowrap">•</span>}
+                              <span className="text-slate-400 whitespace-nowrap">
+                                {mov.fecha?.toDate().toLocaleDateString('es-CO', {day:'2-digit', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit'})}
+                              </span>
                             </div>
                           </div>
-                          <p className="text-sm font-bold text-slate-800 dark:text-slate-200 mt-2">{mov.descripcion}</p>
-                          <div className="flex justify-between items-center pt-3 border-t border-slate-100 dark:border-slate-800 font-black mt-2">
-                            <span className="text-xs text-slate-400 uppercase tracking-wider">Total</span>
-                            <span className={`text-xl ${mov.tipo === 'fiado' ? 'text-rose-500' : (mov.tipo === 'venta' ? 'text-emerald-600' : 'text-blue-500')}`}>{mov.tipo === 'fiado' ? '-' : '+'}${mov.monto.toLocaleString('es-CO')}</span>
+                          
+                          {mov.detalles && mov.detalles.length > 0 ? (
+                            <div className="space-y-1 md:space-y-2 pt-1 border-t border-slate-200 dark:border-slate-700 md:border-none">
+                              {mov.detalles.map((d: any, idx: number) => (
+                                <div key={idx} className="flex justify-between items-center text-xs md:text-sm">
+                                  <span className="text-slate-600 dark:text-slate-300 font-medium">
+                                    {d.cantidad > 1 && <strong className={`${mov.tipo === 'venta' ? 'text-emerald-500' : (mov.tipo === 'abono' ? 'text-blue-500' : 'text-rose-500')} font-black mr-1 md:mr-1.5`}>{d.cantidad}x</strong>}
+                                    {d.descripcion}
+                                  </span>
+                                  <span className="font-bold text-slate-900 dark:text-slate-100">${d.valor.toLocaleString('es-CO')}</span>
+                                </div>
+                              ))}
+                            </div>
+                          ) : (
+                            <p className="text-xs md:text-sm font-bold text-slate-800 dark:text-slate-200">{mov.descripcion}</p>
+                          )}
+                          
+                          <div className="flex justify-between items-center pt-2 mt-1 md:mt-0 md:pt-3 border-t border-slate-200 dark:border-slate-700 md:border-slate-100 dark:md:border-slate-800 font-black">
+                            <span className="text-xs text-slate-400 uppercase tracking-wider">Total:</span>
+                            <span className={`text-base md:text-xl ${mov.tipo === 'fiado' ? 'text-rose-500' : (mov.tipo === 'venta' ? 'text-emerald-500' : 'text-blue-500')}`}>
+                              {mov.tipo === 'fiado' ? '-' : '+'}${mov.monto.toLocaleString('es-CO')}
+                            </span>
                           </div>
                         </div>
                       </div>
                     ))}
+                    {movimientosCliente.length === 0 && <p className="text-center text-slate-400 py-10">Sin transacciones registradas.</p>}
                   </div>
                 </div>
               ) : (
@@ -330,19 +400,50 @@ export default function InicioPage() {
                 <button onClick={() => router.push(`/dashboard/abonar?clienteId=${clienteActivo.id}`)} className="bg-blue-500 text-white font-bold py-3 rounded-xl shadow-sm text-xs uppercase">Abonar</button>
               </div>
             </div>
+            
             <div className="bg-white dark:bg-[#0f172a] p-6 pb-10 flex-1 overflow-y-auto space-y-3">
-              <h4 className="font-bold text-slate-400 uppercase text-xs tracking-wider mb-3">Historial Reciente</h4>
+              <h4 className="font-bold text-slate-400 uppercase text-xs tracking-wider mb-3 flex items-center gap-2"><Clock size={16}/> Historial Reciente</h4>
               {movimientosCliente.map(mov => (
-                <div key={mov.id} className="p-4 bg-slate-50 dark:bg-[#020617] rounded-2xl border space-y-2 relative overflow-hidden">
+                <div key={mov.id} className="p-4 md:p-5 bg-slate-50 dark:bg-[#020617] rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm relative overflow-hidden space-y-2 md:space-y-3">
                   <div className={`absolute left-0 top-0 bottom-0 w-1.5 ${mov.tipo === 'fiado' ? 'bg-rose-500' : (mov.tipo === 'venta' ? 'bg-emerald-500' : 'bg-blue-500')}`}></div>
-                  <div className="pl-1">
-                    <div className="flex justify-between items-center pb-2 mb-2 border-b">
-                      <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded-md ${mov.tipo === 'fiado' ? 'bg-rose-100 text-rose-700' : (mov.tipo === 'venta' ? 'bg-emerald-100 text-emerald-700' : 'bg-blue-100 text-blue-700')}`}>{mov.tipo}</span>
+                  <div className="pl-1 md:pl-2">
+                    <div className="flex justify-between items-center pb-1 md:pb-2 md:border-b md:border-slate-100 dark:border-slate-800/80">
+                      <span className={`text-[10px] md:text-xs font-black uppercase px-2.5 py-0.5 md:px-3 md:py-1 rounded-md md:rounded-lg ${mov.tipo === 'fiado' ? 'bg-rose-100 text-rose-700 dark:bg-rose-500/20 dark:text-rose-300' : (mov.tipo === 'venta' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300' : 'bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-300')}`}>{mov.tipo}</span>
+                      
+                      <div className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[10px] md:text-[11px] font-bold uppercase">
+                        {mov.registradoPor && (
+                          <span className="text-slate-500 dark:text-slate-400 whitespace-nowrap">
+                            👤 {mov.registradoPor}
+                          </span>
+                        )}
+                        {mov.registradoPor && <span className="text-slate-300 dark:text-slate-600 whitespace-nowrap">•</span>}
+                        <span className="text-slate-400 whitespace-nowrap">
+                          {mov.fecha?.toDate().toLocaleDateString('es-CO', {day:'2-digit', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit'})}
+                        </span>
+                      </div>
                     </div>
-                    <p className="text-xs font-bold">{mov.descripcion}</p>
-                    <div className="flex justify-between items-center pt-2 mt-1 border-t text-xs font-black">
-                      <span className="text-slate-400 uppercase">Total:</span>
-                      <span className={mov.tipo === 'fiado' ? 'text-rose-500' : (mov.tipo === 'venta' ? 'text-emerald-500' : 'text-blue-500')}>{mov.tipo === 'fiado' ? '-' : '+'}${mov.monto.toLocaleString('es-CO')}</span>
+                    
+                    {mov.detalles && mov.detalles.length > 0 ? (
+                      <div className="space-y-1 md:space-y-2 pt-1 border-t border-slate-200 dark:border-slate-700 md:border-none">
+                        {mov.detalles.map((d: any, idx: number) => (
+                          <div key={idx} className="flex justify-between items-center text-xs md:text-sm">
+                            <span className="text-slate-600 dark:text-slate-300 font-medium">
+                              {d.cantidad > 1 && <strong className={`${mov.tipo === 'venta' ? 'text-emerald-500' : (mov.tipo === 'abono' ? 'text-blue-500' : 'text-rose-500')} font-black mr-1 md:mr-1.5`}>{d.cantidad}x</strong>}
+                              {d.descripcion}
+                            </span>
+                            <span className="font-bold text-slate-900 dark:text-slate-100">${d.valor.toLocaleString('es-CO')}</span>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-xs md:text-sm font-bold text-slate-800 dark:text-slate-200">{mov.descripcion}</p>
+                    )}
+                    
+                    <div className="flex justify-between items-center pt-2 mt-1 md:mt-0 md:pt-3 border-t border-slate-200 dark:border-slate-700 md:border-slate-100 dark:md:border-slate-800 font-black">
+                      <span className="text-xs text-slate-400 uppercase tracking-wider">Total:</span>
+                      <span className={`text-base md:text-xl ${mov.tipo === 'fiado' ? 'text-rose-500' : (mov.tipo === 'venta' ? 'text-emerald-500' : 'text-blue-500')}`}>
+                        {mov.tipo === 'fiado' ? '-' : '+'}${mov.monto.toLocaleString('es-CO')}
+                      </span>
                     </div>
                   </div>
                 </div>
