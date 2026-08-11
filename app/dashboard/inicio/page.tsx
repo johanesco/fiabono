@@ -4,13 +4,13 @@ import { useRouter } from "next/navigation";
 import { collection, addDoc, getDocs, query, where } from "firebase/firestore";
 import { db } from "../../../firebase";
 import { Search, ShoppingBag, Banknote, Users, CheckCircle2, ChevronRight, X, MessageCircle, UserCog, ShoppingCart, Star, Clock } from 'lucide-react';
-import toast from "react-hot-toast"; 
+import toast from "react-hot-toast";
 import { useAuth } from "../../../hooks/AuthContext";
 
 export default function InicioPage() {
   const { datosSesion } = useAuth();
   const router = useRouter(); // <-- Agregamos el router para navegar a las nuevas páginas
-  
+
   const cuentaPrincipalId = datosSesion?.cuentaPrincipalId;
   const planActual = datosSesion?.planActual;
   const nombreNegocio = datosSesion?.nombreNegocio;
@@ -22,7 +22,7 @@ export default function InicioPage() {
   const [busquedaDirectorio, setBusquedaDirectorio] = useState("");
   const [clienteActivo, setClienteActivo] = useState<any | null>(null);
   const [movimientosCliente, setMovimientosCliente] = useState<any[]>([]);
-  
+
   const [modalNuevoCliente, setModalNuevoCliente] = useState(false);
   const [verTodosClientes, setVerTodosClientes] = useState(false);
   const [nombreNuevo, setNombreNuevo] = useState("");
@@ -56,8 +56,8 @@ export default function InicioPage() {
     const qM = query(collection(db, "movimientos"), where("clienteId", "==", clienteId));
     const snapM = await getDocs(qM);
     const lista: any[] = [];
-    snapM.forEach(doc => lista.push({id: doc.id, ...doc.data()}));
-    lista.sort((a,b) => b.fecha.toMillis() - a.fecha.toMillis());
+    snapM.forEach(doc => lista.push({ id: doc.id, ...doc.data() }));
+    lista.sort((a, b) => b.fecha.toMillis() - a.fecha.toMillis());
     setMovimientosCliente(lista);
   };
 
@@ -79,7 +79,8 @@ export default function InicioPage() {
     } catch (error) { alert("Error al guardar cliente."); } finally { setGuardandoCliente(false); }
   };
 
-const generarTextoComprobante = (tipo: 'estado' | 'comprobante' = 'estado', cliente: any = {}, accion?: 'fiado' | 'abono' | 'venta' | null, detallesArray?: any[], totalMov?: number) => {    let texto = "";
+  const generarTextoComprobante = (tipo: 'estado' | 'comprobante' = 'estado', cliente: any = {}, accion?: 'fiado' | 'abono' | 'venta' | null, detallesArray?: any[], totalMov?: number) => {
+    let texto = "";
     const saldoFormat = `$${Math.abs(cliente.deudaTotal || 0).toLocaleString('es-CO')}`;
 
     if (tipo === 'estado') {
@@ -87,27 +88,27 @@ const generarTextoComprobante = (tipo: 'estado' | 'comprobante' = 'estado', clie
       if (cliente.deudaTotal === 0) texto += `Queríamos contarte que tu cuenta está totalmente al día (*$0*). ¡Muchas gracias por tu puntualidad y confianza! ✨`;
       else if ((cliente.deudaTotal || 0) < 0) texto += `¡Buenas noticias! Tienes un *saldo a favor* de *${saldoFormat}*. Puedes usarlo en tu próxima visita. 🛍️`;
       else texto += `Te informamos que tu saldo pendiente actual es de *${saldoFormat}*. ¡Cualquier duda estamos a tu disposición! 🤝`;
-    } 
+    }
     else if (tipo === 'comprobante') {
       const nombreDestino = cliente.id === "mostrador" || !cliente.nombre ? "Cliente" : cliente.nombre;
       texto = `¡Hola *${nombreDestino}*! 👋\nRegistramos un nuevo movimiento en *${nombreNegocio || 'nuestra tienda'}*.\n\n`;
-      
+
       if (detallesArray && detallesArray.length > 0) {
         texto += `📝 *DETALLE DE LA OPERACIÓN:*\n`;
-        detallesArray.forEach(d => { 
+        detallesArray.forEach(d => {
           // Usamos el guion limpio (-)
           texto += `- ${d.cantidad || 1}x ${d.descripcion} ($${(d.valorUnitario || d.valor).toLocaleString('es-CO')} c/u) = $${d.valor.toLocaleString('es-CO')}\n`;
         });
         texto += `\n💰 *TOTAL:* $${totalMov?.toLocaleString('es-CO')}\n\n`;
       }
-      
+
       if (cliente.id !== 'mostrador') {
         texto += `📊 *ESTADO DE TU CUENTA:*\n`;
         if (cliente.deudaTotal === 0) texto += `Con esto, tu cuenta ha quedado al día ($0). ¡Muchas gracias! ✨`;
         else if ((cliente.deudaTotal || 0) < 0) texto += `Tu nuevo saldo a favor es de: *${saldoFormat}*.`;
         else texto += `Tu saldo pendiente actual es de: *${saldoFormat}*.`;
-      } else { 
-        texto += `¡Gracias por tu compra! Te esperamos pronto. ✨`; 
+      } else {
+        texto += `¡Gracias por tu compra! Te esperamos pronto. ✨`;
       }
     }
     return texto;
@@ -116,7 +117,7 @@ const generarTextoComprobante = (tipo: 'estado' | 'comprobante' = 'estado', clie
   const abrirWhatsApp = (texto: string, celular?: string) => {
     const celularLimpio = celular ? celular.replace(/\D/g, '') : '';
     const url = celularLimpio ? `https://wa.me/57${celularLimpio}?text=${encodeURIComponent(texto)}` : `https://wa.me/?text=${encodeURIComponent(texto)}`;
-    
+
     if (typeof window !== 'undefined') {
       if (window.innerWidth >= 1024) {
         window.open(url, '_blank');
@@ -126,21 +127,24 @@ const generarTextoComprobante = (tipo: 'estado' | 'comprobante' = 'estado', clie
     }
   };
 
-  const clientesFiltrados = clientes.filter(c => c.nombre?.toLowerCase().includes(busqueda.toLowerCase()));
+  const clientesFiltrados = clientes.filter(c =>
+    (c.nombre || "").toLowerCase().includes(busqueda.toLowerCase()) ||
+    (c.celular || "").toString().includes(busqueda)
+  );
   const directorioFiltrado = clientes.filter(c => c.nombre?.toLowerCase().includes(busquedaDirectorio.toLowerCase()));
 
   return (
     <>
       <div className="flex flex-col gap-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
-        
+
         {/* BUSCADOR */}
         <section className="relative z-20">
           <div className="relative shadow-sm rounded-[2rem]">
             <Search className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-400" size={28} />
-            <input type="text" value={busqueda} onChange={(e) => setBusqueda(e.target.value)} placeholder="Buscar cliente registrado..." 
+            <input type="text" value={busqueda} onChange={(e) => setBusqueda(e.target.value)} placeholder="Buscar cliente registrado..."
               className="w-full text-lg sm:text-xl p-5 sm:p-6 pl-14 sm:pl-16 bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-800/60 rounded-[2rem] focus:border-blue-500 dark:focus:border-blue-400 outline-none shadow-sm dark:shadow-none transition-all placeholder:text-slate-400 dark:placeholder:text-slate-500 font-medium" />
           </div>
-          
+
           {busqueda.length > 0 && (
             <div className="absolute top-full left-0 right-0 bg-white dark:bg-[#0f172a] border border-slate-100 dark:border-slate-800/80 rounded-3xl mt-2 shadow-2xl max-h-[60vh] overflow-y-auto z-40 p-3">
               {clientesFiltrados.length > 0 ? (
@@ -166,19 +170,19 @@ const generarTextoComprobante = (tipo: 'estado' | 'comprobante' = 'estado', clie
 
         {/* BOTONES PRINCIPALES (AHORA NAVEGAN A LAS NUEVAS RUTAS) */}
         <section className="flex flex-col gap-4 sm:gap-6">
-          <button onClick={() => router.push('/dashboard/vender')} 
+          <button onClick={() => router.push('/dashboard/vender')}
             className="w-full bg-gradient-to-br from-emerald-500 to-green-700 hover:from-emerald-600 hover:to-green-800 text-white font-black text-2xl sm:text-4xl py-12 rounded-[2rem] shadow-lg flex flex-col items-center justify-center transition-transform transform active:scale-95 border border-emerald-400/30 dark:border-emerald-500/20">
             <ShoppingCart size={48} className="mb-3 opacity-90 shrink-0" />
             VENDER
           </button>
 
           <div className="grid grid-cols-2 gap-4 sm:gap-6">
-            <button onClick={() => router.push('/dashboard/fiar')} 
+            <button onClick={() => router.push('/dashboard/fiar')}
               className="bg-gradient-to-br from-rose-500 to-red-600 dark:from-rose-600 dark:to-rose-800 hover:from-rose-600 hover:to-red-700 text-white font-black text-2xl sm:text-3xl py-10 rounded-[2rem] shadow-lg flex flex-col items-center justify-center transition-transform transform active:scale-95 border border-rose-400/30 dark:border-rose-500/20">
               <ShoppingBag size={40} className="mb-3 opacity-90 shrink-0" />
               FIAR
             </button>
-            <button onClick={() => router.push('/dashboard/abonar')} 
+            <button onClick={() => router.push('/dashboard/abonar')}
               className="bg-gradient-to-br from-blue-500 to-blue-700 dark:from-blue-600 dark:to-blue-800 hover:from-blue-600 hover:to-blue-700 text-white font-black text-2xl sm:text-3xl py-10 rounded-[2rem] shadow-lg flex flex-col items-center justify-center transition-transform transform active:scale-95 border border-blue-400/30 dark:border-blue-500/20">
               <Banknote size={40} className="mb-3 opacity-90 shrink-0" />
               ABONAR
@@ -197,13 +201,13 @@ const generarTextoComprobante = (tipo: 'estado' | 'comprobante' = 'estado', clie
       {verTodosClientes && (
         <div className="fixed inset-0 bg-black/70 dark:bg-black/85 backdrop-blur-md flex items-center justify-center p-0 md:p-6 z-[200] overflow-hidden">
           <div className="bg-white dark:bg-[#0f172a] rounded-none md:rounded-[2.5rem] w-full h-full md:h-[90vh] md:max-w-7xl shadow-2xl overflow-hidden border border-slate-100 dark:border-slate-800/60 flex flex-col md:flex-row">
-            
+
             <div className="w-full md:w-5/12 flex flex-col border-r border-slate-100 dark:border-slate-800 h-full bg-slate-50/50 dark:bg-[#020617]/50">
               <div className="bg-blue-600 dark:bg-blue-900 p-6 flex justify-between items-center shrink-0">
-                <h2 className="text-2xl font-black text-white tracking-wide flex items-center gap-2"><Users size={26}/> Directorio de Clientes</h2>
-                <button onClick={() => setVerTodosClientes(false)} className="text-blue-200 hover:text-white transition-colors bg-blue-700/50 p-2 rounded-full"><X size={24}/></button>
+                <h2 className="text-2xl font-black text-white tracking-wide flex items-center gap-2"><Users size={26} /> Directorio de Clientes</h2>
+                <button onClick={() => setVerTodosClientes(false)} className="text-blue-200 hover:text-white transition-colors bg-blue-700/50 p-2 rounded-full"><X size={24} /></button>
               </div>
-              
+
               <div className="p-4 bg-white dark:bg-[#0f172a] shrink-0 border-b border-slate-100 dark:border-slate-800">
                 <div className="relative">
                   <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
@@ -213,9 +217,9 @@ const generarTextoComprobante = (tipo: 'estado' | 'comprobante' = 'estado', clie
 
               <div className="p-4 overflow-y-auto flex-1 space-y-3">
                 {directorioFiltrado.map(c => (
-                  <div key={c.id} onClick={() => { 
-                    setClienteActivo(c); 
-                    cargarMovimientosClienteDirecto(c.id); 
+                  <div key={c.id} onClick={() => {
+                    setClienteActivo(c);
+                    cargarMovimientosClienteDirecto(c.id);
                   }} className={`p-4 rounded-2xl border cursor-pointer flex justify-between items-center transition-all ${clienteActivo?.id === c.id ? 'bg-blue-50 dark:bg-blue-500/10 border-blue-500 dark:border-blue-500/50 shadow-sm' : 'bg-white dark:bg-[#0f172a] border-slate-100 dark:border-slate-800/80 hover:border-blue-300'}`}>
                     <div className="min-w-0 pr-2">
                       <p className="font-bold text-base text-slate-900 dark:text-slate-100 truncate">{c.nombre}</p>
@@ -280,7 +284,7 @@ const generarTextoComprobante = (tipo: 'estado' | 'comprobante' = 'estado', clie
                             <span className={`text-xs font-black uppercase px-3 py-1 rounded-lg ${mov.tipo === 'fiado' ? 'bg-rose-100 text-rose-700' : (mov.tipo === 'venta' ? 'bg-emerald-100 text-emerald-700' : 'bg-blue-100 text-blue-700')}`}>{mov.tipo}</span>
                             <div className="flex items-center gap-1.5 text-[11px] font-bold text-slate-400 uppercase">
                               {mov.registradoPor && <span className="truncate max-w-[120px]">👤 {mov.registradoPor} •</span>}
-                              <span>{mov.fecha?.toDate().toLocaleDateString('es-CO', {day:'2-digit', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit'})}</span>
+                              <span>{mov.fecha?.toDate().toLocaleDateString('es-CO', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>
                             </div>
                           </div>
                           <p className="text-sm font-bold text-slate-800 dark:text-slate-200 mt-2">{mov.descripcion}</p>
@@ -311,7 +315,7 @@ const generarTextoComprobante = (tipo: 'estado' | 'comprobante' = 'estado', clie
           <div className="bg-white dark:bg-[#0f172a] rounded-t-[2.5rem] w-full max-w-xl shadow-2xl relative flex flex-col h-[96vh] overflow-hidden border border-slate-100 dark:border-slate-800/60">
             <div className="p-4 flex justify-between items-center bg-slate-50 dark:bg-[#020617] shrink-0 border-b border-slate-100 dark:border-slate-800">
               <h3 className="font-bold text-slate-700 dark:text-slate-300 text-lg">Perfil de Cliente</h3>
-              <button onClick={() => setClienteActivo(null)} className="bg-white dark:bg-[#0f172a] text-slate-600 dark:text-slate-300 rounded-full p-3 font-bold shadow-sm"><X size={20}/></button>
+              <button onClick={() => setClienteActivo(null)} className="bg-white dark:bg-[#0f172a] text-slate-600 dark:text-slate-300 rounded-full p-3 font-bold shadow-sm"><X size={20} /></button>
             </div>
             <div className="px-6 py-5 bg-slate-50 dark:bg-[#020617] text-center shrink-0 flex flex-col items-center border-b border-slate-200 dark:border-slate-800">
               <h2 className="text-3xl font-black text-slate-900 dark:text-white mb-1">{clienteActivo.nombre}</h2>
@@ -352,14 +356,14 @@ const generarTextoComprobante = (tipo: 'estado' | 'comprobante' = 'estado', clie
       {modalNuevoCliente && (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 z-[210]">
           <div className="bg-white dark:bg-[#0f172a] p-8 rounded-[2.5rem] w-full max-w-md shadow-2xl border border-slate-100 dark:border-slate-800/60 animate-in zoom-in-95 duration-200">
-            <h3 className="text-3xl font-black text-slate-900 dark:text-white mb-6 flex items-center gap-2"><UserCog size={28}/> Registrar Cliente</h3>
+            <h3 className="text-3xl font-black text-slate-900 dark:text-white mb-6 flex items-center gap-2"><UserCog size={28} /> Registrar Cliente</h3>
             <div className="flex flex-col gap-4 mb-8">
               <input type="text" value={nombreNuevo} onChange={(e) => setNombreNuevo(e.target.value)} placeholder="Nombre completo" className="w-full p-5 bg-slate-50 dark:bg-[#020617] border rounded-2xl font-bold text-lg" />
               <input type="tel" value={celularNuevo} onChange={(e) => setCelularNuevo(e.target.value)} placeholder="WhatsApp (Opcional)" className="w-full p-5 bg-slate-50 dark:bg-[#020617] border rounded-2xl font-bold text-lg" />
             </div>
             <div className="grid grid-cols-2 gap-4">
               <button onClick={() => setModalNuevoCliente(false)} className="bg-slate-100 dark:bg-[#020617] hover:bg-slate-200 text-slate-700 dark:text-slate-300 font-bold py-4 rounded-2xl text-lg">Cancelar</button>
-              <button onClick={guardarClienteNuevo} disabled={guardandoCliente} className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-4 rounded-2xl shadow-lg flex justify-center items-center gap-2 text-lg">Guardar <CheckCircle2 size={20}/></button>
+              <button onClick={guardarClienteNuevo} disabled={guardandoCliente} className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-4 rounded-2xl shadow-lg flex justify-center items-center gap-2 text-lg">Guardar <CheckCircle2 size={20} /></button>
             </div>
           </div>
         </div>

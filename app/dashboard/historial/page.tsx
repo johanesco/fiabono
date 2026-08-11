@@ -2,7 +2,7 @@
 import { useState, useEffect, useRef } from "react";
 import { collection, addDoc, doc, updateDoc } from "firebase/firestore";
 import { db } from "../../../firebase";
-import { Search, Filter, Lock, ShoppingBag, ShoppingCart, Banknote, X, Clock, MessageCircle, CheckCircle2, ChevronRight, Plus, Minus, Star, AlertCircle, Users } from 'lucide-react';
+import { Search, Filter, Lock, ShoppingBag, ShoppingCart, Banknote, X, Clock, MessageCircle, CheckCircle2, ChevronRight, Plus, Minus, Star, AlertCircle, Users, Store } from 'lucide-react';
 import toast from "react-hot-toast";
 
 import { useAuth } from "../../../hooks/AuthContext";
@@ -25,6 +25,7 @@ export default function HistorialPage() {
   const [filtroTipoHistorial, setFiltroTipoHistorial] = useState<'todos' | 'venta' | 'abono' | 'fiado'>('todos');
   
   const [modalSuscripcion, setModalSuscripcion] = useState({ visible: false, titulo: "", mensaje: "" });
+  const [modalMostrador, setModalMostrador] = useState(false); // NUEVO ESTADO PARA EL MODAL DE MOSTRADOR
 
   const [clienteActivo, setClienteActivo] = useState<Cliente | null>(null);
   const [movimientosCliente, setMovimientosCliente] = useState<Movimiento[]>([]);
@@ -84,9 +85,10 @@ export default function HistorialPage() {
     return clientes.find(c => c.id === id)?.nombre || "Cliente Eliminado";
   };
 
+  // ACTUALIZACIÓN: AHORA ABRE EL MODAL SI ES DE MOSTRADOR
   const abrirHistorialCliente = (clienteId: string) => {
     if (clienteId === 'mostrador') {
-      toast("Venta de mostrador (Sin perfil asociado)", { icon: 'ℹ️' });
+      setModalMostrador(true);
       return;
     }
     const cliente = clientes.find(c => c.id === clienteId);
@@ -265,8 +267,15 @@ export default function HistorialPage() {
     window.location.href = url;
   };
 
-  const clientesFiltradosRegistro = clientes.filter(c => c.nombre?.toLowerCase().includes(busquedaRegistro.toLowerCase()));
-  const directorioFiltrado = clientes.filter(c => c.nombre?.toLowerCase().includes(busquedaDirectorio.toLowerCase()));
+  const clientesFiltradosRegistro = clientes.filter(c => 
+    (c.nombre || "").toLowerCase().includes(busquedaRegistro.toLowerCase()) ||
+    (c.celular || "").toString().includes(busquedaRegistro)
+  );
+
+  const directorioFiltrado = clientes.filter(c => 
+    (c.nombre || "").toLowerCase().includes(busquedaDirectorio.toLowerCase()) ||
+    (c.celular || "").toString().includes(busquedaDirectorio)
+  );
 
   const hoyDate = new Date();
   const diaActualNum = hoyDate.getDay() === 0 ? 6 : hoyDate.getDay() - 1; 
@@ -274,8 +283,16 @@ export default function HistorialPage() {
 
   const historialFiltrado = todosMovimientos.filter(mov => {
     const filtroForzado = (!puedeVerReportes || planActual === 'basico') ? 'hoy' : filtroTiempoHistorial;
-    const nombreMatch = getNombreCliente(mov.clienteId).toLowerCase().includes(busquedaHistorial.toLowerCase());
-    if (busquedaHistorial && !nombreMatch) return false;
+    
+    const clienteMov = clientes.find(c => c.id === mov.clienteId);
+    const nombreCliente = clienteMov?.nombre || (mov.clienteId === 'mostrador' ? 'Venta de Mostrador' : 'Cliente Eliminado');
+    const celularCliente = clienteMov?.celular || '';
+    
+    const matchBusqueda = 
+      nombreCliente.toLowerCase().includes(busquedaHistorial.toLowerCase()) ||
+      celularCliente.toString().includes(busquedaHistorial);
+
+    if (busquedaHistorial && !matchBusqueda) return false;
     if (filtroTipoHistorial !== 'todos' && mov.tipo !== filtroTipoHistorial) return false;
 
     const ms = mov.fecha?.toMillis() || 0;
@@ -295,7 +312,7 @@ export default function HistorialPage() {
         
         <div className="relative">
           <Search className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-400" size={24} />
-          <input type="text" value={busquedaHistorial} onChange={(e) => setBusquedaHistorial(e.target.value)} placeholder="Buscar nombre en historial..." 
+          <input type="text" value={busquedaHistorial} onChange={(e) => setBusquedaHistorial(e.target.value)} placeholder="Buscar nombre o celular en historial..." 
             className="w-full p-5 pl-14 bg-white dark:bg-[#020617] border border-slate-200 dark:border-slate-800/80 rounded-2xl outline-none focus:border-blue-500 text-lg transition-all shadow-sm dark:text-slate-200" />
         </div>
         
@@ -340,7 +357,6 @@ export default function HistorialPage() {
                   <p className="font-bold text-lg text-slate-900 dark:text-slate-200 truncate">{getNombreCliente(mov.clienteId)}</p>
                   <p className="text-sm text-slate-500 dark:text-slate-400 truncate mt-0.5">{mov.descripcion}</p>
                   
-                  {/* Etiqueta de Hora y Colaborador SIN truncate y con whitespace-nowrap */}
                   <div className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5 mt-2 text-[10px] font-bold uppercase">
                     {mov.registradoPor && (
                       <span className="text-slate-500 dark:text-slate-400 whitespace-nowrap">
@@ -376,14 +392,9 @@ export default function HistorialPage() {
         )}
       </div>
 
-      {/* =========================================================================
-          MODAL DEL PERFIL DEL CLIENTE CLICKEADO (PANTALLA DIVIDIDA PREMIUM)
-          ========================================================================= */}
+      {/* MODAL DEL PERFIL DEL CLIENTE CLICKEADO */}
       {clienteActivo && (
         <div className="fixed inset-0 bg-black/70 dark:bg-black/85 backdrop-blur-md flex items-end md:items-center justify-center p-0 md:p-6 z-[500] overflow-hidden">
-          
-          {/* MÓVIL Y ESCRITORIO: CONTENEDOR PRINCIPAL */}
-          {/* NOTA: Para móvil, aumentamos el h-[96vh] para usar más espacio */}
           <div className="bg-white dark:bg-[#0f172a] rounded-t-[2.5rem] md:rounded-[2.5rem] w-full h-[96vh] md:h-[90vh] md:max-w-7xl shadow-2xl flex flex-col md:flex-row overflow-hidden border border-slate-100 dark:border-slate-800/60 animate-in slide-in-from-bottom-8 md:zoom-in-95 duration-300">
             
             {/* PANEL IZQUIERDO: DIRECTORIO (SOLO ESCRITORIO) */}
@@ -396,7 +407,7 @@ export default function HistorialPage() {
               <div className="p-4 bg-white dark:bg-[#0f172a] shrink-0 border-b border-slate-100 dark:border-slate-800">
                 <div className="relative">
                   <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
-                  <input type="text" value={busquedaDirectorio} onChange={(e) => setBusquedaDirectorio(e.target.value)} placeholder="Buscar en el directorio..." className="w-full p-4 pl-12 bg-slate-50 dark:bg-[#020617] border border-slate-200 dark:border-slate-800 rounded-2xl outline-none focus:border-blue-500 dark:text-white text-base font-medium" />
+                  <input type="text" value={busquedaDirectorio} onChange={(e) => setBusquedaDirectorio(e.target.value)} placeholder="Buscar nombre o celular en el directorio..." className="w-full p-4 pl-12 bg-slate-50 dark:bg-[#020617] border border-slate-200 dark:border-slate-800 rounded-2xl outline-none focus:border-blue-500 dark:text-white text-base font-medium" />
                 </div>
               </div>
 
@@ -423,7 +434,7 @@ export default function HistorialPage() {
               </div>
             </div>
 
-            {/* PANEL DERECHO: PERFIL DEL CLIENTE (MÓVIL Y ESCRITORIO) */}
+            {/* PANEL DERECHO: PERFIL DEL CLIENTE */}
             <div className="flex-1 flex flex-col h-full bg-white dark:bg-[#0f172a] overflow-hidden">
               
               {/* HEADER ESCRITORIO */}
@@ -475,7 +486,6 @@ export default function HistorialPage() {
                 )}
               </div>
 
-              {/* HISTORIAL INTERNO DEL PERFIL CON COLABORADOR SUTIL Y ALINEADO */}
               <div className="bg-white dark:bg-[#0f172a] p-6 pb-10 flex-1 overflow-y-auto space-y-3 md:space-y-4">
                 <h4 className="font-bold text-slate-400 uppercase text-xs tracking-wider mb-3 flex items-center gap-2"><Clock size={16}/> Historial Completo</h4>
                 {movimientosCliente.map(mov => (
@@ -486,7 +496,6 @@ export default function HistorialPage() {
                       <div className="flex justify-between items-center pb-1 md:pb-2 md:border-b md:border-slate-100 dark:border-slate-800/80">
                         <span className={`text-[10px] md:text-xs font-black uppercase px-2.5 py-0.5 md:px-3 md:py-1 rounded-md md:rounded-lg ${mov.tipo === 'fiado' ? 'bg-rose-100 text-rose-700 dark:bg-rose-500/20 dark:text-rose-300' : (mov.tipo === 'venta' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300' : 'bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-300')}`}>{mov.tipo}</span>
                         
-                        {/* Etiqueta de Hora y Colaborador arreglada (SIN truncate, SIN saltos molestos) */}
                         <div className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[10px] md:text-[11px] font-bold uppercase">
                           {mov.registradoPor && (
                             <span className="text-slate-500 dark:text-slate-400 whitespace-nowrap">
@@ -534,8 +543,26 @@ export default function HistorialPage() {
       )}
 
       {/* =========================================================================
-          MODALES DE TRANSACCIÓN (VENDER, ABONAR, FIAR) Y ÉXITO
+          NUEVO: MODAL INFORMATIVO "VENTA DE MOSTRADOR"
           ========================================================================= */}
+      {modalMostrador && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 z-[800] animate-in zoom-in duration-200">
+          <div className="bg-white dark:bg-[#0f172a] p-8 rounded-[2.5rem] w-full max-w-sm shadow-2xl text-center border border-slate-100 dark:border-slate-800/60">
+            <div className="w-20 h-20 bg-slate-100 dark:bg-slate-800 text-slate-500 rounded-full flex items-center justify-center mx-auto mb-6 shadow-inner">
+              <Store size={40} />
+            </div>
+            <h3 className="text-2xl font-black text-slate-900 dark:text-white mb-2">Venta de Mostrador</h3>
+            <p className="text-base text-slate-500 dark:text-slate-400 mb-6 leading-relaxed">
+              Este registro corresponde a una venta directa al público. <br/><br/>No está asociada a la cuenta de ningún cliente en específico, por lo que no genera deudas ni historial de perfil.
+            </p>
+            <button onClick={() => setModalMostrador(false)} className="w-full bg-slate-100 dark:bg-[#020617] hover:bg-slate-200 text-slate-700 dark:text-slate-300 font-black py-4 rounded-2xl transition-colors text-lg border dark:border-slate-800/60">
+              Entendido
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* MODALES DE TRANSACCIÓN */}
       {modalRegistro && (
         <div className="fixed inset-0 bg-black/70 dark:bg-black/85 backdrop-blur-md flex items-center justify-center p-0 md:p-6 z-[600] overflow-hidden">
           <div className="bg-white dark:bg-[#0f172a] rounded-none md:rounded-[2.5rem] w-full h-full md:h-[90vh] md:max-w-5xl shadow-2xl flex flex-col border border-slate-100 dark:border-slate-800/60 overflow-hidden animate-in zoom-in-95 duration-200">
@@ -559,7 +586,7 @@ export default function HistorialPage() {
                       <p className="font-black text-slate-800 dark:text-slate-100 mb-4 text-xl">Selecciona o busca el cliente:</p>
                       <div className="relative mb-4">
                         <Search className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-400" size={22} />
-                        <input type="text" value={busquedaRegistro} onChange={(e) => setBusquedaRegistro(e.target.value)} placeholder="Escribe el nombre del cliente..." className="w-full p-4 pl-14 bg-slate-50 dark:bg-[#020617] border border-slate-200 dark:border-slate-800 rounded-2xl outline-none focus:border-blue-500 text-lg font-medium" />
+                        <input type="text" value={busquedaRegistro} onChange={(e) => setBusquedaRegistro(e.target.value)} placeholder="Escribe el nombre o celular del cliente..." className="w-full p-4 pl-14 bg-slate-50 dark:bg-[#020617] border border-slate-200 dark:border-slate-800 rounded-2xl outline-none focus:border-blue-500 text-lg font-medium" />
                       </div>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-72 overflow-y-auto">
                         {clientesFiltradosRegistro.map(c => (
@@ -640,7 +667,7 @@ export default function HistorialPage() {
                             <button onClick={() => setClienteTransaccion(null)} className="text-rose-500"><X size={18}/></button>
                           </div>
                         ) : (
-                          <input type="text" value={busquedaRegistro} onChange={(e) => setBusquedaRegistro(e.target.value)} placeholder="Buscar cliente..." className="w-full p-3 bg-white dark:bg-[#0f172a] border rounded-xl text-sm font-bold" />
+                          <input type="text" value={busquedaRegistro} onChange={(e) => setBusquedaRegistro(e.target.value)} placeholder="Buscar cliente por nombre o celular..." className="w-full p-3 bg-white dark:bg-[#0f172a] border rounded-xl text-sm font-bold" />
                         )}
                       </div>
                     </div>

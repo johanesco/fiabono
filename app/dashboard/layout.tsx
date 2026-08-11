@@ -77,8 +77,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           </button>
 
           <button
-            onClick={() => router.push('/dashboard/ajustes')}
-            className={`w-full flex items-center gap-4 p-3.5 rounded-2xl font-bold transition-all ${rutaActiva('/dashboard/ajustes') ? 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 shadow-sm' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800/50'}`}
+            onClick={() => router.push('/dashboard/perfil')}
+            className={`w-full flex items-center gap-4 p-3.5 rounded-2xl font-bold transition-all ${rutaActiva('/dashboard/perfil') ? 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 shadow-sm' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800/50'}`}
           >
             <Settings size={22} className="shrink-0" />
             {!menuColapsado && <span>Ajustes</span>}
