@@ -3,7 +3,7 @@ import { useState, useEffect, Suspense, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { collection, addDoc, getDocs, query, doc, updateDoc, where } from "firebase/firestore";
 import { db } from "../../../firebase";
-import { Search, ShoppingBag, CheckCircle2, ChevronRight, X, AlertCircle, UserCog, Plus, Minus, ArrowLeft, MessageCircle, Package, QrCode } from 'lucide-react';
+import { Search, ShoppingBag, CheckCircle2, ChevronRight, X, AlertCircle, UserCog, Plus, Minus, ArrowLeft, MessageCircle, Package, QrCode, Volume2 } from 'lucide-react';
 import { useAuth } from "@/hooks/AuthContext";
 import toast from "react-hot-toast";
 import { Html5QrcodeScanner } from "html5-qrcode";
@@ -38,9 +38,9 @@ function FiarContenido() {
     const [modalNuevoCliente, setModalNuevoCliente] = useState(false);
     const [modalExito, setModalExito] = useState<{ visible: boolean, cliente: any, montoTotal: number } | null>(null);
 
-    // Estado para el modal de la cámara QR y el aviso flotante en Fiar
     const [modalEscanner, setModalEscanner] = useState(false);
     const [mensajeScaneo, setMensajeScaneo] = useState<{ texto: string; tipo: 'exito' | 'error' } | null>(null);
+    const [audioHabilitado, setAudioHabilitado] = useState(false);
 
     const [nombreNuevo, setNombreNuevo] = useState("");
     const [celularNuevo, setCelularNuevo] = useState("");
@@ -55,7 +55,6 @@ function FiarContenido() {
         }
     }, [cuentaPrincipalId]);
 
-    // EFECTO PARA CONTROLAR EL ESCÁNER DE LA CÁMARA EN FIAR
     useEffect(() => {
         let scanner: Html5QrcodeScanner | null = null;
         if (modalEscanner) {
@@ -70,9 +69,7 @@ function FiarContenido() {
                     (decodedText) => {
                         manejarProductoScaneado(decodedText);
                     },
-                    (error) => {
-                        // Ignorar errores while scanning
-                    }
+                    (error) => {}
                 );
             }, 200);
 
@@ -112,33 +109,43 @@ function FiarContenido() {
         } catch (error) { console.error(error); }
     };
 
-    // FUNCIONES DE AUDIO Y VIBRO-FEEDBACK PARA FIAR
-    const reproducirSonidoExito = () => {
+    const habilitarAudioMovil = () => {
         try {
             const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
+            if (ctx.state === 'suspended') {
+                ctx.resume();
+            }
+            setAudioHabilitado(true);
+            toast.success("¡Audio y vibración activados!");
+        } catch (e) {}
+    };
+
+    const reproducirSonidoExito = () => {
+        try {
+            const AudioContext = window.AudioContext || (window as any).webkitAudioContext;
+            if (!AudioContext) return;
+            const ctx = new AudioContext();
             const osc = ctx.createOscillator();
             const gain = ctx.createGain();
             osc.type = 'sine';
-            osc.frequency.setValueAtTime(800, ctx.currentTime);
-            osc.frequency.exponentialRampToValueAtTime(1200, ctx.currentTime + 0.1);
-            gain.gain.setValueAtTime(0.1, ctx.currentTime);
-            gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.1);
+            osc.frequency.setValueAtTime(880, ctx.currentTime);
+            osc.frequency.exponentialRampToValueAtTime(1760, ctx.currentTime + 0.12);
+            gain.gain.setValueAtTime(0.2, ctx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.12);
             osc.connect(gain);
             gain.connect(ctx.destination);
             osc.start();
-            osc.stop(ctx.currentTime + 0.1);
-        } catch (e) {
-            // Ignorar bloqueo de autoplay del navegador
-        }
+            osc.stop(ctx.currentTime + 0.12);
+        } catch (e) {}
     };
 
     const dispararFeedback = (tipo: 'exito' | 'error', texto: string) => {
         setMensajeScaneo({ texto, tipo });
         if (tipo === 'exito') {
             reproducirSonidoExito();
-            if (navigator.vibrate) navigator.vibrate(100);
+            if (navigator.vibrate) navigator.vibrate(120);
         } else {
-            if (navigator.vibrate) navigator.vibrate([50, 50, 50]);
+            if (navigator.vibrate) navigator.vibrate([60, 60, 60]);
         }
 
         setTimeout(() => {
@@ -146,7 +153,6 @@ function FiarContenido() {
         }, 2500);
     };
 
-    // LÓGICA MÁGICA AL ESCANEAR UN CÓDIGO QR EN FIAR
     const manejarProductoScaneado = (skuScaneado: string) => {
         const skuLimpio = skuScaneado.trim().toLowerCase();
         const productoEncontrado = inventario.find(
@@ -389,7 +395,6 @@ function FiarContenido() {
                         <ShoppingBag size={24} /> Registrar Fiado
                     </h2>
                 </div>
-                {/* BOTÓN PARA ABRIR EL ESCÁNER QR EN FIAR */}
                 <button 
                     onClick={() => setModalEscanner(true)} 
                     className="bg-white text-rose-700 hover:bg-rose-50 px-4 py-2.5 rounded-xl font-black text-sm flex items-center gap-2 shadow-md transition-transform active:scale-95"
@@ -617,19 +622,17 @@ function FiarContenido() {
 
             <div className="h-24 lg:hidden w-full bg-slate-50 dark:bg-[#020617] shrink-0"></div>
 
-            {/* MODAL DEL ESCÁNER DE CÁMARA QR EN FIAR CON AVISO FLOTANTE Y FEEDBACK */}
             {modalEscanner && (
                 <div className="fixed inset-0 bg-black/90 backdrop-blur-md flex items-center justify-center p-4 z-[999] animate-in fade-in duration-200">
                     <div className="bg-white dark:bg-[#0f172a] p-6 sm:p-8 rounded-[2.5rem] w-full max-w-md shadow-2xl border border-slate-100 dark:border-slate-800 flex flex-col items-center relative overflow-hidden">
                         
-                        {/* NOTIFICACIÓN FLOTANTE DENTRO DE LA CÁMARA */}
                         {mensajeScaneo && (
                             <div className={`absolute top-4 left-4 right-4 z-50 p-4 rounded-2xl text-white font-black text-center shadow-2xl animate-in slide-in-from-top duration-300 flex items-center justify-center gap-2 ${mensajeScaneo.tipo === 'exito' ? 'bg-emerald-600 text-lg' : 'bg-rose-600'}`}>
                                 {mensajeScaneo.texto}
                             </div>
                         )}
 
-                        <div className="flex justify-between items-center w-full mb-4">
+                        <div className="flex justify-between items-center w-full mb-3">
                             <h3 className="text-xl font-black text-slate-900 dark:text-white flex items-center gap-2">
                                 <QrCode size={24}/> Escáner Continuo (Fiar)
                             </h3>
@@ -640,9 +643,18 @@ function FiarContenido() {
                                 <X size={20}/>
                             </button>
                         </div>
+
+                        {!audioHabilitado && (
+                            <button 
+                                onClick={habilitarAudioMovil}
+                                className="w-full mb-3 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 font-bold py-2.5 px-4 rounded-xl text-xs flex items-center justify-center gap-2 transition-colors shadow-sm"
+                            >
+                                <Volume2 size={16} /> Toca aquí para activar Sonido y Vibración
+                            </button>
+                        )}
                         
-                        <p className="text-xs text-slate-500 mb-4 text-center">
-                            Apunta de forma continua. Cada vez que escanees un producto se sumará al fiado automáticamente.
+                        <p className="text-xs text-slate-500 mb-3 text-center">
+                            Apunta de forma continua hacia los códigos QR para fiar.
                         </p>
 
                         <style jsx global>{`
@@ -665,8 +677,8 @@ function FiarContenido() {
                             border-radius: 8px !important;
                             border: 1px solid #cbd5e1 !important;
                             margin-bottom: 10px !important;
-                            background: white !important;
-                            color: #0f172a !important;
+                            background: #ffffff !important;
+                            color: #0f172a !important; /* Letra oscura forzada */
                             font-weight: bold !important;
                             width: 100% !important;
                           }
@@ -675,6 +687,9 @@ function FiarContenido() {
                             height: auto !important;
                             border-radius: 16px !important;
                             object-fit: cover !important;
+                          }
+                          #reader-fiar__dashboard_section_csr span, #reader-fiar__dashboard_section_swaplink {
+                            color: #334155 !important;
                           }
                         `}</style>
 

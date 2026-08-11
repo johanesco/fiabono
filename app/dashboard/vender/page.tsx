@@ -3,7 +3,7 @@ import { useState, useEffect, Suspense, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { collection, addDoc, getDocs, query, doc, updateDoc, where } from "firebase/firestore";
 import { db } from "../../../firebase";
-import { Search, ShoppingCart, CheckCircle2, ChevronRight, X, AlertCircle, UserCog, Plus, Minus, ArrowLeft, MessageCircle, Banknote, Package, QrCode } from 'lucide-react';
+import { Search, ShoppingCart, CheckCircle2, ChevronRight, X, AlertCircle, UserCog, Plus, Minus, ArrowLeft, MessageCircle, Banknote, Package, QrCode, Volume2 } from 'lucide-react';
 import { useAuth } from "@/hooks/AuthContext";
 import toast from "react-hot-toast";
 import { Html5QrcodeScanner } from "html5-qrcode";
@@ -39,8 +39,8 @@ function VenderContenido() {
   const [modalExito, setModalExito] = useState<{ visible: boolean, cliente: any, montoTotal: number, devuelta?: number, fiadoAdicional?: number } | null>(null);
   
   const [modalEscanner, setModalEscanner] = useState(false);
-  // Estado para el mensaje flotante dentro del escáner
   const [mensajeScaneo, setMensajeScaneo] = useState<{ texto: string; tipo: 'exito' | 'error' } | null>(null);
+  const [audioHabilitado, setAudioHabilitado] = useState(false); // Estado para desbloquear audio móvil
 
   const [nombreNuevo, setNombreNuevo] = useState("");
   const [celularNuevo, setCelularNuevo] = useState("");
@@ -58,7 +58,6 @@ function VenderContenido() {
     }
   }, [cuentaPrincipalId]);
 
-  // EFECTO PARA CONTROLAR EL ESCÁNER QR
   useEffect(() => {
     let scanner: Html5QrcodeScanner | null = null;
     if (modalEscanner) {
@@ -73,9 +72,7 @@ function VenderContenido() {
           (decodedText) => {
             manejarProductoScaneado(decodedText);
           },
-          (error) => {
-            // Ignorar errores while scanning
-          }
+          (error) => {}
         );
       }, 200);
 
@@ -115,36 +112,46 @@ function VenderContenido() {
     } catch (error) { console.error(error); }
   };
 
-  // FUNCIONES DE AUDIO Y VIBRO-FEEDBACK
-  const reproducirSonidoExito = () => {
+  // DESBLOQUEAR AUDIO Y VIBRACIÓN CON UN TOQUE TÁCTIL
+  const habilitarAudioMovil = () => {
     try {
       const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
+      if (ctx.state === 'suspended') {
+        ctx.resume();
+      }
+      setAudioHabilitado(true);
+      toast.success("¡Audio y vibración activados para el escáner!");
+    } catch (e) {}
+  };
+
+  const reproducirSonidoExito = () => {
+    try {
+      const AudioContext = window.AudioContext || (window as any).webkitAudioContext;
+      if (!AudioContext) return;
+      const ctx = new AudioContext();
       const osc = ctx.createOscillator();
       const gain = ctx.createGain();
       osc.type = 'sine';
-      osc.frequency.setValueAtTime(800, ctx.currentTime); // Frecuencia de beep agudo
-      osc.frequency.exponentialRampToValueAtTime(1200, ctx.currentTime + 0.1);
-      gain.gain.setValueAtTime(0.1, ctx.currentTime);
-      gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.1);
+      osc.frequency.setValueAtTime(880, ctx.currentTime); // Nota La (A5)
+      osc.frequency.exponentialRampToValueAtTime(1760, ctx.currentTime + 0.12);
+      gain.gain.setValueAtTime(0.2, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.12);
       osc.connect(gain);
       gain.connect(ctx.destination);
       osc.start();
-      osc.stop(ctx.currentTime + 0.1);
-    } catch (e) {
-      // Navegadores que bloquean audio nativo sin interacción previa
-    }
+      osc.stop(ctx.currentTime + 0.12);
+    } catch (e) {}
   };
 
   const dispararFeedback = (tipo: 'exito' | 'error', texto: string) => {
     setMensajeScaneo({ texto, tipo });
     if (tipo === 'exito') {
       reproducirSonidoExito();
-      if (navigator.vibrate) navigator.vibrate(100); // Vibración corta de éxito
+      if (navigator.vibrate) navigator.vibrate(120);
     } else {
-      if (navigator.vibrate) navigator.vibrate([50, 50, 50]); // Doble vibración corta de error
+      if (navigator.vibrate) navigator.vibrate([60, 60, 60]);
     }
 
-    // Ocultar el aviso flotante después de 2.5 segundos para seguir escaneando
     setTimeout(() => {
       setMensajeScaneo(null);
     }, 2500);
@@ -673,19 +680,18 @@ function VenderContenido() {
         </button>
       </div>
 
-      {/* MODAL DEL ESCÁNER DE CÁMARA QR CON AVISO FLOTANTE DE ÉXITO */}
+      {/* MODAL DEL ESCÁNER DE CÁMARA QR CON BOTÓN DE DESBLOQUEO DE AUDIO Y ESTILOS FORZADOS */}
       {modalEscanner && (
         <div className="fixed inset-0 bg-black/90 backdrop-blur-md flex items-center justify-center p-4 z-[999] animate-in fade-in duration-200">
           <div className="bg-white dark:bg-[#0f172a] p-6 sm:p-8 rounded-[2.5rem] w-full max-w-md shadow-2xl border border-slate-100 dark:border-slate-800 flex flex-col items-center relative overflow-hidden">
             
-            {/* NOTIFICACIÓN FLOTANTE DENTRO DE LA CÁMARA */}
             {mensajeScaneo && (
               <div className={`absolute top-4 left-4 right-4 z-50 p-4 rounded-2xl text-white font-black text-center shadow-2xl animate-in slide-in-from-top duration-300 flex items-center justify-center gap-2 ${mensajeScaneo.tipo === 'exito' ? 'bg-emerald-600 text-lg' : 'bg-rose-600'}`}>
                 {mensajeScaneo.texto}
               </div>
             )}
 
-            <div className="flex justify-between items-center w-full mb-4">
+            <div className="flex justify-between items-center w-full mb-3">
               <h3 className="text-xl font-black text-slate-900 dark:text-white flex items-center gap-2">
                 <QrCode size={24}/> Escáner Continuo
               </h3>
@@ -696,9 +702,19 @@ function VenderContenido() {
                 <X size={20}/>
               </button>
             </div>
+
+            {/* BOTÓN OBLIGATORIO PARA ACTIVAR SONIDO/VIBRACIÓN EN MÓVIL */}
+            {!audioHabilitado && (
+              <button 
+                onClick={habilitarAudioMovil}
+                className="w-full mb-3 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 font-bold py-2.5 px-4 rounded-xl text-xs flex items-center justify-center gap-2 transition-colors shadow-sm"
+              >
+                <Volume2 size={16} /> Toca aquí para activar Sonido y Vibración
+              </button>
+            )}
             
-            <p className="text-xs text-slate-500 mb-4 text-center">
-              Apunta de forma continua. Cada vez que escanees un producto se sumará a la venta automáticamente.
+            <p className="text-xs text-slate-500 mb-3 text-center">
+              Apunta de forma continua hacia los códigos QR.
             </p>
 
             <style jsx global>{`
@@ -721,8 +737,8 @@ function VenderContenido() {
                 border-radius: 8px !important;
                 border: 1px solid #cbd5e1 !important;
                 margin-bottom: 10px !important;
-                background: white !important;
-                color: #0f172a !important;
+                background: #ffffff !important;
+                color: #0f172a !important; /* Letra oscura forzada para que se lea */
                 font-weight: bold !important;
                 width: 100% !important;
               }
@@ -731,6 +747,9 @@ function VenderContenido() {
                 height: auto !important;
                 border-radius: 16px !important;
                 object-fit: cover !important;
+              }
+              #reader__dashboard_section_csr span, #reader__dashboard_section_swaplink {
+                color: #334155 !important;
               }
             `}</style>
 
