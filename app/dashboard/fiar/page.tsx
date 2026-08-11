@@ -3,9 +3,10 @@ import { useState, useEffect, Suspense, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { collection, addDoc, getDocs, query, doc, updateDoc, where } from "firebase/firestore";
 import { db } from "../../../firebase";
-import { Search, ShoppingBag, CheckCircle2, ChevronRight, X, AlertCircle, UserCog, Plus, Minus, ArrowLeft, MessageCircle, Package } from 'lucide-react';
+import { Search, ShoppingBag, CheckCircle2, ChevronRight, X, AlertCircle, UserCog, Plus, Minus, ArrowLeft, MessageCircle, Package, QrCode } from 'lucide-react';
 import { useAuth } from "@/hooks/AuthContext";
 import toast from "react-hot-toast";
+import { Html5QrcodeScanner } from "html5-qrcode";
 
 export default function FiarPage() {
     return (
@@ -37,6 +38,9 @@ function FiarContenido() {
     const [modalNuevoCliente, setModalNuevoCliente] = useState(false);
     const [modalExito, setModalExito] = useState<{ visible: boolean, cliente: any, montoTotal: number } | null>(null);
 
+    // Estado para el modal de la cámara QR en Fiar
+    const [modalEscanner, setModalEscanner] = useState(false);
+
     const [nombreNuevo, setNombreNuevo] = useState("");
     const [celularNuevo, setCelularNuevo] = useState("");
     const [guardandoCliente, setGuardandoCliente] = useState(false);
@@ -49,6 +53,36 @@ function FiarContenido() {
             cargarInventario(cuentaPrincipalId);
         }
     }, [cuentaPrincipalId]);
+
+    // EFECTO PARA CONTROLAR EL ESCÁNER DE LA CÁMARA EN FIAR
+    useEffect(() => {
+        let scanner: Html5QrcodeScanner | null = null;
+        if (modalEscanner) {
+            const timer = setTimeout(() => {
+                scanner = new Html5QrcodeScanner(
+                    "reader-fiar",
+                    { fps: 10, qrbox: { width: 220, height: 220 } },
+                    false
+                );
+
+                scanner.render(
+                    (decodedText) => {
+                        manejarProductoScaneado(decodedText);
+                    },
+                    (error) => {
+                        // Ignorar errores mientras busca enfocar
+                    }
+                );
+            }, 200);
+
+            return () => {
+                clearTimeout(timer);
+                if (scanner) {
+                    scanner.clear().catch(error => console.error("Error al limpiar el escáner", error));
+                }
+            };
+        }
+    }, [modalEscanner, inventario, filasRegistro]);
 
     const cargarDatosGlobales = async (uid: string) => {
         try {
@@ -75,6 +109,62 @@ function FiarContenido() {
             snapI.forEach((doc) => listaI.push({ id: doc.id, ...doc.data() }));
             setInventario(listaI);
         } catch (error) { console.error(error); }
+    };
+
+    // LÓGICA MÁGICA AL ESCANEAR UN CÓDIGO QR EN FIAR
+    const manejarProductoScaneado = (skuScaneado: string) => {
+        const skuLimpio = skuScaneado.trim().toLowerCase();
+        const productoEncontrado = inventario.find(
+            p => (p.sku && p.sku.toLowerCase() === skuLimpio) || p.id === skuScaneado
+        );
+
+        if (!productoEncontrado) {
+            toast.error(`Producto con código "${skuScaneado}" no encontrado.`);
+            return;
+        }
+
+        const nuevasFilas = [...filasRegistro];
+        const indexExistente = nuevasFilas.findIndex(
+            f => f.descripcion.toLowerCase() === productoEncontrado.nombre.toLowerCase()
+        );
+
+        if (indexExistente !== -1) {
+            const fila = nuevasFilas[indexExistente];
+            const cantEnOtras = nuevasFilas.reduce((acc, f, i) => i !== indexExistente && f.descripcion.toLowerCase() === productoEncontrado.nombre.toLowerCase() ? acc + f.cantidad : acc, 0);
+            const stockDisp = productoEncontrado.stock - cantEnOtras;
+
+            if (fila.cantidad + 1 > stockDisp) {
+                toast.error(`¡Límite alcanzado! No hay más stock de ${productoEncontrado.nombre}.`);
+                return;
+            }
+
+            fila.cantidad += 1;
+            toast.success(`+1 ${productoEncontrado.nombre} agregado`);
+        } else {
+            const indexVacio = nuevasFilas.findIndex(f => f.descripcion.trim() === "" && parseFloat(f.valor || "0") === 0);
+
+            if (productoEncontrado.stock <= 0) {
+                toast.error(`El producto ${productoEncontrado.nombre} está agotado.`);
+                return;
+            }
+
+            if (indexVacio !== -1) {
+                nuevasFilas[indexVacio] = {
+                    descripcion: productoEncontrado.nombre,
+                    valor: productoEncontrado.precioVenta.toString(),
+                    cantidad: 1
+                };
+            } else {
+                nuevasFilas.push({
+                    descripcion: productoEncontrado.nombre,
+                    valor: productoEncontrado.precioVenta.toString(),
+                    cantidad: 1
+                });
+            }
+            toast.success(`${productoEncontrado.nombre} añadido al fiado`);
+        }
+
+        setFilasRegistro(nuevasFilas);
     };
 
     const guardarClienteNuevo = async () => {
@@ -133,7 +223,7 @@ function FiarContenido() {
                 const stockTotalPermitido = productoEnInventario.stock - cantidadEnOtrasFilas;
 
                 if (nuevaCant > stockTotalPermitido) {
-                    toast.error(`¡Límite alcanzado! Solo hay ${stockTotalPermitido} unidades disponibles.`);
+                    toast.error(`¡No hay más stock! Solo quedan ${stockTotalPermitido} unidades disponibles de ${productoEnInventario.nombre}.`);
                     return;
                 }
             }
@@ -264,6 +354,13 @@ function FiarContenido() {
                         <ShoppingBag size={24} /> Registrar Fiado
                     </h2>
                 </div>
+                {/* BOTÓN PARA ABRIR EL ESCÁNER QR EN FIAR */}
+                <button 
+                    onClick={() => setModalEscanner(true)} 
+                    className="bg-white text-rose-700 hover:bg-rose-50 px-4 py-2.5 rounded-xl font-black text-sm flex items-center gap-2 shadow-md transition-transform active:scale-95"
+                >
+                    <QrCode size={18}/> Escanear QR
+                </button>
             </div>
 
             <div className="flex flex-col lg:flex-row flex-1 min-h-0 relative overflow-y-auto lg:overflow-hidden">
@@ -484,6 +581,70 @@ function FiarContenido() {
             </div>
 
             <div className="h-24 lg:hidden w-full bg-slate-50 dark:bg-[#020617] shrink-0"></div>
+
+            {/* MODAL DEL ESCÁNER DE CÁMARA QR EN FIAR */}
+            {modalEscanner && (
+                <div className="fixed inset-0 bg-black/85 backdrop-blur-md flex items-center justify-center p-4 z-[999] animate-in fade-in duration-200">
+                    <div className="bg-white dark:bg-[#0f172a] p-6 sm:p-8 rounded-[2.5rem] w-full max-w-md shadow-2xl border border-slate-100 dark:border-slate-800 flex flex-col items-center">
+                        <div className="flex justify-between items-center w-full mb-4">
+                            <h3 className="text-xl font-black text-slate-900 dark:text-white flex items-center gap-2">
+                                <QrCode size={24}/> Escanear Código QR
+                            </h3>
+                            <button 
+                                onClick={() => setModalEscanner(false)} 
+                                className="bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-300 p-2 rounded-full transition-colors"
+                            >
+                                <X size={20}/>
+                            </button>
+                        </div>
+                        
+                        <p className="text-xs text-slate-500 mb-4 text-center">
+                            Apunta con la cámara de tu dispositivo hacia el código QR de la etiqueta para agregar al fiado.
+                        </p>
+
+                        <style jsx global>{`
+                          #reader-fiar {
+                            width: 100% !important;
+                            border: none !important;
+                            background: transparent !important;
+                          }
+                          #reader-fiar__dashboard_section_csr button, #html5-qrcode-button-camera-permission, #html5-qrcode-button-camera-start {
+                            background: #e11d48 !important;
+                            color: white !important;
+                            font-weight: bold !important;
+                            padding: 10px 20px !important;
+                            border-radius: 12px !important;
+                            border: none !important;
+                            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+                          }
+                          #reader-fiar select {
+                            padding: 8px !important;
+                            border-radius: 8px !important;
+                            border: 1px solid #cbd5e1 !important;
+                            margin-bottom: 10px !important;
+                            background: white !important;
+                            font-weight: bold !important;
+                            width: 100% !important;
+                          }
+                          #reader-fiar video {
+                            width: 100% !important;
+                            height: auto !important;
+                            border-radius: 16px !important;
+                            object-fit: cover !important;
+                          }
+                        `}</style>
+
+                        <div id="reader-fiar" className="w-full overflow-hidden rounded-2xl bg-slate-900 p-2"></div>
+
+                        <button 
+                            onClick={() => setModalEscanner(false)} 
+                            className="mt-6 w-full bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-700 dark:text-slate-300 font-bold py-3.5 rounded-2xl text-base transition-colors"
+                        >
+                            Terminar y Cerrar
+                        </button>
+                    </div>
+                </div>
+            )}
 
             {modalFaltaCliente && (
                 <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 z-[900] animate-in fade-in duration-200">

@@ -38,7 +38,6 @@ function VenderContenido() {
   const [modalNuevoCliente, setModalNuevoCliente] = useState(false);
   const [modalExito, setModalExito] = useState<{ visible: boolean, cliente: any, montoTotal: number, devuelta?: number, fiadoAdicional?: number } | null>(null);
   
-  // Estado para el modal del escáner QR de cámara
   const [modalEscanner, setModalEscanner] = useState(false);
 
   const [nombreNuevo, setNombreNuevo] = useState("");
@@ -57,28 +56,26 @@ function VenderContenido() {
     }
   }, [cuentaPrincipalId]);
 
-  // Efecto para controlar el escáner de la cámara mediante html5-qrcode
+  // EFECTO CORREGIDO PARA EL ESCÁNER QR
   useEffect(() => {
     let scanner: Html5QrcodeScanner | null = null;
     if (modalEscanner) {
-      // Pequeño timeout para asegurar que el div "reader" ya se renderizó en el DOM
       const timer = setTimeout(() => {
         scanner = new Html5QrcodeScanner(
           "reader",
-          { fps: 10, qrbox: { width: 250, height: 250 } },
+          { fps: 10, qrbox: { width: 220, height: 220 } },
           false
         );
 
         scanner.render(
           (decodedText) => {
-            // CÓDIGO ESCANEADO CON ÉXITO
             manejarProductoScaneado(decodedText);
           },
           (error) => {
-            // Errores de escaneo comunes mientras busca QR, se pueden ignorar en consola
+            // Ignorar errores de escaneo continuo mientras busca enfocar el QR
           }
         );
-      }, 100);
+      }, 200);
 
       return () => {
         clearTimeout(timer);
@@ -116,7 +113,6 @@ function VenderContenido() {
     } catch (error) { console.error(error); }
   };
 
-  // LÓGICA MÁGICA AL ESCANEAR UN CÓDIGO QR (SKU o ID)
   const manejarProductoScaneado = (skuScaneado: string) => {
     const skuLimpio = skuScaneado.trim().toLowerCase();
     const productoEncontrado = inventario.find(
@@ -124,19 +120,16 @@ function VenderContenido() {
     );
 
     if (!productoEncontrado) {
-      toast.error(`Producto con código "${skuScaneado}" no encontrado en el inventario.`);
+      toast.error(`Producto con código "${skuScaneado}" no encontrado.`);
       return;
     }
 
     const nuevasFilas = [...filasRegistro];
-
-    // Verificar si el producto ya está en alguna fila existente
     const indexExistente = nuevasFilas.findIndex(
       f => f.descripcion.toLowerCase() === productoEncontrado.nombre.toLowerCase()
     );
 
     if (indexExistente !== -1) {
-      // Si ya existe, intentamos sumar +1 validando el stock
       const fila = nuevasFilas[indexExistente];
       const cantEnOtras = nuevasFilas.reduce((acc, f, i) => i !== indexExistente && f.descripcion.toLowerCase() === productoEncontrado.nombre.toLowerCase() ? acc + f.cantidad : acc, 0);
       const stockDisp = productoEncontrado.stock - cantEnOtras;
@@ -149,7 +142,6 @@ function VenderContenido() {
       fila.cantidad += 1;
       toast.success(`+1 ${productoEncontrado.nombre} agregado`);
     } else {
-      // Si no existe, buscamos una fila vacía o agregamos una nueva
       const indexVacio = nuevasFilas.findIndex(f => f.descripcion.trim() === "" && parseFloat(f.valor || "0") === 0);
 
       if (productoEncontrado.stock <= 0) {
@@ -170,7 +162,7 @@ function VenderContenido() {
           cantidad: 1
         });
       }
-      toast.success(`${productoEncontrado.nombre} añadido a la venta`);
+      toast.success(`${productoEncontrado.nombre} añadido`);
     }
 
     setFilasRegistro(nuevasFilas);
@@ -404,7 +396,6 @@ function VenderContenido() {
             <ShoppingCart size={24}/> Registrar Venta
           </h2>
         </div>
-        {/* BOTÓN PARA ABRIR EL ESCÁNER QR */}
         <button 
           onClick={() => setModalEscanner(true)} 
           className="bg-white text-emerald-700 hover:bg-emerald-50 px-4 py-2.5 rounded-xl font-black text-sm flex items-center gap-2 shadow-md transition-transform active:scale-95"
@@ -645,9 +636,9 @@ function VenderContenido() {
         </button>
       </div>
 
-      {/* MODAL DEL ESCÁNER DE CÁMARA QR */}
+      {/* MODAL DEL ESCÁNER DE CÁMARA QR (CON ESTILOS FORZADOS PARA VISUALIZACIÓN) */}
       {modalEscanner && (
-        <div className="fixed inset-0 bg-black/85 backdrop-blur-md flex items-center justify-center p-4 z-[999] animate-in fade-in duration-200">
+        <div className="fixed inset-0 bg-black/9ojd backdrop-blur-md flex items-center justify-center p-4 z-[999] animate-in fade-in duration-200">
           <div className="bg-white dark:bg-[#0f172a] p-6 sm:p-8 rounded-[2.5rem] w-full max-w-md shadow-2xl border border-slate-100 dark:border-slate-800 flex flex-col items-center">
             <div className="flex justify-between items-center w-full mb-4">
               <h3 className="text-xl font-black text-slate-900 dark:text-white flex items-center gap-2">
@@ -665,8 +656,40 @@ function VenderContenido() {
               Apunta con la cámara de tu dispositivo hacia el código QR de la etiqueta del producto.
             </p>
 
-            {/* Contenedor donde html5-qrcode inyectará la cámara */}
-            <div id="reader" className="w-full overflow-hidden rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50"></div>
+            {/* Estilo forzado interno para evitar que el visor colapse a blanco */}
+            <style jsx global>{`
+              #reader {
+                width: 100% !important;
+                border: none !important;
+                background: transparent !important;
+              }
+              #reader__dashboard_section_csr button, #html5-qrcode-button-camera-permission, #html5-qrcode-button-camera-start {
+                background: #059669 !important;
+                color: white !important;
+                font-weight: bold !important;
+                padding: 10px 20px !important;
+                border-radius: 12px !important;
+                border: none !important;
+                box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+              }
+              #reader select {
+                padding: 8px !important;
+                border-radius: 8px !important;
+                border: 1px solid #cbd5e1 !important;
+                margin-bottom: 10px !important;
+                background: white !important;
+                font-weight: bold !important;
+                width: 100% !important;
+              }
+              #reader video {
+                width: 100% !important;
+                height: auto !important;
+                border-radius: 16px !important;
+                object-fit: cover !important;
+              }
+            `}</style>
+
+            <div id="reader" className="w-full overflow-hidden rounded-2xl bg-slate-900 p-2"></div>
 
             <button 
               onClick={() => setModalEscanner(false)} 
