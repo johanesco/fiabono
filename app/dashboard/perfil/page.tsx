@@ -10,14 +10,12 @@ import { useAuth } from "../../../hooks/AuthContext";
 export default function PerfilPage() {
   const { datosSesion, setDatosSesion } = useAuth();
   
-  // Extraemos datos del contexto seguro
   const usuarioAuth = auth.currentUser;
   const planActual = datosSesion?.planActual || 'basico';
   const diasPro = datosSesion?.diasPro;
   const esCajero = datosSesion?.rol === 'cajero';
   const adminId = datosSesion?.cuentaPrincipalId;
 
-  // Estados Locales para Perfil
   const [nombreUsuario, setNombreUsuario] = useState(datosSesion?.nombreUsuario || "");
   const [nombreNegocio, setNombreNegocio] = useState(datosSesion?.nombreNegocio || "");
   const [telefonoNegocio, setTelefonoNegocio] = useState(datosSesion?.telefonoNegocio || "");
@@ -32,8 +30,8 @@ export default function PerfilPage() {
   const [mensajePerfil, setMensajePerfil] = useState({ texto: "", tipo: "" });
 
   const [temaApariencia, setTemaApariencia] = useState<'clara' | 'oscura' | 'auto'>('clara');
+  const [temaCargado, setTemaCargado] = useState(false);
 
-  // Estados de Colaboradores
   const [mostrarColaboradores, setMostrarColaboradores] = useState(false);
   const [modoCrearColaborador, setModoCrearColaborador] = useState(false);
   const [colaboradorEnEdicion, setColaboradorEnEdicion] = useState<any | null>(null);
@@ -45,7 +43,6 @@ export default function PerfilPage() {
   const [errorFormColaborador, setErrorFormColaborador] = useState({ usuarioAcceso: "", general: "" });
   const [creandoColaborador, setCreandoColaborador] = useState(false);
 
-  // Modales de Seguridad y Avisos
   const [modalSeguridad, setModalSeguridad] = useState<{ visible: boolean, accion: 'eliminar_colaborador' | null }>({ visible: false, accion: null });
   const [passSeguridad, setPassSeguridad] = useState("");
   const [errorSeguridad, setErrorSeguridad] = useState("");
@@ -61,7 +58,7 @@ export default function PerfilPage() {
   useEffect(() => {
     const temaGuardado = localStorage.getItem('temaFiabono') as any;
     if (temaGuardado) setTemaApariencia(temaGuardado);
-    else setTemaApariencia('clara');
+    setTemaCargado(true); 
     
     if (adminId && !esCajero) {
       cargarListaColaboradores(adminId);
@@ -69,6 +66,7 @@ export default function PerfilPage() {
   }, [adminId, esCajero]);
 
   useEffect(() => {
+    if (!temaCargado) return; 
     localStorage.setItem('temaFiabono', temaApariencia);
     const aplicarTema = () => {
       if (temaApariencia === 'oscura') document.documentElement.classList.add('dark');
@@ -80,7 +78,7 @@ export default function PerfilPage() {
       }
     };
     aplicarTema();
-  }, [temaApariencia]);
+  }, [temaApariencia, temaCargado]);
 
   const cargarListaColaboradores = async (uid: string) => {
     try {
@@ -105,7 +103,6 @@ export default function PerfilPage() {
         nombreUsuario: editNombreUsuario 
       });
       setNombreUsuario(editNombreUsuario);
-      // Actualizamos el contexto global para que el Header lo refleje
       setDatosSesion((prev: any) => ({...prev, nombreNegocio, telefonoNegocio, nombreUsuario: editNombreUsuario}));
       setMensajePerfil({ texto: "Datos actualizados correctamente.", tipo: "exito" });
       setModoEdicionPerfil(false);
@@ -382,17 +379,17 @@ export default function PerfilPage() {
                     </p>
                   </div>
                 )}
-                <input type="text" value={formColaborador.nombre} onChange={e => {setFormColaborador({...formColaborador, nombre: e.target.value}); setErrorFormColaborador({...errorFormColaborador, general:""})}} placeholder="Nombre de la persona (Ej: Carlos)" className="w-full p-4 bg-slate-50 dark:bg-[#020617] border border-slate-200 dark:border-slate-800/80 rounded-xl outline-none focus:border-blue-500 font-bold text-lg" />
+                <input type="text" value={formColaborador.nombre} onChange={e => {setFormColaborador({...formColaborador, nombre: e.target.value}); setErrorFormColaborador({...errorFormColaborador, general:""})}} placeholder="Nombre de la persona (Ej: Carlos)" className="w-full p-4 bg-slate-50 dark:bg-[#020617] border border-slate-200 dark:border-slate-800/80 rounded-xl outline-none focus:border-blue-500 font-bold text-lg text-slate-900 dark:text-white placeholder-slate-400" />
                 
                 {!colaboradorEnEdicion ? (
                   <>
                     <div>
-                      <input type="text" value={formColaborador.usuarioAcceso} onChange={e => {setFormColaborador({...formColaborador, usuarioAcceso: e.target.value}); setErrorFormColaborador({...errorFormColaborador, usuarioAcceso:""})}} placeholder="Usuario de acceso (Ej: caja1)" className={`w-full p-4 bg-slate-50 dark:bg-[#020617] border rounded-xl outline-none transition-all font-bold text-lg ${errorFormColaborador.usuarioAcceso ? 'border-rose-500 focus:border-rose-500' : 'border-slate-200 dark:border-slate-800/80 focus:border-blue-500'}`} />
+                      <input type="text" value={formColaborador.usuarioAcceso} onChange={e => {setFormColaborador({...formColaborador, usuarioAcceso: e.target.value}); setErrorFormColaborador({...errorFormColaborador, usuarioAcceso:""})}} placeholder="Usuario de acceso (Ej: caja1)" className={`w-full p-4 bg-slate-50 dark:bg-[#020617] border rounded-xl outline-none transition-all font-bold text-lg text-slate-900 dark:text-white placeholder-slate-400 ${errorFormColaborador.usuarioAcceso ? 'border-rose-500 focus:border-rose-500' : 'border-slate-200 dark:border-slate-800/80 focus:border-blue-500'}`} />
                       <p className="text-xs text-slate-400 mt-1.5 ml-2">Quedará como: @fiabono.caja</p>
                       {errorFormColaborador.usuarioAcceso && <p className="text-rose-500 text-xs font-bold mt-1.5 ml-2">{errorFormColaborador.usuarioAcceso}</p>}
                     </div>
-                    <input type="password" value={formColaborador.password} onChange={e => {setFormColaborador({...formColaborador, password: e.target.value}); setErrorFormColaborador({...errorFormColaborador, general:""})}} placeholder="Contraseña (Mínimo 6)" className="w-full p-4 bg-slate-50 dark:bg-[#020617] border border-slate-200 dark:border-slate-800/80 rounded-xl outline-none focus:border-blue-500 font-bold text-lg" />
-                    <input type="password" value={formColaborador.confirmPassword} onChange={e => {setFormColaborador({...formColaborador, confirmPassword: e.target.value}); setErrorFormColaborador({...errorFormColaborador, general:""})}} placeholder="Confirmar Contraseña" className="w-full p-4 bg-slate-50 dark:bg-[#020617] border border-slate-200 dark:border-slate-800/80 rounded-xl outline-none focus:border-blue-500 font-bold text-lg" />
+                    <input type="password" value={formColaborador.password} onChange={e => {setFormColaborador({...formColaborador, password: e.target.value}); setErrorFormColaborador({...errorFormColaborador, general:""})}} placeholder="Contraseña (Mínimo 6)" className="w-full p-4 bg-slate-50 dark:bg-[#020617] border border-slate-200 dark:border-slate-800/80 rounded-xl outline-none focus:border-blue-500 font-bold text-lg text-slate-900 dark:text-white placeholder-slate-400" />
+                    <input type="password" value={formColaborador.confirmPassword} onChange={e => {setFormColaborador({...formColaborador, confirmPassword: e.target.value}); setErrorFormColaborador({...errorFormColaborador, general:""})}} placeholder="Confirmar Contraseña" className="w-full p-4 bg-slate-50 dark:bg-[#020617] border border-slate-200 dark:border-slate-800/80 rounded-xl outline-none focus:border-blue-500 font-bold text-lg text-slate-900 dark:text-white placeholder-slate-400" />
                   </>
                 ) : (
                   <div className="bg-slate-100 dark:bg-[#020617] p-5 rounded-xl border border-slate-200 dark:border-slate-800/80">
@@ -458,19 +455,19 @@ export default function PerfilPage() {
               <div className="flex flex-col gap-4 animate-in fade-in">
                 <div>
                   <label className="block text-sm font-bold text-slate-500 dark:text-slate-400 mb-2">Tu Nombre</label>
-                  <input type="text" value={editNombreUsuario} onChange={(e) => setEditNombreUsuario(e.target.value)} placeholder="Ej. Juan Pérez" className="w-full p-5 bg-slate-50 dark:bg-[#020617] border border-slate-200 dark:border-slate-800/80 rounded-2xl outline-none focus:border-blue-500 dark:focus:border-blue-400 dark:text-white transition-all font-bold text-lg" />
+                  <input type="text" value={editNombreUsuario} onChange={(e) => setEditNombreUsuario(e.target.value)} placeholder="Ej. Juan Pérez" className="w-full p-5 bg-slate-50 dark:bg-[#020617] border border-slate-200 dark:border-slate-800/80 rounded-2xl outline-none focus:border-blue-500 dark:focus:border-blue-400 transition-all font-bold text-lg text-slate-900 dark:text-white placeholder-slate-400" />
                 </div>
                 <div>
                   <label className="block text-sm font-bold text-slate-500 dark:text-slate-400 mb-2">Nombre del Negocio</label>
-                  <input type="text" value={nombreNegocio} onChange={(e) => setNombreNegocio(e.target.value)} className="w-full p-5 bg-slate-50 dark:bg-[#020617] border border-slate-200 dark:border-slate-800/80 rounded-2xl outline-none focus:border-blue-500 dark:focus:border-blue-400 dark:text-white transition-all font-bold text-lg" />
+                  <input type="text" value={nombreNegocio} onChange={(e) => setNombreNegocio(e.target.value)} className="w-full p-5 bg-slate-50 dark:bg-[#020617] border border-slate-200 dark:border-slate-800/80 rounded-2xl outline-none focus:border-blue-500 dark:focus:border-blue-400 transition-all font-bold text-lg text-slate-900 dark:text-white placeholder-slate-400" />
                 </div>
                 <div>
                   <label className="block text-sm font-bold text-slate-500 dark:text-slate-400 mb-2">WhatsApp de Contacto</label>
-                  <input type="tel" value={telefonoNegocio} onChange={(e) => setTelefonoNegocio(e.target.value)} placeholder="Ej. 3001234567" className="w-full p-5 bg-slate-50 dark:bg-[#020617] border border-slate-200 dark:border-slate-800/80 rounded-2xl outline-none focus:border-blue-500 dark:focus:border-blue-400 dark:text-white transition-all font-bold text-lg" />
+                  <input type="tel" value={telefonoNegocio} onChange={(e) => setTelefonoNegocio(e.target.value)} placeholder="Ej. 3001234567" className="w-full p-5 bg-slate-50 dark:bg-[#020617] border border-slate-200 dark:border-slate-800/80 rounded-2xl outline-none focus:border-blue-500 dark:focus:border-blue-400 transition-all font-bold text-lg text-slate-900 dark:text-white placeholder-slate-400" />
                 </div>
                 <div>
                   <label className="block text-sm font-bold text-slate-500 dark:text-slate-400 mb-2 flex items-center gap-2"><Mail size={14}/> Correo Registrado (Solo lectura)</label>
-                  <input type="email" value={correoNegocio} disabled className="w-full p-5 bg-slate-100 dark:bg-[#020617]/50 border border-slate-200 dark:border-slate-800/50 rounded-2xl text-slate-400 dark:text-slate-500 cursor-not-allowed font-medium text-lg" />
+                  <input type="email" value={correoNegocio} disabled className="w-full p-5 bg-slate-100 dark:bg-[#020617]/50 border border-slate-200 dark:border-slate-800/50 rounded-2xl text-slate-500 dark:text-slate-400 cursor-not-allowed font-medium text-lg" />
                 </div>
                 <div className="grid grid-cols-2 gap-3 mt-2">
                   <button onClick={() => setModoEdicionPerfil(false)} className="bg-slate-100 dark:bg-[#020617] hover:bg-slate-200 dark:hover:bg-[#1e293b] text-slate-700 dark:text-slate-300 font-bold py-5 rounded-2xl transition-colors border dark:border-slate-800/80 text-lg">Cancelar</button>
@@ -512,17 +509,17 @@ export default function PerfilPage() {
               <div className="flex flex-col gap-5 animate-in fade-in duration-300">
                 <div>
                   <label className="block text-sm font-bold text-slate-500 dark:text-slate-400 mb-2">Contraseña Actual</label>
-                  <input type="password" value={passwordData.actual} onChange={(e) => { setPasswordData({...passwordData, actual: e.target.value}); setPassErrores({...passErrores, actual: ""}); }} placeholder="Tu contraseña actual" className={`w-full p-5 bg-slate-50 dark:bg-[#020617] border rounded-2xl outline-none transition-all font-bold text-lg ${passErrores.actual ? 'border-rose-500 dark:border-rose-500 text-rose-600' : 'border-slate-200 dark:border-slate-800/80 focus:border-blue-500 dark:focus:border-blue-400 dark:text-white'}`} />
+                  <input type="password" value={passwordData.actual} onChange={(e) => { setPasswordData({...passwordData, actual: e.target.value}); setPassErrores({...passErrores, actual: ""}); }} placeholder="Tu contraseña actual" className={`w-full p-5 bg-slate-50 dark:bg-[#020617] border rounded-2xl outline-none transition-all font-bold text-lg text-slate-900 dark:text-white placeholder-slate-400 ${passErrores.actual ? 'border-rose-500 dark:border-rose-500 text-rose-600' : 'border-slate-200 dark:border-slate-800/80 focus:border-blue-500 dark:focus:border-blue-400'}`} />
                   {passErrores.actual && <p className="text-rose-500 dark:text-rose-400 text-sm mt-2 font-bold flex items-center gap-1"><AlertCircle size={14}/>{passErrores.actual}</p>}
                 </div>
                 <div>
                   <label className="block text-sm font-bold text-slate-500 dark:text-slate-400 mb-2">Nueva Contraseña</label>
-                  <input type="password" value={passwordData.nueva} onChange={(e) => { setPasswordData({...passwordData, nueva: e.target.value}); setPassErrores({...passErrores, nueva: ""}); }} placeholder="Mínimo 6 caracteres" className={`w-full p-5 bg-slate-50 dark:bg-[#020617] border rounded-2xl outline-none transition-all font-bold text-lg ${passErrores.nueva ? 'border-rose-500 dark:border-rose-500 text-rose-600' : 'border-slate-200 dark:border-slate-800/80 focus:border-blue-500 dark:focus:border-blue-400 dark:text-white'}`} />
+                  <input type="password" value={passwordData.nueva} onChange={(e) => { setPasswordData({...passwordData, nueva: e.target.value}); setPassErrores({...passErrores, nueva: ""}); }} placeholder="Mínimo 6 caracteres" className={`w-full p-5 bg-slate-50 dark:bg-[#020617] border rounded-2xl outline-none transition-all font-bold text-lg text-slate-900 dark:text-white placeholder-slate-400 ${passErrores.nueva ? 'border-rose-500 dark:border-rose-500 text-rose-600' : 'border-slate-200 dark:border-slate-800/80 focus:border-blue-500 dark:focus:border-blue-400'}`} />
                   {passErrores.nueva && <p className="text-rose-500 dark:text-rose-400 text-sm mt-2 font-bold flex items-center gap-1"><AlertCircle size={14}/>{passErrores.nueva}</p>}
                 </div>
                 <div>
                   <label className="block text-sm font-bold text-slate-500 dark:text-slate-400 mb-2">Confirmar Nueva Contraseña</label>
-                  <input type="password" value={passwordData.confirmar} onChange={(e) => { setPasswordData({...passwordData, confirmar: e.target.value}); setPassErrores({...passErrores, confirmar: ""}); }} placeholder="Repite la nueva contraseña" className={`w-full p-5 bg-slate-50 dark:bg-[#020617] border rounded-2xl outline-none transition-all font-bold text-lg ${passErrores.confirmar ? 'border-rose-500 dark:border-rose-500 text-rose-600' : 'border-slate-200 dark:border-slate-800/80 focus:border-blue-500 dark:focus:border-blue-400 dark:text-white'}`} />
+                  <input type="password" value={passwordData.confirmar} onChange={(e) => { setPasswordData({...passwordData, confirmar: e.target.value}); setPassErrores({...passErrores, confirmar: ""}); }} placeholder="Repite la nueva contraseña" className={`w-full p-5 bg-slate-50 dark:bg-[#020617] border rounded-2xl outline-none transition-all font-bold text-lg text-slate-900 dark:text-white placeholder-slate-400 ${passErrores.confirmar ? 'border-rose-500 dark:border-rose-500 text-rose-600' : 'border-slate-200 dark:border-slate-800/80 focus:border-blue-500 dark:focus:border-blue-400'}`} />
                   {passErrores.confirmar && <p className="text-rose-500 dark:text-rose-400 text-sm mt-2 font-bold flex items-center gap-1"><AlertCircle size={14}/>{passErrores.confirmar}</p>}
                 </div>
                 
@@ -556,7 +553,7 @@ export default function PerfilPage() {
             <h2 className="text-2xl font-black text-slate-900 dark:text-white mb-2">¿Cancelar Plan PRO?</h2>
             <p className="text-slate-600 dark:text-slate-400 font-medium text-base mb-6">Perderás acceso inmediato a tus reportes y el límite de clientes y colaboradores volverá al plan básico.</p>
             
-            <input type="password" value={passCancelarPro} onChange={e => {setPassCancelarPro(e.target.value); setErrorCancelarPro("")}} placeholder="Ingresa tu contraseña actual" className="w-full p-4 bg-slate-50 dark:bg-[#020617] border border-slate-200 dark:border-slate-800/80 rounded-xl outline-none focus:border-rose-500 dark:text-white mb-2 font-bold text-lg" />
+            <input type="password" value={passCancelarPro} onChange={e => {setPassCancelarPro(e.target.value); setErrorCancelarPro("")}} placeholder="Ingresa tu contraseña actual" className="w-full p-4 bg-slate-50 dark:bg-[#020617] border border-slate-200 dark:border-slate-800/80 rounded-xl outline-none focus:border-rose-500 text-slate-900 dark:text-white placeholder-slate-400 mb-2 font-bold text-lg" />
             {errorCancelarPro && <p className="text-rose-500 text-sm font-bold mb-4">{errorCancelarPro}</p>}
 
             <div className="flex gap-4 mt-2">
@@ -571,14 +568,12 @@ export default function PerfilPage() {
         <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 z-[300] animate-in zoom-in-95 duration-200">
           <div className="bg-white dark:bg-[#0f172a] p-8 rounded-[2.5rem] w-full max-w-sm shadow-2xl border border-slate-100 dark:border-slate-800/60 text-center relative overflow-hidden transition-colors duration-500">
             <button onClick={() => setModalSuscripcion({ visible: false, titulo: "", mensaje: "" })} className="absolute top-4 right-4 bg-slate-100 dark:bg-[#1e293b] hover:bg-slate-200 text-slate-500 rounded-full p-2 transition-colors z-10"><X size={24}/></button>
-            
             <div className="absolute top-0 left-0 right-0 bg-blue-600 h-28"></div>
             <div className="relative z-10 mt-8 mb-6">
               <div className="w-20 h-20 bg-white dark:bg-[#020617] rounded-2xl flex items-center justify-center shadow-xl mx-auto border-4 border-white dark:border-[#0f172a]">
                 <Star size={40} className="text-emerald-500 fill-current" />
               </div>
             </div>
-            
             <h3 className="text-2xl font-black text-slate-900 dark:text-white mb-2">{modalSuscripcion.titulo || "Desbloquea Fiabono PRO"}</h3>
             <p className="text-base font-medium text-slate-500 dark:text-slate-400 mb-6 whitespace-pre-line">{modalSuscripcion.mensaje}</p>
             <button onClick={() => setModalSuscripcion({ visible: false, titulo: "", mensaje: "" })} className="w-full bg-blue-600 hover:bg-blue-700 text-white font-black py-4 rounded-2xl shadow-lg transition-transform transform active:scale-95 text-lg">Entendido</button>
@@ -607,7 +602,7 @@ export default function PerfilPage() {
             <div className="w-20 h-20 bg-blue-100 dark:bg-blue-500/20 text-blue-600 dark:text-blue-400 rounded-full flex items-center justify-center mx-auto mb-6"><ShieldAlert size={40} /></div>
             <h3 className="text-2xl font-black text-slate-900 dark:text-white mb-2 text-center">Acción Protegida</h3>
             <p className="text-base text-slate-500 dark:text-slate-400 text-center mb-8">Por seguridad, ingresa tu contraseña para borrar este acceso de colaborador.</p>
-            <input type="password" value={passSeguridad} onChange={e => setPassSeguridad(e.target.value)} placeholder="Tu contraseña actual" className="w-full p-5 bg-slate-50 dark:bg-[#020617] border border-slate-200 dark:border-slate-800/80 rounded-2xl outline-none focus:border-blue-500 dark:focus:border-blue-400 dark:text-white mb-2 transition-all font-bold text-lg" />
+            <input type="password" value={passSeguridad} onChange={e => setPassSeguridad(e.target.value)} placeholder="Tu contraseña actual" className="w-full p-5 bg-slate-50 dark:bg-[#020617] border border-slate-200 dark:border-slate-800/80 rounded-2xl outline-none focus:border-blue-500 transition-all font-bold text-lg text-slate-900 dark:text-white placeholder-slate-400 mb-2" />
             {errorSeguridad && <p className="text-rose-500 dark:text-rose-400 text-sm font-bold text-center mb-4 flex items-center justify-center gap-1"><AlertCircle size={14}/>{errorSeguridad}</p>}
             <div className="grid grid-cols-2 gap-3 mt-4">
               <button onClick={() => {setModalSeguridad({visible: false, accion: null}); setPassSeguridad(""); setErrorSeguridad("");}} className="bg-slate-100 dark:bg-[#020617] hover:bg-slate-200 dark:hover:bg-[#1e293b] text-slate-700 dark:text-slate-300 font-bold py-4 rounded-xl transition-colors border dark:border-slate-800/80 text-lg">Cancelar</button>

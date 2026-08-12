@@ -40,7 +40,7 @@ function VenderContenido() {
   
   const [modalEscanner, setModalEscanner] = useState(false);
   const [mensajeScaneo, setMensajeScaneo] = useState<{ texto: string; tipo: 'exito' | 'error' } | null>(null);
-  const [audioHabilitado, setAudioHabilitado] = useState(false); // Estado para desbloquear audio móvil
+  const [audioHabilitado, setAudioHabilitado] = useState(false); 
 
   const [nombreNuevo, setNombreNuevo] = useState("");
   const [celularNuevo, setCelularNuevo] = useState("");
@@ -112,7 +112,6 @@ function VenderContenido() {
     } catch (error) { console.error(error); }
   };
 
-  // DESBLOQUEAR AUDIO Y VIBRACIÓN CON UN TOQUE TÁCTIL
   const habilitarAudioMovil = () => {
     try {
       const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
@@ -132,7 +131,7 @@ function VenderContenido() {
       const osc = ctx.createOscillator();
       const gain = ctx.createGain();
       osc.type = 'sine';
-      osc.frequency.setValueAtTime(880, ctx.currentTime); // Nota La (A5)
+      osc.frequency.setValueAtTime(880, ctx.currentTime); 
       osc.frequency.exponentialRampToValueAtTime(1760, ctx.currentTime + 0.12);
       gain.gain.setValueAtTime(0.2, ctx.currentTime);
       gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.12);
@@ -476,6 +475,7 @@ function VenderContenido() {
                         <label className="text-[10px] md:text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1 block whitespace-nowrap truncate flex items-center gap-1">
                           <Package size={12}/> Descripción o SKU
                         </label>
+                        {/* AQUÍ ESTÁ EL BLINDAJE CON ! PARA OBLIGAR EL TEXTO BLANCO */}
                         <input 
                           type="text" 
                           value={fila.descripcion} 
@@ -506,7 +506,7 @@ function VenderContenido() {
                             }
                           }}
                           placeholder="Escribe nombre o SKU..." 
-                          className="w-full p-3 md:p-4 h-[50px] md:h-[56px] bg-slate-50 dark:bg-[#0f172a] border border-slate-100 dark:border-slate-800 rounded-xl outline-none font-bold text-base md:text-lg min-w-0 shadow-sm focus:border-emerald-500 transition-colors" 
+                          className="w-full p-3 md:p-4 h-[50px] md:h-[56px] bg-slate-50 dark:bg-[#0f172a] border border-slate-100 dark:border-slate-800 rounded-xl outline-none font-bold text-base md:text-lg min-w-0 shadow-sm focus:border-emerald-500 transition-colors text-slate-900 dark:!text-white placeholder-slate-400 dark:placeholder-slate-500" 
                         />
 
                         {busquedaProductoIndex === index && fila.descripcion.trim().length > 0 && productosFiltradosInventario.length > 0 && (
@@ -540,7 +540,7 @@ function VenderContenido() {
                                       </span>
                                     )}
                                     {stockDisp > 5 && (
-                                      <span className="text-[10px] font-mono bg-slate-100 dark:bg-slate-700 px-1.5 py-0.5 rounded text-slate-500">
+                                      <span className="text-[10px] font-mono bg-slate-100 dark:bg-slate-700 px-1.5 py-0.5 rounded text-slate-500 dark:text-slate-300">
                                         SKU: {p.sku || 'N/A'} | Disponibles: {stockDisp}
                                       </span>
                                     )}
@@ -563,7 +563,8 @@ function VenderContenido() {
                           <label className="text-[10px] md:text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1 block whitespace-nowrap">Cant.</label>
                           <div className="flex items-center bg-slate-50 dark:bg-[#0f172a] border border-slate-100 dark:border-slate-800 rounded-xl overflow-hidden shrink-0 h-[50px] md:h-[56px]">
                             <button onClick={() => actualizarCantidadFila(index, -1)} className="px-3 h-full hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-500 transition-colors"><Minus size={16}/></button>
-                            <span className="flex-1 text-center font-black text-lg md:text-xl">{fila.cantidad}</span>
+                            {/* CANTIDAD BLINDADA */}
+                            <span className="flex-1 text-center font-black text-lg md:text-xl text-slate-900 dark:!text-white">{fila.cantidad}</span>
                             <button onClick={() => actualizarCantidadFila(index, 1)} className="px-3 h-full hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-500 transition-colors"><Plus size={16}/></button>
                           </div>
                         </div>
@@ -572,7 +573,8 @@ function VenderContenido() {
                           <label className="text-[10px] md:text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1 block whitespace-nowrap">Precio Unit.</label>
                           <div className="relative w-full h-[50px] md:h-[56px] shadow-sm rounded-xl">
                             <span className="absolute left-3 md:left-4 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-lg md:text-xl">$</span>
-                            <input type="text" inputMode="numeric" value={formatearMonedaInput(fila.valor)} onChange={(e) => actualizarFila(index, 'valor', e.target.value)} placeholder="0" className="w-full pl-8 md:pl-10 pr-3 py-3 h-full bg-slate-50 dark:bg-[#0f172a] border border-slate-100 dark:border-slate-800 rounded-xl outline-none font-black text-lg md:text-xl min-w-0 focus:border-emerald-500 transition-colors" />
+                            {/* PRECIO BLINDADO */}
+                            <input type="text" inputMode="numeric" value={formatearMonedaInput(fila.valor)} onChange={(e) => actualizarFila(index, 'valor', e.target.value)} placeholder="0" className="w-full pl-8 md:pl-10 pr-3 py-3 h-full bg-slate-50 dark:bg-[#0f172a] border border-slate-100 dark:border-slate-800 rounded-xl outline-none font-black text-lg md:text-xl min-w-0 focus:border-emerald-500 transition-colors text-slate-900 dark:!text-white placeholder-slate-400 dark:placeholder-slate-500" />
                           </div>
                         </div>
                       </div>
@@ -608,7 +610,8 @@ function VenderContenido() {
               ) : (
                 <div className="relative">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
-                  <input type="text" value={busquedaRegistro} onChange={(e) => { setBusquedaRegistro(e.target.value); setMostrarResultadosBuscador(true); }} onFocus={() => setMostrarResultadosBuscador(true)} placeholder="Buscar / Crear..." className="w-full pl-9 pr-2 py-3 lg:py-4 bg-slate-50 dark:bg-[#020617] border border-slate-200 dark:border-slate-700 rounded-xl text-sm font-bold outline-none focus:border-emerald-500 transition-colors shadow-sm" />
+                  {/* BUSCADOR DE CLIENTES BLINDADO */}
+                  <input type="text" value={busquedaRegistro} onChange={(e) => { setBusquedaRegistro(e.target.value); setMostrarResultadosBuscador(true); }} onFocus={() => setMostrarResultadosBuscador(true)} placeholder="Buscar / Crear..." className="w-full pl-9 pr-2 py-3 lg:py-4 bg-slate-50 dark:bg-[#020617] border border-slate-200 dark:border-slate-700 rounded-xl text-sm font-bold outline-none focus:border-emerald-500 transition-colors shadow-sm text-slate-900 dark:!text-white placeholder-slate-400 dark:placeholder-slate-500" />
                   
                   {mostrarResultadosBuscador && busquedaRegistro.length > 0 && (
                     <div className="absolute top-full left-0 right-0 mt-1 bg-white dark:bg-[#1e293b] border border-slate-200 dark:border-slate-700 rounded-xl shadow-xl z-50 overflow-hidden">
@@ -619,7 +622,7 @@ function VenderContenido() {
                           </div>
                         ))}
                         {!clientesFiltradosRegistro.some(c => c.nombre.toLowerCase() === busquedaRegistro.toLowerCase()) && (
-                          <button onClick={() => { setNombreNuevo(busquedaRegistro); setModalNuevoCliente(true); setMostrarResultadosBuscador(false); }} className="w-full text-left p-3 bg-emerald-50 text-emerald-700 text-sm font-bold">
+                          <button onClick={() => { setNombreNuevo(busquedaRegistro); setModalNuevoCliente(true); setMostrarResultadosBuscador(false); }} className="w-full text-left p-3 bg-emerald-50 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-400 text-sm font-bold">
                             + Crear "{busquedaRegistro}"
                           </button>
                         )}
@@ -636,21 +639,22 @@ function VenderContenido() {
               </label>
               <div className="relative rounded-xl shadow-sm mb-2">
                 <span className="absolute left-3 top-1/2 -translate-y-1/2 text-emerald-600 font-bold text-lg lg:text-xl">$</span>
-                <input type="text" inputMode="numeric" value={pagoCliente} onChange={(e) => setPagoCliente(formatearMonedaInput(e.target.value))} placeholder="Monto..." className="w-full pl-8 pr-2 py-3 lg:py-4 bg-slate-50 dark:bg-[#020617] border border-slate-200 dark:border-slate-700 rounded-xl outline-none font-black text-xl lg:text-2xl min-w-0 focus:border-emerald-500 transition-colors" />
+                {/* DINERO ENTREGADO BLINDADO */}
+                <input type="text" inputMode="numeric" value={pagoCliente} onChange={(e) => setPagoCliente(formatearMonedaInput(e.target.value))} placeholder="Monto..." className="w-full pl-8 pr-2 py-3 lg:py-4 bg-slate-50 dark:bg-[#020617] border border-slate-200 dark:border-slate-700 rounded-xl outline-none font-black text-xl lg:text-2xl min-w-0 focus:border-emerald-500 transition-colors text-slate-900 dark:!text-white placeholder-slate-400 dark:placeholder-slate-500" />
               </div>
-              <button onClick={() => setPagoCliente(totalFilasRegistro.toLocaleString('es-CO'))} className="text-[11px] font-bold text-emerald-600 bg-emerald-50 hover:bg-emerald-100 py-2 rounded-lg transition-colors text-center w-full">
+              <button onClick={() => setPagoCliente(totalFilasRegistro.toLocaleString('es-CO'))} className="text-[11px] font-bold text-emerald-600 bg-emerald-50 dark:bg-emerald-500/20 hover:bg-emerald-100 dark:hover:bg-emerald-500/30 py-2 rounded-lg transition-colors text-center w-full">
                 Pago exacto (${totalFilasRegistro.toLocaleString('es-CO')})
               </button>
             </div>
 
             {pagoCliente && parseFloat(pagoCliente.replace(/\D/g, '')) >= totalFilasRegistro && totalFilasRegistro > 0 && (
-              <div className="p-4 lg:p-5 bg-emerald-100 text-emerald-700 rounded-xl flex justify-between items-center animate-in zoom-in-95 duration-200 shadow-sm">
+              <div className="p-4 lg:p-5 bg-emerald-100 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-400 rounded-xl flex justify-between items-center animate-in zoom-in-95 duration-200 shadow-sm">
                 <span className="text-[10px] lg:text-xs uppercase font-bold tracking-wider">Devuelta:</span>
                 <span className="text-xl lg:text-2xl font-black">${(parseFloat(pagoCliente.replace(/\D/g, '')) - totalFilasRegistro).toLocaleString('es-CO')}</span>
               </div>
             )}
             {pagoCliente !== "" && parseFloat(pagoCliente.replace(/\D/g, '')) < totalFilasRegistro && totalFilasRegistro > 0 && (
-              <div className="p-4 lg:p-5 bg-rose-100 text-rose-700 rounded-xl flex justify-between items-center animate-in zoom-in-95 duration-200 shadow-sm">
+              <div className="p-4 lg:p-5 bg-rose-100 dark:bg-rose-500/20 text-rose-700 dark:text-rose-400 rounded-xl flex justify-between items-center animate-in zoom-in-95 duration-200 shadow-sm">
                 <span className="text-[10px] lg:text-xs uppercase font-bold tracking-wider">Saldo a Fiar:</span>
                 <span className="text-xl lg:text-2xl font-black">${(totalFilasRegistro - parseFloat(pagoCliente.replace(/\D/g, ''))).toLocaleString('es-CO')}</span>
               </div>
@@ -680,7 +684,7 @@ function VenderContenido() {
         </button>
       </div>
 
-      {/* MODAL DEL ESCÁNER DE CÁMARA QR CON BOTÓN DE DESBLOQUEO DE AUDIO Y ESTILOS FORZADOS */}
+      {/* MODAL DEL ESCÁNER */}
       {modalEscanner && (
         <div className="fixed inset-0 bg-black/90 backdrop-blur-md flex items-center justify-center p-4 z-[999] animate-in fade-in duration-200">
           <div className="bg-white dark:bg-[#0f172a] p-6 sm:p-8 rounded-[2.5rem] w-full max-w-md shadow-2xl border border-slate-100 dark:border-slate-800 flex flex-col items-center relative overflow-hidden">
@@ -703,11 +707,10 @@ function VenderContenido() {
               </button>
             </div>
 
-            {/* BOTÓN OBLIGATORIO PARA ACTIVAR SONIDO/VIBRACIÓN EN MÓVIL */}
             {!audioHabilitado && (
               <button 
                 onClick={habilitarAudioMovil}
-                className="w-full mb-3 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 font-bold py-2.5 px-4 rounded-xl text-xs flex items-center justify-center gap-2 transition-colors shadow-sm"
+                className="w-full mb-3 bg-emerald-50 dark:bg-emerald-500/20 hover:bg-emerald-100 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-500/30 font-bold py-2.5 px-4 rounded-xl text-xs flex items-center justify-center gap-2 transition-colors shadow-sm"
               >
                 <Volume2 size={16} /> Toca aquí para activar Sonido y Vibración
               </button>
@@ -738,7 +741,7 @@ function VenderContenido() {
                 border: 1px solid #cbd5e1 !important;
                 margin-bottom: 10px !important;
                 background: #ffffff !important;
-                color: #0f172a !important; /* Letra oscura forzada para que se lea */
+                color: #0f172a !important; 
                 font-weight: bold !important;
                 width: 100% !important;
               }
@@ -765,18 +768,19 @@ function VenderContenido() {
         </div>
       )}
 
+      {/* MODAL CONFIRMAR FIADO */}
       {modalConfirmarFiado && (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 z-[900] animate-in fade-in duration-200">
           <div className="bg-white dark:bg-[#0f172a] p-6 sm:p-8 rounded-[2.5rem] w-full max-w-md shadow-2xl text-center border border-slate-100 dark:border-slate-800 animate-in zoom-in-95 duration-300">
-            <div className="w-20 h-20 bg-amber-100 text-amber-500 rounded-full flex items-center justify-center mx-auto mb-6 shadow-inner">
+            <div className="w-20 h-20 bg-amber-100 dark:bg-amber-500/20 text-amber-500 dark:text-amber-400 rounded-full flex items-center justify-center mx-auto mb-6 shadow-inner">
               <AlertCircle size={40} />
             </div>
             <h3 className="text-2xl font-black text-slate-900 dark:text-white mb-2">Pago Incompleto</h3>
             
-            <div className="text-slate-600 mb-6 text-sm sm:text-base bg-slate-50 p-4 rounded-2xl">
-              <div className="flex justify-between mb-1"><span>Total venta:</span> <strong className="text-slate-900">${totalFilasRegistro.toLocaleString('es-CO')}</strong></div>
-              <div className="flex justify-between mb-1"><span>Dinero recibido:</span> <strong className="text-slate-900">${(parseFloat(pagoCliente.replace(/\D/g, '')) || 0).toLocaleString('es-CO')}</strong></div>
-              <div className="flex justify-between mt-2 pt-2 border-t border-slate-200">
+            <div className="text-slate-600 dark:text-slate-300 mb-6 text-sm sm:text-base bg-slate-50 dark:bg-[#020617] p-4 rounded-2xl">
+              <div className="flex justify-between mb-1"><span>Total venta:</span> <strong className="text-slate-900 dark:text-white">${totalFilasRegistro.toLocaleString('es-CO')}</strong></div>
+              <div className="flex justify-between mb-1"><span>Dinero recibido:</span> <strong className="text-slate-900 dark:text-white">${(parseFloat(pagoCliente.replace(/\D/g, '')) || 0).toLocaleString('es-CO')}</strong></div>
+              <div className="flex justify-between mt-2 pt-2 border-t border-slate-200 dark:border-slate-700">
                 <span className="font-bold text-rose-500">Saldo pendiente:</span> 
                 <strong className="text-rose-500 text-lg">${(totalFilasRegistro - (parseFloat(pagoCliente.replace(/\D/g, '')) || 0)).toLocaleString('es-CO')}</strong>
               </div>
@@ -787,36 +791,37 @@ function VenderContenido() {
                 <p className="text-sm font-bold text-rose-500 mb-3">⚠️ Para poder fiar el resto debes asociar un cliente:</p>
                 <div className="relative mb-6 text-left">
                   <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
-                  <input type="text" value={busquedaRegistro} onChange={(e) => { setBusquedaRegistro(e.target.value); setMostrarResultadosBuscador(true); }} placeholder="Buscar cliente..." className="w-full p-4 pl-12 bg-white border rounded-2xl font-bold outline-none focus:border-amber-500 shadow-sm" />
+                  {/* BUSCADOR BLINDADO MODAL */}
+                  <input type="text" value={busquedaRegistro} onChange={(e) => { setBusquedaRegistro(e.target.value); setMostrarResultadosBuscador(true); }} placeholder="Buscar cliente..." className="w-full p-4 pl-12 bg-white dark:bg-[#020617] border border-slate-200 dark:border-slate-700 rounded-2xl font-bold outline-none focus:border-amber-500 shadow-sm text-slate-900 dark:!text-white placeholder-slate-400 dark:placeholder-slate-500" />
                   {busquedaRegistro.length > 0 && (
-                    <div className="absolute bottom-full left-0 right-0 mb-2 bg-white border rounded-2xl shadow-xl z-50 overflow-hidden max-h-48 overflow-y-auto">
+                    <div className="absolute bottom-full left-0 right-0 mb-2 bg-white dark:bg-[#1e293b] border dark:border-slate-700 rounded-2xl shadow-xl z-50 overflow-hidden max-h-48 overflow-y-auto">
                       {clientesFiltradosRegistro.map(c => (
-                        <div key={c.id} onClick={() => { setClienteTransaccion(c); setBusquedaRegistro(""); }} className="p-4 border-b hover:bg-slate-50 cursor-pointer flex justify-between">
-                          <span className="font-bold text-slate-800">{c.nombre}</span><ChevronRight size={18} className="text-slate-400"/>
+                        <div key={c.id} onClick={() => { setClienteTransaccion(c); setBusquedaRegistro(""); }} className="p-4 border-b dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer flex justify-between">
+                          <span className="font-bold text-slate-800 dark:text-slate-200">{c.nombre}</span><ChevronRight size={18} className="text-slate-400"/>
                         </div>
                       ))}
                       {!clientesFiltradosRegistro.some(c => c.nombre.toLowerCase() === busquedaRegistro.toLowerCase()) && (
-                        <button onClick={() => { setNombreNuevo(busquedaRegistro); setModalNuevoCliente(true); }} className="w-full text-left p-4 bg-amber-50 text-amber-700 font-bold">
+                        <button onClick={() => { setNombreNuevo(busquedaRegistro); setModalNuevoCliente(true); }} className="w-full text-left p-4 bg-amber-50 dark:bg-amber-500/20 text-amber-700 dark:text-amber-400 font-bold">
                           + Crear "{busquedaRegistro}"
                         </button>
                       )}
                     </div>
                   )}
                 </div>
-                <button onClick={() => setModalConfirmarFiado(false)} className="w-full bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold py-4 rounded-2xl text-lg transition-colors">
+                <button onClick={() => setModalConfirmarFiado(false)} className="w-full bg-slate-100 dark:bg-[#020617] hover:bg-slate-200 dark:hover:bg-[#1e293b] text-slate-600 dark:text-slate-300 font-bold py-4 rounded-2xl text-lg transition-colors">
                   Atrás
                 </button>
               </>
             ) : (
               <>
-                <p className="text-sm font-bold text-slate-700 mb-6">
+                <p className="text-sm font-bold text-slate-700 dark:text-slate-300 mb-6">
                   ¿Confirmas que vas a fiar <strong className="text-rose-500">${(totalFilasRegistro - (parseFloat(pagoCliente.replace(/\D/g, '')) || 0)).toLocaleString('es-CO')}</strong> a <strong className="text-emerald-600">{clienteTransaccion.nombre}</strong>?
                 </p>
                 <div className="flex flex-col gap-3">
                   <button onClick={() => { setModalConfirmarFiado(false); ejecutarVentaFinal(); }} className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-black py-4 rounded-2xl text-lg shadow-lg flex justify-center items-center gap-2">
                     Confirmar Venta y Fiado <CheckCircle2 size={20}/>
                   </button>
-                  <button onClick={() => setModalConfirmarFiado(false)} className="w-full bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold py-4 rounded-2xl text-lg transition-colors">
+                  <button onClick={() => setModalConfirmarFiado(false)} className="w-full bg-slate-100 dark:bg-[#020617] hover:bg-slate-200 dark:hover:bg-[#1e293b] text-slate-600 dark:text-slate-300 font-bold py-4 rounded-2xl text-lg transition-colors">
                     Corregir pago
                   </button>
                 </div>
@@ -826,34 +831,37 @@ function VenderContenido() {
         </div>
       )}
 
+      {/* MODAL NUEVO CLIENTE */}
       {modalNuevoCliente && (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 z-[950]">
-          <div className="bg-white dark:bg-[#0f172a] p-8 rounded-[2.5rem] w-full max-w-md shadow-2xl border border-slate-100 animate-in zoom-in-95 duration-200">
-            <h3 className="text-3xl font-black text-slate-900 mb-6 flex items-center gap-2"><UserCog size={28}/> Crear Cliente</h3>
+          <div className="bg-white dark:bg-[#0f172a] p-8 rounded-[2.5rem] w-full max-w-md shadow-2xl border border-slate-100 dark:border-slate-800 animate-in zoom-in-95 duration-200">
+            <h3 className="text-3xl font-black text-slate-900 dark:text-white mb-6 flex items-center gap-2"><UserCog size={28}/> Crear Cliente</h3>
             <div className="flex flex-col gap-4 mb-8">
-              <input type="text" value={nombreNuevo} onChange={(e) => setNombreNuevo(e.target.value)} placeholder="Nombre completo" className="w-full p-5 bg-slate-50 border rounded-2xl outline-none focus:border-emerald-500 font-bold text-lg" />
-              <input type="tel" value={celularNuevo} onChange={(e) => setCelularNuevo(e.target.value)} placeholder="WhatsApp (Opcional)" className="w-full p-5 bg-slate-50 border rounded-2xl outline-none focus:border-emerald-500 font-bold text-lg" />
+              {/* MODAL CREAR CLIENTE BLINDADO */}
+              <input type="text" value={nombreNuevo} onChange={(e) => setNombreNuevo(e.target.value)} placeholder="Nombre completo" className="w-full p-5 bg-slate-50 dark:bg-[#020617] border border-slate-200 dark:border-slate-700 rounded-2xl outline-none focus:border-emerald-500 font-bold text-lg text-slate-900 dark:!text-white placeholder-slate-400 dark:placeholder-slate-500" />
+              <input type="tel" value={celularNuevo} onChange={(e) => setCelularNuevo(e.target.value)} placeholder="WhatsApp (Opcional)" className="w-full p-5 bg-slate-50 dark:bg-[#020617] border border-slate-200 dark:border-slate-700 rounded-2xl outline-none focus:border-emerald-500 font-bold text-lg text-slate-900 dark:!text-white placeholder-slate-400 dark:placeholder-slate-500" />
             </div>
             <div className="grid grid-cols-2 gap-4">
-              <button onClick={() => setModalNuevoCliente(false)} className="bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold py-4 rounded-2xl text-lg">Cancelar</button>
+              <button onClick={() => setModalNuevoCliente(false)} className="bg-slate-100 dark:bg-[#020617] hover:bg-slate-200 dark:hover:bg-[#1e293b] text-slate-700 dark:text-slate-300 font-bold py-4 rounded-2xl text-lg">Cancelar</button>
               <button onClick={guardarClienteNuevo} disabled={guardandoCliente} className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-4 rounded-2xl shadow-lg flex justify-center items-center gap-2 text-lg">Guardar <CheckCircle2 size={20}/></button>
             </div>
           </div>
         </div>
       )}
 
+      {/* MODAL EXITO */}
       {modalExito && modalExito.visible && (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 z-[950] animate-in zoom-in duration-300">
-          <div className="bg-white p-8 rounded-[2.5rem] w-full max-w-sm shadow-2xl text-center border border-slate-100">
-            <div className="w-24 h-24 bg-emerald-100 text-emerald-500 rounded-full flex items-center justify-center mx-auto mb-6 shadow-inner">
+          <div className="bg-white dark:bg-[#0f172a] p-8 rounded-[2.5rem] w-full max-w-sm shadow-2xl text-center border border-slate-100 dark:border-slate-800/60">
+            <div className="w-24 h-24 bg-emerald-100 dark:bg-emerald-500/20 text-emerald-500 rounded-full flex items-center justify-center mx-auto mb-6 shadow-inner">
               <CheckCircle2 size={50} />
             </div>
-            <h2 className="text-2xl font-black text-slate-900 mb-2">¡Venta Exitosa!</h2>
+            <h2 className="text-2xl font-black text-slate-900 dark:text-white mb-2">¡Venta Exitosa!</h2>
             
-            <div className="mb-8 text-slate-500 text-base flex flex-col gap-2">
-              <p>Total de compra: <strong className="text-slate-800">${modalExito.montoTotal.toLocaleString('es-CO')}</strong>.</p>
-              {(modalExito.devuelta || 0) > 0 && <p className="text-emerald-600 font-bold bg-emerald-50 p-2 rounded-lg mt-2">Entregar devuelta: ${modalExito.devuelta?.toLocaleString('es-CO')}</p>}
-              {(modalExito.fiadoAdicional || 0) > 0 && <p className="text-rose-600 font-bold bg-rose-50 p-2 rounded-lg mt-2">Saldo fiado a {modalExito.cliente.nombre}: ${modalExito.fiadoAdicional?.toLocaleString('es-CO')}</p>}
+            <div className="mb-8 text-slate-500 dark:text-slate-400 text-base flex flex-col gap-2">
+              <p>Total de compra: <strong className="text-slate-800 dark:text-slate-200">${modalExito.montoTotal.toLocaleString('es-CO')}</strong>.</p>
+              {(modalExito.devuelta || 0) > 0 && <p className="text-emerald-600 font-bold bg-emerald-50 dark:bg-emerald-500/20 dark:text-emerald-400 p-2 rounded-lg mt-2">Entregar devuelta: ${modalExito.devuelta?.toLocaleString('es-CO')}</p>}
+              {(modalExito.fiadoAdicional || 0) > 0 && <p className="text-rose-600 font-bold bg-rose-50 dark:bg-rose-500/20 dark:text-rose-400 p-2 rounded-lg mt-2">Saldo fiado a {modalExito.cliente.nombre}: ${modalExito.fiadoAdicional?.toLocaleString('es-CO')}</p>}
             </div>
             
             {modalExito.cliente?.celular && modalExito.cliente.celular.trim() !== "" && datosSesion?.rol !== 'cajero' && (
@@ -862,7 +870,7 @@ function VenderContenido() {
               </button>
             )}
             
-            <button onClick={() => { setModalExito(null); router.push('/dashboard/inicio'); }} className="w-full bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold py-4 rounded-2xl text-lg">
+            <button onClick={() => { setModalExito(null); router.push('/dashboard/inicio'); }} className="w-full bg-slate-100 dark:bg-[#020617] hover:bg-slate-200 dark:hover:bg-[#1e293b] text-slate-600 dark:text-slate-300 font-bold py-4 rounded-2xl text-lg">
               Volver al inicio
             </button>
           </div>

@@ -69,7 +69,7 @@ function FiarContenido() {
                     (decodedText) => {
                         manejarProductoScaneado(decodedText);
                     },
-                    (error) => {}
+                    (error) => { }
                 );
             }, 200);
 
@@ -117,7 +117,7 @@ function FiarContenido() {
             }
             setAudioHabilitado(true);
             toast.success("¡Audio y vibración activados!");
-        } catch (e) {}
+        } catch (e) { }
     };
 
     const reproducirSonidoExito = () => {
@@ -136,7 +136,7 @@ function FiarContenido() {
             gain.connect(ctx.destination);
             osc.start();
             osc.stop(ctx.currentTime + 0.12);
-        } catch (e) {}
+        } catch (e) { }
     };
 
     const dispararFeedback = (tipo: 'exito' | 'error', texto: string) => {
@@ -247,12 +247,12 @@ function FiarContenido() {
         const nuevasFilas = [...filasRegistro];
         const filaActual = nuevasFilas[index];
         const nuevaCant = filaActual.cantidad + delta;
-        
+
         if (nuevaCant < 1) return;
 
         if (filaActual.descripcion.trim() !== "") {
             const productoEnInventario = inventario.find(p => p.nombre.toLowerCase() === filaActual.descripcion.toLowerCase());
-            
+
             if (productoEnInventario) {
                 const cantidadEnOtrasFilas = nuevasFilas.reduce((acc, f, i) => {
                     if (i !== index && f.descripcion.toLowerCase() === filaActual.descripcion.toLowerCase()) {
@@ -395,11 +395,11 @@ function FiarContenido() {
                         <ShoppingBag size={24} /> Registrar Fiado
                     </h2>
                 </div>
-                <button 
-                    onClick={() => setModalEscanner(true)} 
+                <button
+                    onClick={() => setModalEscanner(true)}
                     className="bg-white text-rose-700 hover:bg-rose-50 px-4 py-2.5 rounded-xl font-black text-sm flex items-center gap-2 shadow-md transition-transform active:scale-95"
                 >
-                    <QrCode size={18}/> Escanear QR
+                    <QrCode size={18} /> Escanear QR
                 </button>
             </div>
 
@@ -413,7 +413,7 @@ function FiarContenido() {
 
                             <div className="space-y-4">
                                 {filasRegistro.map((fila, index) => {
-                                    const productosFiltradosInventario = inventario.filter(p => 
+                                    const productosFiltradosInventario = inventario.filter(p =>
                                         p.nombre?.toLowerCase().includes((fila.descripcion || "").toLowerCase()) ||
                                         p.sku?.toLowerCase().includes((fila.descripcion || "").toLowerCase())
                                     );
@@ -429,21 +429,21 @@ function FiarContenido() {
 
                                             <div className="flex-1 min-w-0 relative">
                                                 <label className="text-[10px] md:text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1 block whitespace-nowrap truncate flex items-center gap-1">
-                                                    <Package size={12}/> Descripción o SKU
+                                                    <Package size={12} /> Descripción o SKU
                                                 </label>
-                                                <input 
-                                                    type="text" 
-                                                    value={fila.descripcion} 
+                                                <input
+                                                    type="text"
+                                                    value={fila.descripcion}
                                                     onChange={(e) => {
                                                         actualizarFila(index, 'descripcion', e.target.value);
                                                         setBusquedaProductoIndex(index);
-                                                    }} 
+                                                    }}
                                                     onFocus={() => setBusquedaProductoIndex(index)}
                                                     onKeyDown={(e) => {
                                                         if (e.key === 'Enter' && busquedaProductoIndex === index && productosFiltradosInventario.length > 0) {
                                                             e.preventDefault();
                                                             const p = productosFiltradosInventario[0];
-                                                            
+
                                                             const cantEnOtras = filasRegistro.reduce((acc, f, i) => i !== index && f.descripcion.toLowerCase() === p.nombre.toLowerCase() ? acc + f.cantidad : acc, 0);
                                                             const stockDisp = p.stock - cantEnOtras;
 
@@ -460,8 +460,8 @@ function FiarContenido() {
                                                             setBusquedaProductoIndex(null);
                                                         }
                                                     }}
-                                                    placeholder="Escribe nombre o SKU..." 
-                                                    className="w-full p-3 md:p-4 h-[50px] md:h-[56px] bg-slate-50 dark:bg-[#0f172a] border border-slate-100 dark:border-slate-800 rounded-xl outline-none font-bold text-base md:text-lg min-w-0 shadow-sm focus:border-rose-500 transition-colors" 
+                                                    placeholder="Escribe nombre o SKU..."
+                                                    className="w-full p-3 md:p-4 h-[50px] md:h-[56px] bg-slate-50 dark:bg-[#0f172a] border border-slate-100 dark:border-slate-800 rounded-xl outline-none font-bold text-base md:text-lg min-w-0 shadow-sm focus:border-rose-500 transition-colors"
                                                 />
 
                                                 {busquedaProductoIndex === index && fila.descripcion.trim().length > 0 && productosFiltradosInventario.length > 0 && (
@@ -471,8 +471,8 @@ function FiarContenido() {
                                                             const stockDisp = p.stock - cantEnOtras;
 
                                                             return (
-                                                                <div 
-                                                                    key={p.id} 
+                                                                <div
+                                                                    key={p.id}
                                                                     onClick={() => {
                                                                         if (stockDisp <= 0) {
                                                                             toast.error(`¡Sin stock! No hay más unidades disponibles de ${p.nombre}.`);
@@ -518,8 +518,7 @@ function FiarContenido() {
                                                     <label className="text-[10px] md:text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1 block whitespace-nowrap">Cant.</label>
                                                     <div className="flex items-center bg-slate-50 dark:bg-[#0f172a] border border-slate-100 dark:border-slate-800 rounded-xl overflow-hidden shrink-0 h-[50px] md:h-[56px]">
                                                         <button onClick={() => actualizarCantidadFila(index, -1)} className="px-3 h-full hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-500 transition-colors"><Minus size={16} /></button>
-                                                        <span className="flex-1 text-center font-black text-lg md:text-xl">{fila.cantidad}</span>
-                                                        <button onClick={() => actualizarCantidadFila(index, 1)} className="px-3 h-full hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-500 transition-colors"><Plus size={16} /></button>
+                                                        <span className="flex-1 text-center font-black text-lg md:text-xl text-slate-900 dark:!text-white">{fila.cantidad}</span>                                                        <button onClick={() => actualizarCantidadFila(index, 1)} className="px-3 h-full hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-500 transition-colors"><Plus size={16} /></button>
                                                     </div>
                                                 </div>
 
@@ -625,7 +624,7 @@ function FiarContenido() {
             {modalEscanner && (
                 <div className="fixed inset-0 bg-black/90 backdrop-blur-md flex items-center justify-center p-4 z-[999] animate-in fade-in duration-200">
                     <div className="bg-white dark:bg-[#0f172a] p-6 sm:p-8 rounded-[2.5rem] w-full max-w-md shadow-2xl border border-slate-100 dark:border-slate-800 flex flex-col items-center relative overflow-hidden">
-                        
+
                         {mensajeScaneo && (
                             <div className={`absolute top-4 left-4 right-4 z-50 p-4 rounded-2xl text-white font-black text-center shadow-2xl animate-in slide-in-from-top duration-300 flex items-center justify-center gap-2 ${mensajeScaneo.tipo === 'exito' ? 'bg-emerald-600 text-lg' : 'bg-rose-600'}`}>
                                 {mensajeScaneo.texto}
@@ -634,25 +633,25 @@ function FiarContenido() {
 
                         <div className="flex justify-between items-center w-full mb-3">
                             <h3 className="text-xl font-black text-slate-900 dark:text-white flex items-center gap-2">
-                                <QrCode size={24}/> Escáner Continuo (Fiar)
+                                <QrCode size={24} /> Escáner Continuo (Fiar)
                             </h3>
-                            <button 
-                                onClick={() => setModalEscanner(false)} 
+                            <button
+                                onClick={() => setModalEscanner(false)}
                                 className="bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-300 p-2 rounded-full transition-colors"
                             >
-                                <X size={20}/>
+                                <X size={20} />
                             </button>
                         </div>
 
                         {!audioHabilitado && (
-                            <button 
+                            <button
                                 onClick={habilitarAudioMovil}
                                 className="w-full mb-3 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 font-bold py-2.5 px-4 rounded-xl text-xs flex items-center justify-center gap-2 transition-colors shadow-sm"
                             >
                                 <Volume2 size={16} /> Toca aquí para activar Sonido y Vibración
                             </button>
                         )}
-                        
+
                         <p className="text-xs text-slate-500 mb-3 text-center">
                             Apunta de forma continua hacia los códigos QR para fiar.
                         </p>
@@ -695,8 +694,8 @@ function FiarContenido() {
 
                         <div id="reader-fiar" className="w-full overflow-hidden rounded-2xl bg-slate-900 p-2"></div>
 
-                        <button 
-                            onClick={() => setModalEscanner(false)} 
+                        <button
+                            onClick={() => setModalEscanner(false)}
                             className="mt-6 w-full bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-700 dark:text-slate-300 font-bold py-3.5 rounded-2xl text-base transition-colors"
                         >
                             Terminar y Cerrar

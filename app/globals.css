@@ -17,3 +17,25 @@
   color: #f8fafc !important; /* Texto claro cuando el fondo es oscuro (#0f172a) */
   background-color: #0f172a !important;
 }
+@layer base {
+  input, textarea, select {
+    @apply text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500;
+  }
+}
+/* =========================================================
+   BLINDAJE GLOBAL CONTRA NAVEGADORES REBELDES (INPUTS)
+   ========================================================= */
+
+html.dark input,
+html.dark textarea,
+html.dark select {
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+}
+
+html:not(.dark) input,
+html:not(.dark) textarea,
+html:not(.dark) select {
+  color: #0f172a !important; 
+  -webkit-text-fill-color: #0f172a !important;
+}
