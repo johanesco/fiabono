@@ -5,13 +5,17 @@ import { doc, setDoc } from "firebase/firestore";
 import { auth, db } from "../firebase";
 import { 
   CheckCircle2, ChevronRight, Star, BookX, PenTool, 
-  MessageCircle, ShieldAlert, Store, Wallet, Shirt, Lock, AlertCircle, X 
+  MessageCircle, ShieldAlert, Store, Wallet, Shirt, Lock, AlertCircle, X, Eye, EyeOff 
 } from 'lucide-react';
 
 export default function LandingPage() {
   const [modalLandingInfo, setModalLandingInfo] = useState<{ visible: boolean, tipo: 'login' | 'registro' | null }>({ visible: false, tipo: null });
   const [authForm, setAuthForm] = useState({ email: "", password: "", confirmPassword: "", nombreUsuario: "", negocio: "" });
   const [authErrores, setAuthErrores] = useState({ email: "", password: "", confirmPassword: "", general: "" });
+  
+  // Estados para controlar la visibilidad de las contraseñas
+  const [mostrarPassword, setMostrarPassword] = useState(false);
+  const [mostrarConfirmPassword, setMostrarConfirmPassword] = useState(false);
 
   const manejarAuth = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -41,7 +45,7 @@ export default function LandingPage() {
           plan: "basico",
           planVence: null
         });
-        setModalLandingInfo({ visible: false, tipo: null });
+        cerrarModal();
       } catch (error: any) { 
         if (error.code === 'auth/email-already-in-use') setAuthErrores(p => ({...p, email: "Este correo ya está registrado."}));
         else if (error.code === 'auth/invalid-email') setAuthErrores(p => ({...p, email: "El formato del correo no es válido."}));
@@ -51,7 +55,7 @@ export default function LandingPage() {
       if (!loginEmail || !authForm.password) { setAuthErrores(p => ({...p, general: "Llena todos los campos"})); return; }
       try {
         await signInWithEmailAndPassword(auth, loginEmail, authForm.password);
-        setModalLandingInfo({ visible: false, tipo: null });
+        cerrarModal();
       } catch (error: any) {
         if (error.code === 'auth/invalid-credential' || error.code === 'auth/wrong-password' || error.code === 'auth/user-not-found') {
           setAuthErrores(p => ({...p, general: "El correo o la contraseña son incorrectos."}));
@@ -60,6 +64,12 @@ export default function LandingPage() {
         }
       }
     }
+  };
+
+  const cerrarModal = () => {
+    setModalLandingInfo({ visible: false, tipo: null });
+    setMostrarPassword(false);
+    setMostrarConfirmPassword(false);
   };
 
   return (
@@ -86,7 +96,7 @@ export default function LandingPage() {
         </div>
       </header>
 
-      {/* CONTENIDO PRINCIPAL (Se le da padding-top para que el header fijo no lo tape) */}
+      {/* CONTENIDO PRINCIPAL */}
       <main className="pt-28 pb-10">
         <section className="pb-24 px-6 max-w-5xl mx-auto flex flex-col items-center text-center mt-8">
           <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-blue-50 dark:bg-blue-500/10 text-blue-700 dark:text-blue-400 font-bold text-xs uppercase tracking-widest mb-8 border border-blue-100 dark:border-blue-500/20">
@@ -220,7 +230,7 @@ export default function LandingPage() {
       {modalLandingInfo.visible && (
         <div className="fixed inset-0 bg-slate-900/60 dark:bg-black/80 backdrop-blur-md flex items-center justify-center p-4 z-[9999] animate-in zoom-in-95 duration-200">
           <div className="bg-white/95 dark:bg-[#0f172a]/95 backdrop-blur-xl p-8 rounded-[2.5rem] w-full max-w-md shadow-2xl border border-slate-100 dark:border-slate-800/80 relative max-h-[90vh] overflow-y-auto">
-            <button onClick={() => setModalLandingInfo({ visible: false, tipo: null })} className="absolute top-6 right-6 bg-slate-100 dark:bg-[#020617] text-slate-500 hover:text-slate-800 dark:hover:text-white rounded-full p-2 transition-colors"><X size={24}/></button>
+            <button onClick={cerrarModal} className="absolute top-6 right-6 bg-slate-100 dark:bg-[#020617] text-slate-500 hover:text-slate-800 dark:hover:text-white rounded-full p-2 transition-colors"><X size={24}/></button>
             
             <div className="text-center mb-8 pt-4">
               <div className="w-20 h-20 bg-blue-600 rounded-3xl flex items-center justify-center shadow-lg shadow-blue-600/30 mx-auto mb-6">
@@ -250,13 +260,43 @@ export default function LandingPage() {
               </div>
 
               <div>
-                <input type="password" placeholder="Contraseña" value={authForm.password} onChange={e => {setAuthForm({...authForm, password: e.target.value}); setAuthErrores({...authErrores, password: ""})}} className={`w-full p-5 bg-slate-50 dark:bg-[#020617] border ${authErrores.password ? 'border-rose-500' : 'border-slate-200 dark:border-slate-800/80'} rounded-2xl outline-none focus:border-blue-500 dark:focus:border-blue-400 dark:text-white transition-all font-bold text-lg`} />
+                <div className="relative">
+                  <input 
+                    type={mostrarPassword ? "text" : "password"} 
+                    placeholder="Contraseña" 
+                    value={authForm.password} 
+                    onChange={e => {setAuthForm({...authForm, password: e.target.value}); setAuthErrores({...authErrores, password: ""})}} 
+                    className={`w-full p-5 pr-12 bg-slate-50 dark:bg-[#020617] border ${authErrores.password ? 'border-rose-500' : 'border-slate-200 dark:border-slate-800/80'} rounded-2xl outline-none focus:border-blue-500 dark:focus:border-blue-400 dark:text-white transition-all font-bold text-lg`} 
+                  />
+                  <button 
+                    type="button" 
+                    onClick={() => setMostrarPassword(!mostrarPassword)} 
+                    className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors focus:outline-none"
+                  >
+                    {mostrarPassword ? <EyeOff size={22} /> : <Eye size={22} />}
+                  </button>
+                </div>
                 {authErrores.password && <p className="text-rose-500 text-sm font-bold mt-2 ml-2 flex items-center gap-1"><AlertCircle size={14}/>{authErrores.password}</p>}
               </div>
 
               {modalLandingInfo.tipo === 'registro' && (
                 <div>
-                  <input type="password" placeholder="Confirmar Contraseña" value={authForm.confirmPassword} onChange={e => {setAuthForm({...authForm, confirmPassword: e.target.value}); setAuthErrores({...authErrores, confirmPassword: ""})}} className={`w-full p-5 bg-slate-50 dark:bg-[#020617] border ${authErrores.confirmPassword ? 'border-rose-500' : 'border-slate-200 dark:border-slate-800/80'} rounded-2xl outline-none focus:border-blue-500 dark:focus:border-blue-400 dark:text-white transition-all font-bold text-lg`} />
+                  <div className="relative">
+                    <input 
+                      type={mostrarConfirmPassword ? "text" : "password"} 
+                      placeholder="Confirmar Contraseña" 
+                      value={authForm.confirmPassword} 
+                      onChange={e => {setAuthForm({...authForm, confirmPassword: e.target.value}); setAuthErrores({...authErrores, confirmPassword: ""})}} 
+                      className={`w-full p-5 pr-12 bg-slate-50 dark:bg-[#020617] border ${authErrores.confirmPassword ? 'border-rose-500' : 'border-slate-200 dark:border-slate-800/80'} rounded-2xl outline-none focus:border-blue-500 dark:focus:border-blue-400 dark:text-white transition-all font-bold text-lg`} 
+                    />
+                    <button 
+                      type="button" 
+                      onClick={() => setMostrarConfirmPassword(!mostrarConfirmPassword)} 
+                      className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors focus:outline-none"
+                    >
+                      {mostrarConfirmPassword ? <EyeOff size={22} /> : <Eye size={22} />}
+                    </button>
+                  </div>
                   {authErrores.confirmPassword && <p className="text-rose-500 text-sm font-bold mt-2 ml-2 flex items-center gap-1"><AlertCircle size={14}/>{authErrores.confirmPassword}</p>}
                 </div>
               )}
@@ -266,7 +306,17 @@ export default function LandingPage() {
               </button>
             </form>
             <div className="mt-8 text-center">
-              <button type="button" onClick={() => {setModalLandingInfo({ visible: true, tipo: modalLandingInfo.tipo === 'login' ? 'registro' : 'login' }); setAuthErrores({email:"",password:"",confirmPassword:"",general:""}); setAuthForm({email:"",password:"",confirmPassword:"",nombreUsuario:"",negocio:""});}} className="text-base font-bold text-slate-500 hover:text-blue-600 dark:hover:text-blue-400 transition-colors">
+              <button 
+                type="button" 
+                onClick={() => {
+                  setModalLandingInfo({ visible: true, tipo: modalLandingInfo.tipo === 'login' ? 'registro' : 'login' }); 
+                  setAuthErrores({email:"",password:"",confirmPassword:"",general:""}); 
+                  setAuthForm({email:"",password:"",confirmPassword:"",nombreUsuario:"",negocio:""});
+                  setMostrarPassword(false);
+                  setMostrarConfirmPassword(false);
+                }} 
+                className="text-base font-bold text-slate-500 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
+              >
                 {modalLandingInfo.tipo === 'login' ? '¿No tienes cuenta? Regístrate aquí' : '¿Ya tienes cuenta? Inicia sesión'}
               </button>
             </div>

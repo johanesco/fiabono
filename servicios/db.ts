@@ -1,6 +1,6 @@
 // servicios/db.ts
-import { collection, addDoc, getDocs, query, doc, updateDoc, where, deleteDoc } from "firebase/firestore";
-import { db } from "../firebase"; // Asegúrate de que esta ruta apunte a tu archivo firebase.ts
+import { collection, addDoc, getDocs, query, doc, updateDoc, where, deleteDoc, getDoc, setDoc } from "firebase/firestore";
+import { db } from "../firebase"; 
 import { Cliente, Movimiento } from "../types";
 
 export const API_DB = {
@@ -50,5 +50,38 @@ export const API_DB = {
   crearMovimiento: async (datosMovimiento: Omit<Movimiento, 'id'>): Promise<string> => {
     const docRef = await addDoc(collection(db, "movimientos"), datosMovimiento);
     return docRef.id;
+  },
+
+  // --------------------------------------------------------
+  // NUEVA LÓGICA DE BONOS / SUSCRIPCIÓN
+  // --------------------------------------------------------
+  verificarCodigoPromocional: async (codigo: string) => {
+    try {
+      const docRef = doc(db, "codigos_promocionales", codigo);
+      const docSnap = await getDoc(docRef);
+
+      if (docSnap.exists()) {
+        const data = docSnap.data();
+        if (data.activo) {
+          return { valido: true, beneficio: data.descuento };
+        }
+      }
+      return { valido: false };
+    } catch (error) {
+      console.error("Error al validar cupón:", error);
+      return { valido: false };
+    }
+  }
+  ,
+
+  crearCodigoPromocional: async (codigo: string, datos: { activo: boolean; descuento?: string; [key: string]: any } = { activo: true, descuento: '1mes' }) => {
+    try {
+      const docRef = doc(db, "codigos_promocionales", codigo);
+      await setDoc(docRef, datos);
+      return { ok: true };
+    } catch (error) {
+      console.error("Error al crear código promocional:", error);
+      return { ok: false, error };
+    }
   }
 };
