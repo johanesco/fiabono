@@ -29,15 +29,23 @@ export default function ReportesPage() {
 
   useEffect(() => {
     if (cuentaPrincipalId) {
-      cargarDatosReportes(cuentaPrincipalId);
+      cargarDatosReportes(cuentaPrincipalId, filtroGeneral);
     }
-  }, [cuentaPrincipalId]);
+  }, [cuentaPrincipalId, filtroGeneral]);
 
-  const cargarDatosReportes = async (uid: string) => {
+  const cargarDatosReportes = async (uid: string, filtro: string = 'hoy') => {
     try {
       const listaC = await API_DB.obtenerClientes(uid);
       setClientes(listaC);
-      const listaM = await API_DB.obtenerMovimientos(uid);
+
+      let listaM: Movimiento[] = [];
+      if (filtro === 'todos') {
+        listaM = await API_DB.obtenerMovimientos(uid);
+      } else {
+        // Consultar a partir del inicio del año actual para cubrir hoy, semana, mes y año de forma ligera
+        const inicioAno = new Date(new Date().getFullYear(), 0, 1);
+        listaM = await API_DB.obtenerMovimientosPorRango(uid, inicioAno);
+      }
       setTodosMovimientos(listaM);
     } catch (error) {
       toast.error("Error al cargar los reportes.");
@@ -52,7 +60,7 @@ export default function ReportesPage() {
 
   const filtrarPorTiempo = (movs: Movimiento[], tipoFiltro: 'hoy' | 'semana' | 'mes' | 'ano' | 'todos') => {
     return movs.filter(mov => {
-      const ms = mov.fecha?.toMillis() || 0;
+      const ms = mov.fecha?.toMillis ? mov.fecha.toMillis() : (mov.fecha instanceof Date ? mov.fecha.getTime() : 0);
       const inicioHoy = new Date(hoyDate.getFullYear(), hoyDate.getMonth(), hoyDate.getDate()).getTime();
       const inicioSemana = inicioSemanaDate.getTime();
       const inicioMes = new Date(hoyDate.getFullYear(), hoyDate.getMonth(), 1).getTime();

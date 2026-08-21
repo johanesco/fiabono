@@ -3,9 +3,11 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { collection, addDoc, getDocs, query, where } from "firebase/firestore";
 import { db } from "../../../firebase";
-import { Search, ShoppingBag, Banknote, Users, CheckCircle2, ChevronRight, X, MessageCircle, UserCog, ShoppingCart, Star, Clock, Store } from 'lucide-react';
+import { Search, ShoppingBag, Banknote, Users, CheckCircle2, ChevronRight, X, MessageCircle, UserCog, ShoppingCart, Star, Clock, Store, Printer, Edit3, Trash2 } from 'lucide-react';
 import toast from "react-hot-toast";
 import { useAuth } from "../../../hooks/AuthContext";
+import TicketFacturaModal, { DatosFacturaProps } from "@/components/TicketFacturaModal";
+import ModalGestionCliente from "@/components/ModalGestionCliente";
 
 export default function InicioPage() {
   const { datosSesion } = useAuth();
@@ -29,6 +31,43 @@ export default function InicioPage() {
   const [celularNuevo, setCelularNuevo] = useState("");
   const [guardandoCliente, setGuardandoCliente] = useState(false);
   const [modalSuscripcion, setModalSuscripcion] = useState({ visible: false, titulo: "", mensaje: "" });
+  const [modalTicketFactura, setModalTicketFactura] = useState<{ visible: boolean; datos: DatosFacturaProps | null }>({ visible: false, datos: null });
+  const [modalGestionCliente, setModalGestionCliente] = useState<{
+    visible: boolean;
+    modo: 'editar' | 'eliminar';
+    cliente: any | null;
+  }>({ visible: false, modo: 'editar', cliente: null });
+
+  const handleGestionClienteSuccess = (clienteActualizado?: any, fueEliminado?: boolean) => {
+    if (fueEliminado) {
+      setClientes(prev => prev.filter(c => c.id !== clienteActivo?.id));
+      setClienteActivo(null);
+      setMovimientosCliente([]);
+    } else if (clienteActualizado) {
+      setClientes(prev => prev.map(c => c.id === clienteActualizado.id ? clienteActualizado : c).sort((a, b) => a.nombre.localeCompare(b.nombre)));
+      setClienteActivo(clienteActualizado);
+    }
+  };
+
+  const abrirTicketDeMovimiento = (mov: any, cliente: any) => {
+    const datosTicket: DatosFacturaProps = {
+      nombreNegocio: nombreNegocio || 'Mi Negocio',
+      telefonoNegocio: datosSesion?.telefonoNegocio || '',
+      correoNegocio: datosSesion?.correoNegocio || '',
+      nombreCliente: cliente?.nombre || 'Cliente',
+      celularCliente: cliente?.celular || '',
+      registradoPor: mov.registradoPor || '',
+      fecha: mov.fecha,
+      tipo: mov.tipo,
+      detalles: mov.detalles && mov.detalles.length > 0 ? mov.detalles : undefined,
+      descripcionGeneral: mov.descripcion,
+      montoTotal: mov.monto,
+      saldoNuevo: mov.saldoResultante !== undefined ? mov.saldoResultante : cliente?.deudaTotal,
+      idTransaccion: mov.id
+    };
+
+    setModalTicketFactura({ visible: true, datos: datosTicket });
+  };
 
   useEffect(() => {
     if (cuentaPrincipalId) cargarDatosGlobales(cuentaPrincipalId);
@@ -79,43 +118,97 @@ export default function InicioPage() {
     } catch (error) { alert("Error al guardar cliente."); } finally { setGuardandoCliente(false); }
   };
 
+  const normalizarMensajeWhatsApp = (texto: string) => {
+    return texto
+      .replace(/\uFFFD/g, '')
+      .replace(/\n{4,}/g, '\n\n\n')
+      .replace(/\r\n/g, '\n')
+      .trim();
+  };
+
   const generarTextoComprobante = (tipo: 'estado' | 'comprobante' = 'estado', cliente: any = {}, accion?: 'fiado' | 'abono' | 'venta' | null, detallesArray?: any[], totalMov?: number) => {
-    let texto = "";
     const saldoFormat = `$${Math.abs(cliente.deudaTotal || 0).toLocaleString('es-CO')}`;
+    const nombreCliente = cliente.nombre || 'Cliente';
+    const nombreTienda = nombreNegocio || 'nuestra tienda';
+    let texto = '';
 
     if (tipo === 'estado') {
-      texto = `¡Hola *${cliente.nombre}*! 👋 Te saludamos de *${nombreNegocio || 'nuestra tienda'}*.\n\n📊 *REPORTE DE ESTADO DE CUENTA*\n\n`;
-      if (cliente.deudaTotal === 0) texto += `Queríamos contarte que tu cuenta está totalmente al día (*$0*). ¡Muchas gracias por tu puntualidad y confianza! ✨`;
-      else if ((cliente.deudaTotal || 0) < 0) texto += `¡Buenas noticias! Tienes un *saldo a favor* de *${saldoFormat}*. Puedes usarlo en tu próxima visita. 🛍️`;
-      else texto += `Te informamos que tu saldo pendiente actual es de *${saldoFormat}*. ¡Cualquier duda estamos a tu disposición! 🤝`;
-    }
-    else if (tipo === 'comprobante') {
-      const nombreDestino = cliente.id === "mostrador" || !cliente.nombre ? "Cliente" : cliente.nombre;
-      texto = `¡Hola *${nombreDestino}*! 👋\nRegistramos un nuevo movimiento en *${nombreNegocio || 'nuestra tienda'}*.\n\n`;
+      texto = `¡Hola, *${nombreCliente}*! Te saludamos de *${nombreTienda}*.
+
+===================
+*ESTADO DE CUENTA*
+===================
+
+• Actualmente presentas un saldo pendiente de: *${saldoFormat}*
+
+Quedamos pendientes para revisar detalles o responder cualquier duda.
+
+*¡Que tengas un gran día!*`;
+
+      if ((cliente.deudaTotal || 0) === 0) {
+        texto = `¡Hola, *${nombreCliente}*! Te saludamos de *${nombreTienda}*.
+
+===================
+*ESTADO DE CUENTA*
+===================
+
+• Tu cuenta se encuentra al día.
+
+Gracias por seguir con nosotros.
+
+*¡Que tengas un gran día!*`;
+      } else if ((cliente.deudaTotal || 0) < 0) {
+        texto = `¡Hola, *${nombreCliente}*! Te saludamos de *${nombreTienda}*.
+
+===================
+*ESTADO DE CUENTA*
+===================
+
+• Actualmente tienes un saldo a favor de: *${saldoFormat}*
+
+Quedamos pendientes para revisar detalles o responder cualquier duda.
+
+*¡Que tengas un gran día!*`;
+      }
+    } else if (tipo === 'comprobante') {
+      const nombreDestino = cliente.id === 'mostrador' || !cliente.nombre ? 'Cliente' : cliente.nombre;
+      texto = `¡Hola, *${nombreDestino}*! Gracias por tu compra en *${nombreTienda}*.
+
+===================
+*COMPROBANTE DE COMPRA*
+===================
+
+`;
 
       if (detallesArray && detallesArray.length > 0) {
-        texto += `📝 *DETALLE DE LA OPERACIÓN:*\n`;
-        detallesArray.forEach(d => {
-          texto += `- ${d.cantidad || 1}x ${d.descripcion} ($${(d.valorUnitario || d.valor).toLocaleString('es-CO')} c/u) = $${d.valor.toLocaleString('es-CO')}\n`;
+        detallesArray.forEach((d: any) => {
+          const cantidad = d.cantidad || 1;
+          const descripcion = d.descripcion || 'Producto';
+          const valorUnitario = d.valorUnitario ?? d.valor ?? 0;
+          const totalProducto = Number(cantidad) * Number(valorUnitario || 0);
+          texto += `• ${cantidad}x ${descripcion}\n  Precio unitario: *$${Number(valorUnitario).toLocaleString('es-CO')}*\n  Total: *$${Number(totalProducto).toLocaleString('es-CO')}*\n\n`;
         });
-        texto += `\n💰 *TOTAL:* $${totalMov?.toLocaleString('es-CO')}\n\n`;
+        texto += `*TOTAL: $${(totalMov ?? 0).toLocaleString('es-CO')}*\n\nGracias por tu compra. Estamos atentos para cualquier consulta.\n\n*¡Te esperamos pronto!*`;
       }
 
       if (cliente.id !== 'mostrador') {
-        texto += `📊 *ESTADO DE TU CUENTA:*\n`;
-        if (cliente.deudaTotal === 0) texto += `Con esto, tu cuenta ha quedado al día ($0). ¡Muchas gracias! ✨`;
-        else if ((cliente.deudaTotal || 0) < 0) texto += `Tu nuevo saldo a favor es de: *${saldoFormat}*.`;
-        else texto += `Tu saldo pendiente actual es de: *${saldoFormat}*.`;
-      } else {
-        texto += `¡Gracias por tu compra! Te esperamos pronto. ✨`;
+        if ((cliente.deudaTotal || 0) === 0) {
+          texto += '\n\nTu cuenta queda al día. Gracias por tu confianza.';
+        } else if ((cliente.deudaTotal || 0) < 0) {
+          texto += `\n\nTu saldo a favor es de *${saldoFormat}*.`;
+        } else {
+          texto += `\n\nTu saldo pendiente actual es de *${saldoFormat}*.`;
+        }
       }
     }
-    return texto;
+
+    return normalizarMensajeWhatsApp(texto);
   };
 
   const abrirWhatsApp = (texto: string, celular?: string) => {
+    const mensajeLimpio = normalizarMensajeWhatsApp(texto);
     const celularLimpio = celular ? celular.replace(/\D/g, '') : '';
-    const url = celularLimpio ? `https://wa.me/57${celularLimpio}?text=${encodeURIComponent(texto)}` : `https://wa.me/?text=${encodeURIComponent(texto)}`;
+    const url = celularLimpio ? `https://wa.me/57${celularLimpio}?text=${encodeURIComponent(mensajeLimpio)}` : `https://wa.me/?text=${encodeURIComponent(mensajeLimpio)}`;
 
     if (typeof window !== 'undefined') {
       if (window.innerWidth >= 1024) {
@@ -158,7 +251,7 @@ export default function InicioPage() {
 
           <div className="flex flex-col min-w-0">
             <h1 className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-white truncate tracking-tight">
-              {getSaludo()}, <span className="text-blue-600 dark:text-blue-500">{datosSesion?.nombreUsuario?.split(' ')[0] || 'Usuario'}</span> 👋
+              {getSaludo()}, <span className="text-blue-600 dark:text-blue-500">{datosSesion?.nombreUsuario?.split(' ')[0] || 'Usuario'}</span> 
             </h1>
             <div className="flex items-center gap-2 mt-2">
               <span className="bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-300 text-[10px] md:text-xs font-black uppercase tracking-wider px-2 py-1 rounded-md flex items-center gap-1.5">
@@ -176,8 +269,25 @@ export default function InicioPage() {
           <div className="relative shadow-sm rounded-[2rem]">
             <Search className="absolute left-4 sm:left-5 md:left-4 top-1/2 -translate-y-1/2 text-slate-400 w-5 h-5 sm:w-7 sm:h-7 md:w-5 md:h-5" />
             {/* Input más compacto en escritorio: md:p-3 lg:p-4 */}
-            <input type="text" value={busqueda} onChange={(e) => setBusqueda(e.target.value)} placeholder="Buscar cliente registrado..."
-              className="w-full text-lg sm:text-xl md:text-base lg:text-lg p-5 sm:p-6 md:p-3 lg:p-4 pl-12 sm:pl-16 md:pl-12 lg:pl-12 bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-800/60 rounded-[2rem] md:rounded-2xl lg:rounded-3xl focus:border-blue-500 dark:focus:border-blue-400 outline-none shadow-sm dark:shadow-none transition-all placeholder:text-slate-400 dark:placeholder:text-slate-500 font-medium" />
+            <input
+              type="text"
+              value={busqueda}
+              onChange={(e) => setBusqueda(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  if (clientesFiltrados.length > 0) {
+                    const primerCliente = clientesFiltrados[0];
+                    setClienteActivo(primerCliente);
+                    cargarMovimientosClienteDirecto(primerCliente.id);
+                    setBusqueda("");
+                    setVerTodosClientes(true);
+                  }
+                }
+              }}
+              placeholder="Buscar cliente registrado..."
+              className="w-full text-lg sm:text-xl md:text-base lg:text-lg p-5 sm:p-6 md:p-3 lg:p-4 pl-12 sm:pl-16 md:pl-12 lg:pl-12 bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-800/60 rounded-[2rem] md:rounded-2xl lg:rounded-3xl focus:border-blue-500 dark:focus:border-blue-400 outline-none shadow-sm dark:shadow-none transition-all placeholder:text-slate-400 dark:placeholder:text-slate-500 font-medium"
+            />
           </div>
 
           {busqueda.length > 0 && (
@@ -254,7 +364,23 @@ export default function InicioPage() {
               <div className="p-4 bg-white dark:bg-[#0f172a] shrink-0 border-b border-slate-100 dark:border-slate-800">
                 <div className="relative">
                   <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
-                  <input type="text" value={busquedaDirectorio} onChange={(e) => setBusquedaDirectorio(e.target.value)} placeholder="Buscar nombre o celular..." className="w-full p-4 pl-12 bg-slate-50 dark:bg-[#020617] border border-slate-200 dark:border-slate-800 rounded-2xl outline-none focus:border-blue-500 dark:text-white text-base font-medium" />
+                  <input
+                    type="text"
+                    value={busquedaDirectorio}
+                    onChange={(e) => setBusquedaDirectorio(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        if (directorioFiltrado.length > 0) {
+                          const primer = directorioFiltrado[0];
+                          setClienteActivo(primer);
+                          cargarMovimientosClienteDirecto(primer.id);
+                        }
+                      }
+                    }}
+                    placeholder="Buscar nombre o celular..."
+                    className="w-full p-4 pl-12 bg-slate-50 dark:bg-[#020617] border border-slate-200 dark:border-slate-800 rounded-2xl outline-none focus:border-blue-500 dark:text-white text-base font-medium"
+                  />
                 </div>
               </div>
 
@@ -290,13 +416,35 @@ export default function InicioPage() {
               {clienteActivo ? (
                 <div className="flex flex-col h-full">
                   <div className="p-6 bg-slate-900 text-white flex justify-between items-center shrink-0">
-                    <div>
-                      <h3 className="text-2xl font-black">{clienteActivo.nombre}</h3>
-                      <p className="text-slate-400 text-sm">{clienteActivo.celular || "Sin celular registrado"}</p>
+                    <div className="flex items-center gap-3">
+                      <div>
+                        <h3 className="text-2xl font-black">{clienteActivo.nombre}</h3>
+                        <p className="text-slate-400 text-sm">{clienteActivo.celular || "Sin celular registrado"}</p>
+                      </div>
+                      {datosSesion?.rol !== 'cajero' && (
+                        <div className="flex items-center gap-1.5 ml-2">
+                          <button
+                            type="button"
+                            onClick={() => setModalGestionCliente({ visible: true, modo: 'editar', cliente: clienteActivo })}
+                            title="Modificar Cliente"
+                            className="p-2 rounded-xl bg-slate-800 hover:bg-blue-600/80 text-slate-300 hover:text-white transition-colors"
+                          >
+                            <Edit3 size={16} />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setModalGestionCliente({ visible: true, modo: 'eliminar', cliente: clienteActivo })}
+                            title="Eliminar Cliente"
+                            className="p-2 rounded-xl bg-slate-800 hover:bg-rose-600/80 text-slate-300 hover:text-white transition-colors"
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                        </div>
+                      )}
                     </div>
                     <div className="text-right">
                       <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded mb-1 inline-block ${(clienteActivo.deudaTotal || 0) < 0 ? 'bg-emerald-500/20 text-emerald-300' : 'text-slate-400'}`}>
-                        {(clienteActivo.deudaTotal || 0) < 0 ? '✨ Saldo a favor' : 'Saldo Actual'}
+                        {(clienteActivo.deudaTotal || 0) < 0 ? ' Saldo a favor' : 'Saldo Actual'}
                       </span>
                       <span className={`text-3xl font-black block ${clienteActivo.deudaTotal === 0 ? 'text-slate-300' : ((clienteActivo.deudaTotal || 0) < 0 ? 'text-emerald-400' : 'text-rose-400')}`}>
                         ${Math.abs(clienteActivo.deudaTotal || 0).toLocaleString('es-CO')}
@@ -357,9 +505,19 @@ export default function InicioPage() {
                           
                           <div className="flex justify-between items-center pt-2 mt-1 md:mt-0 md:pt-3 border-t border-slate-200 dark:border-slate-700 md:border-slate-100 dark:md:border-slate-800 font-black">
                             <span className="text-xs text-slate-400 uppercase tracking-wider">Total:</span>
-                            <span className={`text-base md:text-xl ${mov.tipo === 'fiado' ? 'text-rose-500' : (mov.tipo === 'venta' ? 'text-emerald-500' : 'text-blue-500')}`}>
-                              {mov.tipo === 'fiado' ? '-' : '+'}${mov.monto.toLocaleString('es-CO')}
-                            </span>
+                            <div className="flex items-center gap-2">
+                              <button
+                                type="button"
+                                onClick={() => abrirTicketDeMovimiento(mov, clienteActivo)}
+                                title="Imprimir Factura / Ticket"
+                                className="p-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:text-blue-600 transition-colors"
+                              >
+                                <Printer size={14} />
+                              </button>
+                              <span className={`text-base md:text-xl ${mov.tipo === 'fiado' ? 'text-rose-500' : (mov.tipo === 'venta' ? 'text-emerald-500' : 'text-blue-500')}`}>
+                                {mov.tipo === 'fiado' ? '-' : '+'}${mov.monto.toLocaleString('es-CO')}
+                              </span>
+                            </div>
                           </div>
                         </div>
                       </div>
@@ -388,10 +546,32 @@ export default function InicioPage() {
               <button onClick={() => setClienteActivo(null)} className="bg-white dark:bg-[#0f172a] text-slate-600 dark:text-slate-300 rounded-full p-3 font-bold shadow-sm"><X size={20} /></button>
             </div>
             <div className="px-6 py-5 bg-slate-50 dark:bg-[#020617] text-center shrink-0 flex flex-col items-center border-b border-slate-200 dark:border-slate-800">
-              <h2 className="text-3xl font-black text-slate-900 dark:text-white mb-1">{clienteActivo.nombre}</h2>
+              <div className="flex items-center justify-center gap-2 mb-1">
+                <h2 className="text-3xl font-black text-slate-900 dark:text-white">{clienteActivo.nombre}</h2>
+                {datosSesion?.rol !== 'cajero' && (
+                  <div className="flex items-center gap-1">
+                    <button
+                      type="button"
+                      onClick={() => setModalGestionCliente({ visible: true, modo: 'editar', cliente: clienteActivo })}
+                      title="Modificar Cliente"
+                      className="p-2 rounded-xl bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:text-blue-600 shadow-sm border border-slate-200 dark:border-slate-700"
+                    >
+                      <Edit3 size={15} />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setModalGestionCliente({ visible: true, modo: 'eliminar', cliente: clienteActivo })}
+                      title="Eliminar Cliente"
+                      className="p-2 rounded-xl bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:text-rose-600 shadow-sm border border-slate-200 dark:border-slate-700"
+                    >
+                      <Trash2 size={15} />
+                    </button>
+                  </div>
+                )}
+              </div>
               <p className="text-slate-500 font-medium text-base mb-4">{clienteActivo.celular || "Sin número registrado"}</p>
               <div className="flex flex-col items-center justify-center bg-white dark:bg-[#0f172a] w-full py-4 px-3 rounded-2xl border shadow-sm mb-4">
-                <p className={`text-xs font-bold uppercase tracking-widest mb-1 px-2 py-0.5 rounded ${(clienteActivo.deudaTotal || 0) < 0 ? 'bg-emerald-500/20 text-emerald-400' : 'text-slate-400'}`}>{(clienteActivo.deudaTotal || 0) < 0 ? '✨ Saldo a favor' : (clienteActivo.deudaTotal === 0 ? 'CUENTA AL DÍA' : 'SALDO PENDIENTE')}</p>
+                <p className={`text-xs font-bold uppercase tracking-widest mb-1 px-2 py-0.5 rounded ${(clienteActivo.deudaTotal || 0) < 0 ? 'bg-emerald-500/20 text-emerald-400' : 'text-slate-400'}`}>{(clienteActivo.deudaTotal || 0) < 0 ? ' Saldo a favor' : (clienteActivo.deudaTotal === 0 ? 'CUENTA AL DÍA' : 'SALDO PENDIENTE')}</p>
                 <p className={`text-4xl sm:text-5xl font-black tracking-tighter ${clienteActivo.deudaTotal === 0 ? 'text-slate-300' : ((clienteActivo.deudaTotal || 0) < 0 ? 'text-emerald-500' : 'text-rose-500')}`}>${Math.abs(clienteActivo.deudaTotal || 0).toLocaleString('es-CO')}</p>
               </div>
               <div className="grid grid-cols-3 gap-2 w-full mb-3">
@@ -418,7 +598,7 @@ export default function InicioPage() {
                         )}
                         {mov.registradoPor && <span className="text-slate-300 dark:text-slate-600 whitespace-nowrap">•</span>}
                         <span className="text-slate-400 whitespace-nowrap">
-                          {mov.fecha?.toDate().toLocaleDateString('es-CO', {day:'2-digit', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit'})}
+                          {mov.fecha?.toDate ? mov.fecha.toDate().toLocaleDateString('es-CO', {day:'2-digit', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit'}) : (mov.fecha instanceof Date ? mov.fecha.toLocaleDateString('es-CO', {day:'2-digit', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit'}) : '')}
                         </span>
                       </div>
                     </div>
@@ -441,9 +621,19 @@ export default function InicioPage() {
                     
                     <div className="flex justify-between items-center pt-2 mt-1 md:mt-0 md:pt-3 border-t border-slate-200 dark:border-slate-700 md:border-slate-100 dark:md:border-slate-800 font-black">
                       <span className="text-xs text-slate-400 uppercase tracking-wider">Total:</span>
-                      <span className={`text-base md:text-xl ${mov.tipo === 'fiado' ? 'text-rose-500' : (mov.tipo === 'venta' ? 'text-emerald-500' : 'text-blue-500')}`}>
-                        {mov.tipo === 'fiado' ? '-' : '+'}${mov.monto.toLocaleString('es-CO')}
-                      </span>
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => abrirTicketDeMovimiento(mov, clienteActivo)}
+                          title="Imprimir Factura / Ticket"
+                          className="p-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:text-blue-600 transition-colors"
+                        >
+                          <Printer size={14} />
+                        </button>
+                        <span className={`text-base md:text-xl ${mov.tipo === 'fiado' ? 'text-rose-500' : (mov.tipo === 'venta' ? 'text-emerald-500' : 'text-blue-500')}`}>
+                          {mov.tipo === 'fiado' ? '-' : '+'}${mov.monto.toLocaleString('es-CO')}
+                        </span>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -480,6 +670,22 @@ export default function InicioPage() {
           </div>
         </div>
       )}
+
+      {/* MODAL DE IMPRESIÓN DE TICKET TÉRMICO */}
+      <TicketFacturaModal
+        isOpen={modalTicketFactura.visible}
+        onClose={() => setModalTicketFactura({ visible: false, datos: null })}
+        datos={modalTicketFactura.datos}
+      />
+
+      {/* MODAL DE MODIFICAR / ELIMINAR CLIENTE */}
+      <ModalGestionCliente
+        isOpen={modalGestionCliente.visible}
+        modo={modalGestionCliente.modo}
+        cliente={modalGestionCliente.cliente}
+        onClose={() => setModalGestionCliente({ visible: false, modo: 'editar', cliente: null })}
+        onSuccess={handleGestionClienteSuccess}
+      />
 
     </>
   );

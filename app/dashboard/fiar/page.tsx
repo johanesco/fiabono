@@ -3,10 +3,12 @@ import { useState, useEffect, Suspense, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { collection, addDoc, getDocs, query, doc, updateDoc, where } from "firebase/firestore";
 import { db } from "../../../firebase";
-import { Search, ShoppingBag, CheckCircle2, ChevronRight, X, AlertCircle, UserCog, Plus, Minus, ArrowLeft, MessageCircle, Package, QrCode, Volume2 } from 'lucide-react';
+import { Search, ShoppingBag, CheckCircle2, ChevronRight, X, AlertCircle, UserCog, Plus, Minus, ArrowLeft, MessageCircle, Package, QrCode, Volume2, Printer } from 'lucide-react';
 import { useAuth } from "@/hooks/AuthContext";
 import toast from "react-hot-toast";
 import { Html5QrcodeScanner } from "html5-qrcode";
+import { API_DB } from "../../../servicios/db";
+import TicketFacturaModal from "@/components/TicketFacturaModal";
 
 export default function FiarPage() {
     return (
@@ -36,7 +38,8 @@ function FiarContenido() {
 
     const [modalFaltaCliente, setModalFaltaCliente] = useState(false);
     const [modalNuevoCliente, setModalNuevoCliente] = useState(false);
-    const [modalExito, setModalExito] = useState<{ visible: boolean, cliente: any, montoTotal: number } | null>(null);
+    const [modalExito, setModalExito] = useState<{ visible: boolean, cliente: any, montoTotal: number, ticketDatos?: any } | null>(null);
+    const [modalTicketFactura, setModalTicketFactura] = useState<{ visible: boolean; datos: any | null }>({ visible: false, datos: null });
 
     const [modalEscanner, setModalEscanner] = useState(false);
     const [mensajeScaneo, setMensajeScaneo] = useState<{ texto: string; tipo: 'exito' | 'error' } | null>(null);
@@ -54,6 +57,22 @@ function FiarContenido() {
             cargarInventario(cuentaPrincipalId);
         }
     }, [cuentaPrincipalId]);
+
+    useEffect(() => {
+        try {
+            const precarga = sessionStorage.getItem('fiabono_productos_precargados');
+            if (precarga) {
+                const items = JSON.parse(precarga);
+                if (Array.isArray(items) && items.length > 0) {
+                    setFilasRegistro(items);
+                    sessionStorage.removeItem('fiabono_productos_precargados');
+                    toast.success(`${items.length} producto(s) cargado(s) desde inventario`);
+                }
+            }
+        } catch (e) {
+            console.error(e);
+        }
+    }, []);
 
     useEffect(() => {
         let scanner: Html5QrcodeScanner | null = null;
@@ -324,19 +343,24 @@ function FiarContenido() {
                 else { resumenNombres.push(descFinal); }
             }
             const descripcionUnificada = resumenNombres.join(", ");
-            const nuevoSaldoTotal = (clienteTransaccion.deudaTotal || 0) + faltante;
 
-            await addDoc(collection(db, "movimientos"), {
-                clienteId: clienteTransaccion.id,
-                usuarioId: cuentaPrincipalId,
-                tipo: 'fiado',
-                monto: faltante,
-                descripcion: descripcionUnificada,
-                detalles: detallesParaComprobante,
-                saldoResultante: nuevoSaldoTotal,
-                fecha: new Date(),
-                registradoPor: nombreUsuario
-            });
+            // Transacción atómica: fiar y actualizar deuda del cliente
+            const resFiado = await API_DB.registrarMovimientoConTransaccion(
+                {
+                    clienteId: clienteTransaccion.id,
+                    usuarioId: cuentaPrincipalId,
+                    tipo: 'fiado',
+                    monto: faltante,
+                    descripcion: descripcionUnificada,
+                    detalles: detallesParaComprobante,
+                    fecha: new Date(),
+                    registradoPor: nombreUsuario
+                },
+                {
+                    ajustarSaldoCliente: true,
+                    cambioDeuda: faltante
+                }
+            );
 
             for (const fila of filasValidas) {
                 const item = inventario.find(p => p.nombre.toLowerCase() === fila.descripcion.toLowerCase());
@@ -345,18 +369,44 @@ function FiarContenido() {
                 }
             }
 
-            const refCliente = doc(db, "clientes", clienteTransaccion.id);
-            await updateDoc(refCliente, { deudaTotal: nuevoSaldoTotal });
+            const saldoFinal = resFiado.nuevoSaldoCliente !== undefined ? resFiado.nuevoSaldoCliente : ((clienteTransaccion.deudaTotal || 0) + faltante);
+            const clienteFinalActualizado = { ...clienteTransaccion, deudaTotal: saldoFinal };
 
-            const clienteFinalActualizado = { ...clienteTransaccion, deudaTotal: nuevoSaldoTotal };
+            const ticketDatos = {
+                nombreNegocio: nombreNegocio || "Mi Negocio",
+                telefonoNegocio: datosSesion?.telefonoNegocio || "",
+                correoNegocio: datosSesion?.correoNegocio || "",
+                nombreCliente: clienteTransaccion.nombre,
+                celularCliente: clienteTransaccion.celular || "",
+                registradoPor: nombreUsuario || "",
+                fecha: new Date(),
+                tipo: 'fiado' as const,
+                detalles: detallesParaComprobante,
+                descripcionGeneral: descripcionUnificada,
+                montoTotal: faltante,
+                saldoNuevo: saldoFinal,
+                idTransaccion: resFiado.movimientoId
+            };
 
             setModalExito({
                 visible: true,
                 cliente: clienteFinalActualizado,
-                montoTotal: faltante
+                montoTotal: faltante,
+                ticketDatos
             });
 
-        } catch (error) { toast.error("Error al procesar el fiado."); }
+        } catch (error) { 
+            console.error(error);
+            toast.error("Error al procesar el fiado."); 
+        }
+    };
+
+    const normalizarMensajeWhatsApp = (texto: string) => {
+        return texto
+          .replace(/\uFFFD/g, '')
+          .replace(/\n{4,}/g, '\n\n\n')
+          .replace(/\r\n/g, '\n')
+          .trim();
     };
 
     const abrirWhatsApp = (cliente: any) => {
@@ -366,14 +416,29 @@ function FiarContenido() {
             const unitario = parseFloat(f.valor);
             const subtotal = unitario * f.cantidad;
             const desc = f.descripcion.trim() || "Articulo";
-            detalleTexto += `- ${f.cantidad}x ${desc} ($${unitario.toLocaleString('es-CO')} c/u) = $${subtotal.toLocaleString('es-CO')}\n`;
+            detalleTexto += `• ${f.cantidad}x ${desc}\n  Precio unitario: *$${unitario.toLocaleString('es-CO')}*\n  Total: *$${subtotal.toLocaleString('es-CO')}*\n\n`;
         });
 
-        const saldoFormat = `$${Math.abs(cliente.deudaTotal || 0).toLocaleString('es-CO')}`;
-        const texto = `Hola *${cliente.nombre}*.\n\nHemos registrado un nuevo credito a tu cuenta en *${nombreNegocio || 'nuestra tienda'}*:\n\nDETALLE:\n${detalleTexto}\n- TOTAL FIADO: $${totalFilasRegistro.toLocaleString('es-CO')}\n- TU NUEVO SALDO PENDIENTE: ${saldoFormat}\n\n¡Gracias por tu confianza!`;
+        const saldoEsteFiado = totalFilasRegistro;
+        const saldoCreditoTotal = Number.isFinite(Number(cliente.deudaTotal)) ? Number(cliente.deudaTotal) : saldoEsteFiado;
+        const texto = `¡Hola, *${cliente.nombre}*! Gracias por tu confianza en *${nombreNegocio || 'nuestra tienda'}*.
+
+===================
+*DETALLE DEL CRÉDITO*
+===================
+
+${detalleTexto}
+*TOTAL DE ESTE FIADO: $${saldoEsteFiado.toLocaleString('es-CO')}*
+*Saldo de crédito Total: $${saldoCreditoTotal.toLocaleString('es-CO')}*
+
+Gracias por confiar en nosotros.
+Estamos atentos para cualquier consulta.
+
+*¡Que tengas un gran día!*`;
+        const mensajeLimpio = normalizarMensajeWhatsApp(texto);
 
         const celularLimpio = cliente.celular ? cliente.celular.replace(/\D/g, '') : '';
-        const url = celularLimpio ? `https://wa.me/57${celularLimpio}?text=${encodeURIComponent(texto)}` : `https://wa.me/?text=${encodeURIComponent(texto)}`;
+        const url = celularLimpio ? `https://wa.me/57${celularLimpio}?text=${encodeURIComponent(mensajeLimpio)}` : `https://wa.me/?text=${encodeURIComponent(mensajeLimpio)}`;
 
         window.open(url, '_blank');
     };
@@ -467,21 +532,22 @@ function FiarContenido() {
                                                 {busquedaProductoIndex === index && fila.descripcion.trim().length > 0 && productosFiltradosInventario.length > 0 && (
                                                     <div className="absolute top-full left-0 right-0 mt-1 bg-white dark:bg-[#1e293b] border border-slate-200 dark:border-slate-700 rounded-xl shadow-2xl z-50 overflow-hidden max-h-56 overflow-y-auto">
                                                         {productosFiltradosInventario.map(p => {
+                                                            const esInv = p.tipoProducto !== 'servicio' && p.inventariable !== false;
                                                             const cantEnOtras = filasRegistro.reduce((acc, f, i) => i !== index && f.descripcion.toLowerCase() === p.nombre.toLowerCase() ? acc + f.cantidad : acc, 0);
-                                                            const stockDisp = p.stock - cantEnOtras;
+                                                            const stockDisp = (p.stock || 0) - cantEnOtras;
 
                                                             return (
                                                                 <div
                                                                     key={p.id}
                                                                     onClick={() => {
-                                                                        if (stockDisp <= 0) {
+                                                                        if (esInv && stockDisp <= 0) {
                                                                             toast.error(`¡Sin stock! No hay más unidades disponibles de ${p.nombre}.`);
                                                                             return;
                                                                         }
                                                                         const nuevas = [...filasRegistro];
                                                                         nuevas[index].descripcion = p.nombre;
                                                                         nuevas[index].valor = p.precioVenta.toString();
-                                                                        nuevas[index].cantidad = Math.min(1, stockDisp);
+                                                                        nuevas[index].cantidad = esInv ? Math.min(1, stockDisp) : 1;
                                                                         setFilasRegistro(nuevas);
                                                                         setBusquedaProductoIndex(null);
                                                                     }}
@@ -489,20 +555,28 @@ function FiarContenido() {
                                                                 >
                                                                     <div>
                                                                         <span className="font-bold text-slate-800 dark:text-slate-200 block">{p.nombre}</span>
-                                                                        {stockDisp <= 5 && stockDisp > 0 && (
-                                                                            <span className="text-[10px] font-bold text-rose-500 bg-rose-50 px-2 py-0.5 rounded-full mt-1 inline-block">
-                                                                                ⚠️ Pocas unidades: {stockDisp} restantes
+                                                                        {!esInv ? (
+                                                                            <span className="text-[10px] font-bold text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-500/20 px-2 py-0.5 rounded-full mt-1 inline-block">
+                                                                                🛠️ Servicio / Ilimitado
                                                                             </span>
-                                                                        )}
-                                                                        {stockDisp > 5 && (
-                                                                            <span className="text-[10px] font-mono bg-slate-100 dark:bg-slate-700 px-1.5 py-0.5 rounded text-slate-500">
-                                                                                SKU: {p.sku || 'N/A'} | Disponibles: {stockDisp}
-                                                                            </span>
-                                                                        )}
-                                                                        {stockDisp <= 0 && (
-                                                                            <span className="text-[10px] font-bold text-rose-600 bg-rose-100 px-2 py-0.5 rounded-full mt-1 inline-block">
-                                                                                ❌ Agotado
-                                                                            </span>
+                                                                        ) : (
+                                                                            <>
+                                                                                {stockDisp <= 5 && stockDisp > 0 && (
+                                                                                    <span className="text-[10px] font-bold text-rose-500 bg-rose-50 px-2 py-0.5 rounded-full mt-1 inline-block">
+                                                                                        ⚠️ Pocas unidades: {stockDisp} restantes
+                                                                                    </span>
+                                                                                )}
+                                                                                {stockDisp > 5 && (
+                                                                                    <span className="text-[10px] font-mono bg-slate-100 dark:bg-slate-700 px-1.5 py-0.5 rounded text-slate-500">
+                                                                                        SKU: {p.sku || 'N/A'} | Disponibles: {stockDisp}
+                                                                                    </span>
+                                                                                )}
+                                                                                {stockDisp <= 0 && (
+                                                                                    <span className="text-[10px] font-bold text-rose-600 bg-rose-100 px-2 py-0.5 rounded-full mt-1 inline-block">
+                                                                                        ❌ Agotado
+                                                                                    </span>
+                                                                                )}
+                                                                            </>
                                                                         )}
                                                                     </div>
                                                                     <span className="font-black text-rose-600 dark:text-rose-400">${p.precioVenta.toLocaleString('es-CO')}</span>
@@ -565,7 +639,24 @@ function FiarContenido() {
                             ) : (
                                 <div className="relative">
                                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-rose-400" size={16} />
-                                    <input type="text" value={busquedaRegistro} onChange={(e) => { setBusquedaRegistro(e.target.value); setMostrarResultadosBuscador(true); }} onFocus={() => setMostrarResultadosBuscador(true)} placeholder="Buscar / Crear cliente..." className="w-full pl-9 pr-2 py-3 lg:py-4 bg-white dark:bg-[#020617] border border-rose-200 dark:border-rose-800 rounded-xl text-sm font-bold outline-none focus:border-rose-500 transition-colors shadow-sm" />
+                                    <input
+                                        type="text"
+                                        value={busquedaRegistro}
+                                        onChange={(e) => { setBusquedaRegistro(e.target.value); setMostrarResultadosBuscador(true); }}
+                                        onFocus={() => setMostrarResultadosBuscador(true)}
+                                        onKeyDown={(e) => {
+                                            if (e.key === 'Enter') {
+                                                e.preventDefault();
+                                                if (clientesFiltradosRegistro.length > 0) {
+                                                    setClienteTransaccion(clientesFiltradosRegistro[0]);
+                                                    setBusquedaRegistro("");
+                                                    setMostrarResultadosBuscador(false);
+                                                }
+                                            }
+                                        }}
+                                        placeholder="Buscar / Crear cliente..."
+                                        className="w-full pl-9 pr-2 py-3 lg:py-4 bg-white dark:bg-[#020617] border border-rose-200 dark:border-rose-800 rounded-xl text-sm font-bold outline-none focus:border-rose-500 transition-colors shadow-sm"
+                                    />
 
                                     {mostrarResultadosBuscador && busquedaRegistro.length > 0 && (
                                         <div className="absolute top-full left-0 right-0 mt-1 bg-white dark:bg-[#1e293b] border border-slate-200 dark:border-slate-700 rounded-xl shadow-xl z-50 overflow-hidden">
@@ -783,6 +874,15 @@ function FiarContenido() {
                             <p className="text-sm mt-2">Nueva deuda total: <strong>${modalExito.cliente.deudaTotal.toLocaleString('es-CO')}</strong></p>
                         </div>
 
+                        {modalExito.ticketDatos && (
+                            <button
+                                onClick={() => setModalTicketFactura({ visible: true, datos: modalExito.ticketDatos })}
+                                className="w-full mb-3 bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 rounded-2xl shadow-lg flex justify-center items-center gap-2 text-lg transition-transform active:scale-95"
+                            >
+                                <Printer size={22} /> Imprimir Factura / Ticket
+                            </button>
+                        )}
+
                         {modalExito.cliente.celular && modalExito.cliente.celular.trim() !== "" && datosSesion?.rol !== 'cajero' && (
                             <button onClick={() => abrirWhatsApp(modalExito.cliente)} className="w-full mb-3 bg-[#25D366] hover:bg-[#1ebd5a] text-white font-bold py-4 rounded-2xl shadow-lg flex justify-center items-center gap-2 text-lg">
                                 <MessageCircle size={24} /> Notificar por WhatsApp
@@ -795,6 +895,13 @@ function FiarContenido() {
                     </div>
                 </div>
             )}
+
+            {/* MODAL DE IMPRESIÓN DE TICKET TÉRMICO */}
+            <TicketFacturaModal
+                isOpen={modalTicketFactura.visible}
+                onClose={() => setModalTicketFactura({ visible: false, datos: null })}
+                datos={modalTicketFactura.datos}
+            />
         </div>
     );
 }

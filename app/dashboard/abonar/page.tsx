@@ -3,8 +3,10 @@ import { useState, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { collection, addDoc, getDocs, query, doc, updateDoc, where } from "firebase/firestore";
 import { db } from "../../../firebase";
-import { Search, CheckCircle2, ChevronRight, X, AlertCircle, UserCog, ArrowLeft, MessageCircle, Banknote } from 'lucide-react';
+import { Search, CheckCircle2, ChevronRight, X, AlertCircle, UserCog, ArrowLeft, MessageCircle, Banknote, Printer } from 'lucide-react';
 import { useAuth } from "../../../hooks/AuthContext";
+import { API_DB } from "../../../servicios/db";
+import TicketFacturaModal from "@/components/TicketFacturaModal";
 
 export default function AbonarPage() {
   return (
@@ -31,7 +33,8 @@ function AbonarContenido() {
   const [mostrarResultadosBuscador, setMostrarResultadosBuscador] = useState(false);
   
   const [modalNuevoCliente, setModalNuevoCliente] = useState(false);
-  const [modalExito, setModalExito] = useState<{ visible: boolean, cliente: any, montoTotal: number } | null>(null);
+  const [modalExito, setModalExito] = useState<{ visible: boolean, cliente: any, montoTotal: number, ticketDatos?: any } | null>(null);
+  const [modalTicketFactura, setModalTicketFactura] = useState<{ visible: boolean; datos: any | null }>({ visible: false, datos: null });
   
   const [nombreNuevo, setNombreNuevo] = useState("");
   const [celularNuevo, setCelularNuevo] = useState("");
@@ -99,45 +102,86 @@ function AbonarContenido() {
     if (abonoReal <= 0) return alert("Ingresa un monto mayor a $0 para abonar.");
 
     try {
-      const nuevoSaldoTotal = (clienteTransaccion.deudaTotal || 0) - abonoReal;
-      
-      await addDoc(collection(db, "movimientos"), {
-          clienteId: clienteTransaccion.id, 
-          usuarioId: cuentaPrincipalId, 
-          tipo: 'abono', 
+      const resAbono = await API_DB.registrarMovimientoConTransaccion(
+        {
+          clienteId: clienteTransaccion.id,
+          usuarioId: cuentaPrincipalId,
+          tipo: 'abono',
           monto: abonoReal,
-          descripcion: "Abono a cuenta", 
-          detalles: [], 
-          saldoResultante: nuevoSaldoTotal, 
-          fecha: new Date(), 
+          descripcion: "Abono a cuenta",
+          detalles: [],
+          fecha: new Date(),
           registradoPor: nombreUsuario
-      });
+        },
+        {
+          ajustarSaldoCliente: true,
+          cambioDeuda: -abonoReal
+        }
+      );
 
-      const refCliente = doc(db, "clientes", clienteTransaccion.id);
-      await updateDoc(refCliente, { deudaTotal: nuevoSaldoTotal });
-      
-      const clienteFinalActualizado = { ...clienteTransaccion, deudaTotal: nuevoSaldoTotal };
+      const saldoFinal = resAbono.nuevoSaldoCliente !== undefined ? resAbono.nuevoSaldoCliente : ((clienteTransaccion.deudaTotal || 0) - abonoReal);
+      const clienteFinalActualizado = { ...clienteTransaccion, deudaTotal: saldoFinal };
+
+      const ticketDatos = {
+        nombreNegocio: nombreNegocio || "Mi Negocio",
+        telefonoNegocio: datosSesion?.telefonoNegocio || "",
+        correoNegocio: datosSesion?.correoNegocio || "",
+        nombreCliente: clienteTransaccion.nombre,
+        celularCliente: clienteTransaccion.celular || "",
+        registradoPor: nombreUsuario || "",
+        fecha: new Date(),
+        tipo: 'abono' as const,
+        detalles: [],
+        descripcionGeneral: "Abono a cuenta",
+        montoTotal: abonoReal,
+        pagoRecibido: abonoReal,
+        saldoNuevo: saldoFinal,
+        idTransaccion: resAbono.movimientoId
+      };
 
       setModalExito({ 
-          visible: true, 
-          cliente: clienteFinalActualizado, 
-          montoTotal: abonoReal 
+        visible: true, 
+        cliente: clienteFinalActualizado, 
+        montoTotal: abonoReal,
+        ticketDatos
       });
       
-    } catch (error) { alert("Error al procesar el abono."); }
+    } catch (error) { 
+      console.error(error);
+      alert("Error al procesar el abono."); 
+    }
+  };
+
+  const normalizarMensajeWhatsApp = (texto: string) => {
+    return texto
+      .replace(/\uFFFD/g, '')
+      .replace(/\n{4,}/g, '\n\n\n')
+      .replace(/\r\n/g, '\n')
+      .trim();
   };
 
   const abrirWhatsApp = (cliente: any) => {
     const abonoMonto = parseFloat(montoAbono.replace(/\D/g, '')) || 0;
     const saldoFormat = cliente.deudaTotal < 0 
-      ? `A Favor: $${Math.abs(cliente.deudaTotal).toLocaleString('es-CO')}` 
+      ? `$${Math.abs(cliente.deudaTotal).toLocaleString('es-CO')}` 
       : `$${cliente.deudaTotal.toLocaleString('es-CO')}`;
 
-    // MENSAJE LIMPIO SIN EMOJIS COMPLEJOS PARA EVITAR EL ""
-    const texto = `Hola *${cliente.nombre}*\n\nHemos registrado tu abono exitosamente en *${nombreNegocio || 'nuestra tienda'}*.\n\n*RESUMEN DEL PAGO:*\n- Abono recibido: $${abonoMonto.toLocaleString('es-CO')}\n- Tu nuevo saldo pendiente: ${saldoFormat}\n\n¡Muchas gracias por tu pago y confianza!`;
-    
+    const texto = `¡Hola, *${cliente.nombre}*! Gracias por tu pago en *${nombreNegocio || 'nuestra tienda'}*.
+
+===================
+*RESUMEN DEL PAGO*
+===================
+
+• Abono recibido: *$${abonoMonto.toLocaleString('es-CO')}*
+• Saldo actual: *${saldoFormat}*
+
+Gracias por tu pago y confianza.
+Estamos atentos para cualquier consulta.
+
+*¡Que tengas un gran día!*`;
+    const mensajeLimpio = normalizarMensajeWhatsApp(texto);
     const celularLimpio = cliente.celular ? cliente.celular.replace(/\D/g, '') : '';
-    const url = celularLimpio ? `https://wa.me/57${celularLimpio}?text=${encodeURIComponent(texto)}` : `https://wa.me/?text=${encodeURIComponent(texto)}`;
+    const url = celularLimpio ? `https://wa.me/57${celularLimpio}?text=${encodeURIComponent(mensajeLimpio)}` : `https://wa.me/?text=${encodeURIComponent(mensajeLimpio)}`;
     
     if (typeof window !== 'undefined') {
       if (window.innerWidth >= 1024) {
@@ -200,7 +244,24 @@ function AbonarContenido() {
                 ) : (
                   <div className="relative">
                     <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-blue-500" size={20} />
-                    <input type="text" value={busquedaRegistro} onChange={(e) => { setBusquedaRegistro(e.target.value); setMostrarResultadosBuscador(true); }} onFocus={() => setMostrarResultadosBuscador(true)} placeholder="Buscar por nombre o número..." className="w-full pl-12 pr-4 py-4 lg:py-5 bg-white dark:bg-[#0f172a] border border-blue-200 dark:border-blue-800 rounded-2xl text-lg font-bold outline-none focus:border-blue-500 transition-colors shadow-sm" />
+                    <input
+                      type="text"
+                      value={busquedaRegistro}
+                      onChange={(e) => { setBusquedaRegistro(e.target.value); setMostrarResultadosBuscador(true); }}
+                      onFocus={() => setMostrarResultadosBuscador(true)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          if (clientesFiltradosRegistro.length > 0) {
+                            setClienteTransaccion(clientesFiltradosRegistro[0]);
+                            setBusquedaRegistro("");
+                            setMostrarResultadosBuscador(false);
+                          }
+                        }
+                      }}
+                      placeholder="Buscar por nombre o número..."
+                      className="w-full pl-12 pr-4 py-4 lg:py-5 bg-white dark:bg-[#0f172a] border border-blue-200 dark:border-blue-800 rounded-2xl text-lg font-bold outline-none focus:border-blue-500 transition-colors shadow-sm"
+                    />
                     
                     {mostrarResultadosBuscador && busquedaRegistro.length > 0 && (
                       <div className="absolute top-full left-0 right-0 mt-2 bg-white dark:bg-[#1e293b] border border-slate-200 dark:border-slate-700 rounded-2xl shadow-xl z-50 overflow-hidden">
@@ -341,6 +402,15 @@ function AbonarContenido() {
               <p className="text-sm mt-2">Nuevo saldo: <strong>${Math.abs(modalExito.cliente.deudaTotal).toLocaleString('es-CO')}</strong> {(modalExito.cliente.deudaTotal < 0) && "(A favor)"}</p>
             </div>
             
+            {modalExito.ticketDatos && (
+              <button
+                onClick={() => setModalTicketFactura({ visible: true, datos: modalExito.ticketDatos })}
+                className="w-full mb-3 bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 rounded-2xl shadow-lg flex justify-center items-center gap-2 text-lg transition-transform active:scale-95"
+              >
+                <Printer size={22} /> Imprimir Factura / Ticket
+              </button>
+            )}
+
             {modalExito.cliente.celular && modalExito.cliente.celular.trim() !== "" && datosSesion?.rol !== 'cajero' && (
               <button onClick={() => abrirWhatsApp(modalExito.cliente)} className="w-full mb-3 bg-[#25D366] hover:bg-[#1ebd5a] text-white font-bold py-4 rounded-2xl shadow-lg flex justify-center items-center gap-2 text-lg">
                 <MessageCircle size={24} /> Enviar Comprobante
@@ -353,6 +423,13 @@ function AbonarContenido() {
           </div>
         </div>
       )}
+
+      {/* MODAL DE IMPRESIÓN DE TICKET TÉRMICO */}
+      <TicketFacturaModal
+        isOpen={modalTicketFactura.visible}
+        onClose={() => setModalTicketFactura({ visible: false, datos: null })}
+        datos={modalTicketFactura.datos}
+      />
     </div>
   );
 }

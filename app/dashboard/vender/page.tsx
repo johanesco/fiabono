@@ -3,10 +3,12 @@ import { useState, useEffect, Suspense, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { collection, addDoc, getDocs, query, doc, updateDoc, where } from "firebase/firestore";
 import { db } from "../../../firebase";
-import { Search, ShoppingCart, CheckCircle2, ChevronRight, X, AlertCircle, UserCog, Plus, Minus, ArrowLeft, MessageCircle, Banknote, Package, QrCode, Volume2 } from 'lucide-react';
+import { Search, ShoppingCart, CheckCircle2, ChevronRight, X, AlertCircle, UserCog, Plus, Minus, ArrowLeft, MessageCircle, Banknote, Package, QrCode, Volume2, Printer } from 'lucide-react';
 import { useAuth } from "@/hooks/AuthContext";
 import toast from "react-hot-toast";
 import { Html5QrcodeScanner } from "html5-qrcode";
+import { API_DB } from "../../../servicios/db";
+import TicketFacturaModal from "@/components/TicketFacturaModal";
 
 export default function VenderPage() {
   return (
@@ -36,7 +38,8 @@ function VenderContenido() {
   
   const [modalConfirmarFiado, setModalConfirmarFiado] = useState(false);
   const [modalNuevoCliente, setModalNuevoCliente] = useState(false);
-  const [modalExito, setModalExito] = useState<{ visible: boolean, cliente: any, montoTotal: number, devuelta?: number, fiadoAdicional?: number } | null>(null);
+  const [modalExito, setModalExito] = useState<{ visible: boolean, cliente: any, montoTotal: number, devuelta?: number, fiadoAdicional?: number, deudaPrevia?: number, ticketDatos?: any } | null>(null);
+  const [modalTicketFactura, setModalTicketFactura] = useState<{ visible: boolean; datos: any | null }>({ visible: false, datos: null });
   
   const [modalEscanner, setModalEscanner] = useState(false);
   const [mensajeScaneo, setMensajeScaneo] = useState<{ texto: string; tipo: 'exito' | 'error' } | null>(null);
@@ -325,8 +328,11 @@ function VenderContenido() {
 
     const pagadoRaw = pagoCliente.replace(/\D/g, '');
     const pagadoNum = pagadoRaw === "" ? 0 : parseFloat(pagadoRaw);
+    const saldoVentaActual = Math.max(totalFilasRegistro - pagadoNum, 0);
     const faltante = totalFilasRegistro - pagadoNum;
     const fiarFaltante = faltante > 0;
+    const deudaAnteriorPendiente = clienteTransaccion ? Math.max(clienteTransaccion.deudaTotal || 0, 0) : 0;
+    const deudaTotalActual = deudaAnteriorPendiente + saldoVentaActual;
 
     try {
       let montoAcumulado = 0; 
@@ -346,78 +352,150 @@ function VenderContenido() {
 
       const montoVentaReal = pagadoNum >= montoAcumulado ? montoAcumulado : pagadoNum;
       let clienteFinalActualizado = clienteTransaccion;
+      let idTransaccionVenta = "";
 
       if (montoVentaReal > 0) {
-          await addDoc(collection(db, "movimientos"), {
-              clienteId: clienteTransaccion ? clienteTransaccion.id : 'mostrador',
-              usuarioId: cuentaPrincipalId, tipo: 'venta', monto: montoVentaReal,
-              descripcion: descripcionUnificada + (fiarFaltante ? ` (Pago parcial de $${montoAcumulado.toLocaleString('es-CO')})` : ''),
-              detalles: detallesParaComprobante, fecha: new Date(), registradoPor: nombreUsuario
-          });
+        const resVenta = await API_DB.registrarMovimientoConTransaccion({
+          clienteId: clienteTransaccion ? clienteTransaccion.id : 'mostrador',
+          usuarioId: cuentaPrincipalId,
+          tipo: 'venta',
+          monto: montoVentaReal,
+          descripcion: descripcionUnificada + (fiarFaltante ? ` (Pago parcial de $${montoAcumulado.toLocaleString('es-CO')})` : ''),
+          detalles: detallesParaComprobante,
+          fecha: new Date(),
+          registradoPor: nombreUsuario
+        });
+        idTransaccionVenta = resVenta.movimientoId;
       }
 
       for (const fila of filasValidas) {
-          const item = inventario.find(p => p.nombre.toLowerCase() === fila.descripcion.toLowerCase());
-          if (item) {
-              const refProducto = doc(db, "inventario", item.id);
-              await updateDoc(refProducto, { stock: item.stock - fila.cantidad });
-          }
+        const item = inventario.find(p => p.nombre.toLowerCase() === fila.descripcion.toLowerCase());
+        if (item) {
+          const refProducto = doc(db, "inventario", item.id);
+          await updateDoc(refProducto, { stock: item.stock - fila.cantidad });
+        }
       }
+
+      let saldoFinalCliente = clienteTransaccion?.deudaTotal || 0;
 
       if (fiarFaltante && clienteTransaccion) {
-          const nuevoSaldoTotal = (clienteTransaccion.deudaTotal || 0) + faltante;
-          await addDoc(collection(db, "movimientos"), {
-              clienteId: clienteTransaccion.id, usuarioId: cuentaPrincipalId, tipo: 'fiado', monto: faltante,
-              descripcion: `Saldo pendiente de venta: ${descripcionUnificada}`, detalles: [], saldoResultante: nuevoSaldoTotal, fecha: new Date(), registradoPor: nombreUsuario
-          });
-          const refCliente = doc(db, "clientes", clienteTransaccion.id);
-          await updateDoc(refCliente, { deudaTotal: nuevoSaldoTotal });
-          clienteFinalActualizado = { ...clienteTransaccion, deudaTotal: nuevoSaldoTotal };
+        const resFiado = await API_DB.registrarMovimientoConTransaccion(
+          {
+            clienteId: clienteTransaccion.id,
+            usuarioId: cuentaPrincipalId,
+            tipo: 'fiado',
+            monto: faltante,
+            descripcion: `Saldo pendiente de venta: ${descripcionUnificada}`,
+            detalles: [],
+            fecha: new Date(),
+            registradoPor: nombreUsuario
+          },
+          {
+            ajustarSaldoCliente: true,
+            cambioDeuda: faltante
+          }
+        );
+        if (resFiado.nuevoSaldoCliente !== undefined) {
+          saldoFinalCliente = resFiado.nuevoSaldoCliente;
+        } else {
+          saldoFinalCliente = deudaTotalActual;
+        }
+        clienteFinalActualizado = { ...clienteTransaccion, deudaTotal: saldoFinalCliente };
+        if (!idTransaccionVenta) idTransaccionVenta = resFiado.movimientoId;
       }
 
+      const ticketDatos = {
+        nombreNegocio: nombreNegocio || "Mi Negocio",
+        telefonoNegocio: datosSesion?.telefonoNegocio || "",
+        correoNegocio: datosSesion?.correoNegocio || "",
+        nombreCliente: clienteTransaccion ? clienteTransaccion.nombre : "Venta de Mostrador",
+        celularCliente: clienteTransaccion?.celular || "",
+        registradoPor: nombreUsuario || "",
+        fecha: new Date(),
+        tipo: (fiarFaltante && montoVentaReal === 0 ? 'fiado' : 'venta') as any,
+        detalles: detallesParaComprobante,
+        descripcionGeneral: descripcionUnificada,
+        montoTotal: montoAcumulado,
+        pagoRecibido: pagadoNum > 0 ? pagadoNum : undefined,
+        devuelta: pagadoNum > montoAcumulado ? pagadoNum - montoAcumulado : 0,
+        saldoNuevo: clienteTransaccion ? saldoFinalCliente : undefined,
+        idTransaccion: idTransaccionVenta
+      };
+
       setModalExito({ 
-          visible: true, 
-          cliente: clienteFinalActualizado || { nombre: "Cliente Mostrador", celular: "" }, 
-          montoTotal: montoAcumulado,
-          devuelta: pagadoNum > montoAcumulado ? pagadoNum - montoAcumulado : 0, 
-          fiadoAdicional: faltante > 0 ? faltante : 0
+        visible: true, 
+        cliente: clienteFinalActualizado || { nombre: "Cliente Mostrador", celular: "" }, 
+        montoTotal: montoAcumulado,
+        devuelta: pagadoNum > montoAcumulado ? pagadoNum - montoAcumulado : 0, 
+        fiadoAdicional: faltante > 0 ? faltante : 0,
+        deudaPrevia: clienteTransaccion ? Math.max(Number(clienteTransaccion.deudaTotal) || 0, 0) : 0,
+        ticketDatos
       });
       
     } catch (error) { 
-        console.error(error);
-        toast.error("Error al procesar la venta."); 
+      console.error(error);
+      toast.error("Error al procesar la venta."); 
     }
   };
 
-  const abrirWhatsApp = (cliente: any) => {
+  const normalizarMensajeWhatsApp = (texto: string) => {
+    return texto
+      .replace(/\uFFFD/g, '')
+      .replace(/\n{4,}/g, '\n\n\n')
+      .replace(/\r\n/g, '\n')
+      .trim();
+  };
+
+  const abrirWhatsApp = (cliente: any, deudaPreviaOriginal?: number) => {
     const filasValidas = filasRegistro.filter(f => parseFloat(f.valor) > 0);
     let detalleTexto = "";
     filasValidas.forEach(f => {
       const unitario = parseFloat(f.valor);
       const subtotal = unitario * f.cantidad;
       const desc = f.descripcion.trim() || "Articulo";
-      detalleTexto += `- ${f.cantidad}x ${desc} ($${unitario.toLocaleString('es-CO')} c/u) = $${subtotal.toLocaleString('es-CO')}\n`;
+      detalleTexto += `• ${f.cantidad}x ${desc}\n  Precio unitario: *$${unitario.toLocaleString('es-CO')}*\n  Total: *$${subtotal.toLocaleString('es-CO')}*\n\n`;
     });
 
     const nombreDestino = cliente.id === "mostrador" || !cliente.nombre ? "Cliente" : cliente.nombre;
     const pagadoRaw = pagoCliente.replace(/\D/g, '');
     const pagadoNum = pagadoRaw === "" ? 0 : parseFloat(pagadoRaw);
+    const saldoVentaActual = Math.max(totalFilasRegistro - pagadoNum, 0);
     const faltante = totalFilasRegistro - pagadoNum;
     const devuelta = pagadoNum > totalFilasRegistro ? pagadoNum - totalFilasRegistro : 0;
-    
+    const deudaAnteriorPendiente = typeof deudaPreviaOriginal === 'number' ? Math.max(deudaPreviaOriginal, 0) : Math.max(Number(cliente.deudaTotal) || 0, 0);
+    const deudaTotalActual = deudaAnteriorPendiente + saldoVentaActual;
+    const encabezadoTitulo = faltante > 0 ? 'COMPROBANTE DE FIADO' : 'COMPROBANTE DE VENTA';
+
     let infoExtra = "";
     if (faltante > 0) {
-       infoExtra = `\n- Abonaste: $${pagadoNum.toLocaleString('es-CO')}\n- Quedo pendiente: $${faltante.toLocaleString('es-CO')}`;
+       const abonoAplicado = Math.min(pagadoNum, totalFilasRegistro);
+       const saldoFiadoEsteCredito = Math.max(totalFilasRegistro - abonoAplicado, 0);
+       const saldoCreditoTotal = deudaAnteriorPendiente + saldoFiadoEsteCredito;
+       infoExtra = `\n*TOTAL DE ESTE FIADO:* $${saldoFiadoEsteCredito.toLocaleString('es-CO')}\n\n*Saldo de crédito Total:* $${saldoCreditoTotal.toLocaleString('es-CO')}*`;
     } else if (devuelta > 0) {
-       infoExtra = `\n- Entregaste: $${pagadoNum.toLocaleString('es-CO')}\n- Devuelta: $${devuelta.toLocaleString('es-CO')}`;
+       infoExtra = `\n*Entregaste:* $${pagadoNum.toLocaleString('es-CO')}\n*Devuelta:* $${devuelta.toLocaleString('es-CO')}*`;
     } else {
-       infoExtra = `\n- Pago completo`;
+       infoExtra = '\n*Pago completo.*';
     }
 
-    const texto = `Hola *${nombreDestino}*.\n\nAqui tienes el comprobante de tu compra en *${nombreNegocio || 'nuestra tienda'}*:\n\nDETALLE:\n${detalleTexto}\nTOTAL VENTA: $${totalFilasRegistro.toLocaleString('es-CO')}${infoExtra}\n\n¡Gracias por preferirnos! Te esperamos pronto.`;
+    const texto = `¡Hola, *${nombreDestino}*! Gracias por tu compra en *${nombreNegocio || 'nuestra tienda'}*.
+
+===================
+*${encabezadoTitulo}*
+===================
+
+${detalleTexto}
+*TOTAL: $${totalFilasRegistro.toLocaleString('es-CO')}*
+${infoExtra}
+
+Gracias por tu compra.
+Estamos atentos para cualquier consulta.
+
+*¡Te esperamos pronto!*`;
+    const mensajeLimpio = normalizarMensajeWhatsApp(texto);
     
     const celularLimpio = cliente.celular ? cliente.celular.replace(/\D/g, '') : '';
-    const url = celularLimpio ? `https://wa.me/57${celularLimpio}?text=${encodeURIComponent(texto)}` : `https://wa.me/?text=${encodeURIComponent(texto)}`;
+    const url = celularLimpio ? `https://wa.me/57${celularLimpio}?text=${encodeURIComponent(mensajeLimpio)}` : `https://wa.me/?text=${encodeURIComponent(mensajeLimpio)}`;
     
     window.open(url, '_blank');
   };
@@ -512,21 +590,22 @@ function VenderContenido() {
                         {busquedaProductoIndex === index && fila.descripcion.trim().length > 0 && productosFiltradosInventario.length > 0 && (
                           <div className="absolute top-full left-0 right-0 mt-1 bg-white dark:bg-[#1e293b] border border-slate-200 dark:border-slate-700 rounded-xl shadow-2xl z-50 overflow-hidden max-h-56 overflow-y-auto">
                             {productosFiltradosInventario.map(p => {
+                              const esInv = p.tipoProducto !== 'servicio' && p.inventariable !== false;
                               const cantEnOtras = filasRegistro.reduce((acc, f, i) => i !== index && f.descripcion.toLowerCase() === p.nombre.toLowerCase() ? acc + f.cantidad : acc, 0);
-                              const stockDisp = p.stock - cantEnOtras;
+                              const stockDisp = (p.stock || 0) - cantEnOtras;
 
                               return (
                                 <div 
                                   key={p.id} 
                                   onClick={() => {
-                                    if (stockDisp <= 0) {
+                                    if (esInv && stockDisp <= 0) {
                                       toast.error(`¡Sin stock! No hay más unidades disponibles de ${p.nombre}.`);
                                       return;
                                     }
                                     const nuevas = [...filasRegistro];
                                     nuevas[index].descripcion = p.nombre;
                                     nuevas[index].valor = p.precioVenta.toString();
-                                    nuevas[index].cantidad = Math.min(1, stockDisp);
+                                    nuevas[index].cantidad = esInv ? Math.min(1, stockDisp) : 1;
                                     setFilasRegistro(nuevas);
                                     setBusquedaProductoIndex(null);
                                   }}
@@ -534,20 +613,28 @@ function VenderContenido() {
                                 >
                                   <div>
                                     <span className="font-bold text-slate-800 dark:text-slate-200 block">{p.nombre}</span>
-                                    {stockDisp <= 5 && stockDisp > 0 && (
-                                      <span className="text-[10px] font-bold text-rose-500 bg-rose-50 px-2 py-0.5 rounded-full mt-1 inline-block">
-                                        ⚠️ Pocas unidades: {stockDisp} restantes
+                                    {!esInv ? (
+                                      <span className="text-[10px] font-bold text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-500/20 px-2 py-0.5 rounded-full mt-1 inline-block">
+                                        🛠️ Servicio / Ilimitado
                                       </span>
-                                    )}
-                                    {stockDisp > 5 && (
-                                      <span className="text-[10px] font-mono bg-slate-100 dark:bg-slate-700 px-1.5 py-0.5 rounded text-slate-500 dark:text-slate-300">
-                                        SKU: {p.sku || 'N/A'} | Disponibles: {stockDisp}
-                                      </span>
-                                    )}
-                                    {stockDisp <= 0 && (
-                                      <span className="text-[10px] font-bold text-rose-600 bg-rose-100 px-2 py-0.5 rounded-full mt-1 inline-block">
-                                        ❌ Agotado
-                                      </span>
+                                    ) : (
+                                      <>
+                                        {stockDisp <= 5 && stockDisp > 0 && (
+                                          <span className="text-[10px] font-bold text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full mt-1 inline-block">
+                                            ⚠️ Pocas unidades: {stockDisp} restantes
+                                          </span>
+                                        )}
+                                        {stockDisp > 5 && (
+                                          <span className="text-[10px] font-mono bg-slate-100 dark:bg-slate-700 px-1.5 py-0.5 rounded text-slate-500 dark:text-slate-300">
+                                            SKU: {p.sku || 'N/A'} | Disponibles: {stockDisp}
+                                          </span>
+                                        )}
+                                        {stockDisp <= 0 && (
+                                          <span className="text-[10px] font-bold text-rose-600 bg-rose-100 px-2 py-0.5 rounded-full mt-1 inline-block">
+                                            ❌ Agotado
+                                          </span>
+                                        )}
+                                      </>
                                     )}
                                   </div>
                                   <span className="font-black text-emerald-600 dark:text-emerald-400">${p.precioVenta.toLocaleString('es-CO')}</span>
@@ -611,7 +698,24 @@ function VenderContenido() {
                 <div className="relative">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
                   {/* BUSCADOR DE CLIENTES BLINDADO */}
-                  <input type="text" value={busquedaRegistro} onChange={(e) => { setBusquedaRegistro(e.target.value); setMostrarResultadosBuscador(true); }} onFocus={() => setMostrarResultadosBuscador(true)} placeholder="Buscar / Crear..." className="w-full pl-9 pr-2 py-3 lg:py-4 bg-slate-50 dark:bg-[#020617] border border-slate-200 dark:border-slate-700 rounded-xl text-sm font-bold outline-none focus:border-emerald-500 transition-colors shadow-sm text-slate-900 dark:!text-white placeholder-slate-400 dark:placeholder-slate-500" />
+                  <input
+                    type="text"
+                    value={busquedaRegistro}
+                    onChange={(e) => { setBusquedaRegistro(e.target.value); setMostrarResultadosBuscador(true); }}
+                    onFocus={() => setMostrarResultadosBuscador(true)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        if (clientesFiltradosRegistro.length > 0) {
+                          setClienteTransaccion(clientesFiltradosRegistro[0]);
+                          setBusquedaRegistro("");
+                          setMostrarResultadosBuscador(false);
+                        }
+                      }
+                    }}
+                    placeholder="Buscar / Crear..."
+                    className="w-full pl-9 pr-2 py-3 lg:py-4 bg-slate-50 dark:bg-[#020617] border border-slate-200 dark:border-slate-700 rounded-xl text-sm font-bold outline-none focus:border-emerald-500 transition-colors shadow-sm text-slate-900 dark:!text-white placeholder-slate-400 dark:placeholder-slate-500"
+                  />
                   
                   {mostrarResultadosBuscador && busquedaRegistro.length > 0 && (
                     <div className="absolute top-full left-0 right-0 mt-1 bg-white dark:bg-[#1e293b] border border-slate-200 dark:border-slate-700 rounded-xl shadow-xl z-50 overflow-hidden">
@@ -816,6 +920,9 @@ function VenderContenido() {
               <>
                 <p className="text-sm font-bold text-slate-700 dark:text-slate-300 mb-6">
                   ¿Confirmas que vas a fiar <strong className="text-rose-500">${(totalFilasRegistro - (parseFloat(pagoCliente.replace(/\D/g, '')) || 0)).toLocaleString('es-CO')}</strong> a <strong className="text-emerald-600">{clienteTransaccion.nombre}</strong>?
+                  {(clienteTransaccion.deudaTotal || 0) > 0 && (
+                    <><br /><span className="text-xs text-slate-500 dark:text-slate-400">Además, su deuda previa vigente se suma al total actual.</span></>
+                  )}
                 </p>
                 <div className="flex flex-col gap-3">
                   <button onClick={() => { setModalConfirmarFiado(false); ejecutarVentaFinal(); }} className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-black py-4 rounded-2xl text-lg shadow-lg flex justify-center items-center gap-2">
@@ -864,8 +971,17 @@ function VenderContenido() {
               {(modalExito.fiadoAdicional || 0) > 0 && <p className="text-rose-600 font-bold bg-rose-50 dark:bg-rose-500/20 dark:text-rose-400 p-2 rounded-lg mt-2">Saldo fiado a {modalExito.cliente.nombre}: ${modalExito.fiadoAdicional?.toLocaleString('es-CO')}</p>}
             </div>
             
+            {modalExito.ticketDatos && (
+              <button 
+                onClick={() => setModalTicketFactura({ visible: true, datos: modalExito.ticketDatos })} 
+                className="w-full mb-3 bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 rounded-2xl shadow-lg flex justify-center items-center gap-2 text-lg transition-transform active:scale-95"
+              >
+                <Printer size={22} /> Imprimir Factura / Ticket
+              </button>
+            )}
+
             {modalExito.cliente?.celular && modalExito.cliente.celular.trim() !== "" && datosSesion?.rol !== 'cajero' && (
-              <button onClick={() => abrirWhatsApp(modalExito.cliente)} className="w-full mb-3 bg-[#25D366] hover:bg-[#1ebd5a] text-white font-bold py-4 rounded-2xl shadow-lg flex justify-center items-center gap-2 text-lg">
+              <button onClick={() => abrirWhatsApp(modalExito.cliente, modalExito.deudaPrevia)} className="w-full mb-3 bg-[#25D366] hover:bg-[#1ebd5a] text-white font-bold py-4 rounded-2xl shadow-lg flex justify-center items-center gap-2 text-lg">
                 <MessageCircle size={24} /> Enviar Comprobante
               </button>
             )}
@@ -876,6 +992,13 @@ function VenderContenido() {
           </div>
         </div>
       )}
+
+      {/* MODAL DE IMPRESIÓN DE TICKET TÉRMICO */}
+      <TicketFacturaModal
+        isOpen={modalTicketFactura.visible}
+        onClose={() => setModalTicketFactura({ visible: false, datos: null })}
+        datos={modalTicketFactura.datos}
+      />
     </div>
   );
 }

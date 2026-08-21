@@ -1,13 +1,15 @@
 "use client";
 import { Movimiento } from "../types";
+import { Printer } from "lucide-react";
 
 interface TablaHistorialProps {
   movimientos: Movimiento[];
   getNombreCliente: (id: string) => string;
   onRowClick?: (clienteId: string) => void;
+  onImprimir?: (mov: Movimiento) => void;
 }
 
-export default function TablaHistorial({ movimientos, getNombreCliente, onRowClick }: TablaHistorialProps) {
+export default function TablaHistorial({ movimientos, getNombreCliente, onRowClick, onImprimir }: TablaHistorialProps) {
   return (
     <div className="hidden md:block w-full bg-white dark:bg-[#0f172a] rounded-[2rem] border border-slate-100 dark:border-slate-800/60 shadow-sm overflow-hidden">
       <table className="w-full text-left border-collapse">
@@ -18,6 +20,7 @@ export default function TablaHistorial({ movimientos, getNombreCliente, onRowCli
             <th className="p-6 font-black text-slate-500 uppercase text-xs tracking-widest">Descripción</th>
             <th className="p-6 font-black text-slate-500 uppercase text-xs tracking-widest">Tipo</th>
             <th className="p-6 font-black text-slate-500 uppercase text-xs tracking-widest text-right">Monto</th>
+            <th className="p-6 font-black text-slate-500 uppercase text-xs tracking-widest text-center">Factura</th>
           </tr>
         </thead>
         <tbody>
@@ -29,10 +32,10 @@ export default function TablaHistorial({ movimientos, getNombreCliente, onRowCli
             >
               <td className="p-6 text-sm text-slate-500 dark:text-slate-400 whitespace-nowrap">
                 <div className="font-bold text-slate-800 dark:text-slate-200">
-                  {mov.fecha?.toDate().toLocaleDateString('es-CO')}
+                  {mov.fecha?.toDate ? mov.fecha.toDate().toLocaleDateString('es-CO') : (mov.fecha instanceof Date ? mov.fecha.toLocaleDateString('es-CO') : '')}
                 </div>
                 <div className="text-[11px] font-bold mt-0.5 text-slate-400 uppercase">
-                  {mov.fecha?.toDate().toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' })}
+                  {mov.fecha?.toDate ? mov.fecha.toDate().toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' }) : (mov.fecha instanceof Date ? mov.fecha.toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' }) : '')}
                 </div>
                 {mov.registradoPor && (
                   <div className="text-[10px] font-bold mt-1.5 text-slate-400/80">
@@ -57,6 +60,18 @@ export default function TablaHistorial({ movimientos, getNombreCliente, onRowCli
                 mov.tipo === 'venta' ? 'text-emerald-500' : 'text-blue-500'
               }`}>
                 {mov.tipo === 'fiado' ? '-' : '+'}${mov.monto.toLocaleString('es-CO')}
+              </td>
+              <td className="p-6 text-center" onClick={(e) => e.stopPropagation()}>
+                {onImprimir && (
+                  <button
+                    type="button"
+                    onClick={() => onImprimir(mov)}
+                    title="Imprimir Factura / Ticket"
+                    className="p-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-blue-50 dark:hover:bg-blue-500/20 hover:text-blue-600 dark:hover:text-blue-400 transition-colors mx-auto inline-flex items-center justify-center"
+                  >
+                    <Printer size={16} />
+                  </button>
+                )}
               </td>
             </tr>
           ))}
