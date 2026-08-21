@@ -3,6 +3,26 @@ import { collection, addDoc, getDocs, query, doc, updateDoc, where, deleteDoc, g
 import { db } from "../firebase"; 
 import { Cliente, Movimiento } from "../types";
 
+const getDiaActualLabel = () => {
+  const nombres = ['Dom', 'Lun', 'Mar', 'Mie', 'Jue', 'Vie', 'Sab'];
+  return nombres[new Date().getDay()];
+};
+
+const calcularActivoPorHorarios = (horarios: any[] = []) => {
+  const ahora = new Date();
+  const diaHoy = getDiaActualLabel();
+  const horaActual = `${String(ahora.getHours()).padStart(2, '0')}:${String(ahora.getMinutes()).padStart(2, '0')}`;
+
+  return (horarios || []).some((h) => {
+    if (!h?.activoAuto) return false;
+    const dias = h.dias || [];
+    if (!dias.includes(diaHoy)) return false;
+    const inicio = h.inicio || '00:00';
+    const fin = h.fin || '23:59';
+    return inicio <= horaActual && horaActual < fin;
+  });
+};
+
 export const API_DB = {
   // --------------------------------------------------------
   // CLIENTES
@@ -60,16 +80,19 @@ export const API_DB = {
       const docRef = doc(db, "codigos_promocionales", codigo);
       const docSnap = await getDoc(docRef);
 
-      if (docSnap.exists()) {
-        const data = docSnap.data();
-        if (data.activo) {
-          return { valido: true, beneficio: data.descuento };
-        }
+      if (!docSnap.exists()) {
+        return { valido: false, reason: 'not_found' };
       }
-      return { valido: false };
+
+      const data = docSnap.data();
+      if (!data.activo) {
+        return { valido: false, reason: 'inactive' };
+      }
+
+      return { valido: true, beneficio: data.descuento };
     } catch (error) {
       console.error("Error al validar cupón:", error);
-      return { valido: false };
+      return { valido: false, reason: 'error' };
     }
   }
   ,
@@ -81,6 +104,26 @@ export const API_DB = {
       return { ok: true };
     } catch (error) {
       console.error("Error al crear código promocional:", error);
+      return { ok: false, error };
+    }
+  }
+  ,
+
+  actualizarHorariosColaborador: async (usuarioId: string, horarios: any[]) => {
+    try {
+      const ref = doc(db, "usuarios", usuarioId);
+      const snap = await getDoc(ref);
+      const data = snap.data() || {};
+      const updateData: any = { horariosActividad: horarios };
+
+      if (data.manualOverride !== true) {
+        updateData.activo = calcularActivoPorHorarios(horarios);
+      }
+
+      await updateDoc(ref, updateData);
+      return { ok: true, activo: updateData.activo ?? data.activo ?? false };
+    } catch (error) {
+      console.error("Error al actualizar horarios:", error);
       return { ok: false, error };
     }
   }

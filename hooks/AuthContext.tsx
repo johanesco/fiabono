@@ -82,8 +82,18 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     return () => unsubscribe();
   }, [router, pathname]);
 
+  const cerrarSesion = async () => {
+    try {
+      await signOut(auth);
+      setDatosSesion(null);
+      router.push('/');
+    } catch (e) {
+      console.error('Error al cerrar sesión', e);
+    }
+  };
+
   return (
-    <AuthContext.Provider value={{ datosSesion, cargando, setDatosSesion }}>
+    <AuthContext.Provider value={{ datosSesion, cargando, setDatosSesion, cerrarSesion }}>
       {children}
     </AuthContext.Provider>
   );

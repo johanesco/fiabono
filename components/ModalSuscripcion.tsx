@@ -15,16 +15,24 @@ interface ModalSuscripcionProps {
 export default function ModalSuscripcion({ isOpen, onClose, cuentaPrincipalId }: ModalSuscripcionProps) {
   const [codigoBono, setCodigoBono] = useState("");
   const [cargando, setCargando] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   if (!isOpen) return null;
+
+  const handleClose = () => {
+    setCodigoBono("");
+    setError(null);
+    onClose();
+  };
 
   const manejarAplicarBono = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!codigoBono.trim()) {
-      toast.error("Por favor ingresa un código de bono.");
+      setError("Por favor ingresa un código de bono.");
       return;
     }
 
+    setError(null);
     setCargando(true);
     try {
       // 1. Verificamos el código usando la función que creamos en db.ts
@@ -42,13 +50,20 @@ export default function ModalSuscripcion({ isOpen, onClose, cuentaPrincipalId }:
         });
 
         toast.success("¡Felicidades! Tu Plan PRO ha sido activado por 1 mes 🚀");
-        onClose();
+        handleClose();
         window.location.reload(); // Recargamos para que la interfaz se actualice de inmediato
       } else {
-        toast.error("El código ingresado no es válido o ya expiró.");
+        // Mensajes más precisos según la razón devuelta por la API
+        if ((resultado as any).reason === 'not_found') {
+          setError("El código ingresado no existe.");
+        } else if ((resultado as any).reason === 'inactive') {
+          setError("El código ingresado no es válido o ya fue usado.");
+        } else {
+          setError("El código ingresado no es válido o ya expiró.");
+        }
       }
     } catch (error) {
-      toast.error("Ocurrió un error al procesar el bono.");
+      setError("Ocurrió un error al procesar el bono.");
     } finally {
       setCargando(false);
     }
@@ -59,7 +74,7 @@ export default function ModalSuscripcion({ isOpen, onClose, cuentaPrincipalId }:
       <div className="bg-white dark:bg-[#0f172a] p-8 rounded-[2.5rem] w-full max-w-md shadow-2xl border border-slate-100 dark:border-slate-800 relative">
         
         <button 
-          onClick={onClose} 
+          onClick={handleClose} 
           className="absolute top-6 right-6 bg-slate-100 dark:bg-[#020617] text-slate-500 hover:text-slate-800 dark:hover:text-white rounded-full p-2 transition-colors cursor-pointer"
         >
           <X size={20}/>
@@ -84,10 +99,14 @@ export default function ModalSuscripcion({ isOpen, onClose, cuentaPrincipalId }:
               type="text" 
               placeholder="Ej. PRO2026" 
               value={codigoBono} 
-              onChange={e => setCodigoBono(e.target.value)}
+              onChange={e => { setCodigoBono(e.target.value); setError(null); }}
               className="w-full p-4 pl-12 bg-slate-50 dark:bg-[#020617] border border-slate-200 dark:border-slate-800 rounded-2xl outline-none focus:border-blue-500 dark:text-white font-bold uppercase tracking-wider text-center" 
             />
           </div>
+
+            {error && (
+              <div className="text-sm text-rose-600 font-bold text-center">{error}</div>
+            )}
 
           <button 
             type="submit" 

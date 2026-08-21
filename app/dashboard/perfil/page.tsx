@@ -4,8 +4,10 @@ import { collection, getDocs, query, doc, updateDoc, where, setDoc, deleteDoc } 
 import { signOut, updatePassword, EmailAuthProvider, reauthenticateWithCredential, getAuth, createUserWithEmailAndPassword } from "firebase/auth";
 import { getApps, initializeApp } from "firebase/app";
 import { db, auth } from "../../../firebase";
-import { UserCog, LogOut, Sun, Monitor, Moon, Edit2, Mail, ShieldAlert, CheckCircle2, AlertCircle, Star, Lock, UserPlus, ChevronUp, ChevronDown, Trash2, Info, X } from 'lucide-react';
+import { UserCog, LogOut, Sun, Monitor, Moon, Edit2, Mail, ShieldAlert, CheckCircle2, AlertCircle, Star, Lock, UserPlus, ChevronUp, ChevronDown, Trash2, Info, X, Clock } from 'lucide-react';
+import ModalHorarios from '@/components/ModalHorarios';
 import { useAuth } from "../../../hooks/AuthContext";
+import ModalSuscripcion from "@/components/ModalSuscripcion";
 
 export default function PerfilPage() {
   const { datosSesion, setDatosSesion } = useAuth();
@@ -54,6 +56,9 @@ export default function PerfilPage() {
   const [passCancelarPro, setPassCancelarPro] = useState("");
   const [errorCancelarPro, setErrorCancelarPro] = useState("");
   const [modalSuscripcion, setModalSuscripcion] = useState({ visible: false, titulo: "", mensaje: "" });
+  const [modalHorariosOpen, setModalHorariosOpen] = useState(false);
+  const [colabParaHorarios, setColabParaHorarios] = useState<any | null>(null);
+  const [modalSuscripcionOpen, setModalSuscripcionOpen] = useState(false);
 
   useEffect(() => {
     const temaGuardado = localStorage.getItem('temaFiabono') as any;
@@ -294,11 +299,13 @@ export default function PerfilPage() {
                 </button>
               </div>
             ) : (
-              <button onClick={() => abrirUpsell("Mejora tu plan hoy", "Disfruta de clientes y registros ilimitados, además de historial completo.")} className="inline-flex items-center gap-2 px-5 py-2 rounded-full bg-slate-900 dark:bg-white text-white dark:text-slate-900 font-black text-xs uppercase tracking-widest shadow-md hover:scale-105 transition-transform mt-4">
+              <button onClick={() => setModalSuscripcionOpen(true)} className="inline-flex items-center gap-2 px-5 py-2 rounded-full bg-slate-900 dark:bg-white text-white dark:text-slate-900 font-black text-xs uppercase tracking-widest shadow-md hover:scale-105 transition-transform mt-4">
                 <Lock size={14} className="shrink-0"/> Subir a Pro
               </button>
             )}
           </div>
+
+          <ModalSuscripcion isOpen={modalSuscripcionOpen} onClose={() => setModalSuscripcionOpen(false)} cuentaPrincipalId={usuarioAuth ? usuarioAuth.uid : (adminId || "")} />
 
           {/* COLABORADORES */}
           <div className="bg-white dark:bg-[#0f172a] p-6 sm:p-8 rounded-[2rem] shadow-sm border border-slate-100 dark:border-slate-800/60">
@@ -330,6 +337,9 @@ export default function PerfilPage() {
                             setModoCrearColaborador(true); 
                           }} className="bg-white dark:bg-[#0f172a] p-2.5 rounded-lg border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors shadow-sm">
                             <Edit2 size={20} className="text-slate-500 shrink-0" />
+                          </button>
+                          <button onClick={() => { setColabParaHorarios(c); setModalHorariosOpen(true); }} title="Horarios" className="bg-white dark:bg-[#0f172a] p-2.5 rounded-lg border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors shadow-sm">
+                            <Clock size={18} className="text-slate-600" />
                           </button>
                           <button onClick={() => { setColaboradorAEliminar(c); setModalSeguridad({visible: true, accion: 'eliminar_colaborador'}); }} className="bg-white dark:bg-[#0f172a] p-2.5 rounded-lg border border-rose-200 dark:border-rose-900 hover:bg-rose-50 dark:hover:bg-rose-900/30 transition-colors shadow-sm">
                             <Trash2 size={20} className="text-rose-500 shrink-0" />
@@ -449,6 +459,8 @@ export default function PerfilPage() {
               {!modoEdicionPerfil && (
                 <button onClick={() => { setEditNombreUsuario(nombreUsuario); setModoEdicionPerfil(true); }} className="text-blue-600 dark:text-blue-400 text-sm font-bold flex items-center gap-1 bg-blue-50 dark:bg-blue-500/10 px-3 py-1.5 rounded-lg shrink-0"><Edit2 size={14}/> Modificar</button>
               )}
+
+              <ModalHorarios isOpen={modalHorariosOpen} onClose={() => { setModalHorariosOpen(false); setColabParaHorarios(null); cargarListaColaboradores(adminId); }} usuarioId={colabParaHorarios ? colabParaHorarios.id : ""} horariosIniciales={colabParaHorarios ? (colabParaHorarios.horariosActividad || []) : []} />
             </div>
             
             {modoEdicionPerfil ? (
