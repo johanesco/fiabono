@@ -1,13 +1,15 @@
 "use client";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { collection, getDocs, query, doc, updateDoc, where, setDoc, deleteDoc } from "firebase/firestore";
 import { signOut, updatePassword, EmailAuthProvider, reauthenticateWithCredential, getAuth, createUserWithEmailAndPassword } from "firebase/auth";
 import { getApps, initializeApp } from "firebase/app";
 import { db, auth } from "../../../firebase";
-import { UserCog, LogOut, Sun, Monitor, Moon, Edit2, Mail, ShieldAlert, CheckCircle2, AlertCircle, Star, Lock, UserPlus, ChevronUp, ChevronDown, Trash2, Info, X, Clock } from 'lucide-react';
+import { UserCog, LogOut, Sun, Monitor, Moon, Edit2, Mail, ShieldAlert, CheckCircle2, AlertCircle, Star, Lock, UserPlus, ChevronUp, ChevronDown, Trash2, Info, X, Clock, Upload, Image as ImageIcon, Building2, MapPin, Receipt, PhoneCall, Camera } from 'lucide-react';
 import ModalHorarios from '@/components/ModalHorarios';
 import { useAuth } from "../../../hooks/AuthContext";
 import ModalSuscripcion from "@/components/ModalSuscripcion";
+import ModalAjustarImagen from "@/components/ModalAjustarImagen";
+import toast from "react-hot-toast";
 
 export default function PerfilPage() {
   const { datosSesion, setDatosSesion } = useAuth();
@@ -21,8 +23,19 @@ export default function PerfilPage() {
   const [nombreUsuario, setNombreUsuario] = useState(datosSesion?.nombreUsuario || "");
   const [nombreNegocio, setNombreNegocio] = useState(datosSesion?.nombreNegocio || "");
   const [telefonoNegocio, setTelefonoNegocio] = useState(datosSesion?.telefonoNegocio || "");
+  const [logoNegocio, setLogoNegocio] = useState<string | null>(datosSesion?.logoNegocio || null);
+  const [nitNegocio, setNitNegocio] = useState(datosSesion?.nitNegocio || "");
+  const [direccionNegocio, setDireccionNegocio] = useState(datosSesion?.direccionNegocio || "");
+  const [mensajePieTicket, setMensajePieTicket] = useState(datosSesion?.mensajePieTicket || "");
+  const [habilitarIva, setHabilitarIva] = useState(datosSesion?.habilitarIva || false);
+  const [porcentajeIva, setPorcentajeIva] = useState<number>(datosSesion?.porcentajeIva || 19);
   const correoNegocio = datosSesion?.correoNegocio || "";
   
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [imagenParaAjustar, setImagenParaAjustar] = useState<string | null>(null);
+  const [modalAjustarOpen, setModalAjustarOpen] = useState(false);
+  const [procesandoLogo, setProcesandoLogo] = useState(false);
+
   const [modoEdicionPerfil, setModoEdicionPerfil] = useState(false);
   const [editNombreUsuario, setEditNombreUsuario] = useState(nombreUsuario);
   
@@ -59,6 +72,20 @@ export default function PerfilPage() {
   const [modalHorariosOpen, setModalHorariosOpen] = useState(false);
   const [colabParaHorarios, setColabParaHorarios] = useState<any | null>(null);
   const [modalSuscripcionOpen, setModalSuscripcionOpen] = useState(false);
+
+  useEffect(() => {
+    if (datosSesion) {
+      setNombreUsuario(datosSesion.nombreUsuario || "");
+      setNombreNegocio(datosSesion.nombreNegocio || "");
+      setTelefonoNegocio(datosSesion.telefonoNegocio || "");
+      setLogoNegocio(datosSesion.logoNegocio || null);
+      setNitNegocio(datosSesion.nitNegocio || "");
+      setDireccionNegocio(datosSesion.direccionNegocio || "");
+      setMensajePieTicket(datosSesion.mensajePieTicket || "");
+      setHabilitarIva(datosSesion.habilitarIva || false);
+      setPorcentajeIva(datosSesion.porcentajeIva || 19);
+    }
+  }, [datosSesion]);
 
   useEffect(() => {
     const temaGuardado = localStorage.getItem('temaFiabono') as any;
@@ -99,17 +126,80 @@ export default function PerfilPage() {
     setModalSuscripcion({ visible: true, titulo, mensaje });
   };
 
+  const procesarSubidaLogo = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      toast.error("Por favor selecciona un archivo de imagen válido (JPG, PNG, WebP).");
+      return;
+    }
+
+    setProcesandoLogo(true);
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const rawSrc = event.target?.result as string;
+      if (rawSrc) {
+        setImagenParaAjustar(rawSrc);
+        setModalAjustarOpen(true);
+      }
+      setProcesandoLogo(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    };
+    reader.onerror = () => {
+      setProcesandoLogo(false);
+      toast.error("Error al leer el archivo de imagen.");
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const aplicarLogoRecortado = async (logoBase64: string) => {
+    setLogoNegocio(logoBase64);
+    setImagenParaAjustar(null);
+    if (usuarioAuth) {
+      try {
+        await updateDoc(doc(db, "usuarios", usuarioAuth.uid), { 
+          logoNegocio: logoBase64 
+        });
+        setDatosSesion((prev: any) => ({
+          ...prev, 
+          logoNegocio: logoBase64
+        }));
+        toast.success("¡Logo actualizado y guardado con éxito!");
+      } catch (error) {
+        toast.error("Logo ajustado. Recuerda hacer clic en 'Guardar Cambios'.");
+      }
+    }
+  };
+
   const guardarDatosPerfil = async () => {
     if (!usuarioAuth) return;
     try {
       await updateDoc(doc(db, "usuarios", usuarioAuth.uid), { 
         nombreNegocio, 
         telefonoNegocio, 
-        nombreUsuario: editNombreUsuario 
+        nitNegocio,
+        direccionNegocio,
+        mensajePieTicket,
+        logoNegocio: logoNegocio || null,
+        nombreUsuario: editNombreUsuario,
+        habilitarIva,
+        porcentajeIva: Number(porcentajeIva) || 19
       });
       setNombreUsuario(editNombreUsuario);
-      setDatosSesion((prev: any) => ({...prev, nombreNegocio, telefonoNegocio, nombreUsuario: editNombreUsuario}));
-      setMensajePerfil({ texto: "Datos actualizados correctamente.", tipo: "exito" });
+      setDatosSesion((prev: any) => ({
+        ...prev, 
+        nombreNegocio, 
+        telefonoNegocio, 
+        nitNegocio, 
+        direccionNegocio,
+        mensajePieTicket,
+        logoNegocio: logoNegocio || null,
+        nombreUsuario: editNombreUsuario,
+        habilitarIva,
+        porcentajeIva: Number(porcentajeIva) || 19
+      }));
+      setMensajePerfil({ texto: "Datos del negocio actualizados correctamente.", tipo: "exito" });
       setModoEdicionPerfil(false);
       setTimeout(() => setMensajePerfil({ texto: "", tipo: "" }), 3000);
     } catch (error) { 
@@ -258,6 +348,15 @@ export default function PerfilPage() {
   return (
     <div className="flex flex-col gap-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
       
+      {/* Input de archivo global para subir logo en cualquier momento */}
+      <input 
+        type="file" 
+        ref={fileInputRef} 
+        onChange={procesarSubidaLogo} 
+        accept="image/*" 
+        className="hidden" 
+      />
+
       {esCajero ? (
         <div className="bg-white dark:bg-[#0f172a] p-10 rounded-[2rem] shadow-sm border border-slate-100 dark:border-slate-800/60 text-center relative overflow-hidden">
            <div className="w-24 h-24 bg-slate-200 dark:bg-slate-800 rounded-full mx-auto flex items-center justify-center text-slate-600 dark:text-slate-300 text-4xl font-black mb-6 shadow-inner shrink-0">
@@ -283,9 +382,34 @@ export default function PerfilPage() {
         <>
           {/* PERFIL ADMINISTRADOR */}
           <div className="bg-white dark:bg-[#0f172a] p-8 rounded-[2rem] shadow-sm border border-slate-100 dark:border-slate-800/60 text-center relative overflow-hidden">
-            <div className="w-24 h-24 bg-gradient-to-br from-blue-500 to-blue-700 rounded-full mx-auto flex items-center justify-center text-white text-4xl font-black mb-4 shadow-lg shrink-0">
-              {nombreNegocio.charAt(0).toUpperCase()}
+            
+            {/* AVATAR / LOGO INTERACTIVO EN CABECERA */}
+            <div 
+              className="relative w-28 h-28 mx-auto mb-4 group cursor-pointer"
+              onClick={() => fileInputRef.current?.click()}
+              title="Haz clic para cambiar el logo del negocio"
+            >
+              {logoNegocio ? (
+                <div className="w-28 h-28 bg-white dark:bg-slate-800 rounded-full flex items-center justify-center p-2 shadow-lg border-2 border-blue-500/30 overflow-hidden shrink-0 group-hover:scale-105 group-hover:border-blue-500 transition-all">
+                  <img src={logoNegocio} alt="Logo Negocio" className="w-full h-full object-contain" />
+                </div>
+              ) : (
+                <div className="w-28 h-28 bg-gradient-to-br from-blue-500 to-blue-700 rounded-full flex items-center justify-center text-white text-4xl font-black shadow-lg shrink-0 group-hover:scale-105 transition-all">
+                  {nombreNegocio.charAt(0).toUpperCase()}
+                </div>
+              )}
+
+              {/* Botón Flotante con Ícono de Cámara */}
+              <button
+                type="button"
+                onClick={(e) => { e.stopPropagation(); fileInputRef.current?.click(); }}
+                title="Cambiar Logo o Foto"
+                className="absolute bottom-0 right-0 bg-blue-600 hover:bg-blue-700 active:scale-90 text-white p-2.5 rounded-full shadow-lg border-2 border-white dark:border-[#0f172a] transition-all flex items-center justify-center cursor-pointer"
+              >
+                <Camera size={16} />
+              </button>
             </div>
+
             <h2 className="text-2xl font-black text-slate-900 dark:text-white truncate">{nombreNegocio}</h2>
             <p className="text-slate-500 dark:text-slate-400 font-medium mb-4 truncate">{correoNegocio}</p>
             
@@ -348,11 +472,13 @@ export default function PerfilPage() {
                       </div>
                       
                       <div className="flex items-center gap-3 mt-2 pt-3 border-t border-slate-200 dark:border-slate-800">
-                         <label className="flex items-center gap-2 cursor-pointer relative">
-                           <input type="checkbox" className="sr-only peer" checked={c.activo !== false} onChange={() => toggleEstadoColaborador(c)}/>
-                           <div className="w-11 h-6 bg-slate-300 peer-focus:outline-none rounded-full peer dark:bg-slate-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-slate-600 peer-checked:bg-emerald-500"></div>
-                           <span className="text-xs font-bold text-slate-500">{c.activo !== false ? 'Activo' : 'Apagado'}</span>
-                         </label>
+                        <label className="relative inline-flex items-center cursor-pointer">
+                          <input type="checkbox" checked={c.activo === true || c.activo === undefined} onChange={() => toggleEstadoColaborador(c)} className="sr-only peer" />
+                          <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer dark:bg-slate-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-slate-600 peer-checked:bg-blue-600"></div>
+                        </label>
+                        <span className={`text-sm font-bold ${c.activo === true || c.activo === undefined ? 'text-blue-600 dark:text-blue-400' : 'text-slate-400'}`}>
+                          {c.activo === true || c.activo === undefined ? 'Acceso Permitido' : 'Acceso Bloqueado'}
+                        </span>
                       </div>
 
                       <div className="flex flex-wrap gap-1.5 mt-1 border-t border-slate-200 dark:border-slate-800 pt-3">
@@ -365,18 +491,20 @@ export default function PerfilPage() {
                   ))
                 )}
 
-                <button onClick={() => {
+                <button onClick={() => { 
                   if (planActual === 'basico' && colaboradoresRegistrados.length >= 1) {
                     abrirUpsell("Colaboradores Ilimitados", "El plan básico te permite tener 1 colaborador de prueba. Pásate a PRO para añadir colaboradores ilimitados y controlar todos sus permisos.");
-                  } else {
-                    setColaboradorEnEdicion(null);
-                    setFormColaborador({ nombre:"", usuarioAcceso:"", password:"", confirmPassword: "", permisos: { verCelulares: false, verDirectorio: false, verReportes: false } });
-                    setErrorFormColaborador({ usuarioAcceso: "", general: "" });
-                    setModoCrearColaborador(true);
-                    setMostrarColaboradores(true);
+                    return;
                   }
-                }} className="w-full bg-slate-100 dark:bg-[#020617] hover:bg-slate-200 dark:hover:bg-[#1e293b] text-blue-600 dark:text-blue-400 font-bold py-4 rounded-xl transition-colors border dark:border-slate-800/80 mt-2 flex items-center justify-center gap-2 text-lg">
-                  <UserPlus size={20} className="shrink-0" /> Añadir Colaborador {planActual === 'basico' && colaboradoresRegistrados.length >= 1 && <Lock size={16} className="opacity-50 shrink-0"/>}
+                  if (planActual === 'pro' && colaboradoresRegistrados.length >= 4) {
+                    setModalAvisoColaborador({ visible: true, titulo: "Límite Alcanzado", mensaje: "Tu plan PRO permite un máximo de 4 colaboradores simultáneos para tu negocio.", icono: 'error' });
+                    return;
+                  }
+                  setFormColaborador({nombre:"", usuarioAcceso:"", password:"", confirmPassword: "", permisos: {verCelulares: false, verDirectorio: false, verReportes: false}}); 
+                  setColaboradorEnEdicion(null); 
+                  setModoCrearColaborador(true); 
+                }} className="w-full bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400 font-bold py-5 rounded-2xl border border-blue-200 dark:border-blue-500/20 hover:bg-blue-100 dark:hover:bg-blue-500/20 transition-colors flex justify-center items-center gap-2 text-lg">
+                  <UserPlus size={22} className="shrink-0"/> Agregar Colaborador
                 </button>
               </div>
             ) : (
@@ -455,7 +583,7 @@ export default function PerfilPage() {
 
           <div className="bg-white dark:bg-[#0f172a] p-6 sm:p-8 rounded-[2rem] shadow-sm border border-slate-100 dark:border-slate-800/60">
             <div className="flex justify-between items-center mb-6 border-b border-slate-100 dark:border-slate-800/60 pb-4">
-              <h3 className="font-black text-lg text-slate-800 dark:text-slate-100 flex items-center gap-2"><UserCog size={20} className="shrink-0"/> Perfil del Negocio</h3>
+              <h3 className="font-black text-lg text-slate-800 dark:text-slate-100 flex items-center gap-2"><Building2 size={20} className="text-blue-500 shrink-0"/> Perfil del Negocio y Marca</h3>
               {!modoEdicionPerfil && (
                 <button onClick={() => { setEditNombreUsuario(nombreUsuario); setModoEdicionPerfil(true); }} className="text-blue-600 dark:text-blue-400 text-sm font-bold flex items-center gap-1 bg-blue-50 dark:bg-blue-500/10 px-3 py-1.5 rounded-lg shrink-0"><Edit2 size={14}/> Modificar</button>
               )}
@@ -464,41 +592,157 @@ export default function PerfilPage() {
             </div>
             
             {modoEdicionPerfil ? (
-              <div className="flex flex-col gap-4 animate-in fade-in">
-                <div>
-                  <label className="block text-sm font-bold text-slate-500 dark:text-slate-400 mb-2">Tu Nombre</label>
-                  <input type="text" value={editNombreUsuario} onChange={(e) => setEditNombreUsuario(e.target.value)} placeholder="Ej. Juan Pérez" className="w-full p-5 bg-slate-50 dark:bg-[#020617] border border-slate-200 dark:border-slate-800/80 rounded-2xl outline-none focus:border-blue-500 dark:focus:border-blue-400 transition-all font-bold text-lg text-slate-900 dark:text-white placeholder-slate-400" />
+              <div className="flex flex-col gap-5 animate-in fade-in">
+                
+                {/* SUBIDA Y CONTROL DE LOGO */}
+                <div className="bg-slate-50 dark:bg-[#020617] p-5 rounded-2xl border border-slate-200 dark:border-slate-800/80 flex flex-col sm:flex-row items-center gap-4">
+                  <div className="w-20 h-20 rounded-2xl bg-white dark:bg-slate-800 border-2 border-dashed border-slate-300 dark:border-slate-700 flex items-center justify-center overflow-hidden shrink-0 shadow-inner">
+                    {logoNegocio ? (
+                      <img src={logoNegocio} alt="Logo Negocio" className="w-full h-full object-contain p-1.5" />
+                    ) : (
+                      <ImageIcon className="text-slate-400" size={32} />
+                    )}
+                  </div>
+                  <div className="flex-1 text-center sm:text-left">
+                    <h4 className="font-black text-slate-800 dark:text-slate-200 text-sm">Logo o Identificador del Negocio</h4>
+                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Se mostrará en la cabecera de las facturas térmicas y en tu perfil.</p>
+                    <div className="flex flex-wrap gap-2 mt-3 justify-center sm:justify-start">
+                      <button
+                        type="button"
+                        onClick={() => fileInputRef.current?.click()}
+                        disabled={procesandoLogo}
+                        className="bg-blue-600 hover:bg-blue-700 text-white text-xs font-black py-2 px-4 rounded-xl flex items-center gap-1.5 transition-transform active:scale-95 shadow-sm"
+                      >
+                        <Upload size={14} /> {logoNegocio ? "Cambiar Logo" : "Subir Logo"}
+                      </button>
+                      {logoNegocio && (
+                        <button
+                          type="button"
+                          onClick={() => setLogoNegocio(null)}
+                          className="bg-rose-50 hover:bg-rose-100 dark:bg-rose-500/10 text-rose-600 dark:text-rose-400 text-xs font-bold py-2 px-3 rounded-xl border border-rose-200 dark:border-rose-500/20 transition-colors flex items-center gap-1"
+                        >
+                          <Trash2 size={13} /> Quitar
+                        </button>
+                      )}
+                    </div>
+                  </div>
                 </div>
-                <div>
-                  <label className="block text-sm font-bold text-slate-500 dark:text-slate-400 mb-2">Nombre del Negocio</label>
-                  <input type="text" value={nombreNegocio} onChange={(e) => setNombreNegocio(e.target.value)} className="w-full p-5 bg-slate-50 dark:bg-[#020617] border border-slate-200 dark:border-slate-800/80 rounded-2xl outline-none focus:border-blue-500 dark:focus:border-blue-400 transition-all font-bold text-lg text-slate-900 dark:text-white placeholder-slate-400" />
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1.5">Nombre del Negocio</label>
+                    <input type="text" value={nombreNegocio} onChange={(e) => setNombreNegocio(e.target.value)} placeholder="Ej. Tienda Doña Juana" className="w-full p-4 bg-slate-50 dark:bg-[#020617] border border-slate-200 dark:border-slate-800/80 rounded-2xl outline-none focus:border-blue-500 dark:focus:border-blue-400 font-bold text-base text-slate-900 dark:text-white placeholder-slate-400" />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1.5">NIT / RUT / Cédula</label>
+                    <input type="text" value={nitNegocio} onChange={(e) => setNitNegocio(e.target.value)} placeholder="Ej. 901.234.567-8" className="w-full p-4 bg-slate-50 dark:bg-[#020617] border border-slate-200 dark:border-slate-800/80 rounded-2xl outline-none focus:border-blue-500 dark:focus:border-blue-400 font-bold text-base text-slate-900 dark:text-white placeholder-slate-400" />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1.5">Dirección del Establecimiento</label>
+                    <input type="text" value={direccionNegocio} onChange={(e) => setDireccionNegocio(e.target.value)} placeholder="Ej. Cra 15 # 45-20, Centro" className="w-full p-4 bg-slate-50 dark:bg-[#020617] border border-slate-200 dark:border-slate-800/80 rounded-2xl outline-none focus:border-blue-500 dark:focus:border-blue-400 font-bold text-base text-slate-900 dark:text-white placeholder-slate-400" />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1.5">WhatsApp / Teléfono Comercial</label>
+                    <input type="tel" value={telefonoNegocio} onChange={(e) => setTelefonoNegocio(e.target.value)} placeholder="Ej. 3001234567" className="w-full p-4 bg-slate-50 dark:bg-[#020617] border border-slate-200 dark:border-slate-800/80 rounded-2xl outline-none focus:border-blue-500 dark:focus:border-blue-400 font-bold text-base text-slate-900 dark:text-white placeholder-slate-400" />
+                  </div>
                 </div>
+
                 <div>
-                  <label className="block text-sm font-bold text-slate-500 dark:text-slate-400 mb-2">WhatsApp de Contacto</label>
-                  <input type="tel" value={telefonoNegocio} onChange={(e) => setTelefonoNegocio(e.target.value)} placeholder="Ej. 3001234567" className="w-full p-5 bg-slate-50 dark:bg-[#020617] border border-slate-200 dark:border-slate-800/80 rounded-2xl outline-none focus:border-blue-500 dark:focus:border-blue-400 transition-all font-bold text-lg text-slate-900 dark:text-white placeholder-slate-400" />
+                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1.5">Mensaje de Despedida en el Recibo (Opcional)</label>
+                  <input type="text" value={mensajePieTicket} onChange={(e) => setMensajePieTicket(e.target.value)} placeholder="Ej. ¡Gracias por su compra! Vuelva pronto." className="w-full p-4 bg-slate-50 dark:bg-[#020617] border border-slate-200 dark:border-slate-800/80 rounded-2xl outline-none focus:border-blue-500 dark:focus:border-blue-400 font-bold text-base text-slate-900 dark:text-white placeholder-slate-400" />
                 </div>
-                <div>
-                  <label className="block text-sm font-bold text-slate-500 dark:text-slate-400 mb-2 flex items-center gap-2"><Mail size={14}/> Correo Registrado (Solo lectura)</label>
-                  <input type="email" value={correoNegocio} disabled className="w-full p-5 bg-slate-100 dark:bg-[#020617]/50 border border-slate-200 dark:border-slate-800/50 rounded-2xl text-slate-500 dark:text-slate-400 cursor-not-allowed font-medium text-lg" />
+
+                {/* CONFIGURACIÓN DE IVA / IMPUESTOS */}
+                <div className="p-4 bg-blue-50/60 dark:bg-blue-950/20 rounded-2xl border border-blue-100 dark:border-blue-900/30 space-y-3">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <h4 className="font-bold text-sm text-slate-900 dark:text-white flex items-center gap-1.5">
+                        <Receipt size={16} className="text-blue-600 dark:text-blue-400" /> Cobrar / Desglosar IVA en Ventas
+                      </h4>
+                      <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Actívalo si tu negocio es responsable de IVA para desglosarlo en tus facturas.</p>
+                    </div>
+                    <label className="relative inline-flex items-center cursor-pointer shrink-0">
+                      <input 
+                        type="checkbox" 
+                        checked={habilitarIva} 
+                        onChange={(e) => setHabilitarIva(e.target.checked)} 
+                        className="sr-only peer" 
+                      />
+                      <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer dark:bg-slate-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                    </label>
+                  </div>
+
+                  {habilitarIva && (
+                    <div className="pt-3 border-t border-blue-100 dark:border-blue-900/30 flex flex-wrap items-center gap-2">
+                      <span className="text-xs font-bold text-slate-700 dark:text-slate-300">Tarifa de IVA:</span>
+                      {[19, 5, 8].map((tasa) => (
+                        <button
+                          key={tasa}
+                          type="button"
+                          onClick={() => setPorcentajeIva(tasa)}
+                          className={`px-3 py-1 text-xs font-black rounded-xl transition-all ${
+                            porcentajeIva === tasa
+                              ? 'bg-blue-600 text-white shadow-sm'
+                              : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700 hover:bg-slate-100'
+                          }`}
+                        >
+                          {tasa}% {tasa === 8 ? '(Impoconsumo)' : ''}
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </div>
-                <div className="grid grid-cols-2 gap-3 mt-2">
-                  <button onClick={() => setModoEdicionPerfil(false)} className="bg-slate-100 dark:bg-[#020617] hover:bg-slate-200 dark:hover:bg-[#1e293b] text-slate-700 dark:text-slate-300 font-bold py-5 rounded-2xl transition-colors border dark:border-slate-800/80 text-lg">Cancelar</button>
-                  <button onClick={guardarDatosPerfil} className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-5 rounded-2xl shadow-lg transition-transform transform active:scale-95 text-lg">Guardar</button>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2 border-t border-slate-100 dark:border-slate-800/60">
+                  <div>
+                    <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1.5">Tu Nombre de Usuario</label>
+                    <input type="text" value={editNombreUsuario} onChange={(e) => setEditNombreUsuario(e.target.value)} placeholder="Ej. Juan Pérez" className="w-full p-4 bg-slate-50 dark:bg-[#020617] border border-slate-200 dark:border-slate-800/80 rounded-2xl outline-none focus:border-blue-500 dark:focus:border-blue-400 font-bold text-base text-slate-900 dark:text-white placeholder-slate-400" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1.5 flex items-center gap-1.5"><Mail size={13}/> Correo Registrado (Solo lectura)</label>
+                    <input type="email" value={correoNegocio} disabled className="w-full p-4 bg-slate-100 dark:bg-[#020617]/50 border border-slate-200 dark:border-slate-800/50 rounded-2xl text-slate-500 dark:text-slate-400 cursor-not-allowed font-medium text-base" />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3 mt-3">
+                  <button onClick={() => setModoEdicionPerfil(false)} className="bg-slate-100 dark:bg-[#020617] hover:bg-slate-200 dark:hover:bg-[#1e293b] text-slate-700 dark:text-slate-300 font-bold py-4 rounded-2xl transition-colors border dark:border-slate-800/80 text-base">Cancelar</button>
+                  <button onClick={guardarDatosPerfil} className="bg-blue-600 hover:bg-blue-700 text-white font-black py-4 rounded-2xl shadow-lg transition-transform transform active:scale-95 text-base">Guardar Cambios</button>
                 </div>
               </div>
             ) : (
-              <div className="flex flex-col gap-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="min-w-0">
-                  <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">Tu Nombre</p>
-                  <p className="font-bold text-slate-800 dark:text-slate-200 text-xl truncate">{nombreUsuario}</p>
+                  <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1 flex items-center gap-1.5"><Building2 size={13} className="text-blue-500" /> Negocio</p>
+                  <p className="font-bold text-slate-800 dark:text-slate-200 text-lg truncate">{nombreNegocio}</p>
                 </div>
                 <div className="min-w-0">
-                  <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">Negocio</p>
-                  <p className="font-bold text-slate-800 dark:text-slate-200 text-xl truncate">{nombreNegocio}</p>
+                  <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1 flex items-center gap-1.5"><Receipt size={13} className="text-blue-500" /> NIT / RUT</p>
+                  <p className="font-bold text-slate-800 dark:text-slate-200 text-lg truncate">{nitNegocio || "No registrado"}</p>
                 </div>
                 <div className="min-w-0">
-                  <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">WhatsApp</p>
-                  <p className="font-bold text-slate-800 dark:text-slate-200 text-xl truncate">{telefonoNegocio || "No registrado"}</p>
+                  <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1 flex items-center gap-1.5"><MapPin size={13} className="text-blue-500" /> Dirección</p>
+                  <p className="font-bold text-slate-800 dark:text-slate-200 text-lg truncate">{direccionNegocio || "No registrada"}</p>
+                </div>
+                <div className="min-w-0">
+                  <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1 flex items-center gap-1.5"><PhoneCall size={13} className="text-blue-500" /> WhatsApp / Teléfono</p>
+                  <p className="font-bold text-slate-800 dark:text-slate-200 text-lg truncate">{telefonoNegocio || "No registrado"}</p>
+                </div>
+                <div className="min-w-0">
+                  <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1 flex items-center gap-1.5"><UserCog size={13} className="text-blue-500" /> Administrador</p>
+                  <p className="font-bold text-slate-800 dark:text-slate-200 text-lg truncate">{nombreUsuario}</p>
+                </div>
+                <div className="min-w-0">
+                  <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1 flex items-center gap-1.5"><Receipt size={13} className="text-blue-500" /> Impuestos / IVA</p>
+                  <p className="font-bold text-slate-800 dark:text-slate-200 text-base truncate">
+                    {habilitarIva ? `Activo (${porcentajeIva}%)` : "Precios finales (Sin IVA)"}
+                  </p>
+                </div>
+                <div className="min-w-0 md:col-span-2">
+                  <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1 flex items-center gap-1.5"><Receipt size={13} className="text-blue-500" /> Pie de Ticket</p>
+                  <p className="font-bold text-slate-800 dark:text-slate-200 text-base truncate">{mensajePieTicket || "¡GRACIAS POR SU COMPRA!"}</p>
                 </div>
               </div>
             )}
@@ -623,6 +867,17 @@ export default function PerfilPage() {
           </div>
         </div>
       )}
+
+      {/* MODAL DE AJUSTE Y ZOOM DE LOGO */}
+      <ModalAjustarImagen
+        isOpen={modalAjustarOpen}
+        imagenSrc={imagenParaAjustar}
+        onClose={() => {
+          setModalAjustarOpen(false);
+          setImagenParaAjustar(null);
+        }}
+        onAplicar={aplicarLogoRecortado}
+      />
     </div>
   );
 }

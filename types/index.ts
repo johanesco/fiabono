@@ -11,6 +11,12 @@ export interface UsuarioBD {
   nombreUsuario: string;
   nombreNegocio?: string;
   telefonoNegocio?: string;
+  logoNegocio?: string | null;
+  nitNegocio?: string;
+  direccionNegocio?: string;
+  mensajePieTicket?: string;
+  habilitarIva?: boolean;
+  porcentajeIva?: number;
   email: string;
   rol: 'admin' | 'cajero';
   adminId?: string;
@@ -36,6 +42,8 @@ export interface DetalleMovimiento {
   valorUnitario: number;
 }
 
+export type TipoMetodoPago = 'efectivo' | 'transferencia' | 'datafono' | 'credito_externo' | 'fiado';
+
 export interface Movimiento {
   id: string;
   clienteId: string;
@@ -47,6 +55,11 @@ export interface Movimiento {
   saldoResultante?: number;
   fecha: any;
   registradoPor?: string;
+  metodoPago?: TipoMetodoPago;
+  referenciaPago?: string;
+  subtotal?: number;
+  valorIva?: number;
+  porcentajeIva?: number;
 }
 
 export interface DatosSesionContext {
@@ -56,6 +69,12 @@ export interface DatosSesionContext {
   nombreNegocio: string;
   telefonoNegocio: string;
   correoNegocio: string;
+  logoNegocio?: string | null;
+  nitNegocio?: string;
+  direccionNegocio?: string;
+  mensajePieTicket?: string;
+  habilitarIva?: boolean;
+  porcentajeIva?: number;
   rol: 'admin' | 'cajero';
   permisos: PermisosColaborador | null;
   planActual: 'basico' | 'pro';

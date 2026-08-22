@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { collection, getDocs, query, doc, updateDoc, deleteDoc, where, addDoc, writeBatch } from "firebase/firestore";
 import { db } from "../../../firebase";
@@ -38,13 +38,17 @@ import {
   Download,
   Maximize2,
   FileSpreadsheet,
-  Upload
+  Upload,
+  ChevronLeft,
+  ChevronRight,
+  MoreVertical
 } from 'lucide-react';
 import { useAuth } from "@/hooks/AuthContext";
 import toast from "react-hot-toast";
 import { QRCodeSVG } from 'qrcode.react';
 import jsPDF from 'jspdf';
 import * as XLSX from 'xlsx';
+import ExcelJS from 'exceljs';
 
 type ColumnaOrden = 'categoria' | 'nombre' | 'sku' | 'stock' | 'precioVenta';
 type DireccionOrden = 'asc' | 'desc';
@@ -69,6 +73,7 @@ export default function InventarioPage() {
 
   // Estados para Importación y Exportación a Excel
   const [modalImportarExcel, setModalImportarExcel] = useState(false);
+  const [modalExportarExcel, setModalExportarExcel] = useState(false);
   const [productosAImportar, setProductosAImportar] = useState<any[]>([]);
   const [procesandoArchivoExcel, setProcesandoArchivoExcel] = useState(false);
   const [importandoAFirestore, setImportandoAFirestore] = useState(false);
@@ -86,6 +91,21 @@ export default function InventarioPage() {
   const [direccionOrden, setDireccionOrden] = useState<DireccionOrden>('asc');
   const [filtrosCategoria, setFiltrosCategoria] = useState<string[]>([]);
   const [filtrosStock, setFiltrosStock] = useState<('en_stock' | 'stock_bajo' | 'sin_stock' | 'servicios')[]>([]);
+  const [mostrarMetricas, setMostrarMetricas] = useState(true);
+  const [menuHerramientasMovil, setMenuHerramientasMovil] = useState(false);
+
+  // Referencias para scroll horizontal con flechas en filtros de stock y categorías
+  const stockScrollRef = useRef<HTMLDivElement>(null);
+  const categoriasScrollRef = useRef<HTMLDivElement>(null);
+
+  const scrollContenedor = (ref: React.RefObject<HTMLDivElement | null>, direccion: 'left' | 'right') => {
+    if (ref.current) {
+      ref.current.scrollBy({
+        left: direccion === 'left' ? -240 : 240,
+        behavior: 'smooth'
+      });
+    }
+  };
 
   // Estados para el modal de configuración de exportación QR inteligente
   const [modalExportarQR, setModalExportarQR] = useState(false);
@@ -203,6 +223,7 @@ export default function InventarioPage() {
       cantidad: 1
     }));
     sessionStorage.setItem('fiabono_productos_precargados', JSON.stringify(items));
+    sessionStorage.setItem('fiabono_origen_despacho', '/dashboard/inventario');
     router.push('/dashboard/vender');
   };
 
@@ -218,6 +239,7 @@ export default function InventarioPage() {
       cantidad: 1
     }));
     sessionStorage.setItem('fiabono_productos_precargados', JSON.stringify(items));
+    sessionStorage.setItem('fiabono_origen_despacho', '/dashboard/inventario');
     router.push('/dashboard/fiar');
   };
 
@@ -769,50 +791,328 @@ export default function InventarioPage() {
     }
   };
 
-  // EXPORTAR INVENTARIO A EXCEL (.XLSX)
-  const exportarInventarioAExcel = () => {
+  // EXPORTAR INVENTARIO A EXCEL ESTILIZADO Y CORPORATIVO (.XLSX)
+  const exportarInventarioAExcel = async () => {
     if (inventarioProcesado.length === 0) {
       return toast.error("No hay productos disponibles para exportar con los filtros actuales.");
     }
 
+    const toastId = toast.loading("Generando Excel corporativo...");
+
     try {
-      const filas = inventarioProcesado.map(p => {
-        const esServicio = p.tipoProducto === 'servicio' || p.inventariable === false;
-        const stockNum = esServicio ? 0 : (Number(p.stock) || 0);
-        const precioNum = Number(p.precioVenta) || 0;
-        return {
-          'Tipo de Producto': esServicio ? 'Servicio' : 'Producto',
-          'Categoría de Inventarios / Servicios': normalizarCategoria(p.categoria),
-          'Código del Producto / SKU': p.sku || '',
-          'Nombre del Producto / Servicio': p.nombre || '',
-          '¿Inventariable?': esServicio ? 'No' : 'Si',
-          'Precio de Venta ($)': precioNum,
-          'Stock Actual': stockNum,
-          'Valor Total en Stock ($)': stockNum * precioNum
+      const wb = new ExcelJS.Workbook();
+      wb.creator = 'Fiabono';
+      wb.created = new Date();
+
+      // --- HOJA 1: INVENTARIO ---
+      const wsInv = wb.addWorksheet('Inventario', {
+        properties: { tabColor: { argb: 'FF059669' } },
+        views: [{ state: 'frozen', ySplit: 1 }]
+      });
+
+      // Encabezados
+      const headers = [
+        'Tipo de Producto',
+        'Categoría de Inventarios / Servicios',
+        'Código del Producto / SKU',
+        'Nombre del Producto / Servicio',
+        '¿Inventariable?',
+        'Precio de Venta ($)',
+        'Stock Actual',
+        'Valor Total en Stock ($)'
+      ];
+
+      const headerRow = wsInv.addRow(headers);
+      headerRow.height = 30;
+
+      headerRow.eachCell((cell) => {
+        cell.font = { name: 'Segoe UI', size: 11, bold: true, color: { argb: 'FFFFFFFF' } };
+        cell.fill = {
+          type: 'pattern',
+          pattern: 'solid',
+          fgColor: { argb: 'FF059669' }
+        };
+        cell.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
+        cell.border = {
+          top: { style: 'medium', color: { argb: 'FF047857' } },
+          bottom: { style: 'medium', color: { argb: 'FF047857' } },
+          left: { style: 'thin', color: { argb: 'FF047857' } },
+          right: { style: 'thin', color: { argb: 'FF047857' } }
         };
       });
 
-      const ws = XLSX.utils.json_to_sheet(filas);
-      ws['!cols'] = [
-        { wch: 18 },
-        { wch: 30 },
-        { wch: 22 },
-        { wch: 38 },
-        { wch: 16 },
-        { wch: 20 },
-        { wch: 15 },
-        { wch: 24 },
+      // Filas de productos con sombreado zebra y formato numérico
+      inventarioProcesado.forEach((p, idx) => {
+        const esServicio = p.tipoProducto === 'servicio' || p.inventariable === false;
+        const stockNum = esServicio ? 0 : (Number(p.stock) || 0);
+        const precioNum = Number(p.precioVenta) || 0;
+        const totalNum = stockNum * precioNum;
+
+        const row = wsInv.addRow([
+          esServicio ? 'Servicio' : 'Producto',
+          normalizarCategoria(p.categoria),
+          p.sku || '',
+          p.nombre || '',
+          esServicio ? 'No' : 'Si',
+          precioNum,
+          esServicio ? 0 : stockNum,
+          totalNum
+        ]);
+
+        row.height = 22;
+        const isOdd = idx % 2 === 1;
+        const rowBgColor = isOdd ? 'FFF8FAFC' : 'FFFFFFFF';
+
+        row.eachCell({ includeEmpty: true }, (cell, colNumber) => {
+          cell.font = { name: 'Segoe UI', size: 10, color: { argb: 'FF1E293B' } };
+          cell.fill = {
+            type: 'pattern',
+            pattern: 'solid',
+            fgColor: { argb: rowBgColor }
+          };
+          cell.border = {
+            top: { style: 'thin', color: { argb: 'FFE2E8F0' } },
+            bottom: { style: 'thin', color: { argb: 'FFE2E8F0' } },
+            left: { style: 'thin', color: { argb: 'FFE2E8F0' } },
+            right: { style: 'thin', color: { argb: 'FFE2E8F0' } }
+          };
+
+          if (colNumber === 1 || colNumber === 3 || colNumber === 5 || colNumber === 7) {
+            cell.alignment = { horizontal: 'center', vertical: 'middle' };
+          } else if (colNumber === 6 || colNumber === 8) {
+            cell.alignment = { horizontal: 'right', vertical: 'middle' };
+            cell.numFmt = '$#,##0';
+          } else {
+            cell.alignment = { horizontal: 'left', vertical: 'middle' };
+          }
+        });
+      });
+
+      // Filas adicionales vacías pre-formateadas para ingresar nuevos productos
+      const startExtraRow = inventarioProcesado.length + 2;
+      for (let r = startExtraRow; r < startExtraRow + 20; r++) {
+        const extraRow = wsInv.addRow(['', '', '', '', '', '', '', '']);
+        extraRow.height = 22;
+        const isOdd = (r - 2) % 2 === 1;
+        const rowBgColor = isOdd ? 'FFF8FAFC' : 'FFFFFFFF';
+
+        extraRow.eachCell({ includeEmpty: true }, (cell, colNumber) => {
+          cell.font = { name: 'Segoe UI', size: 10, color: { argb: 'FF1E293B' } };
+          cell.fill = {
+            type: 'pattern',
+            pattern: 'solid',
+            fgColor: { argb: rowBgColor }
+          };
+          cell.border = {
+            top: { style: 'thin', color: { argb: 'FFE2E8F0' } },
+            bottom: { style: 'thin', color: { argb: 'FFE2E8F0' } },
+            left: { style: 'thin', color: { argb: 'FFE2E8F0' } },
+            right: { style: 'thin', color: { argb: 'FFE2E8F0' } }
+          };
+          if (colNumber === 1 || colNumber === 3 || colNumber === 5 || colNumber === 7) {
+            cell.alignment = { horizontal: 'center', vertical: 'middle' };
+          } else if (colNumber === 6 || colNumber === 8) {
+            cell.alignment = { horizontal: 'right', vertical: 'middle' };
+            cell.numFmt = '$#,##0';
+          } else {
+            cell.alignment = { horizontal: 'left', vertical: 'middle' };
+          }
+        });
+      }
+
+      // Tarjeta de Ejemplos de Referencia a la derecha (Columnas J a P)
+      wsInv.mergeCells('J1:P1');
+      const titleExample = wsInv.getCell('J1');
+      titleExample.value = '💡 EJEMPLOS DE DILIGENCIAMIENTO (Guía de referencia)';
+      titleExample.font = { name: 'Segoe UI', size: 10, bold: true, color: { argb: 'FFFFFFFF' } };
+      titleExample.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF047857' } };
+      titleExample.alignment = { horizontal: 'center', vertical: 'middle' };
+
+      const exampleHeaders = [
+        'Tipo de Producto',
+        'Categoría de Inventarios / Servicios',
+        'Código / SKU',
+        'Nombre del Producto / Servicio',
+        '¿Inventariable?',
+        'Precio ($)',
+        'Stock'
       ];
 
-      const wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, ws, 'Inventario');
-      
+      const exHeaderRow = wsInv.getRow(2);
+      exampleHeaders.forEach((hText, idx) => {
+        const cell = exHeaderRow.getCell(10 + idx);
+        cell.value = hText;
+        cell.font = { name: 'Segoe UI', size: 9, bold: true, color: { argb: 'FF047857' } };
+        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFD1FAE5' } };
+        cell.alignment = { horizontal: 'center', vertical: 'middle' };
+        cell.border = {
+          top: { style: 'thin', color: { argb: 'FFE2E8F0' } },
+          bottom: { style: 'thin', color: { argb: 'FFE2E8F0' } },
+          left: { style: 'thin', color: { argb: 'FFE2E8F0' } },
+          right: { style: 'thin', color: { argb: 'FFE2E8F0' } }
+        };
+      });
+
+      const examplesData = [
+        ['Producto', 'Ropa hombre', 'SKU-001', 'Blusa talla S azul', 'Si', 45000, 12],
+        ['Producto', 'Hogar', 'SKU-002', 'Olla arrocera 1.5L', 'Si', 120000, 5],
+        ['Servicio', 'Masaje', 'SERV-001', 'Masaje completo relajante', 'No', 80000, 0],
+        ['Producto', 'Licores', 'SKU-003', '1 Litro Aguardiente Amarillo', 'Si', 55000, 24],
+        ['Producto', 'Joyería', 'SKU-004', 'Cadena plata 925 45cm', 'Si', 95000, 8],
+        ['Servicio', 'Perforación oreja', 'SERV-002', 'Perforación + arete titanio', 'No', 30000, 0],
+      ];
+
+      examplesData.forEach((exRow, rIdx) => {
+        const row = wsInv.getRow(3 + rIdx);
+        exRow.forEach((val, cIdx) => {
+          const cell = row.getCell(10 + cIdx);
+          cell.value = val;
+          cell.font = { name: 'Segoe UI', size: 9.5, color: { argb: 'FF1E293B' } };
+          cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF0FDF4' } };
+          cell.border = {
+            top: { style: 'thin', color: { argb: 'FFE2E8F0' } },
+            bottom: { style: 'thin', color: { argb: 'FFE2E8F0' } },
+            left: { style: 'thin', color: { argb: 'FFE2E8F0' } },
+            right: { style: 'thin', color: { argb: 'FFE2E8F0' } }
+          };
+          if (cIdx === 0 || cIdx === 2 || cIdx === 4 || cIdx === 6) {
+            cell.alignment = { horizontal: 'center', vertical: 'middle' };
+          } else if (cIdx === 5) {
+            cell.alignment = { horizontal: 'right', vertical: 'middle' };
+            cell.numFmt = '$#,##0';
+          } else {
+            cell.alignment = { horizontal: 'left', vertical: 'middle' };
+          }
+        });
+      });
+
+      // Anchos de columna Hoja 1
+      wsInv.getColumn(1).width = 22;
+      wsInv.getColumn(2).width = 34;
+      wsInv.getColumn(3).width = 24;
+      wsInv.getColumn(4).width = 38;
+      wsInv.getColumn(5).width = 18;
+      wsInv.getColumn(6).width = 22;
+      wsInv.getColumn(7).width = 16;
+      wsInv.getColumn(8).width = 24;
+      wsInv.getColumn(9).width = 5; // Separador
+      wsInv.getColumn(10).width = 18;
+      wsInv.getColumn(11).width = 26;
+      wsInv.getColumn(12).width = 18;
+      wsInv.getColumn(13).width = 30;
+      wsInv.getColumn(14).width = 16;
+      wsInv.getColumn(15).width = 16;
+      wsInv.getColumn(16).width = 12;
+
+      // --- HOJA 2: DATOS (LISTAS DESPLEGABLES) ---
+      const wsDatos = wb.addWorksheet('Datos', {
+        properties: { tabColor: { argb: 'FF3B82F6' } }
+      });
+
+      const datosHeaderRow = wsDatos.addRow([
+        'Tipo de producto',
+        'Categoría de Inventarios / Servicios',
+        'Inventariable'
+      ]);
+      datosHeaderRow.height = 28;
+
+      datosHeaderRow.eachCell((cell) => {
+        cell.font = { name: 'Segoe UI', size: 11, bold: true, color: { argb: 'FFFFFFFF' } };
+        cell.fill = {
+          type: 'pattern',
+          pattern: 'solid',
+          fgColor: { argb: 'FF1E293B' }
+        };
+        cell.alignment = { horizontal: 'center', vertical: 'middle' };
+        cell.border = {
+          top: { style: 'medium', color: { argb: 'FF0F172A' } },
+          bottom: { style: 'medium', color: { argb: 'FF0F172A' } },
+          left: { style: 'thin', color: { argb: 'FF0F172A' } },
+          right: { style: 'thin', color: { argb: 'FF0F172A' } }
+        };
+      });
+
+      const categoriasPresentesEnInventario = [...new Set(inventario.map(p => normalizarCategoria(p.categoria)))];
+      const todasLasCategorias = [...new Set([...categoriasOrdenadas, ...categoriasPresentesEnInventario])].sort((a, b) => a.localeCompare(b, 'es'));
+      const maxFilas = Math.max(2, todasLasCategorias.length);
+
+      for (let i = 0; i < maxFilas; i++) {
+        const row = wsDatos.addRow([
+          i === 0 ? 'Producto' : (i === 1 ? 'Servicio' : ''),
+          todasLasCategorias[i] || '',
+          i === 0 ? 'Si' : (i === 1 ? 'No' : '')
+        ]);
+        row.height = 20;
+        row.eachCell({ includeEmpty: true }, (cell, colNumber) => {
+          cell.font = { name: 'Segoe UI', size: 10, color: { argb: 'FF1E293B' } };
+          cell.border = {
+            top: { style: 'thin', color: { argb: 'FFE2E8F0' } },
+            bottom: { style: 'thin', color: { argb: 'FFE2E8F0' } },
+            left: { style: 'thin', color: { argb: 'FFE2E8F0' } },
+            right: { style: 'thin', color: { argb: 'FFE2E8F0' } }
+          };
+          if (colNumber === 1 || colNumber === 3) {
+            cell.alignment = { horizontal: 'center', vertical: 'middle' };
+          } else {
+            cell.alignment = { horizontal: 'left', vertical: 'middle' };
+          }
+        });
+      }
+
+      wsDatos.columns = [
+        { width: 22 },
+        { width: 34 },
+        { width: 20 }
+      ];
+
+      // Listas desplegables (Data Validations) en Hoja Inventario
+      const maxRowsValidation = Math.max(inventarioProcesado.length + 35, 100);
+      for (let r = 2; r <= maxRowsValidation; r++) {
+        wsInv.getCell(`A${r}`).dataValidation = {
+          type: 'list',
+          allowBlank: true,
+          formulae: ['Datos!$A$2:$A$3'],
+          showErrorMessage: true,
+          errorTitle: 'Tipo no válido',
+          error: 'Selecciona Producto o Servicio'
+        };
+
+        wsInv.getCell(`B${r}`).dataValidation = {
+          type: 'list',
+          allowBlank: true,
+          formulae: [`Datos!$B$2:$B$${todasLasCategorias.length + 10}`],
+          showErrorMessage: true,
+          errorTitle: 'Categoría no válida',
+          error: 'Selecciona una categoría de la lista o agrégala en la hoja Datos'
+        };
+
+        wsInv.getCell(`E${r}`).dataValidation = {
+          type: 'list',
+          allowBlank: true,
+          formulae: ['Datos!$C$2:$C$3'],
+          showErrorMessage: true,
+          errorTitle: 'Opción no válida',
+          error: 'Selecciona Si o No'
+        };
+      }
+
+      // Generar buffer y descargar
+      const buffer = await wb.xlsx.writeBuffer();
+      const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+      const url = window.URL.createObjectURL(blob);
+      const anchor = document.createElement('a');
+      anchor.href = url;
       const fechaHoy = new Date().toISOString().split('T')[0];
-      XLSX.writeFile(wb, `Inventario_Fiabono_${fechaHoy}.xlsx`);
-      toast.success(`¡Inventario exportado con éxito (${filas.length} productos)!`);
+      anchor.download = `Inventario_Fiabono_${fechaHoy}.xlsx`;
+      anchor.click();
+      window.URL.revokeObjectURL(url);
+
+      toast.dismiss(toastId);
+      toast.success(`¡Inventario exportado con diseño corporativo (${inventarioProcesado.length} productos)!`);
     } catch (error) {
       console.error(error);
-      toast.error("Ocurrió un error al exportar el inventario a Excel.");
+      toast.dismiss(toastId);
+      toast.error("Ocurrió un error al exportar el inventario con estilo a Excel.");
     }
   };
 
@@ -1103,37 +1403,37 @@ export default function InventarioPage() {
   };
 
   // Renderizado de Badge de Stock
-  const renderStockBadge = (prod: any) => {
+  const renderStockBadge = (prod: any, modo: 'normal' | 'movil' = 'normal') => {
     const cant = Number(prod.stock || 0);
     const esServicio = prod.tipoProducto === 'servicio' || prod.inventariable === false;
 
     if (esServicio) {
       return (
-        <span className="inline-flex items-center gap-1 rounded-full bg-indigo-50 text-indigo-700 dark:bg-indigo-500/15 dark:text-indigo-300 px-2.5 py-1 text-xs font-bold border border-indigo-200 dark:border-indigo-800">
-          🛠️ Servicio / Ilimitado
+        <span className={`inline-flex items-center gap-1 rounded-full bg-indigo-50 text-indigo-700 dark:bg-indigo-500/15 dark:text-indigo-300 ${modo === 'movil' ? 'px-2 py-0.5 text-[10px]' : 'px-2.5 py-1 text-xs'} font-bold border border-indigo-200 dark:border-indigo-800 shrink-0`}>
+          🛠️ {modo === 'movil' ? 'Servicio' : 'Servicio / Ilimitado'}
         </span>
       );
     }
 
     if (cant <= 0) {
       return (
-        <span className="inline-flex items-center gap-1 rounded-full bg-rose-50 text-rose-700 dark:bg-rose-500/15 dark:text-rose-300 px-2.5 py-1 text-xs font-black border border-rose-200 dark:border-rose-800 animate-pulse">
-          <XCircle size={13} className="shrink-0" /> Sin Stock (0)
+        <span className={`inline-flex items-center gap-1 rounded-full bg-rose-50 text-rose-700 dark:bg-rose-500/15 dark:text-rose-300 ${modo === 'movil' ? 'px-2 py-0.5 text-[10px]' : 'px-2.5 py-1 text-xs'} font-black border border-rose-200 dark:border-rose-800 shrink-0 animate-pulse`}>
+          <XCircle size={modo === 'movil' ? 11 : 13} className="shrink-0" /> {modo === 'movil' ? 'Sin stock' : 'Sin Stock (0)'}
         </span>
       );
     }
 
     if (cant <= 5) {
       return (
-        <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300 px-2.5 py-1 text-xs font-black border border-amber-200 dark:border-amber-800">
-          <AlertTriangle size={13} className="shrink-0" /> Stock bajo ({cant})
+        <span className={`inline-flex items-center gap-1 rounded-full bg-amber-50 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300 ${modo === 'movil' ? 'px-2 py-0.5 text-[10px]' : 'px-2.5 py-1 text-xs'} font-black border border-amber-200 dark:border-amber-800 shrink-0`}>
+          <AlertTriangle size={modo === 'movil' ? 11 : 13} className="shrink-0" /> {cant} {cant === 1 ? 'un.' : 'un.'}
         </span>
       );
     }
 
     return (
-      <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300 px-2.5 py-1 text-xs font-bold border border-emerald-200 dark:border-emerald-800">
-        <CheckCircle2 size={13} className="shrink-0" /> {cant} {cant === 1 ? 'unidad' : 'unidades'}
+      <span className={`inline-flex items-center gap-1 rounded-full bg-emerald-50 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300 ${modo === 'movil' ? 'px-2 py-0.5 text-[10px]' : 'px-2.5 py-1 text-xs'} font-bold border border-emerald-200 dark:border-emerald-800 shrink-0`}>
+        <CheckCircle2 size={modo === 'movil' ? 11 : 13} className="shrink-0" /> {cant} {modo === 'movil' ? (cant === 1 ? 'un.' : 'un.') : (cant === 1 ? 'unidad' : 'unidades')}
       </span>
     );
   };
@@ -1149,227 +1449,248 @@ export default function InventarioPage() {
   };
 
   return (
-    <div className="flex flex-col w-full h-full pb-24 md:pb-0 bg-slate-50 dark:bg-[#020617] md:rounded-[2.5rem] overflow-hidden md:border md:border-slate-100 dark:md:border-slate-800/60 shadow-none md:shadow-2xl animate-in fade-in duration-300">
+    <div className="flex flex-col w-full h-full bg-slate-50 dark:bg-[#020617] md:rounded-[2.5rem] overflow-hidden md:border md:border-slate-100 dark:md:border-slate-800/60 shadow-none md:shadow-2xl animate-in fade-in duration-300">
       
-      {/* HEADER */}
-      <div className="bg-emerald-600 dark:bg-emerald-700 p-4 md:p-6 text-white flex justify-between items-center shrink-0 z-30 shadow-sm">
-        <div className="flex items-center gap-3 md:gap-4">
-          <button onClick={() => router.push('/dashboard/inicio')} className="bg-white/20 hover:bg-white/30 p-2.5 rounded-full transition-colors backdrop-blur-sm">
-            <ArrowLeft size={22} />
+      {/* HEADER ULTRA RESPONSIVE */}
+      <div className="bg-emerald-600 dark:bg-emerald-700 p-3 sm:p-4 text-white flex justify-between items-center shrink-0 z-30 shadow-sm relative">
+        <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
+          <button onClick={() => router.push('/dashboard/inicio')} className="bg-white/20 hover:bg-white/30 p-2 sm:p-2.5 rounded-full transition-colors backdrop-blur-sm shrink-0">
+            <ArrowLeft size={18} />
           </button>
-          <div>
-            <h2 className="text-xl md:text-3xl font-black uppercase tracking-wide flex items-center gap-2">
-              <Package size={26}/> Inventario General
+          <div className="min-w-0">
+            <h2 className="text-base sm:text-2xl font-black uppercase tracking-wide flex items-center gap-1.5 whitespace-nowrap">
+              <Package size={20} className="shrink-0"/> 
+              <span className="sm:hidden">Inventario</span>
+              <span className="hidden sm:inline">Inventario General</span>
             </h2>
-            <p className="text-xs text-white/80 font-medium hidden sm:block">
+            <p className="text-[11px] text-white/80 font-medium hidden lg:block truncate">
               {esAdmin ? "Control de stock, precios y catálogo de productos" : "Consulta de catálogo, precios y disponibilidad"}
             </p>
           </div>
         </div>
-        <div className="flex items-center gap-2">
+
+        {/* Acciones de Cabecera */}
+        <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
           {esAdmin && (
-            <button 
-              onClick={exportarInventarioAExcel} 
-              className="bg-white/20 hover:bg-white/30 px-3 py-2.5 rounded-xl font-bold text-xs md:text-sm flex items-center gap-1.5 transition-colors backdrop-blur-sm shadow-sm"
-              title="Descargar inventario en archivo Excel .xlsx"
-            >
-              <FileSpreadsheet size={17}/> <span className="hidden sm:inline">Exportar Excel</span>
-            </button>
-          )}
-          {esAdmin && (
-            <button 
-              onClick={() => { setProductosAImportar([]); setModalImportarExcel(true); }} 
-              className="bg-white/20 hover:bg-white/30 px-3 py-2.5 rounded-xl font-bold text-xs md:text-sm flex items-center gap-1.5 transition-colors backdrop-blur-sm shadow-sm"
-              title="Cargar productos masivamente desde un archivo Excel"
-            >
-              <Upload size={17}/> <span className="hidden sm:inline">Importar Excel</span>
-            </button>
-          )}
-          {esAdmin && (
-            <button 
-              onClick={() => setModalExportarQR(true)} 
-              className="bg-white/20 hover:bg-white/30 px-3 py-2.5 rounded-xl font-bold text-xs md:text-sm flex items-center gap-1.5 transition-colors backdrop-blur-sm shadow-sm"
-              title="Imprimir o exportar etiquetas con códigos QR"
-            >
-              <Printer size={17}/> <span className="hidden sm:inline">Exportar QRs</span>
-            </button>
-          )}
-          {esAdmin && (
-            <button 
-              onClick={() => { limpiarFormulario(); setModalProducto(true); }} 
-              className="bg-white text-emerald-700 hover:bg-emerald-50 px-3.5 sm:px-4 py-2.5 rounded-xl font-black text-xs sm:text-sm flex items-center gap-1.5 shadow-md transition-transform active:scale-95"
-            >
-              <Plus size={17}/> <span className="hidden xs:inline">Nuevo Producto</span>
-            </button>
+            <>
+              {/* En Pantallas Medianas/Grandes (md:): Botones directos */}
+              <div className="hidden md:flex items-center gap-1.5">
+                <button 
+                  onClick={() => setModalExportarExcel(true)} 
+                  className="bg-white/20 hover:bg-white/30 px-3 py-2 rounded-xl font-bold text-xs flex items-center gap-1.5 transition-colors backdrop-blur-sm shadow-sm"
+                  title="Descargar inventario en archivo Excel .xlsx"
+                >
+                  <FileSpreadsheet size={15}/> <span>Exportar Excel</span>
+                </button>
+                <button 
+                  onClick={() => { setProductosAImportar([]); setModalImportarExcel(true); }} 
+                  className="bg-white/20 hover:bg-white/30 px-3 py-2 rounded-xl font-bold text-xs flex items-center gap-1.5 transition-colors backdrop-blur-sm shadow-sm"
+                  title="Cargar productos masivamente desde un archivo Excel"
+                >
+                  <Upload size={15}/> <span>Importar Excel</span>
+                </button>
+                <button 
+                  onClick={() => setModalExportarQR(true)} 
+                  className="bg-white/20 hover:bg-white/30 px-3 py-2 rounded-xl font-bold text-xs flex items-center gap-1.5 transition-colors backdrop-blur-sm shadow-sm"
+                  title="Imprimir o exportar etiquetas con códigos QR"
+                >
+                  <Printer size={15}/> <span>Exportar QRs</span>
+                </button>
+              </div>
+
+              {/* En Móvil (< md): Menú Desplegable de Herramientas */}
+              <div className="relative md:hidden">
+                <button 
+                  type="button"
+                  onClick={() => setMenuHerramientasMovil(!menuHerramientasMovil)}
+                  className="bg-white/20 hover:bg-white/30 p-2 rounded-xl font-bold text-xs flex items-center justify-center transition-colors backdrop-blur-sm shadow-sm text-white active:scale-95"
+                  title="Herramientas de inventario (Excel, Importar, QRs)"
+                >
+                  <MoreVertical size={18}/>
+                </button>
+
+                {menuHerramientasMovil && (
+                  <div className="absolute right-0 top-full mt-2 w-52 bg-white dark:bg-[#0f172a] text-slate-800 dark:text-white rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 p-1.5 z-50 animate-in zoom-in-95 duration-150">
+                    <button
+                      onClick={() => { setMenuHerramientasMovil(false); setModalExportarExcel(true); }}
+                      className="w-full flex items-center gap-2.5 px-3 py-2.5 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl text-xs font-bold text-left transition-colors"
+                    >
+                      <FileSpreadsheet size={16} className="text-emerald-600"/>
+                      <span>Exportar a Excel</span>
+                    </button>
+                    <button
+                      onClick={() => { setMenuHerramientasMovil(false); setProductosAImportar([]); setModalImportarExcel(true); }}
+                      className="w-full flex items-center gap-2.5 px-3 py-2.5 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl text-xs font-bold text-left transition-colors"
+                    >
+                      <Upload size={16} className="text-blue-600"/>
+                      <span>Importar desde Excel</span>
+                    </button>
+                    <button
+                      onClick={() => { setMenuHerramientasMovil(false); setModalExportarQR(true); }}
+                      className="w-full flex items-center gap-2.5 px-3 py-2.5 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl text-xs font-bold text-left transition-colors"
+                    >
+                      <Printer size={16} className="text-indigo-600"/>
+                      <span>Exportar códigos QR</span>
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              {/* Botón Principal: Agregar Productos */}
+              <button 
+                onClick={() => { limpiarFormulario(); setModalProducto(true); }} 
+                className="bg-white text-emerald-700 hover:bg-emerald-50 px-2.5 sm:px-4 py-2 rounded-xl font-black text-xs sm:text-sm flex items-center gap-1 shadow-md transition-transform active:scale-95 shrink-0"
+                title="Agregar nuevos productos o servicios al inventario"
+              >
+                <Plus size={16}/> <span>Agregar<span className="hidden sm:inline"> Productos</span></span>
+              </button>
+            </>
           )}
         </div>
       </div>
 
-      {/* CONTENIDO PRINCIPAL */}
-      <div className="flex-1 p-4 sm:p-6 lg:p-8 overflow-y-auto">
-        <div className="max-w-6xl mx-auto space-y-4 sm:space-y-5">
+      {/* CONTENIDO PRINCIPAL COMPACTO Y RESPONSIVE */}
+      <div className="flex-1 p-3 sm:p-4 lg:p-5 overflow-y-auto">
+        <div className="max-w-7xl mx-auto space-y-3 sm:space-y-4">
           
-          {/* TARJETAS DE MÉTRICAS (ADMIN) O ALERTAS SUTILES DE STOCK (COLABORADOR) */}
-          {esAdmin ? (
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-3">
-              
-              {/* Tarjeta 1: Total Referencias */}
-              <div 
-                onClick={limpiarTodosLosFiltros}
-                className={`p-3 sm:p-3.5 rounded-2xl border transition-all cursor-pointer shadow-sm flex items-center justify-between ${
-                  filtrosStock.length === 0 && filtrosCategoria.length === 0 && !busqueda
-                    ? 'bg-emerald-500/10 border-emerald-500/40 dark:bg-emerald-500/20'
-                    : 'bg-white dark:bg-[#0f172a] border-slate-200 dark:border-slate-800 hover:border-emerald-300'
-                }`}
-              >
-                <div className="min-w-0">
-                  <span className="text-[10px] sm:text-[11px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400 block truncate">
-                    Referencias
-                  </span>
-                  <div className="flex items-baseline gap-1.5 mt-0.5">
-                    <span className="text-lg sm:text-xl font-black text-slate-900 dark:text-white tracking-tight">
-                      {metricas.totalProductos}
-                    </span>
-                    <span className="text-[10px] text-slate-400 font-medium truncate">
-                      ({metricas.unidadesFisicasTotales} un.)
-                    </span>
+          {/* SECCIÓN DE MÉTRICAS (COLAPSIBLE PARA GANAR ESPACIO EN LAPTOPS Y MÓVIL) */}
+          {esAdmin && (
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between px-1">
+                <span className="text-[10px] sm:text-[11px] font-black uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
+                  <Boxes size={13} className="text-emerald-500" /> Resumen de Inventario
+                </span>
+                <button 
+                  type="button" 
+                  onClick={() => setMostrarMetricas(!mostrarMetricas)}
+                  className="text-[10px] sm:text-[11px] font-bold text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 transition-colors flex items-center gap-1 bg-slate-200/60 dark:bg-slate-800/80 px-2.5 py-1 rounded-lg cursor-pointer"
+                  title="Ocultar o mostrar métricas para ganar espacio en pantalla"
+                >
+                  {mostrarMetricas ? 'Ocultar Resumen ▲' : 'Ver Resumen ▼'}
+                </button>
+              </div>
+
+              {mostrarMetricas && (
+                <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-2.5 animate-in fade-in duration-200">
+                  
+                  {/* Tarjeta 1: Total Referencias */}
+                  <div 
+                    onClick={limpiarTodosLosFiltros}
+                    className={`p-2.5 sm:p-3 rounded-2xl border transition-all cursor-pointer shadow-sm flex items-center justify-between ${
+                      filtrosStock.length === 0 && filtrosCategoria.length === 0 && !busqueda
+                        ? 'bg-emerald-500/10 border-emerald-500/40 dark:bg-emerald-500/20'
+                        : 'bg-white dark:bg-[#0f172a] border-slate-200 dark:border-slate-800 hover:border-emerald-300'
+                    }`}
+                  >
+                    <div className="min-w-0">
+                      <span className="text-[10px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400 block truncate">
+                        Referencias
+                      </span>
+                      <div className="flex items-baseline gap-1.5 mt-0.5">
+                        <span className="text-base sm:text-lg font-black text-slate-900 dark:text-white tracking-tight">
+                          {metricas.totalProductos}
+                        </span>
+                        <span className="text-[10px] text-slate-400 font-medium truncate">
+                          ({metricas.unidadesFisicasTotales} un.)
+                        </span>
+                      </div>
+                    </div>
+                    <div className="p-1.5 bg-emerald-100 dark:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 rounded-xl shrink-0">
+                      <Boxes size={15} />
+                    </div>
                   </div>
-                </div>
-                <div className="p-2 bg-emerald-100 dark:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 rounded-xl shrink-0">
-                  <Boxes size={16} />
-                </div>
-              </div>
 
-              {/* Tarjeta 2: Valor del Inventario */}
-              <div className="p-3 sm:p-3.5 rounded-2xl bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-800 shadow-sm flex items-center justify-between">
-                <div className="min-w-0">
-                  <span className="text-[10px] sm:text-[11px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400 block truncate">
-                    Valor Mercancía
-                  </span>
-                  <p className="text-lg sm:text-xl font-black text-slate-900 dark:text-white tracking-tight truncate mt-0.5">
-                    ${metricas.valorTotal.toLocaleString('es-CO')}
-                  </p>
-                </div>
-                <div className="p-2 bg-blue-100 dark:bg-blue-500/20 text-blue-600 dark:text-blue-400 rounded-xl shrink-0">
-                  <DollarSign size={16} />
-                </div>
-              </div>
-
-              {/* Tarjeta 3: Stock Bajo */}
-              <div 
-                onClick={() => toggleFiltroStock('stock_bajo')}
-                className={`p-3 sm:p-3.5 rounded-2xl border transition-all cursor-pointer shadow-sm flex items-center justify-between ${
-                  filtrosStock.includes('stock_bajo')
-                    ? 'bg-amber-500/15 border-amber-500 dark:bg-amber-500/25 ring-2 ring-amber-500/20'
-                    : 'bg-white dark:bg-[#0f172a] border-slate-200 dark:border-slate-800 hover:border-amber-400'
-                }`}
-              >
-                <div className="min-w-0">
-                  <span className="text-[10px] sm:text-[11px] font-black uppercase tracking-wider text-amber-600 dark:text-amber-400 block truncate">
-                    Stock Bajo (1-5)
-                  </span>
-                  <div className="flex items-baseline gap-1.5 mt-0.5">
-                    <span className="text-lg sm:text-xl font-black text-amber-600 dark:text-amber-400 tracking-tight">
-                      {metricas.stockBajo}
-                    </span>
-                    <span className="text-[10px] text-slate-400 font-medium truncate">
-                      por agotar
-                    </span>
+                  {/* Tarjeta 2: Valor del Inventario */}
+                  <div className="p-2.5 sm:p-3 rounded-2xl bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-800 shadow-sm flex items-center justify-between">
+                    <div className="min-w-0">
+                      <span className="text-[10px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400 block truncate">
+                        Valor Mercancía
+                      </span>
+                      <p className="text-base sm:text-lg font-black text-slate-900 dark:text-white tracking-tight truncate mt-0.5">
+                        ${metricas.valorTotal.toLocaleString('es-CO')}
+                      </p>
+                    </div>
+                    <div className="p-1.5 bg-blue-100 dark:bg-blue-500/20 text-blue-600 dark:text-blue-400 rounded-xl shrink-0">
+                      <DollarSign size={15} />
+                    </div>
                   </div>
-                </div>
-                <div className="p-2 bg-amber-100 dark:bg-amber-500/20 text-amber-600 dark:text-amber-400 rounded-xl shrink-0">
-                  <AlertTriangle size={16} />
-                </div>
-              </div>
 
-              {/* Tarjeta 4: Sin Stock */}
-              <div 
-                onClick={() => toggleFiltroStock('sin_stock')}
-                className={`p-3 sm:p-3.5 rounded-2xl border transition-all cursor-pointer shadow-sm flex items-center justify-between ${
-                  filtrosStock.includes('sin_stock')
-                    ? 'bg-rose-500/15 border-rose-500 dark:bg-rose-500/25 ring-2 ring-rose-500/20'
-                    : 'bg-white dark:bg-[#0f172a] border-slate-200 dark:border-slate-800 hover:border-rose-400'
-                }`}
-              >
-                <div className="min-w-0">
-                  <span className="text-[10px] sm:text-[11px] font-black uppercase tracking-wider text-rose-600 dark:text-rose-400 block truncate">
-                    Sin Stock (0)
-                  </span>
-                  <div className="flex items-baseline gap-1.5 mt-0.5">
-                    <span className="text-lg sm:text-xl font-black text-rose-600 dark:text-rose-400 tracking-tight">
-                      {metricas.sinStock}
-                    </span>
-                    <span className="text-[10px] text-slate-400 font-medium truncate">
-                      agotados
-                    </span>
+                  {/* Tarjeta 3: Stock Bajo */}
+                  <div 
+                    onClick={() => toggleFiltroStock('stock_bajo')}
+                    className={`p-2.5 sm:p-3 rounded-2xl border transition-all cursor-pointer shadow-sm flex items-center justify-between ${
+                      filtrosStock.includes('stock_bajo')
+                        ? 'bg-amber-500/15 border-amber-500 dark:bg-amber-500/25 ring-2 ring-amber-500/20'
+                        : 'bg-white dark:bg-[#0f172a] border-slate-200 dark:border-slate-800 hover:border-amber-400'
+                    }`}
+                  >
+                    <div className="min-w-0">
+                      <span className="text-[10px] font-black uppercase tracking-wider text-amber-600 dark:text-amber-400 block truncate">
+                        Stock Bajo (1-5)
+                      </span>
+                      <div className="flex items-baseline gap-1.5 mt-0.5">
+                        <span className="text-base sm:text-lg font-black text-amber-600 dark:text-amber-400 tracking-tight">
+                          {metricas.stockBajo}
+                        </span>
+                        <span className="text-[10px] text-slate-400 font-medium truncate">
+                          por agotar
+                        </span>
+                      </div>
+                    </div>
+                    <div className="p-1.5 bg-amber-100 dark:bg-amber-500/20 text-amber-600 dark:text-amber-400 rounded-xl shrink-0">
+                      <AlertTriangle size={15} />
+                    </div>
                   </div>
-                </div>
-                <div className="p-2 bg-rose-100 dark:bg-rose-500/20 text-rose-600 dark:text-rose-400 rounded-xl shrink-0">
-                  <XCircle size={16} />
-                </div>
-              </div>
 
+                  {/* Tarjeta 4: Sin Stock */}
+                  <div 
+                    onClick={() => toggleFiltroStock('sin_stock')}
+                    className={`p-2.5 sm:p-3 rounded-2xl border transition-all cursor-pointer shadow-sm flex items-center justify-between ${
+                      filtrosStock.includes('sin_stock')
+                        ? 'bg-rose-500/15 border-rose-500 dark:bg-rose-500/25 ring-2 ring-rose-500/20'
+                        : 'bg-white dark:bg-[#0f172a] border-slate-200 dark:border-slate-800 hover:border-rose-400'
+                    }`}
+                  >
+                    <div className="min-w-0">
+                      <span className="text-[10px] font-black uppercase tracking-wider text-rose-600 dark:text-rose-400 block truncate">
+                        Sin Stock (0)
+                      </span>
+                      <div className="flex items-baseline gap-1.5 mt-0.5">
+                        <span className="text-base sm:text-lg font-black text-rose-600 dark:text-rose-400 tracking-tight">
+                          {metricas.sinStock}
+                        </span>
+                        <span className="text-[10px] text-slate-400 font-medium truncate">
+                          agotados
+                        </span>
+                      </div>
+                    </div>
+                    <div className="p-1.5 bg-rose-100 dark:bg-rose-500/20 text-rose-600 dark:text-rose-400 rounded-xl shrink-0">
+                      <XCircle size={15} />
+                    </div>
+                  </div>
+
+                </div>
+              )}
             </div>
-          ) : (
-            /* VISTA COLABORADOR: ALERTAS SUTILES DE DISPONIBILIDAD */
-            (metricas.stockBajo > 0 || metricas.sinStock > 0) && (
-              <div className="flex flex-wrap items-center justify-between gap-3 p-3.5 px-4 bg-white dark:bg-[#0f172a] rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm animate-in fade-in duration-200">
-                <div className="flex items-center gap-2">
-                  <span className="text-xs font-black uppercase tracking-wider text-slate-400">
-                    Avisos de tienda:
-                  </span>
-                </div>
-                <div className="flex items-center gap-2">
-                  {metricas.stockBajo > 0 && (
-                    <button
-                      type="button"
-                      onClick={() => toggleFiltroStock('stock_bajo')}
-                      className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
-                        filtrosStock.includes('stock_bajo')
-                          ? 'bg-amber-600 text-white shadow-sm font-black ring-2 ring-amber-500/30'
-                          : 'bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-900/40 hover:border-amber-400'
-                      }`}
-                    >
-                      <AlertTriangle size={13} className="shrink-0" />
-                      <span>Stock Bajo ({metricas.stockBajo})</span>
-                    </button>
-                  )}
-                  {metricas.sinStock > 0 && (
-                    <button
-                      type="button"
-                      onClick={() => toggleFiltroStock('sin_stock')}
-                      className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
-                        filtrosStock.includes('sin_stock')
-                          ? 'bg-rose-600 text-white shadow-sm font-black ring-2 ring-rose-500/30'
-                          : 'bg-rose-50 dark:bg-rose-500/10 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-900/40 hover:border-rose-400'
-                      }`}
-                    >
-                      <XCircle size={13} className="shrink-0" />
-                      <span>Agotados ({metricas.sinStock})</span>
-                    </button>
-                  )}
-                </div>
-              </div>
-            )
           )}
 
-          {/* BARRA DE BÚSQUEDA Y SELECTOR DE VISTA */}
-          <div className="flex flex-col sm:flex-row justify-between items-center gap-3">
+          {/* BARRA DE BÚSQUEDA Y SELECTOR DE VISTA COMPACTA */}
+          <div className="flex flex-col sm:flex-row justify-between items-center gap-2.5">
             <div className="relative flex-1 w-full">
-              <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
+              <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
               <input 
                 type="text" 
                 value={busqueda} 
                 onChange={(e) => setBusqueda(e.target.value)} 
                 placeholder="Buscar por nombre, SKU o categoría..." 
-                className="w-full p-4 pl-12 pr-10 bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-800 rounded-2xl font-bold outline-none focus:border-emerald-500 shadow-sm transition-colors text-base text-slate-900 dark:text-white" 
+                className="w-full py-2.5 pl-10 pr-9 bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-800 rounded-2xl font-bold outline-none focus:border-emerald-500 shadow-sm transition-colors text-sm text-slate-900 dark:text-white" 
               />
               {busqueda && (
                 <button 
                   onClick={() => setBusqueda("")} 
-                  className="absolute right-3.5 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-full"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-full"
                 >
-                  <X size={16} />
+                  <X size={15} />
                 </button>
               )}
             </div>
@@ -1379,137 +1700,186 @@ export default function InventarioPage() {
               <div className="flex bg-slate-200/80 dark:bg-slate-800 p-1 rounded-2xl shrink-0 w-full sm:w-auto justify-center">
                 <button 
                   onClick={() => setVistaActual('lista')} 
-                  className={`flex-1 sm:flex-none flex items-center justify-center gap-2 px-5 py-3 rounded-xl font-bold text-sm transition-all ${vistaActual === 'lista' ? 'bg-white dark:bg-[#0f172a] text-slate-900 dark:text-white shadow-sm' : 'text-slate-500 hover:text-slate-900 dark:hover:text-white'}`}
+                  className={`flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl font-bold text-xs sm:text-sm transition-all ${vistaActual === 'lista' ? 'bg-white dark:bg-[#0f172a] text-slate-900 dark:text-white shadow-sm' : 'text-slate-500 hover:text-slate-900 dark:hover:text-white'}`}
                 >
-                  <LayoutList size={18} /> Tabla
+                  <LayoutList size={16} /> Tabla
                 </button>
                 <button 
                   onClick={() => setVistaActual('qr')} 
-                  className={`flex-1 sm:flex-none flex items-center justify-center gap-2 px-5 py-3 rounded-xl font-bold text-sm transition-all ${vistaActual === 'qr' ? 'bg-white dark:bg-[#0f172a] text-slate-900 dark:text-white shadow-sm' : 'text-slate-500 hover:text-slate-900 dark:hover:text-white'}`}
+                  className={`flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl font-bold text-xs sm:text-sm transition-all ${vistaActual === 'qr' ? 'bg-white dark:bg-[#0f172a] text-slate-900 dark:text-white shadow-sm' : 'text-slate-500 hover:text-slate-900 dark:hover:text-white'}`}
                 >
-                  <QrCode size={18} /> Códigos QR
+                  <QrCode size={16} /> Códigos QR
                 </button>
               </div>
             )}
           </div>
 
-          {/* FILTROS POR ESTADO DE STOCK (PILLS MULTI-SELECCIÓN) */}
-          <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
-            <span className="text-xs font-black uppercase tracking-wider text-slate-400 shrink-0 flex items-center gap-1 mr-1">
-              <Layers size={14} /> Stock:
-            </span>
+          {/* FILTROS POR ESTADO DE STOCK CON FLECHAS DE NAVEGACIÓN Y DESPLAZAMIENTO */}
+          <div className="relative flex items-center gap-1 group">
             <button
-              onClick={limpiarFiltroStock}
-              className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all shrink-0 ${
-                filtrosStock.length === 0
-                  ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900 shadow-sm font-black'
-                  : 'bg-white dark:bg-[#0f172a] text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-800 hover:border-slate-400'
-              }`}
+              type="button"
+              onClick={() => scrollContenedor(stockScrollRef, 'left')}
+              className="hidden sm:flex items-center justify-center w-7 h-7 bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-800 rounded-full shadow-sm text-slate-500 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 shrink-0 transition-all active:scale-90 z-10"
+              title="Desplazar filtros a la izquierda"
             >
-              Todos ({inventario.length})
+              <ChevronLeft size={16} />
             </button>
-            <button
-              onClick={() => toggleFiltroStock('en_stock')}
-              className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all shrink-0 flex items-center gap-1.5 ${
-                filtrosStock.includes('en_stock')
-                  ? 'bg-emerald-600 text-white shadow-sm font-black ring-2 ring-emerald-500/30'
-                  : 'bg-white dark:bg-[#0f172a] text-emerald-700 dark:text-emerald-400 border border-slate-200 dark:border-slate-800 hover:border-emerald-400'
-              }`}
-            >
-              <CheckCircle2 size={13} /> Con Stock / Disponibles ({metricas.enStock})
-            </button>
-            <button
-              onClick={() => toggleFiltroStock('stock_bajo')}
-              className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all shrink-0 flex items-center gap-1.5 ${
-                filtrosStock.includes('stock_bajo')
-                  ? 'bg-amber-600 text-white shadow-sm font-black ring-2 ring-amber-500/30'
-                  : 'bg-white dark:bg-[#0f172a] text-amber-700 dark:text-amber-400 border border-slate-200 dark:border-slate-800 hover:border-amber-400'
-              }`}
-            >
-              <AlertTriangle size={13} /> Stock Bajo ({metricas.stockBajo})
-            </button>
-            <button
-              onClick={() => toggleFiltroStock('sin_stock')}
-              className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all shrink-0 flex items-center gap-1.5 ${
-                filtrosStock.includes('sin_stock')
-                  ? 'bg-rose-600 text-white shadow-sm font-black ring-2 ring-rose-500/30'
-                  : 'bg-white dark:bg-[#0f172a] text-rose-700 dark:text-rose-400 border border-slate-200 dark:border-slate-800 hover:border-rose-400'
-              }`}
-            >
-              <XCircle size={13} /> Sin Stock ({metricas.sinStock})
-            </button>
-            <button
-              onClick={() => toggleFiltroStock('servicios')}
-              className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all shrink-0 flex items-center gap-1.5 ${
-                filtrosStock.includes('servicios')
-                  ? 'bg-indigo-600 text-white shadow-sm font-black ring-2 ring-indigo-500/30'
-                  : 'bg-white dark:bg-[#0f172a] text-indigo-700 dark:text-indigo-400 border border-slate-200 dark:border-slate-800 hover:border-indigo-400'
-              }`}
-            >
-              <span>🛠️</span> Servicios / Ilimitados ({metricas.totalServicios})
-            </button>
-          </div>
 
-          {/* FILTROS POR ETIQUETAS / CATEGORÍAS (PILLS MULTI-SELECCIÓN) */}
-          {categoriasPresentes.length > 0 && (
-            <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
-              <span className="text-xs font-black uppercase tracking-wider text-slate-400 shrink-0 flex items-center gap-1 mr-1">
-                <Tag size={14} /> Categoría:
+            <div 
+              ref={stockScrollRef} 
+              className="flex-1 flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none scroll-smooth"
+            >
+              <span className="text-[11px] font-black uppercase tracking-wider text-slate-400 shrink-0 flex items-center gap-1 mr-1">
+                <Layers size={13} /> Stock:
               </span>
               <button
-                onClick={limpiarFiltroCategoria}
-                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all shrink-0 ${
-                  filtrosCategoria.length === 0
-                    ? 'bg-blue-600 text-white shadow-sm font-black'
-                    : 'bg-white dark:bg-[#0f172a] text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-800 hover:border-blue-400'
+                onClick={limpiarFiltroStock}
+                className={`px-3 py-1 rounded-xl text-xs font-bold transition-all shrink-0 ${
+                  filtrosStock.length === 0
+                    ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900 shadow-sm font-black'
+                    : 'bg-white dark:bg-[#0f172a] text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-800 hover:border-slate-400'
                 }`}
               >
-                Todas las categorías ({categoriasPresentes.length})
+                Todos ({inventario.length})
               </button>
-              {categoriasPresentes.map(cat => {
-                const count = inventario.filter(p => normalizarCategoria(p.categoria).toLowerCase() === cat.toLowerCase()).length;
-                const estaSeleccionada = filtrosCategoria.includes(cat.toLowerCase());
-                return (
-                  <button
-                    key={cat}
-                    onClick={() => toggleFiltroCategoria(cat)}
-                    className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all shrink-0 flex items-center gap-1.5 ${
-                      estaSeleccionada
-                        ? 'bg-blue-600 text-white shadow-sm font-black ring-2 ring-blue-500/30'
-                        : 'bg-white dark:bg-[#0f172a] text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-800 hover:border-blue-400'
-                    }`}
-                  >
-                    {estaSeleccionada && <span>✓</span>}
-                    <span>{cat}</span>
-                    <span className={`text-[10px] font-medium px-1.5 py-0.2 rounded-full ${estaSeleccionada ? 'bg-blue-700 text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-500'}`}>
-                      {count}
-                    </span>
-                  </button>
-                );
-              })}
+              <button
+                onClick={() => toggleFiltroStock('en_stock')}
+                className={`px-3 py-1 rounded-xl text-xs font-bold transition-all shrink-0 flex items-center gap-1.5 ${
+                  filtrosStock.includes('en_stock')
+                    ? 'bg-emerald-600 text-white shadow-sm font-black ring-2 ring-emerald-500/30'
+                    : 'bg-white dark:bg-[#0f172a] text-emerald-700 dark:text-emerald-400 border border-slate-200 dark:border-slate-800 hover:border-emerald-400'
+                }`}
+              >
+                <CheckCircle2 size={13} /> Con Stock ({metricas.enStock})
+              </button>
+              <button
+                onClick={() => toggleFiltroStock('stock_bajo')}
+                className={`px-3 py-1 rounded-xl text-xs font-bold transition-all shrink-0 flex items-center gap-1.5 ${
+                  filtrosStock.includes('stock_bajo')
+                    ? 'bg-amber-600 text-white shadow-sm font-black ring-2 ring-amber-500/30'
+                    : 'bg-white dark:bg-[#0f172a] text-amber-700 dark:text-amber-400 border border-slate-200 dark:border-slate-800 hover:border-amber-400'
+                }`}
+              >
+                <AlertTriangle size={13} /> Stock Bajo ({metricas.stockBajo})
+              </button>
+              <button
+                onClick={() => toggleFiltroStock('sin_stock')}
+                className={`px-3 py-1 rounded-xl text-xs font-bold transition-all shrink-0 flex items-center gap-1.5 ${
+                  filtrosStock.includes('sin_stock')
+                    ? 'bg-rose-600 text-white shadow-sm font-black ring-2 ring-rose-500/30'
+                    : 'bg-white dark:bg-[#0f172a] text-rose-700 dark:text-rose-400 border border-slate-200 dark:border-slate-800 hover:border-rose-400'
+                }`}
+              >
+                <XCircle size={13} /> Sin Stock ({metricas.sinStock})
+              </button>
+              <button
+                onClick={() => toggleFiltroStock('servicios')}
+                className={`px-3 py-1 rounded-xl text-xs font-bold transition-all shrink-0 flex items-center gap-1.5 ${
+                  filtrosStock.includes('servicios')
+                    ? 'bg-indigo-600 text-white shadow-sm font-black ring-2 ring-indigo-500/30'
+                    : 'bg-white dark:bg-[#0f172a] text-indigo-700 dark:text-indigo-400 border border-slate-200 dark:border-slate-800 hover:border-indigo-400'
+                }`}
+              >
+                <span>🛠️</span> Servicios ({metricas.totalServicios})
+              </button>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => scrollContenedor(stockScrollRef, 'right')}
+              className="hidden sm:flex items-center justify-center w-7 h-7 bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-800 rounded-full shadow-sm text-slate-500 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 shrink-0 transition-all active:scale-90 z-10"
+              title="Desplazar filtros a la derecha"
+            >
+              <ChevronRight size={16} />
+            </button>
+            {/* Sombra de desvanecimiento a la derecha para indicar scroll */}
+            <div className="absolute right-0 top-0 bottom-1 w-6 bg-gradient-to-l from-slate-50 dark:from-[#020617] to-transparent pointer-events-none sm:hidden" />
+          </div>
+
+          {/* FILTROS POR ETIQUETAS / CATEGORÍAS CON FLECHAS DE NAVEGACIÓN */}
+          {categoriasPresentes.length > 0 && (
+            <div className="relative flex items-center gap-1 group">
+              <button
+                type="button"
+                onClick={() => scrollContenedor(categoriasScrollRef, 'left')}
+                className="hidden sm:flex items-center justify-center w-7 h-7 bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-800 rounded-full shadow-sm text-slate-500 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 shrink-0 transition-all active:scale-90 z-10"
+                title="Desplazar categorías a la izquierda"
+              >
+                <ChevronLeft size={16} />
+              </button>
+
+              <div 
+                ref={categoriasScrollRef} 
+                className="flex-1 flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none scroll-smooth"
+              >
+                <span className="text-[11px] font-black uppercase tracking-wider text-slate-400 shrink-0 flex items-center gap-1 mr-1">
+                  <Tag size={13} /> Categoría:
+                </span>
+                <button
+                  onClick={limpiarFiltroCategoria}
+                  className={`px-2.5 py-1 rounded-xl text-xs font-bold transition-all shrink-0 ${
+                    filtrosCategoria.length === 0
+                      ? 'bg-blue-600 text-white shadow-sm font-black'
+                      : 'bg-white dark:bg-[#0f172a] text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-800 hover:border-blue-400'
+                  }`}
+                >
+                  Todas ({categoriasPresentes.length})
+                </button>
+                {categoriasPresentes.map(cat => {
+                  const count = inventario.filter(p => normalizarCategoria(p.categoria).toLowerCase() === cat.toLowerCase()).length;
+                  const estaSeleccionada = filtrosCategoria.includes(cat.toLowerCase());
+                  return (
+                    <button
+                      key={cat}
+                      onClick={() => toggleFiltroCategoria(cat)}
+                      className={`px-2.5 py-1 rounded-xl text-xs font-bold transition-all shrink-0 flex items-center gap-1 ${
+                        estaSeleccionada
+                          ? 'bg-blue-600 text-white shadow-sm font-black ring-2 ring-blue-500/30'
+                          : 'bg-white dark:bg-[#0f172a] text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-800 hover:border-blue-400'
+                      }`}
+                    >
+                      <span>{cat}</span>
+                      <span className={`text-[10px] px-1 rounded-md font-mono ${estaSeleccionada ? 'bg-blue-700 text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-500'}`}>
+                        {count}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+
+              <button
+                type="button"
+                onClick={() => scrollContenedor(categoriasScrollRef, 'right')}
+                className="hidden sm:flex items-center justify-center w-7 h-7 bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-800 rounded-full shadow-sm text-slate-500 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 shrink-0 transition-all active:scale-90 z-10"
+                title="Desplazar categorías a la derecha"
+              >
+                <ChevronRight size={16} />
+              </button>
+              {/* Sombra de desvanecimiento para indicar scroll */}
+              <div className="absolute right-0 top-0 bottom-1 w-6 bg-gradient-to-l from-slate-50 dark:from-[#020617] to-transparent pointer-events-none sm:hidden" />
             </div>
           )}
 
           {/* BARRA DE FILTROS ACTIVOS CON CHIPS REMOVIBLES (NUNCA SE CORTA) */}
           {(filtrosStock.length > 0 || filtrosCategoria.length > 0 || busqueda.trim()) && (
-            <div className="flex flex-wrap items-center justify-between gap-2 p-3 px-4 bg-white dark:bg-[#0f172a] rounded-2xl border border-slate-200 dark:border-slate-800 text-xs shadow-sm animate-in fade-in duration-200">
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="font-black text-slate-400 uppercase tracking-wider text-[11px] flex items-center gap-1 mr-1">
-                  <Sliders size={13} /> Filtros activos ({filtrosStock.length + filtrosCategoria.length + (busqueda.trim() ? 1 : 0)}):
+            <div className="flex flex-wrap items-center justify-between gap-2 p-2.5 px-3.5 bg-white dark:bg-[#0f172a] rounded-2xl border border-slate-200 dark:border-slate-800 text-xs shadow-sm animate-in fade-in duration-200">
+              <div className="flex flex-wrap items-center gap-1.5">
+                <span className="font-black text-slate-400 uppercase tracking-wider text-[10px] flex items-center gap-1 mr-1">
+                  <Sliders size={12} /> Filtros ({filtrosStock.length + filtrosCategoria.length + (busqueda.trim() ? 1 : 0)}):
                 </span>
 
                 {/* Chip Búsqueda */}
                 {busqueda.trim() && (
-                  <span className="inline-flex items-center gap-1.5 bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 px-2.5 py-1 rounded-xl border border-slate-200 dark:border-slate-700 font-bold">
+                  <span className="inline-flex items-center gap-1 bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 px-2 py-0.5 rounded-lg border border-slate-200 dark:border-slate-700 font-bold text-[11px]">
                     <Search size={11} className="text-slate-400" />
-                    <span>Texto: <em>"{busqueda}"</em></span>
+                    <span>"{busqueda}"</span>
                     <button 
                       type="button" 
                       onClick={() => setBusqueda("")} 
                       className="p-0.5 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-full text-slate-400 hover:text-rose-500 transition-colors"
                       title="Quitar búsqueda"
                     >
-                      <X size={12} />
+                      <X size={11} />
                     </button>
                   </span>
                 )}
@@ -1518,16 +1888,16 @@ export default function InventarioPage() {
                 {filtrosStock.map(f => (
                   <span 
                     key={f} 
-                    className="inline-flex items-center gap-1.5 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 px-2.5 py-1 rounded-xl border border-emerald-200 dark:border-emerald-800 font-bold"
+                    className="inline-flex items-center gap-1 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 px-2 py-0.5 rounded-lg border border-emerald-200 dark:border-emerald-800 font-bold text-[11px]"
                   >
-                    <span>Stock: {f === 'en_stock' ? 'Con stock' : f === 'stock_bajo' ? 'Stock bajo' : f === 'sin_stock' ? 'Sin stock' : 'Servicios'}</span>
+                    <span>{f === 'en_stock' ? 'Con stock' : f === 'stock_bajo' ? 'Stock bajo' : f === 'sin_stock' ? 'Sin stock' : 'Servicios'}</span>
                     <button 
                       type="button" 
                       onClick={() => toggleFiltroStock(f)} 
                       className="p-0.5 hover:bg-emerald-200 dark:hover:bg-emerald-900 rounded-full text-emerald-500 hover:text-rose-500 transition-colors"
                       title="Quitar filtro de stock"
                     >
-                      <X size={12} />
+                      <X size={11} />
                     </button>
                   </span>
                 ))}
@@ -1536,16 +1906,16 @@ export default function InventarioPage() {
                 {filtrosCategoria.map(c => (
                   <span 
                     key={c} 
-                    className="inline-flex items-center gap-1.5 bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 px-2.5 py-1 rounded-xl border border-blue-200 dark:border-blue-800 font-bold capitalize"
+                    className="inline-flex items-center gap-1 bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 px-2 py-0.5 rounded-lg border border-blue-200 dark:border-blue-800 font-bold capitalize text-[11px]"
                   >
-                    <span>Cat: {c}</span>
+                    <span>{c}</span>
                     <button 
                       type="button" 
                       onClick={() => toggleFiltroCategoria(c)} 
                       className="p-0.5 hover:bg-blue-200 dark:hover:bg-blue-900 rounded-full text-blue-500 hover:text-rose-500 transition-colors"
                       title="Quitar categoría"
                     >
-                      <X size={12} />
+                      <X size={11} />
                     </button>
                   </span>
                 ))}
@@ -1555,9 +1925,9 @@ export default function InventarioPage() {
               <button
                 type="button"
                 onClick={limpiarTodosLosFiltros}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-rose-50 hover:bg-rose-600 text-rose-700 hover:text-white dark:bg-rose-500/10 dark:text-rose-300 dark:hover:bg-rose-600 dark:hover:text-white rounded-xl text-xs font-black uppercase tracking-wider transition-all shadow-sm active:scale-95 ml-auto shrink-0"
+                className="inline-flex items-center gap-1 px-2.5 py-1 bg-rose-50 hover:bg-rose-600 text-rose-700 hover:text-white dark:bg-rose-500/10 dark:text-rose-300 dark:hover:bg-rose-600 dark:hover:text-white rounded-lg text-[11px] font-black uppercase tracking-wider transition-all shadow-sm active:scale-95 ml-auto shrink-0"
               >
-                <X size={13} /> Limpiar todos
+                <X size={12} /> Limpiar
               </button>
             </div>
           )}
@@ -1569,253 +1939,398 @@ export default function InventarioPage() {
             ))}
           </div>
 
-          {/* VISTA 1: TABLA ORDENADA Y FILTRADA */}
+          {/* VISTA 1: LISTADO DE PRODUCTOS (DUAL: TARJETAS EN MÓVIL / TABLA COMPACTA EN LAPTOP/DESKTOP) */}
           {vistaActual === 'lista' && (
-            <div className="bg-white dark:bg-[#0f172a] rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
-              <div className="overflow-x-auto">
-                <table className="w-full text-left border-collapse">
-                  <thead>
-                    <tr className="border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-[#020617] text-slate-500 dark:text-slate-400 text-xs font-black uppercase tracking-wider select-none">
-                      
-                      {/* Checkbox seleccionar todos */}
-                      <th className="p-4 w-10 text-center">
-                        <button 
-                          type="button" 
-                          onClick={toggleSeleccionarTodos}
-                          className="text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition-colors inline-flex items-center justify-center"
-                          title="Seleccionar todos los productos visibles"
-                        >
-                          {productosSeleccionados.length > 0 && productosSeleccionados.length === inventarioProcesado.length ? (
-                            <CheckSquare size={19} className="text-emerald-600 dark:text-emerald-400" />
-                          ) : (
-                            <Square size={19} />
-                          )}
-                        </button>
-                      </th>
-
-                      {/* Columna Categoría */}
-                      <th 
-                        onClick={() => handleSort('categoria')}
-                        className="p-4 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800/80 transition-colors"
-                      >
-                        <div className="flex items-center gap-1.5">
-                          <span>Categoría</span>
-                          {renderSortIndicator('categoria')}
-                        </div>
-                      </th>
-
-                      {/* Columna Nombre */}
-                      <th 
-                        onClick={() => handleSort('nombre')}
-                        className="p-4 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800/80 transition-colors"
-                      >
-                        <div className="flex items-center gap-1.5">
-                          <span>Producto</span>
-                          {renderSortIndicator('nombre')}
-                        </div>
-                      </th>
-
-                      {/* Columna SKU / Código */}
-                      <th 
-                        onClick={() => handleSort('sku')}
-                        className="p-4 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800/80 transition-colors"
-                      >
-                        <div className="flex items-center gap-1.5">
-                          <span>SKU / Código</span>
-                          {renderSortIndicator('sku')}
-                        </div>
-                      </th>
-
-                      {/* Columna Stock */}
-                      <th 
-                        onClick={() => handleSort('stock')}
-                        className="p-4 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800/80 transition-colors"
-                      >
-                        <div className="flex items-center gap-1.5">
-                          <span>Stock</span>
-                          {renderSortIndicator('stock')}
-                        </div>
-                      </th>
-
-                      {/* Columna Precio */}
-                      <th 
-                        onClick={() => handleSort('precioVenta')}
-                        className="p-4 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800/80 transition-colors"
-                      >
-                        <div className="flex items-center gap-1.5">
-                          <span>Precio Venta</span>
-                          {renderSortIndicator('precioVenta')}
-                        </div>
-                      </th>
-
-                      <th className="p-4 text-right">Acciones</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100 dark:divide-slate-800/80 text-sm font-medium">
-                    {inventarioProcesado.map(prod => {
-                      const estaSeleccionado = productosSeleccionados.includes(prod.id);
-                      const disponible = tieneStockDisponible(prod);
-                      return (
-                        <tr 
-                          key={prod.id} 
-                          className={`transition-colors ${estaSeleccionado ? 'bg-emerald-50/50 dark:bg-emerald-950/20' : 'hover:bg-slate-50/80 dark:hover:bg-slate-800/50'}`}
-                        >
-                          
-                          {/* Checkbox por fila */}
-                          <td className="p-4 w-10 text-center">
-                            <button 
-                              type="button" 
-                              disabled={!disponible}
-                              onClick={() => toggleSeleccionProducto(prod)}
-                              className={`transition-colors inline-flex items-center justify-center ${
-                                !disponible 
-                                  ? 'cursor-not-allowed opacity-30 text-slate-300 dark:text-slate-700' 
-                                  : 'text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'
-                              }`}
-                              title={disponible ? (estaSeleccionado ? "Deseleccionar" : "Seleccionar para venta o fiado") : "Producto agotado (Sin stock)"}
-                            >
-                              {estaSeleccionado ? (
-                                <CheckSquare size={19} className="text-emerald-600 dark:text-emerald-400" />
-                              ) : (
-                                <Square size={19} />
-                              )}
-                            </button>
-                          </td>
-
-                          {/* Categoría */}
-                          <td className="p-4">
-                            <span className="inline-flex rounded-full bg-blue-50 text-blue-700 dark:bg-blue-500/10 dark:text-blue-300 px-3 py-1 text-[11px] font-bold border border-blue-100 dark:border-blue-900/50">
-                              {normalizarCategoria(prod.categoria)}
-                            </span>
-                          </td>
-
-                          {/* Nombre del Producto */}
-                          <td className="p-4">
-                            <span className="font-bold text-slate-900 dark:text-white block max-w-[240px] truncate">{prod.nombre}</span>
-                            {prod.tipoProducto === 'servicio' && (
-                              <span className="text-[10px] text-indigo-500 font-bold uppercase tracking-wider block mt-0.5">Servicio</span>
+            <div className="space-y-3">
+              
+              {/* --- A. VISTA TARJETAS MÓVILES (< sm) : COMPACTAS DE ALTA DENSIDAD (2 FILAS) --- */}
+              <div className="block sm:hidden space-y-2">
+                {inventarioProcesado.map(prod => {
+                  const estaSeleccionado = productosSeleccionados.includes(prod.id);
+                  const disponible = tieneStockDisponible(prod);
+                  return (
+                    <div 
+                      key={prod.id} 
+                      className={`p-3 bg-white dark:bg-[#0f172a] rounded-2xl border transition-all shadow-sm ${
+                        estaSeleccionado 
+                          ? 'border-emerald-500 ring-2 ring-emerald-500/20 bg-emerald-50/30 dark:bg-emerald-950/20' 
+                          : 'border-slate-200 dark:border-slate-800 hover:border-slate-300'
+                      }`}
+                    >
+                      {/* Fila 1: Checkbox + Nombre + SKU + Precio */}
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-2 min-w-0 flex-1">
+                          <button 
+                            type="button" 
+                            disabled={!disponible}
+                            onClick={() => toggleSeleccionProducto(prod)}
+                            className={`transition-colors shrink-0 ${!disponible ? 'opacity-30 cursor-not-allowed text-slate-300' : 'text-slate-400'}`}
+                          >
+                            {estaSeleccionado ? (
+                              <CheckSquare size={18} className="text-emerald-600 dark:text-emerald-400" />
+                            ) : (
+                              <Square size={18} />
                             )}
-                          </td>
+                          </button>
+                          <div className="min-w-0 flex-1 flex items-baseline gap-1.5 truncate">
+                            <h4 className="font-black text-slate-900 dark:text-white text-sm truncate leading-tight">
+                              {prod.nombre}
+                            </h4>
+                            {prod.sku && (
+                              <span className="text-[10px] text-slate-400 font-mono shrink-0 hidden xs:inline">
+                                {prod.sku}
+                              </span>
+                            )}
+                          </div>
+                        </div>
 
-                          {/* SKU */}
-                          <td className="p-4">
-                            <span className="font-mono text-xs text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 px-2 py-1 rounded-md">
-                              {prod.sku || 'SIN SKU'}
-                            </span>
-                          </td>
+                        <span className="font-black text-sm text-emerald-600 dark:text-emerald-400 shrink-0">
+                          ${(prod.precioVenta || 0).toLocaleString('es-CO')}
+                        </span>
+                      </div>
 
-                          {/* Stock con Badge Inteligente */}
-                          <td className="p-4 whitespace-nowrap">
-                            {renderStockBadge(prod)}
-                          </td>
+                      {/* Fila 2: Zona de Etiquetas (Unidades + Categoría) a la izquierda | Acciones a la derecha */}
+                      <div className="flex items-center justify-between gap-1.5 mt-2 pt-2 border-t border-slate-100 dark:border-slate-800/70">
+                        {/* Zona de Etiquetas: Unidades y Categoría juntas al lado */}
+                        <div className="flex items-center gap-1 min-w-0 flex-1">
+                          {renderStockBadge(prod, 'movil')}
+                          <span className="inline-flex rounded-md bg-blue-50 text-blue-700 dark:bg-blue-500/10 dark:text-blue-300 px-1.5 py-0.5 text-[10px] font-bold border border-blue-100 dark:border-blue-900/40 truncate max-w-[85px] shrink-0">
+                            {normalizarCategoria(prod.categoria)}
+                          </span>
+                        </div>
 
-                          {/* Precio */}
-                          <td className="p-4 whitespace-nowrap font-black text-base text-emerald-600 dark:text-emerald-400">
-                            ${(prod.precioVenta || 0).toLocaleString('es-CO')}
-                          </td>
+                        {/* Botones de Acción Compactos */}
+                        <div className="flex items-center gap-1 shrink-0">
+                          <button 
+                            onClick={() => despacharAVenta([prod])} 
+                            disabled={!disponible}
+                            className={`inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-black transition-all ${
+                              !disponible 
+                                ? 'bg-slate-100 text-slate-400 cursor-not-allowed opacity-50' 
+                                : 'bg-emerald-50 hover:bg-emerald-600 text-emerald-700 hover:text-white active:scale-95 shadow-sm'
+                            }`}
+                          >
+                            <ShoppingCart size={12} /> <span>Vender</span>
+                          </button>
+                          <button 
+                            onClick={() => despacharAFiar([prod])} 
+                            disabled={!disponible}
+                            className={`inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-black transition-all ${
+                              !disponible 
+                                ? 'bg-slate-100 text-slate-400 cursor-not-allowed opacity-50' 
+                                : 'bg-rose-50 hover:bg-rose-600 text-rose-700 hover:text-white active:scale-95 shadow-sm'
+                            }`}
+                          >
+                            <Receipt size={12} /> <span>Fiar</span>
+                          </button>
 
-                          {/* Acciones: Vender, Fiar, y si es Admin: Editar, Eliminar */}
-                          <td className="p-4 text-right">
-                            <div className="flex items-center justify-end gap-1.5">
+                          {esAdmin && (
+                            <div className="flex items-center ml-0.5">
                               <button 
-                                onClick={() => despacharAVenta([prod])} 
-                                disabled={!disponible}
-                                title={disponible ? "Registrar venta con este producto" : "Producto agotado (Sin stock)"}
-                                className={`inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-xs font-black transition-all shadow-sm ${
-                                  !disponible 
-                                    ? 'bg-slate-100 text-slate-400 dark:bg-slate-800 dark:text-slate-600 cursor-not-allowed opacity-50'
-                                    : 'bg-emerald-50 hover:bg-emerald-600 text-emerald-700 hover:text-white dark:bg-emerald-500/10 dark:text-emerald-300 dark:hover:bg-emerald-600 dark:hover:text-white active:scale-95'
-                                }`}
+                                onClick={() => abrirEdicion(prod)} 
+                                className="p-1 hover:bg-blue-50 text-slate-400 hover:text-blue-600 rounded-md transition-colors"
+                                title="Editar"
                               >
-                                <ShoppingCart size={13} /> <span className="hidden sm:inline">Vender</span>
+                                <Edit3 size={13}/>
                               </button>
                               <button 
-                                onClick={() => despacharAFiar([prod])} 
-                                disabled={!disponible}
-                                title={disponible ? "Registrar fiado con este producto" : "Producto agotado (Sin stock)"}
-                                className={`inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-xs font-black transition-all shadow-sm ${
-                                  !disponible 
-                                    ? 'bg-slate-100 text-slate-400 dark:bg-slate-800 dark:text-slate-600 cursor-not-allowed opacity-50'
-                                    : 'bg-rose-50 hover:bg-rose-600 text-rose-700 hover:text-white dark:bg-rose-500/10 dark:text-rose-300 dark:hover:bg-rose-600 dark:hover:text-white active:scale-95'
-                                }`}
+                                onClick={() => setProductoAEliminar(prod)} 
+                                className="p-1 hover:bg-rose-50 text-slate-400 hover:text-rose-500 rounded-md transition-colors"
+                                title="Eliminar"
                               >
-                                <Receipt size={13} /> <span className="hidden sm:inline">Fiar</span>
+                                <Trash2 size={13}/>
                               </button>
-
-                              {esAdmin && (
-                                <>
-                                  <button 
-                                    onClick={() => abrirEdicion(prod)} 
-                                    title="Editar producto"
-                                    className="p-1.5 hover:bg-blue-50 dark:hover:bg-blue-500/10 text-slate-400 hover:text-blue-600 rounded-xl transition-colors ml-1"
-                                  >
-                                    <Edit3 size={15}/>
-                                  </button>
-                                  <button 
-                                    onClick={() => setProductoAEliminar(prod)} 
-                                    title="Eliminar producto"
-                                    className="p-1.5 hover:bg-rose-50 dark:hover:bg-rose-500/10 text-slate-400 hover:text-rose-500 rounded-xl transition-colors"
-                                  >
-                                    <Trash2 size={15}/>
-                                  </button>
-                                </>
-                              )}
                             </div>
-                          </td>
-
-                        </tr>
-                      );
-                    })}
-
-                    {inventarioProcesado.length === 0 && (
-                      <tr>
-                        <td colSpan={7} className="py-14 text-center text-slate-400">
-                          <Package className="w-12 h-12 mx-auto mb-2 opacity-30" />
-                          <p className="font-bold text-base">No se encontraron productos con estos filtros.</p>
-                          {(busqueda || filtrosCategoria.length > 0 || filtrosStock.length > 0) && (
-                            <button 
-                              onClick={limpiarTodosLosFiltros}
-                              className="mt-3 text-xs font-bold text-emerald-600 hover:underline"
-                            >
-                              Limpiar todos los filtros
-                            </button>
                           )}
-                        </td>
-                      </tr>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+
+                {inventarioProcesado.length === 0 && (
+                  <div className="py-10 text-center text-slate-400 bg-white dark:bg-[#0f172a] rounded-3xl border border-slate-200 dark:border-slate-800 p-6">
+                    <Package className="w-10 h-10 mx-auto mb-2 opacity-30" />
+                    <p className="font-bold text-sm">
+                      {inventario.length === 0 ? "Tu inventario aún está vacío." : "No se encontraron productos con estos filtros."}
+                    </p>
+                    {inventario.length === 0 && esAdmin && (
+                      <button 
+                        onClick={() => { limpiarFormulario(); setModalProducto(true); }}
+                        className="mt-3 inline-flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-black px-4 py-2 rounded-xl text-xs uppercase tracking-wider transition-all shadow-md active:scale-95"
+                      >
+                        <Plus size={15} /> Agregar Productos al Inventario
+                      </button>
                     )}
-                  </tbody>
-                </table>
+                  </div>
+                )}
               </div>
+
+              {/* --- B. VISTA TABLA COMPACTA (LAPTOPS / DESKTOP sm:) : VISIBILIDAD DE 8-12 FILAS --- */}
+              <div className="hidden sm:block bg-white dark:bg-[#0f172a] rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left border-collapse">
+                    <thead>
+                      <tr className="border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-[#020617] text-slate-500 dark:text-slate-400 text-xs font-black uppercase tracking-wider select-none">
+                        
+                        {/* Checkbox seleccionar todos */}
+                        <th className="py-2.5 px-3 w-9 text-center">
+                          <button 
+                            type="button" 
+                            onClick={toggleSeleccionarTodos}
+                            className="text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition-colors inline-flex items-center justify-center"
+                            title="Seleccionar todos los productos visibles"
+                          >
+                            {productosSeleccionados.length > 0 && productosSeleccionados.length === inventarioProcesado.length ? (
+                              <CheckSquare size={17} className="text-emerald-600 dark:text-emerald-400" />
+                            ) : (
+                              <Square size={17} />
+                            )}
+                          </button>
+                        </th>
+
+                        {/* Columna Categoría */}
+                        <th 
+                          onClick={() => handleSort('categoria')}
+                          className="py-2.5 px-3 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800/80 transition-colors"
+                        >
+                          <div className="flex items-center gap-1">
+                            <span>Categoría</span>
+                            {renderSortIndicator('categoria')}
+                          </div>
+                        </th>
+
+                        {/* Columna Nombre */}
+                        <th 
+                          onClick={() => handleSort('nombre')}
+                          className="py-2.5 px-3 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800/80 transition-colors"
+                        >
+                          <div className="flex items-center gap-1">
+                            <span>Producto</span>
+                            {renderSortIndicator('nombre')}
+                          </div>
+                        </th>
+
+                        {/* Columna SKU / Código */}
+                        <th 
+                          onClick={() => handleSort('sku')}
+                          className="py-2.5 px-3 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800/80 transition-colors"
+                        >
+                          <div className="flex items-center gap-1">
+                            <span>SKU / Código</span>
+                            {renderSortIndicator('sku')}
+                          </div>
+                        </th>
+
+                        {/* Columna Stock */}
+                        <th 
+                          onClick={() => handleSort('stock')}
+                          className="py-2.5 px-3 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800/80 transition-colors"
+                        >
+                          <div className="flex items-center gap-1">
+                            <span>Stock</span>
+                            {renderSortIndicator('stock')}
+                          </div>
+                        </th>
+
+                        {/* Columna Precio */}
+                        <th 
+                          onClick={() => handleSort('precioVenta')}
+                          className="py-2.5 px-3 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800/80 transition-colors"
+                        >
+                          <div className="flex items-center gap-1">
+                            <span>Precio</span>
+                            {renderSortIndicator('precioVenta')}
+                          </div>
+                        </th>
+
+                        <th className="py-2.5 px-3 text-center">Acciones</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 dark:divide-slate-800/80 text-xs sm:text-sm font-medium">
+                      {inventarioProcesado.map(prod => {
+                        const estaSeleccionado = productosSeleccionados.includes(prod.id);
+                        const disponible = tieneStockDisponible(prod);
+                        return (
+                          <tr 
+                            key={prod.id} 
+                            className={`transition-colors ${estaSeleccionado ? 'bg-emerald-50/50 dark:bg-emerald-950/20' : 'hover:bg-slate-50/80 dark:hover:bg-slate-800/50'}`}
+                          >
+                            
+                            {/* Checkbox por fila */}
+                            <td className="py-2.5 px-3 w-9 text-center">
+                              <button 
+                                type="button" 
+                                disabled={!disponible}
+                                onClick={() => toggleSeleccionProducto(prod)}
+                                className={`transition-colors inline-flex items-center justify-center ${
+                                  !disponible 
+                                    ? 'cursor-not-allowed opacity-30 text-slate-300 dark:text-slate-700' 
+                                    : 'text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'
+                                }`}
+                                title={disponible ? (estaSeleccionado ? "Deseleccionar" : "Seleccionar para venta o fiado") : "Producto agotado (Sin stock)"}
+                              >
+                                {estaSeleccionado ? (
+                                  <CheckSquare size={17} className="text-emerald-600 dark:text-emerald-400" />
+                                ) : (
+                                  <Square size={17} />
+                                )}
+                              </button>
+                            </td>
+
+                            {/* Categoría */}
+                            <td className="py-2.5 px-3">
+                              <span className="inline-flex rounded-full bg-blue-50 text-blue-700 dark:bg-blue-500/10 dark:text-blue-300 px-2.5 py-0.5 text-[11px] font-bold border border-blue-100 dark:border-blue-900/50 truncate max-w-[140px]">
+                                {normalizarCategoria(prod.categoria)}
+                              </span>
+                            </td>
+
+                            {/* Nombre del Producto */}
+                            <td className="py-2.5 px-3">
+                              <span className="font-bold text-slate-900 dark:text-white block max-w-[220px] truncate">{prod.nombre}</span>
+                              {prod.tipoProducto === 'servicio' && (
+                                <span className="text-[10px] text-indigo-500 font-bold uppercase tracking-wider block">Servicio</span>
+                              )}
+                            </td>
+
+                            {/* SKU */}
+                            <td className="py-2.5 px-3">
+                              <span className="font-mono text-[11px] text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded">
+                                {prod.sku || 'SIN SKU'}
+                              </span>
+                            </td>
+
+                            {/* Stock con Badge Inteligente */}
+                            <td className="py-2.5 px-3 whitespace-nowrap">
+                              {renderStockBadge(prod)}
+                            </td>
+
+                            {/* Precio */}
+                            <td className="py-2.5 px-3 whitespace-nowrap font-black text-sm text-emerald-600 dark:text-emerald-400">
+                              ${(prod.precioVenta || 0).toLocaleString('es-CO')}
+                            </td>
+
+                            {/* Acciones: Vender, Fiar, y si es Admin: Editar, Eliminar */}
+                            <td className="py-2.5 px-3 text-center">
+                              <div className="flex items-center justify-center gap-1">
+                                <button 
+                                  onClick={() => despacharAVenta([prod])} 
+                                  disabled={!disponible}
+                                  title={disponible ? "Registrar venta con este producto" : "Producto agotado (Sin stock)"}
+                                  className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-black transition-all shadow-sm ${
+                                    !disponible 
+                                      ? 'bg-slate-100 text-slate-400 dark:bg-slate-800 dark:text-slate-600 cursor-not-allowed opacity-50' 
+                                      : 'bg-emerald-50 hover:bg-emerald-600 text-emerald-700 hover:text-white dark:bg-emerald-500/10 dark:text-emerald-300 dark:hover:bg-emerald-600 dark:hover:text-white active:scale-95'
+                                  }`}
+                                >
+                                  <ShoppingCart size={12} /> <span>Vender</span>
+                                </button>
+                                <button 
+                                  onClick={() => despacharAFiar([prod])} 
+                                  disabled={!disponible}
+                                  title={disponible ? "Registrar fiado con este producto" : "Producto agotado (Sin stock)"}
+                                  className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-black transition-all shadow-sm ${
+                                    !disponible 
+                                      ? 'bg-slate-100 text-slate-400 dark:bg-slate-800 dark:text-slate-600 cursor-not-allowed opacity-50' 
+                                      : 'bg-rose-50 hover:bg-rose-600 text-rose-700 hover:text-white dark:bg-rose-500/10 dark:text-rose-300 dark:hover:bg-rose-600 dark:hover:text-white active:scale-95'
+                                  }`}
+                                >
+                                  <Receipt size={12} /> <span>Fiar</span>
+                                </button>
+
+                                {esAdmin && (
+                                  <>
+                                    <button 
+                                      onClick={() => abrirEdicion(prod)} 
+                                      title="Editar producto"
+                                      className="p-1 hover:bg-blue-50 dark:hover:bg-blue-500/10 text-slate-400 hover:text-blue-600 rounded-lg transition-colors ml-0.5"
+                                    >
+                                      <Edit3 size={14}/>
+                                    </button>
+                                    <button 
+                                      onClick={() => setProductoAEliminar(prod)} 
+                                      title="Eliminar producto"
+                                      className="p-1 hover:bg-rose-50 dark:hover:bg-rose-500/10 text-slate-400 hover:text-rose-500 rounded-lg transition-colors"
+                                    >
+                                      <Trash2 size={14}/>
+                                    </button>
+                                  </>
+                                )}
+                              </div>
+                            </td>
+
+                          </tr>
+                        );
+                      })}
+
+                      {inventarioProcesado.length === 0 && (
+                        <tr>
+                          <td colSpan={7} className="py-10 text-center text-slate-400">
+                            <Package className="w-10 h-10 mx-auto mb-2 opacity-30" />
+                            <p className="font-bold text-sm">
+                              {inventario.length === 0 ? "Tu inventario aún está vacío." : "No se encontraron productos con estos filtros."}
+                            </p>
+                            {inventario.length === 0 && esAdmin ? (
+                              <button 
+                                onClick={() => { limpiarFormulario(); setModalProducto(true); }}
+                                className="mt-3 inline-flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-black px-4 py-2 rounded-xl text-xs uppercase tracking-wider transition-all shadow-md active:scale-95"
+                              >
+                                <Plus size={15} /> Agregar Productos al Inventario
+                              </button>
+                            ) : (busqueda || filtrosCategoria.length > 0 || filtrosStock.length > 0) ? (
+                              <button 
+                                onClick={limpiarTodosLosFiltros}
+                                className="mt-2 text-xs font-bold text-emerald-600 hover:underline"
+                              >
+                                Limpiar todos los filtros
+                              </button>
+                            ) : null}
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
             </div>
           )}
 
-          {/* BARRA FLOTANTE DE DESPACHO MASIVO */}
+          {/* BARRA FLOTANTE DE DESPACHO MASIVO (FLOTA SOBRE EL BOTTOMNAV EN MÓVIL) */}
           {productosSeleccionados.length > 0 && (
-            <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 max-w-2xl w-[92%] sm:w-auto bg-slate-900/95 dark:bg-[#020617]/95 backdrop-blur-md text-white p-3 sm:p-4 rounded-3xl shadow-2xl border border-slate-700/60 flex flex-col sm:flex-row items-center justify-between gap-3 animate-in slide-in-from-bottom-5 duration-300">
-              <div className="flex items-center gap-3 text-sm">
-                <span className="bg-emerald-500 text-slate-950 font-black px-2.5 py-1 rounded-full text-xs">
+            <div className="fixed bottom-20 md:bottom-6 left-1/2 -translate-x-1/2 z-[110] max-w-2xl w-[94%] sm:w-auto bg-slate-900/95 dark:bg-[#020617]/95 backdrop-blur-md text-white p-2.5 sm:p-4 rounded-2xl sm:rounded-3xl shadow-2xl border border-slate-700/60 flex flex-col sm:flex-row items-center justify-between gap-2 sm:gap-4 animate-in slide-in-from-bottom-5 duration-300">
+              <div className="flex items-center justify-between w-full sm:w-auto gap-2 text-xs sm:text-sm">
+                <span className="bg-emerald-500 text-slate-950 font-black px-2.5 py-1 rounded-full text-[11px] sm:text-xs shrink-0">
                   {productosSeleccionados.length} seleccionados
                 </span>
-                <span className="font-bold text-slate-200">
+                <span className="font-bold text-slate-200 truncate">
                   Total: <strong className="text-emerald-400 font-black">${montoTotalSeleccionado.toLocaleString('es-CO')}</strong>
                 </span>
+                <button
+                  onClick={() => setProductosSeleccionados([])}
+                  className="sm:hidden p-1 hover:bg-slate-800 text-slate-400 hover:text-white rounded-lg transition-colors shrink-0"
+                  title="Cancelar selección"
+                >
+                  <X size={16} />
+                </button>
               </div>
-              <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
+
+              <div className="flex items-center gap-1.5 sm:gap-2 w-full sm:w-auto justify-end">
                 <button
                   onClick={() => despacharAVenta(productosSeleccionadosObj)}
-                  className="flex-1 sm:flex-none inline-flex items-center justify-center gap-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-black px-4 py-2 rounded-xl text-xs uppercase tracking-wider transition-all shadow-md active:scale-95"
+                  className="flex-1 sm:flex-none inline-flex items-center justify-center gap-1 bg-emerald-600 hover:bg-emerald-500 text-white font-black px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl text-xs uppercase tracking-wider transition-all shadow-md active:scale-95"
                 >
-                  <ShoppingCart size={15} /> Vender ({productosSeleccionados.length})
+                  <ShoppingCart size={14} /> <span>Vender ({productosSeleccionados.length})</span>
                 </button>
                 <button
                   onClick={() => despacharAFiar(productosSeleccionadosObj)}
-                  className="flex-1 sm:flex-none inline-flex items-center justify-center gap-1.5 bg-rose-600 hover:bg-rose-500 text-white font-black px-4 py-2 rounded-xl text-xs uppercase tracking-wider transition-all shadow-md active:scale-95"
+                  className="flex-1 sm:flex-none inline-flex items-center justify-center gap-1 bg-rose-600 hover:bg-rose-500 text-white font-black px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl text-xs uppercase tracking-wider transition-all shadow-md active:scale-95"
                 >
-                  <Receipt size={15} /> Fiar ({productosSeleccionados.length})
+                  <Receipt size={14} /> <span>Fiar ({productosSeleccionados.length})</span>
                 </button>
                 <button
                   onClick={() => setProductosSeleccionados([])}
-                  className="p-2 hover:bg-slate-800 text-slate-400 hover:text-white rounded-xl transition-colors"
+                  className="hidden sm:inline-flex p-2 hover:bg-slate-800 text-slate-400 hover:text-white rounded-xl transition-colors shrink-0"
                   title="Cancelar selección"
                 >
                   <X size={16} />
@@ -1866,10 +2381,137 @@ export default function InventarioPage() {
         </div>
       </div>
 
+      {/* MODAL INFORMATIVO Y CONFIRMACIÓN DE EXPORTACIÓN A EXCEL */}
+      {esAdmin && modalExportarExcel && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center p-3 sm:p-4 z-[950] animate-in fade-in duration-200">
+          <div className="bg-white dark:bg-[#0f172a] rounded-[2.5rem] w-full max-w-2xl shadow-2xl border border-slate-100 dark:border-slate-800 animate-in zoom-in-95 duration-200 overflow-hidden flex flex-col max-h-[90dvh]">
+            
+            {/* Header del Modal */}
+            <div className="p-6 md:p-7 border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/50 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 rounded-2xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shadow-inner">
+                  <FileSpreadsheet size={24} />
+                </div>
+                <div>
+                  <h3 className="text-xl md:text-2xl font-black text-slate-900 dark:text-white flex items-center gap-2">
+                    Exportar Inventario a Excel
+                  </h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">
+                    Descarga tu catálogo real con diseño corporativo y formato listo para editar
+                  </p>
+                </div>
+              </div>
+              <button 
+                onClick={() => setModalExportarExcel(false)} 
+                className="p-2 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 rounded-xl hover:bg-slate-200 dark:hover:bg-slate-800 transition-colors"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            {/* Contenido del Modal */}
+            <div className="p-6 md:p-7 overflow-y-auto space-y-6 flex-1">
+              
+              {/* Tarjeta de Resumen de Exportación */}
+              <div className="p-5 bg-gradient-to-br from-emerald-50 via-teal-50/40 to-white dark:from-emerald-950/20 dark:via-teal-950/10 dark:to-[#0f172a] rounded-3xl border border-emerald-200/80 dark:border-emerald-800/60 shadow-sm flex flex-col sm:flex-row items-center justify-between gap-4">
+                <div>
+                  <span className="text-[11px] font-black uppercase tracking-wider text-emerald-700 dark:text-emerald-300 block">
+                    Resumen del catálogo a descargar
+                  </span>
+                  <h4 className="text-xl font-black text-slate-900 dark:text-white mt-0.5">
+                    {inventarioProcesado.length} productos / servicios
+                  </h4>
+                  <p className="text-xs text-slate-600 dark:text-slate-400 mt-1">
+                    Incluye <strong>{metricas.unidadesFisicasTotales} unidades en tienda</strong> con un valor total de <strong>${metricas.valorTotal.toLocaleString('es-CO')}</strong>.
+                  </p>
+                </div>
+                <div className="p-3 bg-emerald-600/10 dark:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 rounded-2xl shrink-0">
+                  <Package size={28} />
+                </div>
+              </div>
+
+              {/* ¿Para qué sirve este archivo? - Flujo Inteligente */}
+              <div className="space-y-3">
+                <span className="text-xs font-black uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
+                  <Sparkles size={14} className="text-emerald-500" /> ¿Cómo funciona el ciclo inteligente de actualización?
+                </span>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div className="p-3.5 bg-slate-50 dark:bg-slate-900/60 rounded-2xl border border-slate-200 dark:border-slate-800">
+                    <span className="text-xs font-black text-emerald-600 dark:text-emerald-400 block mb-1">
+                      1️⃣ Edita Precios o Stock
+                    </span>
+                    <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                      Abre el archivo en tu computador y cambia los valores de tus productos existentes.
+                    </p>
+                  </div>
+
+                  <div className="p-3.5 bg-slate-50 dark:bg-slate-900/60 rounded-2xl border border-slate-200 dark:border-slate-800">
+                    <span className="text-xs font-black text-blue-600 dark:text-blue-400 block mb-1">
+                      2️⃣ Agrega Nuevos
+                    </span>
+                    <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                      Escribe nuevos artículos en las filas vacías al final de la tabla usando las listas desplegables.
+                    </p>
+                  </div>
+
+                  <div className="p-3.5 bg-slate-50 dark:bg-slate-900/60 rounded-2xl border border-slate-200 dark:border-slate-800">
+                    <span className="text-xs font-black text-purple-600 dark:text-purple-400 block mb-1">
+                      3️⃣ Sube en "Importar"
+                    </span>
+                    <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                      Fiabono sincronizará los viejos y creará los nuevos automáticamente sin duplicados.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Características del archivo */}
+              <div className="p-4 bg-slate-50 dark:bg-slate-900/40 rounded-2xl border border-slate-200 dark:border-slate-800 text-xs text-slate-600 dark:text-slate-300 space-y-1.5">
+                <div className="flex items-center gap-2 font-bold text-slate-800 dark:text-slate-200">
+                  <CheckCircle2 size={15} className="text-emerald-500" />
+                  <span>El archivo descargado incluye:</span>
+                </div>
+                <ul className="list-disc list-inside space-y-1 pl-1 text-[11px] text-slate-500 dark:text-slate-400">
+                  <li>Diseño corporativo esmeralda con tipografía Segoe UI y sombreado zebra.</li>
+                  <li>Listas desplegables en <strong>Tipo de Producto</strong>, <strong>Categoría</strong> e <strong>Inventariable</strong>.</li>
+                  <li>Tarjeta de ejemplos de referencia en las columnas laterales.</li>
+                  <li>Hoja secundaria de <strong>Datos</strong> con tus categorías activas.</li>
+                </ul>
+              </div>
+
+            </div>
+
+            {/* Footer del Modal */}
+            <div className="p-5 md:p-6 border-t border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/80 flex items-center justify-between gap-3">
+              <button 
+                type="button"
+                onClick={() => setModalExportarExcel(false)} 
+                className="bg-white dark:bg-slate-800 hover:bg-slate-100 text-slate-700 dark:text-slate-300 font-bold py-3 px-5 rounded-2xl text-sm border border-slate-200 dark:border-slate-700 transition-colors"
+              >
+                Cancelar
+              </button>
+
+              <button 
+                type="button"
+                onClick={async () => {
+                  setModalExportarExcel(false);
+                  await exportarInventarioAExcel();
+                }} 
+                className="bg-emerald-600 hover:bg-emerald-700 text-white font-black py-3 px-6 rounded-2xl shadow-lg shadow-emerald-600/25 flex items-center justify-center gap-2 text-sm transition-all active:scale-95"
+              >
+                <Download size={18} /> Descargar Archivo Excel (.xlsx)
+              </button>
+            </div>
+
+          </div>
+        </div>
+      )}
+
       {/* MODAL IMPORTAR INVENTARIO DESDE EXCEL */}
       {esAdmin && modalImportarExcel && (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center p-3 sm:p-4 z-[950] animate-in fade-in duration-200">
-          <div className="bg-white dark:bg-[#0f172a] rounded-[2.5rem] w-full max-w-3xl shadow-2xl border border-slate-100 dark:border-slate-800 animate-in zoom-in-95 duration-200 overflow-hidden flex flex-col max-h-[90vh]">
+          <div className="bg-white dark:bg-[#0f172a] rounded-[2.5rem] w-full max-w-3xl shadow-2xl border border-slate-100 dark:border-slate-800 animate-in zoom-in-95 duration-200 overflow-hidden flex flex-col max-h-[90dvh]">
             
             {/* Header del Modal */}
             <div className="p-6 md:p-7 border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/50 flex items-center justify-between">
@@ -1901,28 +2543,62 @@ export default function InventarioPage() {
               {productosAImportar.length === 0 ? (
                 <div className="space-y-6">
                   
-                  {/* Tarjeta de Descarga de Plantilla Oficial */}
-                  <div className="p-5 bg-gradient-to-br from-emerald-50 via-teal-50/50 to-white dark:from-emerald-950/20 dark:via-teal-950/10 dark:to-[#0f172a] rounded-3xl border border-emerald-200/80 dark:border-emerald-800/60 shadow-sm flex flex-col sm:flex-row items-center justify-between gap-4">
-                    <div className="flex items-center gap-3.5">
-                      <div className="p-3 bg-emerald-600 text-white rounded-2xl shadow-md shrink-0">
-                        <Download size={22} />
-                      </div>
+                  {/* Dos Opciones Claras: Plantilla en Blanco vs Archivo Exportado para Actualizar */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                    
+                    {/* Opción 1: Plantilla en Blanco */}
+                    <div className="p-5 bg-gradient-to-br from-emerald-50 via-teal-50/50 to-white dark:from-emerald-950/20 dark:via-teal-950/10 dark:to-[#0f172a] rounded-3xl border border-emerald-200/80 dark:border-emerald-800/60 shadow-sm flex flex-col justify-between gap-4">
                       <div>
-                        <h4 className="font-black text-slate-900 dark:text-white text-base">
-                          ¿No tienes la plantilla oficial?
-                        </h4>
-                        <p className="text-xs text-slate-600 dark:text-slate-400 mt-0.5">
-                          Descarga el formato Excel con listas desplegables y ejemplos para diligenciar.
+                        <div className="flex items-center gap-2.5 mb-2">
+                          <span className="p-2 bg-emerald-600 text-white rounded-xl shadow-sm">
+                            <Download size={18} />
+                          </span>
+                          <h4 className="font-black text-slate-900 dark:text-white text-sm">
+                            Plantilla Oficial en Blanco
+                          </h4>
+                        </div>
+                        <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
+                          Descarga este formato <strong>vacío sin productos previos</strong> si vas a ingresar tu catálogo desde cero por primera vez.
                         </p>
                       </div>
+
+                      <a
+                        href="/plantillas/Formato_Inventario_Fiabono.xlsx"
+                        download="Formato_Inventario_Fiabono.xlsx"
+                        className="w-full inline-flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white font-black px-4 py-2.5 rounded-xl text-xs uppercase tracking-wider transition-all shadow-md shadow-emerald-600/20 active:scale-95 text-center"
+                      >
+                        <Download size={15} /> Descargar Plantilla Vacía (.xlsx)
+                      </a>
                     </div>
-                    <a
-                      href="/plantillas/Formato_Inventario_Fiabono.xlsx"
-                      download="Formato_Inventario_Fiabono.xlsx"
-                      className="w-full sm:w-auto inline-flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white font-black px-5 py-3 rounded-2xl text-xs uppercase tracking-wider transition-all shadow-md shadow-emerald-600/20 active:scale-95 shrink-0"
-                    >
-                      <Download size={16} /> Descargar Formato (.xlsx)
-                    </a>
+
+                    {/* Opción 2: Actualizar Inventario Existente */}
+                    <div className="p-5 bg-gradient-to-br from-blue-50 via-indigo-50/40 to-white dark:from-blue-950/20 dark:via-indigo-950/10 dark:to-[#0f172a] rounded-3xl border border-blue-200/80 dark:border-blue-800/60 shadow-sm flex flex-col justify-between gap-4">
+                      <div>
+                        <div className="flex items-center gap-2.5 mb-2">
+                          <span className="p-2 bg-blue-600 text-white rounded-xl shadow-sm">
+                            <RefreshCw size={18} />
+                          </span>
+                          <h4 className="font-black text-slate-900 dark:text-white text-sm">
+                            ¿Deseas actualizar productos existentes?
+                          </h4>
+                        </div>
+                        <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
+                          Usa el botón <strong>Exportar Excel</strong> en la barra superior. Ese archivo ya contiene tus productos reales con sus SKUs para que los modifiques y los vuelvas a subir aquí.
+                        </p>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setModalImportarExcel(false);
+                          setModalExportarExcel(true);
+                        }}
+                        className="w-full inline-flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-black px-4 py-2.5 rounded-xl text-xs uppercase tracking-wider transition-all shadow-md shadow-blue-600/20 active:scale-95 text-center cursor-pointer"
+                      >
+                        <FileSpreadsheet size={15} /> Ver Exportar Inventario Actual
+                      </button>
+                    </div>
+
                   </div>
 
                   {/* Guía Rápida de Diligenciamiento en 3 Pasos */}
@@ -2165,7 +2841,7 @@ export default function InventarioPage() {
       {/* MODAL CONFIGURAR EXPORTACIÓN QR INTELIGENTE */}
       {esAdmin && modalExportarQR && (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center p-3 sm:p-4 z-[950] animate-in fade-in duration-200">
-          <div className="bg-white dark:bg-[#0f172a] rounded-[2.5rem] w-full max-w-2xl shadow-2xl border border-slate-100 dark:border-slate-800 animate-in zoom-in-95 duration-200 overflow-hidden flex flex-col max-h-[90vh]">
+          <div className="bg-white dark:bg-[#0f172a] rounded-[2.5rem] w-full max-w-2xl shadow-2xl border border-slate-100 dark:border-slate-800 animate-in zoom-in-95 duration-200 overflow-hidden flex flex-col max-h-[90dvh]">
             
             {/* Header del Modal */}
             <div className="p-6 md:p-7 border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/50 flex items-center justify-between">
@@ -2488,40 +3164,43 @@ export default function InventarioPage() {
         </div>
       )}
 
-      {/* MODAL CREAR / EDITAR PRODUCTO */}
+      {/* MODAL CREAR / EDITAR PRODUCTO (BLINDADO PARA MÓVIL Y ESCRITORIO) */}
       {esAdmin && modalProducto && (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 z-[950]">
-          <div className="bg-white dark:bg-[#0f172a] rounded-[2.5rem] w-full max-w-6xl shadow-2xl border border-slate-100 dark:border-slate-800 animate-in zoom-in-95 duration-200 overflow-hidden">
-            <div className="flex items-center justify-between gap-4 border-b border-slate-200 bg-slate-50 px-6 py-4 dark:border-slate-800 dark:bg-slate-900/60">
-              <h3 className="text-2xl font-black text-slate-900 dark:text-white flex items-center gap-2">
-                <Package size={24}/> {editandoId ? 'Editar Producto' : 'Nuevo Producto'}
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center p-2 sm:p-4 z-[950]">
+          <div className="bg-white dark:bg-[#0f172a] rounded-3xl sm:rounded-[2.5rem] w-full max-w-5xl shadow-2xl border border-slate-100 dark:border-slate-800 flex flex-col max-h-[94dvh] sm:max-h-[90dvh] overflow-hidden animate-in zoom-in-95 duration-200">
+            
+            {/* Encabezado Fijo del Modal */}
+            <div className="flex items-center justify-between gap-3 border-b border-slate-200 bg-slate-50 px-4 sm:px-6 py-3 sm:py-4 dark:border-slate-800 dark:bg-slate-900/60 shrink-0 z-10">
+              <h3 className="text-base sm:text-2xl font-black text-slate-900 dark:text-white flex items-center gap-2 truncate">
+                <Package size={22} className="text-emerald-600 dark:text-emerald-400 shrink-0" /> {editandoId ? 'Editar Producto' : 'Agregar Productos'}
               </h3>
               <button
                 type="button"
                 onClick={() => setModalProducto(false)}
-                className="rounded-full bg-white px-3 py-2 text-sm font-bold text-slate-600 shadow-sm transition hover:bg-slate-100 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+                className="rounded-xl sm:rounded-full bg-white px-3 py-1.5 text-xs sm:text-sm font-bold text-slate-600 shadow-sm transition hover:bg-slate-100 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700 shrink-0"
               >
                 Cerrar
               </button>
             </div>
 
-            <div className="max-h-[78vh] overflow-y-auto p-6">
-              <div className="grid grid-cols-1 xl:grid-cols-[1.25fr_0.75fr] gap-6">
+            {/* Cuerpo con Scroll Fluido */}
+            <div className="flex-1 overflow-y-auto p-3.5 sm:p-6 space-y-4">
+              <div className="grid grid-cols-1 xl:grid-cols-[1.25fr_0.75fr] gap-4 sm:gap-6">
                 <div className="space-y-4">
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <div className="md:col-span-2 rounded-2xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-800 dark:bg-slate-900/40">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3 sm:gap-4">
+                    <div className="md:col-span-2 rounded-2xl border border-slate-200 bg-slate-50 p-3.5 sm:p-4 dark:border-slate-800 dark:bg-slate-900/40">
                       <label className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1 block">Nombre del Producto</label>
-                      <input type="text" value={nombre} onChange={(e) => { setNombre(e.target.value); setErrores(prev => ({ ...prev, nombre: '' })); }} placeholder="Ej. Camisa Polo" className="w-full p-4 bg-white dark:bg-[#020617] border border-slate-200 dark:border-slate-700 rounded-2xl outline-none font-bold text-base focus:border-emerald-500 text-slate-900 dark:text-white" />
+                      <input type="text" value={nombre} onChange={(e) => { setNombre(e.target.value); setErrores(prev => ({ ...prev, nombre: '' })); }} placeholder="Ej. Camisa Polo" className="w-full p-3 sm:p-4 bg-white dark:bg-[#020617] border border-slate-200 dark:border-slate-700 rounded-2xl outline-none font-bold text-sm sm:text-base focus:border-emerald-500 text-slate-900 dark:text-white" />
                       {errores.nombre && <p className="mt-1 text-[11px] text-rose-500 font-medium">{errores.nombre}</p>}
                     </div>
 
-                    <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-800 dark:bg-slate-900/40">
+                    <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3.5 sm:p-4 dark:border-slate-800 dark:bg-slate-900/40">
                       <label className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1 block">SKU / Código</label>
-                      <input type="text" value={sku} onChange={(e) => setSku(e.target.value)} placeholder="Ej. CAM-001" className="w-full p-4 bg-white dark:bg-[#020617] border border-slate-200 dark:border-slate-700 rounded-2xl outline-none font-bold text-base focus:border-emerald-500 text-slate-900 dark:text-white" />
+                      <input type="text" value={sku} onChange={(e) => setSku(e.target.value)} placeholder="Ej. CAM-001" className="w-full p-3 sm:p-4 bg-white dark:bg-[#020617] border border-slate-200 dark:border-slate-700 rounded-2xl outline-none font-bold text-sm sm:text-base focus:border-emerald-500 text-slate-900 dark:text-white" />
                     </div>
                   </div>
 
-                  <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-800 dark:bg-slate-900/40">
+                  <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3.5 sm:p-4 dark:border-slate-800 dark:bg-slate-900/40">
                     <label className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1 block">Categoría</label>
                     <div className="relative">
                       <div className="flex items-center gap-2 rounded-2xl border border-slate-200 bg-white p-1.5 shadow-sm shadow-slate-200/50 transition-all focus-within:border-emerald-500 focus-within:shadow-lg focus-within:shadow-emerald-500/10 dark:border-slate-700 dark:bg-[#020617] dark:shadow-slate-950/30">
@@ -2548,13 +3227,13 @@ export default function InventarioPage() {
                             setCategoriaFoco(true);
                           }}
                           placeholder="Escribe o busca una categoría"
-                          className="w-full bg-transparent px-3 py-3 text-sm font-semibold text-slate-800 outline-none placeholder:text-slate-400 dark:text-slate-100"
+                          className="w-full bg-transparent px-3 py-2 sm:py-3 text-sm font-semibold text-slate-800 outline-none placeholder:text-slate-400 dark:text-slate-100"
                         />
                         <button
                           type="button"
                           onMouseDown={(e) => e.preventDefault()}
                           onClick={() => setCategoriaFoco((prev) => !prev)}
-                          className="flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-slate-50 text-slate-600 transition hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
+                          className="flex h-9 sm:h-10 w-9 sm:w-10 items-center justify-center rounded-xl border border-slate-200 bg-slate-50 text-slate-600 transition hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800 shrink-0"
                           aria-label="Mostrar categorías"
                         >
                           ▾
@@ -2562,7 +3241,7 @@ export default function InventarioPage() {
                       </div>
 
                       <div className="mt-2 flex items-center justify-between gap-2">
-                        <span className="text-[10px] font-bold uppercase tracking-[0.12em] text-slate-400">Administrar categorías (modificar o eliminar)</span>
+                        <span className="text-[10px] font-bold uppercase tracking-[0.12em] text-slate-400">Administrar categorías</span>
                         <button
                           type="button"
                           onClick={() => setGestionCategoriasHabilitada((prev) => !prev)}
@@ -2678,17 +3357,17 @@ export default function InventarioPage() {
                   </div>
 
                   {productosEnCarga.length > 0 && (
-                    <div className="rounded-2xl border border-sky-200 bg-sky-50 p-4 dark:border-sky-500/20 dark:bg-sky-500/5">
-                      <div className="mb-3 flex items-center justify-between gap-2">
-                        <h4 className="text-sm font-black uppercase tracking-[0.12em] text-sky-700 dark:text-sky-300">Productos en esta carga</h4>
-                        <span className="rounded-full bg-sky-600 px-2 py-1 text-[10px] font-black uppercase tracking-[0.12em] text-white">{productosEnCarga.length}</span>
+                    <div className="rounded-2xl border border-sky-200 bg-sky-50 p-3.5 sm:p-4 dark:border-sky-500/20 dark:bg-sky-500/5">
+                      <div className="mb-2 flex items-center justify-between gap-2">
+                        <h4 className="text-xs sm:text-sm font-black uppercase tracking-[0.12em] text-sky-700 dark:text-sky-300">Productos en esta carga</h4>
+                        <span className="rounded-full bg-sky-600 px-2 py-0.5 text-[10px] font-black uppercase tracking-[0.12em] text-white">{productosEnCarga.length}</span>
                       </div>
-                      <div className="max-h-56 overflow-y-auto pr-1 scrollbar-thin scrollbar-thumb-sky-300 scrollbar-track-transparent dark:scrollbar-thumb-sky-700">
+                      <div className="max-h-48 overflow-y-auto pr-1 scrollbar-thin scrollbar-thumb-sky-300 scrollbar-track-transparent dark:scrollbar-thumb-sky-700">
                         <div className="space-y-2">
                           {productosEnCarga.map((prod) => (
                             <div key={prod.id} className="flex items-start justify-between gap-3 rounded-xl border border-sky-100 bg-white px-3 py-2 dark:border-sky-500/10 dark:bg-slate-900/70">
                               <div className="min-w-0 flex-1">
-                                <p className="truncate text-sm font-bold text-slate-800 dark:text-slate-100">{prod.nombre}</p>
+                                <p className="truncate text-xs sm:text-sm font-bold text-slate-800 dark:text-slate-100">{prod.nombre}</p>
                                 <p className="mt-0.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-slate-400">{prod.sku || 'SIN SKU'} • {prod.categoria || 'General'}</p>
                                 <div className="mt-1 flex items-center gap-2 text-[10px] text-slate-500 dark:text-slate-300">
                                   <span>Stock: {prod.stock}</span>
@@ -2712,8 +3391,8 @@ export default function InventarioPage() {
                 </div>
 
                 <div className="space-y-4">
-                  <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-800 dark:bg-slate-900/40">
-                    <div className="grid grid-cols-2 gap-4">
+                  <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3.5 sm:p-4 dark:border-slate-800 dark:bg-slate-900/40">
+                    <div className="grid grid-cols-2 gap-3 sm:gap-4">
                       <div>
                         <label className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1 block">Tipo</label>
                         <select 
@@ -2729,7 +3408,7 @@ export default function InventarioPage() {
                               setInventariable(true);
                             }
                           }} 
-                          className="w-full p-4 bg-white dark:bg-[#020617] border border-slate-200 dark:border-slate-700 rounded-2xl outline-none font-bold text-base focus:border-emerald-500 text-slate-900 dark:text-white"
+                          className="w-full p-3 sm:p-4 bg-white dark:bg-[#020617] border border-slate-200 dark:border-slate-700 rounded-2xl outline-none font-bold text-sm sm:text-base focus:border-emerald-500 text-slate-900 dark:text-white"
                         >
                           <option value="producto">Producto</option>
                           <option value="servicio">Servicio</option>
@@ -2747,7 +3426,7 @@ export default function InventarioPage() {
                               setErrores(prev => ({ ...prev, stock: '' }));
                             }
                           }} 
-                          className="w-full p-4 bg-white dark:bg-[#020617] border border-slate-200 dark:border-slate-700 rounded-2xl outline-none font-bold text-base focus:border-emerald-500 text-slate-900 dark:text-white"
+                          className="w-full p-3 sm:p-4 bg-white dark:bg-[#020617] border border-slate-200 dark:border-slate-700 rounded-2xl outline-none font-bold text-sm sm:text-base focus:border-emerald-500 text-slate-900 dark:text-white"
                         >
                           <option value="si">Sí (Maneja Stock)</option>
                           <option value="no">No (Ilimitado / Servicio)</option>
@@ -2756,9 +3435,9 @@ export default function InventarioPage() {
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                     {tipoProducto === 'producto' && inventariable ? (
-                      <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-800 dark:bg-slate-900/40">
+                      <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3.5 sm:p-4 dark:border-slate-800 dark:bg-slate-900/40">
                         <label className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1 block">Stock Disponible</label>
                         <input 
                           type="number" 
@@ -2770,21 +3449,21 @@ export default function InventarioPage() {
                             setErrores(prev => ({ ...prev, stock: '' })); 
                           }} 
                           placeholder="0" 
-                          className="w-full p-4 bg-white dark:bg-[#020617] border border-slate-200 dark:border-slate-700 rounded-2xl outline-none font-black text-lg focus:border-emerald-500 text-slate-900 dark:text-white" 
+                          className="w-full p-3 sm:p-4 bg-white dark:bg-[#020617] border border-slate-200 dark:border-slate-700 rounded-2xl outline-none font-black text-base sm:text-lg focus:border-emerald-500 text-slate-900 dark:text-white" 
                         />
                         {errores.stock && <p className="mt-1 text-[11px] text-rose-500 font-medium">{errores.stock}</p>}
                       </div>
                     ) : (
-                      <div className="rounded-2xl border border-dashed border-indigo-200 bg-indigo-50/60 dark:border-indigo-900/50 dark:bg-indigo-950/20 p-4 flex flex-col justify-center">
+                      <div className="rounded-2xl border border-dashed border-indigo-200 bg-indigo-50/60 dark:border-indigo-900/50 dark:bg-indigo-950/20 p-3.5 sm:p-4 flex flex-col justify-center">
                         <label className="text-xs font-bold text-indigo-500 uppercase tracking-wider mb-1 block">Stock</label>
-                        <div className="flex items-center gap-1.5 text-indigo-700 dark:text-indigo-300 font-black text-base">
+                        <div className="flex items-center gap-1.5 text-indigo-700 dark:text-indigo-300 font-black text-sm sm:text-base">
                           <span>🛠️ Ilimitado</span>
                         </div>
                         <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-0.5">No requiere control de unidades</p>
                       </div>
                     )}
 
-                    <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-800 dark:bg-slate-900/40">
+                    <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3.5 sm:p-4 dark:border-slate-800 dark:bg-slate-900/40">
                       <label className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1 block">Precio Venta</label>
                       <input 
                         type="text" 
@@ -2795,15 +3474,15 @@ export default function InventarioPage() {
                           setErrores(prev => ({ ...prev, precio: '' })); 
                         }} 
                         placeholder="0" 
-                        className="w-full p-4 bg-white dark:bg-[#020617] border border-slate-200 dark:border-slate-700 rounded-2xl outline-none font-black text-lg focus:border-emerald-500 text-slate-900 dark:text-white" 
+                        className="w-full p-3 sm:p-4 bg-white dark:bg-[#020617] border border-slate-200 dark:border-slate-700 rounded-2xl outline-none font-black text-base sm:text-lg focus:border-emerald-500 text-slate-900 dark:text-white" 
                       />
                       {errores.precio && <p className="mt-1 text-[11px] text-rose-500 font-medium">{errores.precio}</p>}
                     </div>
                   </div>
 
-                  <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 dark:border-emerald-500/20 dark:bg-emerald-500/5">
-                    <h4 className="text-sm font-black uppercase tracking-[0.12em] text-emerald-700 dark:text-emerald-300 mb-3">Vista previa</h4>
-                    <div className="space-y-2 text-sm text-slate-700 dark:text-slate-200">
+                  <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-3.5 sm:p-4 dark:border-emerald-500/20 dark:bg-emerald-500/5">
+                    <h4 className="text-xs sm:text-sm font-black uppercase tracking-[0.12em] text-emerald-700 dark:text-emerald-300 mb-2">Vista previa</h4>
+                    <div className="space-y-1.5 text-xs sm:text-sm text-slate-700 dark:text-slate-200">
                       <div className="flex items-center justify-between"><span>Tipo</span><strong>{tipoProducto === 'servicio' ? 'Servicio' : 'Producto'}</strong></div>
                       <div className="flex items-center justify-between"><span>Categoría</span><strong>{categoria || 'Sin categoría'}</strong></div>
                       <div className="flex items-center justify-between"><span>Stock</span><strong>{stock || '0'}</strong></div>
@@ -2814,13 +3493,31 @@ export default function InventarioPage() {
               </div>
             </div>
 
-            <div className="border-t border-slate-200 bg-white px-6 py-4 dark:border-slate-800 dark:bg-[#0f172a]">
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                <button onClick={() => setModalProducto(false)} className="bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-700 dark:text-slate-300 font-bold py-4 rounded-2xl text-base transition-colors">Cancelar</button>
-                <button onClick={agregarProductoALaCarga} className="bg-sky-600 hover:bg-sky-700 text-white font-bold py-4 rounded-2xl shadow-lg text-base">Agregar otro producto</button>
-                <button onClick={guardarProducto} disabled={guardando} className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-4 rounded-2xl shadow-lg flex justify-center items-center gap-2 text-base">Guardar <CheckCircle2 size={18}/></button>
+            {/* Pie de Página Fijo con Botones de Acción Accesibles en Móvil */}
+            <div className="border-t border-slate-200 bg-white px-4 sm:px-6 py-3 sm:py-4 dark:border-slate-800 dark:bg-[#0f172a] shrink-0 z-10 shadow-lg">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-3">
+                <button 
+                  onClick={() => setModalProducto(false)} 
+                  className="bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-700 dark:text-slate-300 font-bold py-2.5 sm:py-3.5 rounded-xl sm:rounded-2xl text-xs sm:text-sm transition-colors order-3 sm:order-1"
+                >
+                  Cancelar
+                </button>
+                <button 
+                  onClick={agregarProductoALaCarga} 
+                  className="bg-sky-600 hover:bg-sky-700 text-white font-bold py-2.5 sm:py-3.5 rounded-xl sm:rounded-2xl shadow-md text-xs sm:text-sm order-2 active:scale-95 transition-all"
+                >
+                  Agregar otro producto
+                </button>
+                <button 
+                  onClick={guardarProducto} 
+                  disabled={guardando} 
+                  className="bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-black py-2.5 sm:py-3.5 rounded-xl sm:rounded-2xl shadow-lg shadow-emerald-600/25 flex justify-center items-center gap-1.5 text-xs sm:text-sm order-1 sm:order-3 active:scale-95 transition-all"
+                >
+                  Guardar <CheckCircle2 size={16}/>
+                </button>
               </div>
             </div>
+
           </div>
         </div>
       )}

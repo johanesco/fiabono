@@ -13,6 +13,10 @@ export interface DatosFacturaProps {
   nombreNegocio: string;
   telefonoNegocio?: string;
   correoNegocio?: string;
+  logoNegocio?: string | null;
+  nitNegocio?: string;
+  direccionNegocio?: string;
+  mensajePieTicket?: string;
   nombreCliente: string;
   celularCliente?: string;
   registradoPor?: string;
@@ -26,6 +30,11 @@ export interface DatosFacturaProps {
   saldoAnterior?: number;
   saldoNuevo?: number;
   idTransaccion?: string;
+  metodoPago?: 'efectivo' | 'transferencia' | 'datafono' | 'credito_externo' | 'fiado';
+  referenciaPago?: string;
+  subtotal?: number;
+  valorIva?: number;
+  porcentajeIva?: number;
 }
 
 interface TicketFacturaModalProps {
@@ -74,23 +83,23 @@ export default function TicketFacturaModal({ isOpen, onClose, datos }: TicketFac
 
   return (
     <>
-      {/* ESTILOS DE IMPRESIÓN EXCLUSIVOS PARA IMPRESORAS POS / TÉRMICAS (58mm - 80mm) */}
+      {/* ESTILOS DE IMPRESIÓN EXCLUSIVOS PARA IMPRESORAS POS / TÉRMICAS (80mm / 58mm) */}
       <style jsx global>{`
         @media print {
           body * {
-            visibility: hidden;
+            visibility: hidden !important;
           }
           #seccion-ticket-impresion, #seccion-ticket-impresion * {
-            visibility: visible;
+            visibility: visible !important;
           }
           #seccion-ticket-impresion {
-            position: absolute;
-            left: 0;
-            top: 0;
-            width: 100%;
-            max-width: 80mm;
-            margin: 0 auto;
-            padding: 2mm;
+            position: absolute !important;
+            left: 0 !important;
+            top: 0 !important;
+            width: 100% !important;
+            max-width: 80mm !important;
+            margin: 0 !important;
+            padding: 3mm 4mm !important;
             background: #ffffff !important;
             color: #000000 !important;
             font-size: 11px !important;
@@ -100,7 +109,7 @@ export default function TicketFacturaModal({ isOpen, onClose, datos }: TicketFac
           }
           @page {
             margin: 0;
-            size: auto;
+            size: 80mm auto;
           }
         }
       `}</style>
@@ -128,7 +137,7 @@ export default function TicketFacturaModal({ isOpen, onClose, datos }: TicketFac
           {/* CONTENIDO SCROLLEABLE - TICKET TÉRMICO */}
           <div className="p-4 sm:p-6 overflow-y-auto flex-1 bg-slate-100/60 dark:bg-slate-950 flex justify-center">
             
-            {/* CONTENEDOR DEL TICKET (Diseño tipo rollo de papel) */}
+            {/* CONTENEDOR DEL TICKET (Diseño tipo rollo térmico de 80mm) */}
             <div
               id="seccion-ticket-impresion"
               ref={ticketRef}
@@ -136,20 +145,46 @@ export default function TicketFacturaModal({ isOpen, onClose, datos }: TicketFac
             >
               {/* ENCABEZADO NEGOCIO */}
               <div className="text-center pb-3 border-b border-dashed border-slate-300">
-                <h2 className="text-base font-black uppercase tracking-wider text-slate-900">
+                {/* LOGO DEL NEGOCIO (SI ESTÁ CONFIGURADO) */}
+                {datos.logoNegocio && (
+                  <div className="flex justify-center mb-2.5">
+                    <img 
+                      src={datos.logoNegocio} 
+                      alt="Logo Negocio" 
+                      className="max-h-16 max-w-[140px] object-contain filter grayscale contrast-125"
+                    />
+                  </div>
+                )}
+                
+                <h2 className="text-base font-black uppercase tracking-wider text-slate-900 leading-tight">
                   {datos.nombreNegocio || "MI NEGOCIO"}
                 </h2>
-                {datos.telefonoNegocio && (
-                  <p className="text-[11px] text-slate-600 font-medium mt-0.5">
-                    Tel: {datos.telefonoNegocio}
+                
+                {datos.nitNegocio && (
+                  <p className="text-[11px] font-bold text-slate-700 mt-0.5">
+                    NIT / RUT: {datos.nitNegocio}
                   </p>
                 )}
+                
+                {datos.direccionNegocio && (
+                  <p className="text-[10.5px] text-slate-600 font-medium mt-0.5">
+                    {datos.direccionNegocio}
+                  </p>
+                )}
+                
+                {datos.telefonoNegocio && (
+                  <p className="text-[10.5px] text-slate-600 font-medium">
+                    Tel / WhatsApp: {datos.telefonoNegocio}
+                  </p>
+                )}
+                
                 {datos.correoNegocio && (
-                  <p className="text-[10px] text-slate-500 font-medium">
+                  <p className="text-[9.5px] text-slate-500 font-medium">
                     {datos.correoNegocio}
                   </p>
                 )}
-                <div className="mt-2 inline-block bg-slate-100 text-slate-800 px-2 py-0.5 rounded font-black text-[10px] uppercase tracking-widest border border-slate-300">
+
+                <div className="mt-2.5 inline-block bg-slate-100 text-slate-800 px-2.5 py-0.5 rounded font-black text-[10px] uppercase tracking-widest border border-slate-300">
                   {getTituloTipo()}
                 </div>
               </div>
@@ -239,6 +274,20 @@ export default function TicketFacturaModal({ isOpen, onClose, datos }: TicketFac
 
               {/* TOTALES Y PAGOS */}
               <div className="py-3 border-b border-dashed border-slate-300 space-y-1.5 text-[11px]">
+                {/* Desglose de IVA si aplica */}
+                {datos.subtotal !== undefined && datos.valorIva !== undefined && datos.valorIva > 0 && (
+                  <>
+                    <div className="flex justify-between items-center text-slate-600">
+                      <span>Subtotal:</span>
+                      <span className="font-bold">${datos.subtotal.toLocaleString('es-CO')}</span>
+                    </div>
+                    <div className="flex justify-between items-center text-slate-600">
+                      <span>IVA ({datos.porcentajeIva || 19}%):</span>
+                      <span className="font-bold">${datos.valorIva.toLocaleString('es-CO')}</span>
+                    </div>
+                  </>
+                )}
+
                 <div className="flex justify-between items-center text-sm font-black pt-1">
                   <span className="uppercase text-slate-900">TOTAL:</span>
                   <span className="text-base text-slate-900">
@@ -246,9 +295,31 @@ export default function TicketFacturaModal({ isOpen, onClose, datos }: TicketFac
                   </span>
                 </div>
 
+                {/* MÉTODO DE PAGO */}
+                {datos.metodoPago && (
+                  <div className="flex justify-between items-center text-slate-700 pt-1">
+                    <span className="font-bold">Forma de Pago:</span>
+                    <span className="font-black uppercase text-slate-900">
+                      {datos.metodoPago === 'transferencia' && 'Transferencia / Nequi'}
+                      {datos.metodoPago === 'datafono' && 'Datáfono / Tarjeta'}
+                      {datos.metodoPago === 'credito_externo' && 'Crédito Addi / Sistecrédito'}
+                      {datos.metodoPago === 'efectivo' && 'Efectivo'}
+                      {datos.metodoPago === 'fiado' && 'Crédito Directo (Fiado)'}
+                    </span>
+                  </div>
+                )}
+
+                {/* REFERENCIA DE COMPROBANTE */}
+                {datos.referenciaPago && (
+                  <div className="flex justify-between items-center text-slate-600 text-[10px]">
+                    <span className="font-medium">Ref. / Aprobación:</span>
+                    <span className="font-mono font-bold text-slate-800">#{datos.referenciaPago}</span>
+                  </div>
+                )}
+
                 {datos.pagoRecibido !== undefined && datos.pagoRecibido > 0 && (
                   <div className="flex justify-between items-center text-slate-600">
-                    <span className="font-bold">Efectivo Recibido:</span>
+                    <span className="font-bold">Monto Recibido:</span>
                     <span className="font-bold">${datos.pagoRecibido.toLocaleString('es-CO')}</span>
                   </div>
                 )}
@@ -285,8 +356,10 @@ export default function TicketFacturaModal({ isOpen, onClose, datos }: TicketFac
 
               {/* PIE DEL TICKET */}
               <div className="pt-3 text-center text-[10px] text-slate-500 space-y-1">
-                <p className="font-black text-slate-700 uppercase">¡GRACIAS POR SU PREFERENCIA!</p>
-                <p className="text-[9px]">Conserve este comprobante para cualquier aclaración.</p>
+                <p className="font-black text-slate-800 uppercase">
+                  {datos.mensajePieTicket || "¡GRACIAS POR SU COMPRA!"}
+                </p>
+                <p className="text-[9px] text-slate-600">Conserve este comprobante para cualquier aclaración.</p>
                 <p className="text-[8px] text-slate-400 font-sans mt-2">Generado por Fiabono.com</p>
               </div>
 

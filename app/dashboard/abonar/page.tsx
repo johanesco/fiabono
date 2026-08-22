@@ -3,7 +3,7 @@ import { useState, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { collection, addDoc, getDocs, query, doc, updateDoc, where } from "firebase/firestore";
 import { db } from "../../../firebase";
-import { Search, CheckCircle2, ChevronRight, X, AlertCircle, UserCog, ArrowLeft, MessageCircle, Banknote, Printer } from 'lucide-react';
+import { Search, CheckCircle2, ChevronRight, X, AlertCircle, UserCog, ArrowLeft, MessageCircle, Banknote, Printer, Smartphone, CreditCard, Zap } from 'lucide-react';
 import { useAuth } from "../../../hooks/AuthContext";
 import { API_DB } from "../../../servicios/db";
 import TicketFacturaModal from "@/components/TicketFacturaModal";
@@ -29,6 +29,8 @@ function AbonarContenido() {
   const [clienteTransaccion, setClienteTransaccion] = useState<any | null>(null);
   
   const [montoAbono, setMontoAbono] = useState(""); 
+  const [metodoPago, setMetodoPago] = useState<'efectivo' | 'transferencia' | 'datafono' | 'credito_externo'>('efectivo');
+  const [referenciaPago, setReferenciaPago] = useState("");
   const [busquedaRegistro, setBusquedaRegistro] = useState("");
   const [mostrarResultadosBuscador, setMostrarResultadosBuscador] = useState(false);
   
@@ -100,7 +102,6 @@ function AbonarContenido() {
 
     if (!clienteTransaccion) return alert("Debes seleccionar un cliente para registrar un abono.");
     if (abonoReal <= 0) return alert("Ingresa un monto mayor a $0 para abonar.");
-
     try {
       const resAbono = await API_DB.registrarMovimientoConTransaccion(
         {
@@ -108,10 +109,12 @@ function AbonarContenido() {
           usuarioId: cuentaPrincipalId,
           tipo: 'abono',
           monto: abonoReal,
-          descripcion: "Abono a cuenta",
+          descripcion: `Abono a cuenta (${metodoPago === 'transferencia' ? 'Nequi / Transf.' : (metodoPago === 'datafono' ? 'Datáfono' : (metodoPago === 'credito_externo' ? 'Crédito Addi' : 'Efectivo'))})`,
           detalles: [],
           fecha: new Date(),
-          registradoPor: nombreUsuario
+          registradoPor: nombreUsuario,
+          metodoPago: metodoPago,
+          referenciaPago: referenciaPago.trim() || undefined
         },
         {
           ajustarSaldoCliente: true,
@@ -126,6 +129,10 @@ function AbonarContenido() {
         nombreNegocio: nombreNegocio || "Mi Negocio",
         telefonoNegocio: datosSesion?.telefonoNegocio || "",
         correoNegocio: datosSesion?.correoNegocio || "",
+        logoNegocio: datosSesion?.logoNegocio || null,
+        nitNegocio: datosSesion?.nitNegocio || "",
+        direccionNegocio: datosSesion?.direccionNegocio || "",
+        mensajePieTicket: datosSesion?.mensajePieTicket || "",
         nombreCliente: clienteTransaccion.nombre,
         celularCliente: clienteTransaccion.celular || "",
         registradoPor: nombreUsuario || "",
@@ -136,7 +143,9 @@ function AbonarContenido() {
         montoTotal: abonoReal,
         pagoRecibido: abonoReal,
         saldoNuevo: saldoFinal,
-        idTransaccion: resAbono.movimientoId
+        idTransaccion: resAbono.movimientoId,
+        metodoPago: metodoPago,
+        referenciaPago: referenciaPago.trim() || undefined
       };
 
       setModalExito({ 
@@ -302,8 +311,80 @@ Estamos atentos para cualquier consulta.
                   <div className="flex gap-2">
                     {clienteTransaccion.deudaTotal > 0 && (
                       <button onClick={() => setMontoAbono(clienteTransaccion.deudaTotal.toLocaleString('es-CO'))} className="flex-1 text-[11px] lg:text-sm font-bold text-blue-600 bg-blue-50 hover:bg-blue-100 py-3 rounded-xl transition-colors">
-                        Saldar deuda completa
+                        Saldar deuda completa (${clienteTransaccion.deudaTotal.toLocaleString('es-CO')})
                       </button>
+                    )}
+                  </div>
+
+                  {/* SELECTOR DE MÉTODO DE PAGO DEL ABONO */}
+                  <div className="mt-4 pt-4 border-t border-slate-100 dark:border-slate-800">
+                    <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2 flex items-center justify-between">
+                      <span>Forma de Pago del Abono:</span>
+                      <span className="text-blue-600 dark:text-blue-400 font-bold capitalize">
+                        {metodoPago === 'transferencia' ? 'Nequi / Transf.' : (metodoPago === 'datafono' ? 'Datáfono' : (metodoPago === 'credito_externo' ? 'Crédito Addi' : 'Efectivo'))}
+                      </span>
+                    </label>
+
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-2">
+                      <button
+                        type="button"
+                        onClick={() => setMetodoPago('efectivo')}
+                        className={`py-2 px-2 rounded-xl text-xs font-black flex items-center justify-center gap-1.5 transition-all ${
+                          metodoPago === 'efectivo'
+                            ? 'bg-blue-600 text-white shadow-md'
+                            : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'
+                        }`}
+                      >
+                        <Banknote size={14} /> Efectivo
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => setMetodoPago('transferencia')}
+                        className={`py-2 px-2 rounded-xl text-xs font-black flex items-center justify-center gap-1.5 transition-all ${
+                          metodoPago === 'transferencia'
+                            ? 'bg-blue-600 text-white shadow-md'
+                            : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'
+                        }`}
+                      >
+                        <Smartphone size={14} /> Nequi
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => setMetodoPago('datafono')}
+                        className={`py-2 px-2 rounded-xl text-xs font-black flex items-center justify-center gap-1.5 transition-all ${
+                          metodoPago === 'datafono'
+                            ? 'bg-blue-600 text-white shadow-md'
+                            : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'
+                        }`}
+                      >
+                        <CreditCard size={14} /> Datáfono
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => setMetodoPago('credito_externo')}
+                        className={`py-2 px-2 rounded-xl text-xs font-black flex items-center justify-center gap-1.5 transition-all ${
+                          metodoPago === 'credito_externo'
+                            ? 'bg-blue-600 text-white shadow-md'
+                            : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'
+                        }`}
+                      >
+                        <Zap size={14} /> Addi
+                      </button>
+                    </div>
+
+                    {metodoPago !== 'efectivo' && (
+                      <div className="animate-in fade-in duration-150 pt-1">
+                        <input
+                          type="text"
+                          value={referenciaPago}
+                          onChange={(e) => setReferenciaPago(e.target.value)}
+                          placeholder="No. de comprobante / voucher (Opcional)"
+                          className="w-full p-2.5 bg-slate-50 dark:bg-[#0f172a] border border-slate-200 dark:border-slate-700 rounded-xl outline-none font-bold text-xs text-slate-900 dark:text-white placeholder-slate-400 focus:border-blue-500"
+                        />
+                      </div>
                     )}
                   </div>
                 </div>

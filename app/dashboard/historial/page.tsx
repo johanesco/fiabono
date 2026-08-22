@@ -115,6 +115,10 @@ export default function HistorialPage() {
       nombreNegocio: nombreNegocio || 'Mi Negocio',
       telefonoNegocio: datosSesion?.telefonoNegocio || '',
       correoNegocio: datosSesion?.correoNegocio || '',
+      logoNegocio: datosSesion?.logoNegocio || null,
+      nitNegocio: datosSesion?.nitNegocio || '',
+      direccionNegocio: datosSesion?.direccionNegocio || '',
+      mensajePieTicket: datosSesion?.mensajePieTicket || '',
       nombreCliente: nombreCli,
       celularCliente: celularCli,
       registradoPor: mov.registradoPor || '',
@@ -124,7 +128,12 @@ export default function HistorialPage() {
       descripcionGeneral: mov.descripcion,
       montoTotal: mov.monto,
       saldoNuevo: mov.saldoResultante !== undefined ? mov.saldoResultante : (clienteEncontrado ? clienteEncontrado.deudaTotal : undefined),
-      idTransaccion: mov.id
+      idTransaccion: mov.id,
+      metodoPago: mov.metodoPago || (mov.tipo === 'fiado' ? 'fiado' : 'efectivo'),
+      referenciaPago: mov.referenciaPago,
+      subtotal: mov.subtotal,
+      valorIva: mov.valorIva,
+      porcentajeIva: mov.porcentajeIva
     };
 
     setModalTicketFactura({ visible: true, datos: datosTicket });
