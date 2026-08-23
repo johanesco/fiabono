@@ -35,6 +35,10 @@ export interface DatosFacturaProps {
   subtotal?: number;
   valorIva?: number;
   porcentajeIva?: number;
+  montoBruto?: number;
+  descuentoTipo?: 'porcentaje' | 'fijo' | null;
+  descuentoValor?: number;
+  montoDescuento?: number;
 }
 
 interface TicketFacturaModalProps {
@@ -135,13 +139,13 @@ export default function TicketFacturaModal({ isOpen, onClose, datos }: TicketFac
           </div>
 
           {/* CONTENIDO SCROLLEABLE - TICKET TÉRMICO */}
-          <div className="p-4 sm:p-6 overflow-y-auto flex-1 bg-slate-100/60 dark:bg-slate-950 flex justify-center">
+          <div className="p-4 sm:p-6 overflow-y-auto flex-1 bg-slate-100/80 dark:bg-slate-950 flex flex-col items-center">
             
             {/* CONTENEDOR DEL TICKET (Diseño tipo rollo térmico de 80mm) */}
             <div
               id="seccion-ticket-impresion"
               ref={ticketRef}
-              className="w-full max-w-[340px] bg-white text-slate-900 p-5 rounded-2xl shadow-md border border-slate-200 font-mono text-xs flex flex-col"
+              className="w-full max-w-[340px] h-fit bg-white text-slate-900 p-5 rounded-2xl shadow-lg border border-slate-200 font-mono text-xs flex flex-col shrink-0 my-auto"
             >
               {/* ENCABEZADO NEGOCIO */}
               <div className="text-center pb-3 border-b border-dashed border-slate-300">
@@ -274,11 +278,27 @@ export default function TicketFacturaModal({ isOpen, onClose, datos }: TicketFac
 
               {/* TOTALES Y PAGOS */}
               <div className="py-3 border-b border-dashed border-slate-300 space-y-1.5 text-[11px]">
+                {/* Desglose de Descuento si aplica */}
+                {datos.montoDescuento !== undefined && datos.montoDescuento > 0 && (
+                  <>
+                    {datos.montoBruto && (
+                      <div className="flex justify-between items-center text-slate-600">
+                        <span>Subtotal Bruto:</span>
+                        <span className="font-bold">${datos.montoBruto.toLocaleString('es-CO')}</span>
+                      </div>
+                    )}
+                    <div className="flex justify-between items-center text-slate-900 font-bold">
+                      <span>Descuento {datos.descuentoTipo === 'porcentaje' ? `(${datos.descuentoValor}%)` : ''}:</span>
+                      <span>-${datos.montoDescuento.toLocaleString('es-CO')}</span>
+                    </div>
+                  </>
+                )}
+
                 {/* Desglose de IVA si aplica */}
                 {datos.subtotal !== undefined && datos.valorIva !== undefined && datos.valorIva > 0 && (
                   <>
                     <div className="flex justify-between items-center text-slate-600">
-                      <span>Subtotal:</span>
+                      <span>Base gravable:</span>
                       <span className="font-bold">${datos.subtotal.toLocaleString('es-CO')}</span>
                     </div>
                     <div className="flex justify-between items-center text-slate-600">

@@ -1,9 +1,9 @@
 "use client";
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { collection, addDoc, getDocs, query, where } from "firebase/firestore";
+import { collection, addDoc, getDocs, query, where, onSnapshot } from "firebase/firestore";
 import { db } from "../../../firebase";
-import { Search, ShoppingBag, Banknote, Users, CheckCircle2, ChevronRight, X, MessageCircle, UserCog, ShoppingCart, Star, Clock, Store, Printer, Edit3, Trash2 } from 'lucide-react';
+import { Search, ShoppingBag, Banknote, Users, CheckCircle2, ChevronRight, X, MessageCircle, UserCog, ShoppingCart, Star, Clock, Store, Printer, Edit3, Trash2, Receipt } from 'lucide-react';
 import toast from "react-hot-toast";
 import { useAuth } from "../../../hooks/AuthContext";
 import TicketFacturaModal, { DatosFacturaProps } from "@/components/TicketFacturaModal";
@@ -14,12 +14,15 @@ export default function InicioPage() {
   const router = useRouter();
 
   const cuentaPrincipalId = datosSesion?.cuentaPrincipalId;
+  const esAdmin = datosSesion?.esAdmin ?? (datosSesion?.rol !== 'cajero');
   const planActual = datosSesion?.planActual;
   const nombreNegocio = datosSesion?.nombreNegocio;
   const puedeVerDirectorio = datosSesion?.rol !== 'cajero' || datosSesion?.permisos?.verDirectorio === true;
+  const puedeAbonar: boolean = datosSesion?.puedeAbonar ?? true;
 
   const [clientes, setClientes] = useState<any[]>([]);
   const [todosMovimientos, setTodosMovimientos] = useState<any[]>([]);
+  const [ordenesPendientes, setOrdenesPendientes] = useState<any[]>([]);
   const [busqueda, setBusqueda] = useState("");
   const [busquedaDirectorio, setBusquedaDirectorio] = useState("");
   const [clienteActivo, setClienteActivo] = useState<any | null>(null);
@@ -79,8 +82,29 @@ export default function InicioPage() {
   };
 
   useEffect(() => {
-    if (cuentaPrincipalId) cargarDatosGlobales(cuentaPrincipalId);
-  }, [cuentaPrincipalId]);
+    if (cuentaPrincipalId) {
+      cargarDatosGlobales(cuentaPrincipalId);
+
+      if (esAdmin) {
+        const qOrd = query(
+          collection(db, "ordenes_pendientes"),
+          where("usuarioId", "==", cuentaPrincipalId),
+          where("estado", "==", "pendiente")
+        );
+        const unsub = onSnapshot(qOrd, (snap) => {
+          const lista: any[] = [];
+          snap.forEach(d => lista.push({ id: d.id, ...d.data() }));
+          lista.sort((a, b) => {
+            const timeA = a.fecha?.toMillis ? a.fecha.toMillis() : new Date(a.fecha).getTime();
+            const timeB = b.fecha?.toMillis ? b.fecha.toMillis() : new Date(b.fecha).getTime();
+            return timeB - timeA;
+          });
+          setOrdenesPendientes(lista);
+        });
+        return () => unsub();
+      }
+    }
+  }, [cuentaPrincipalId, esAdmin]);
 
   const cargarDatosGlobales = async (uid: string) => {
     try {
@@ -327,49 +351,136 @@ Quedamos pendientes para revisar detalles o responder cualquier duda.
           )}
         </section>
 
-        {/* BOTONES PRINCIPALES: Altura dramáticamente reducida en Escritorio */}
-        <section className="flex flex-col gap-4 sm:gap-6 md:gap-3 lg:gap-4">
-          {/* Botón VENDER: py-12 (Móvil) vs md:py-5 lg:py-6 (Escritorio) */}
-          <button onClick={() => router.push('/dashboard/vender')}
-            className="w-full bg-gradient-to-br from-emerald-500 to-green-700 hover:from-emerald-600 hover:to-green-800 text-white font-black text-2xl sm:text-4xl md:text-2xl lg:text-3xl xl:text-4xl py-12 md:py-5 lg:py-6 xl:py-8 rounded-[2rem] md:rounded-2xl lg:rounded-3xl shadow-lg flex flex-col items-center justify-center transition-transform transform active:scale-95 border border-emerald-400/30 dark:border-emerald-500/20">
-            <ShoppingCart className="mb-2 sm:mb-3 opacity-90 shrink-0 w-12 h-12 sm:w-16 sm:h-16 md:w-10 md:h-10 lg:w-12 lg:h-12" />
-            VENDER
-          </button>
+        {/* TARJETA DE ALERTA DE ÓRDENES PENDIENTES (Solo Admin) */}
+        {esAdmin && ordenesPendientes.length > 0 && (
+          <section className="bg-gradient-to-r from-amber-500/15 via-amber-500/10 to-transparent border border-amber-300 dark:border-amber-500/30 rounded-3xl p-4 sm:p-5 shadow-sm animate-in zoom-in-95 duration-200">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="flex items-start sm:items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-amber-500 text-white flex items-center justify-center shrink-0 shadow-md shadow-amber-500/30 animate-bounce">
+                  <Receipt size={20} />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h3 className="font-black text-slate-900 dark:text-white text-sm sm:text-base">
+                      {ordenesPendientes.length} Órden{ordenesPendientes.length > 1 ? 'es' : ''} Pendiente{ordenesPendientes.length > 1 ? 's' : ''} de Aprobación
+                    </h3>
+                    <span className="bg-rose-500 text-white text-[10px] font-black px-2 py-0.5 rounded-full">
+                      Por revisar
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                    Última enviada por <strong>{ordenesPendientes[0]?.nombreColaborador || 'Colaborador'}</strong> ({ordenesPendientes[0]?.tipo === 'fiado' ? 'Fiado' : 'Venta'} de ${ordenesPendientes[0]?.total?.toLocaleString('es-CO')})
+                  </p>
+                </div>
+              </div>
 
-          <div className="grid grid-cols-2 gap-4 sm:gap-6 md:gap-3 lg:gap-4">
-            {/* Botones FIAR / ABONAR: py-10 (Móvil) vs md:py-4 lg:py-5 (Escritorio) */}
-            <button onClick={() => router.push('/dashboard/fiar')}
-              className="bg-gradient-to-br from-rose-500 to-red-600 dark:from-rose-600 dark:to-rose-800 hover:from-rose-600 hover:to-red-700 text-white font-black text-2xl sm:text-3xl md:text-xl lg:text-2xl xl:text-3xl py-10 md:py-4 lg:py-5 xl:py-6 rounded-[2rem] md:rounded-2xl lg:rounded-3xl shadow-lg flex flex-col items-center justify-center transition-transform transform active:scale-95 border border-rose-400/30 dark:border-rose-500/20">
-              <ShoppingBag className="mb-2 sm:mb-3 opacity-90 shrink-0 w-10 h-10 sm:w-12 sm:h-12 md:w-8 md:h-8 lg:w-10 lg:h-10" />
+              <button
+                onClick={() => router.push('/dashboard/ordenes')}
+                className="bg-amber-500 hover:bg-amber-600 active:scale-95 text-white font-black px-4 py-2.5 rounded-2xl text-xs sm:text-sm shadow-md shadow-amber-500/20 transition-all flex items-center justify-center gap-1.5 self-end sm:self-center shrink-0"
+              >
+                <span>Revisar y Aprobar</span>
+                <ChevronRight size={16} />
+              </button>
+            </div>
+          </section>
+        )}
+
+        {/* BOTONES PRINCIPALES: Adaptables según permisos de Abono */}
+        {puedeAbonar ? (
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-6 md:gap-3 lg:gap-4">
+            {/* Botón VENDER */}
+            <button
+              onClick={() => router.push('/dashboard/vender')}
+              className="w-full bg-gradient-to-br from-emerald-500 to-green-700 hover:from-emerald-600 hover:to-green-800 text-white font-black text-2xl sm:text-4xl md:text-2xl lg:text-3xl xl:text-4xl py-10 md:py-6 lg:py-7 xl:py-8 rounded-[2rem] md:rounded-2xl lg:rounded-3xl shadow-lg flex flex-col items-center justify-center transition-transform transform active:scale-95 border border-emerald-400/30 dark:border-emerald-500/20"
+            >
+              <ShoppingCart className="mb-2 sm:mb-3 opacity-90 shrink-0 w-10 h-10 sm:w-14 sm:h-14 md:w-9 md:h-9 lg:w-11 lg:h-11" />
+              VENDER
+            </button>
+
+            {/* Botón FIAR */}
+            <button
+              onClick={() => router.push('/dashboard/fiar')}
+              className="w-full bg-gradient-to-br from-rose-500 to-red-700 hover:from-rose-600 hover:to-red-800 text-white font-black text-2xl sm:text-4xl md:text-2xl lg:text-3xl xl:text-4xl py-10 md:py-6 lg:py-7 xl:py-8 rounded-[2rem] md:rounded-2xl lg:rounded-3xl shadow-lg flex flex-col items-center justify-center transition-transform transform active:scale-95 border border-rose-400/30 dark:border-rose-500/20"
+            >
+              <ShoppingBag className="mb-2 sm:mb-3 opacity-90 shrink-0 w-10 h-10 sm:w-14 sm:h-14 md:w-9 md:h-9 lg:w-11 lg:h-11" />
               FIAR
             </button>
-            <button onClick={() => router.push('/dashboard/abonar')}
-              className="bg-gradient-to-br from-blue-500 to-blue-700 dark:from-blue-600 dark:to-blue-800 hover:from-blue-600 hover:to-blue-700 text-white font-black text-2xl sm:text-3xl md:text-xl lg:text-2xl xl:text-3xl py-10 md:py-4 lg:py-5 xl:py-6 rounded-[2rem] md:rounded-2xl lg:rounded-3xl shadow-lg flex flex-col items-center justify-center transition-transform transform active:scale-95 border border-blue-400/30 dark:border-blue-500/20">
-              <Banknote className="mb-2 sm:mb-3 opacity-90 shrink-0 w-10 h-10 sm:w-12 sm:h-12 md:w-8 md:h-8 lg:w-10 lg:h-10" />
+
+            {/* Botón ABONAR */}
+            <button
+              onClick={() => router.push('/dashboard/abonar')}
+              className="w-full bg-gradient-to-br from-blue-500 to-blue-700 dark:from-blue-600 dark:to-blue-800 hover:from-blue-600 hover:to-blue-700 text-white font-black text-2xl sm:text-4xl md:text-2xl lg:text-3xl xl:text-4xl py-10 md:py-6 lg:py-7 xl:py-8 rounded-[2rem] md:rounded-2xl lg:rounded-3xl shadow-lg flex flex-col items-center justify-center transition-transform transform active:scale-95 border border-blue-400/30 dark:border-blue-500/20"
+            >
+              <Banknote className="mb-2 sm:mb-3 opacity-90 shrink-0 w-10 h-10 sm:w-14 sm:h-14 md:w-9 md:h-9 lg:w-11 lg:h-11" />
               ABONAR
             </button>
           </div>
-        </section>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6 md:gap-3 lg:gap-4">
+            {/* Botón VENDER (50% en escritorio) */}
+            <button
+              onClick={() => router.push('/dashboard/vender')}
+              className="w-full bg-gradient-to-br from-emerald-500 to-green-700 hover:from-emerald-600 hover:to-green-800 text-white font-black text-2xl sm:text-4xl md:text-2xl lg:text-3xl xl:text-4xl py-12 md:py-8 lg:py-10 rounded-[2rem] md:rounded-2xl lg:rounded-3xl shadow-lg flex flex-col items-center justify-center transition-transform transform active:scale-95 border border-emerald-400/30 dark:border-emerald-500/20"
+            >
+              <ShoppingCart className="mb-2 sm:mb-3 opacity-90 shrink-0 w-12 h-12 sm:w-16 sm:h-16 md:w-10 md:h-10 lg:w-12 lg:h-12" />
+              VENDER
+            </button>
 
-        {/* DIRECTORIO DE CLIENTES: py-6 (Móvil) vs md:py-3 lg:py-4 (Escritorio) */}
+            {/* Botón FIAR (50% en escritorio) */}
+            <button
+              onClick={() => router.push('/dashboard/fiar')}
+              className="w-full bg-gradient-to-br from-rose-500 to-red-700 hover:from-rose-600 hover:to-red-800 text-white font-black text-2xl sm:text-4xl md:text-2xl lg:text-3xl xl:text-4xl py-12 md:py-8 lg:py-10 rounded-[2rem] md:rounded-2xl lg:rounded-3xl shadow-lg flex flex-col items-center justify-center transition-transform transform active:scale-95 border border-rose-400/30 dark:border-rose-500/20"
+            >
+              <ShoppingBag className="mb-2 sm:mb-3 opacity-90 shrink-0 w-12 h-12 sm:w-16 sm:h-16 md:w-10 md:h-10 lg:w-12 lg:h-12" />
+              FIAR
+            </button>
+          </div>
+        )}
+
+        {/* BOTÓN O SECCIÓN PARA VER CLIENTES */}
         {puedeVerDirectorio && (
-          <button onClick={() => setVerTodosClientes(true)} className="bg-white dark:bg-[#0f172a] hover:bg-slate-50 dark:hover:bg-[#1e293b] text-blue-900 dark:text-blue-400 font-bold text-xl md:text-base lg:text-lg py-6 md:py-3 lg:py-4 xl:py-4 rounded-[2rem] md:rounded-2xl lg:rounded-3xl shadow-sm transition-colors border border-slate-200 dark:border-slate-800/60 flex justify-center items-center gap-3 relative z-10 mb-4 md:mb-0">
-            <Users className="shrink-0 w-7 h-7 sm:w-8 sm:h-8 md:w-5 md:h-5 lg:w-6 lg:h-6" /> Directorio de clientes
+          <button onClick={() => setVerTodosClientes(true)}
+            className="w-full bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-800/80 hover:border-slate-300 dark:hover:border-slate-700 p-6 md:p-3 lg:p-4 rounded-[2rem] md:rounded-2xl lg:rounded-3xl shadow-sm flex items-center justify-between transition-all group">
+            <div className="flex items-center gap-4 md:gap-3">
+              <div className="p-3 md:p-2 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 rounded-2xl group-hover:bg-blue-50 dark:group-hover:bg-blue-500/10 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
+                <Users size={28} className="md:w-5 md:h-5" />
+              </div>
+              <div className="text-left">
+                <h3 className="font-black text-slate-800 dark:text-slate-200 text-xl md:text-base">Directorio de Clientes</h3>
+                <p className="text-slate-500 dark:text-slate-400 font-medium text-sm md:text-xs">{clientes.length} registrados</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2 text-slate-400 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors font-bold text-sm">
+              <span className="hidden sm:inline">Ver todos</span>
+              <ChevronRight size={20} />
+            </div>
           </button>
         )}
+
       </div>
 
-      {/* --- MODAL DIRECTORIO --- */}
-      {verTodosClientes && (
-        <div className="fixed inset-0 bg-black/70 dark:bg-black/85 backdrop-blur-md flex items-center justify-center p-0 md:p-6 z-[200] overflow-hidden">
-          <div className="bg-white dark:bg-[#0f172a] rounded-none md:rounded-[2.5rem] w-full h-full md:h-[90vh] md:max-w-7xl shadow-2xl overflow-hidden border border-slate-100 dark:border-slate-800/60 flex flex-col md:flex-row">
-
-            <div className="w-full md:w-5/12 flex flex-col border-r border-slate-100 dark:border-slate-800 h-full bg-slate-50/50 dark:bg-[#020617]/50">
+      {/* --- MODAL DIRECTORIO DE CLIENTES CON PANTALLA DIVIDIDA (IDÉNTICO A HISTORIAL / FOTO 1) --- */}
+      {(verTodosClientes || clienteActivo) && (
+        <div className="fixed inset-0 bg-black/70 dark:bg-black/85 backdrop-blur-md flex items-end md:items-center justify-center p-0 md:p-6 z-[500] overflow-hidden">
+          <div className="bg-white dark:bg-[#0f172a] rounded-t-[2.5rem] md:rounded-[2.5rem] w-full h-[96vh] md:h-[90vh] md:max-w-7xl shadow-2xl flex flex-col md:flex-row overflow-hidden border border-slate-100 dark:border-slate-800/60 animate-in slide-in-from-bottom-8 md:zoom-in-95 duration-300">
+            
+            {/* PANEL IZQUIERDO: DIRECTORIO (SOLO ESCRITORIO O SI NO HAY CLIENTE EN MÓVIL) */}
+            <div className={`w-full md:w-5/12 flex flex-col border-r border-slate-100 dark:border-slate-800 h-full bg-slate-50/50 dark:bg-[#020617]/50 ${clienteActivo ? 'hidden md:flex' : 'flex'}`}>
               <div className="bg-blue-600 dark:bg-blue-900 p-6 flex justify-between items-center shrink-0">
-                <h2 className="text-2xl font-black text-white tracking-wide flex items-center gap-2"><Users size={26} /> Directorio de Clientes</h2>
-                <button onClick={() => setVerTodosClientes(false)} className="text-blue-200 hover:text-white transition-colors bg-blue-700/50 p-2 rounded-full"><X size={24} /></button>
+                <h2 className="text-2xl font-black text-white tracking-wide flex items-center gap-2">
+                  <Users size={26}/> Directorio de Clientes
+                </h2>
+                <button 
+                  onClick={() => {
+                    setVerTodosClientes(false);
+                    setClienteActivo(null);
+                  }} 
+                  className="text-blue-200 hover:text-white transition-colors bg-blue-700/50 p-2 rounded-full cursor-pointer"
+                >
+                  <X size={24}/>
+                </button>
               </div>
-
+              
               <div className="p-4 bg-white dark:bg-[#0f172a] shrink-0 border-b border-slate-100 dark:border-slate-800">
                 <div className="relative">
                   <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
@@ -381,13 +492,12 @@ Quedamos pendientes para revisar detalles o responder cualquier duda.
                       if (e.key === 'Enter') {
                         e.preventDefault();
                         if (directorioFiltrado.length > 0) {
-                          const primer = directorioFiltrado[0];
-                          setClienteActivo(primer);
-                          cargarMovimientosClienteDirecto(primer.id);
+                          setClienteActivo(directorioFiltrado[0]);
+                          cargarMovimientosClienteDirecto(directorioFiltrado[0].id);
                         }
                       }
                     }}
-                    placeholder="Buscar nombre o celular..."
+                    placeholder="Buscar nombre o celular en el directorio..."
                     className="w-full p-4 pl-12 bg-slate-50 dark:bg-[#020617] border border-slate-200 dark:border-slate-800 rounded-2xl outline-none focus:border-blue-500 dark:text-white text-base font-medium"
                   />
                 </div>
@@ -395,10 +505,14 @@ Quedamos pendientes para revisar detalles o responder cualquier duda.
 
               <div className="p-4 overflow-y-auto flex-1 space-y-3">
                 {directorioFiltrado.map(c => (
-                  <div key={c.id} onClick={() => {
-                    setClienteActivo(c);
-                    cargarMovimientosClienteDirecto(c.id);
-                  }} className={`p-4 rounded-2xl border cursor-pointer flex justify-between items-center transition-all ${clienteActivo?.id === c.id ? 'bg-blue-50 dark:bg-blue-500/10 border-blue-500 dark:border-blue-500/50 shadow-sm' : 'bg-white dark:bg-[#0f172a] border-slate-100 dark:border-slate-800/80 hover:border-blue-300'}`}>
+                  <div 
+                    key={c.id} 
+                    onClick={() => {
+                      setClienteActivo(c);
+                      cargarMovimientosClienteDirecto(c.id);
+                    }} 
+                    className={`p-4 rounded-2xl border cursor-pointer flex justify-between items-center transition-all ${clienteActivo?.id === c.id ? 'bg-blue-50 dark:bg-blue-500/10 border-blue-500 dark:border-blue-500/50 shadow-sm' : 'bg-white dark:bg-[#0f172a] border-slate-100 dark:border-slate-800/80 hover:border-blue-300'}`}
+                  >
                     <div className="min-w-0 pr-2">
                       <p className="font-bold text-base text-slate-900 dark:text-slate-100 truncate">{c.nombre}</p>
                       <p className="text-xs text-slate-500 dark:text-slate-400">{c.celular || "Sin celular"}</p>
@@ -411,243 +525,201 @@ Quedamos pendientes para revisar detalles o responder cualquier duda.
                     </div>
                   </div>
                 ))}
+                {directorioFiltrado.length === 0 && (
+                  <div className="p-8 text-center text-slate-400">
+                    <p>No se encontraron clientes.</p>
+                  </div>
+                )}
               </div>
 
               <div className="p-4 bg-white dark:bg-[#0f172a] border-t border-slate-100 dark:border-slate-800 shrink-0">
-                <button onClick={() => { setNombreNuevo(""); setModalNuevoCliente(true); }} className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3.5 px-6 rounded-2xl shadow-md transition-colors flex justify-center items-center gap-2 text-base">
+                <button onClick={() => { setNombreNuevo(""); setModalNuevoCliente(true); }} className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3.5 px-6 rounded-2xl shadow-md transition-colors flex justify-center items-center gap-2 text-base cursor-pointer">
                   <UserCog size={20} /> Nuevo Cliente
                 </button>
               </div>
             </div>
 
-            {/* PANEL DERECHO DE ESCRITORIO (Perfil de Cliente) */}
-            <div className="hidden md:flex flex-1 flex-col h-full bg-white dark:bg-[#0f172a] overflow-hidden">
-              {clienteActivo ? (
-                <div className="flex flex-col h-full">
-                  <div className="p-6 bg-slate-900 text-white flex justify-between items-center shrink-0">
-                    <div className="flex items-center gap-3">
-                      <div>
-                        <h3 className="text-2xl font-black">{clienteActivo.nombre}</h3>
-                        <p className="text-slate-400 text-sm">{clienteActivo.celular || "Sin celular registrado"}</p>
-                      </div>
-                      {datosSesion?.rol !== 'cajero' && (
-                        <div className="flex items-center gap-1.5 ml-2">
-                          <button
-                            type="button"
-                            onClick={() => setModalGestionCliente({ visible: true, modo: 'editar', cliente: clienteActivo })}
-                            title="Modificar Cliente"
-                            className="p-2 rounded-xl bg-slate-800 hover:bg-blue-600/80 text-slate-300 hover:text-white transition-colors"
-                          >
-                            <Edit3 size={16} />
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => setModalGestionCliente({ visible: true, modo: 'eliminar', cliente: clienteActivo })}
-                            title="Eliminar Cliente"
-                            className="p-2 rounded-xl bg-slate-800 hover:bg-rose-600/80 text-slate-300 hover:text-white transition-colors"
-                          >
-                            <Trash2 size={16} />
-                          </button>
-                        </div>
-                      )}
+            {/* PANEL DERECHO: PERFIL E HISTORIAL DEL CLIENTE */}
+            {clienteActivo ? (
+              <div className="flex-1 flex flex-col h-full bg-white dark:bg-[#0f172a] overflow-hidden">
+                
+                {/* HEADER ESCRITORIO */}
+                <div className="hidden md:flex p-6 bg-slate-900 text-white justify-between items-center shrink-0">
+                  <div className="flex items-center gap-3">
+                    <div>
+                      <h3 className="text-2xl font-black">{clienteActivo.nombre}</h3>
+                      <p className="text-slate-400 text-sm">{clienteActivo.celular || "Sin celular registrado"}</p>
                     </div>
-                    <div className="text-right">
-                      <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded mb-1 inline-block ${(clienteActivo.deudaTotal || 0) < 0 ? 'bg-emerald-500/20 text-emerald-300' : 'text-slate-400'}`}>
-                        {(clienteActivo.deudaTotal || 0) < 0 ? ' Saldo a favor' : 'Saldo Actual'}
-                      </span>
-                      <span className={`text-3xl font-black block ${clienteActivo.deudaTotal === 0 ? 'text-slate-300' : ((clienteActivo.deudaTotal || 0) < 0 ? 'text-emerald-400' : 'text-rose-400')}`}>
-                        ${Math.abs(clienteActivo.deudaTotal || 0).toLocaleString('es-CO')}
-                      </span>
-                    </div>
-                  </div>
-
-                  <div className="p-4 bg-slate-50 dark:bg-[#020617] border-b border-slate-100 dark:border-slate-800 flex flex-col gap-3 shrink-0">
-                    <div className="flex gap-3">
-                      <button onClick={() => router.push(`/dashboard/vender?clienteId=${clienteActivo.id}`)} className="flex-1 bg-emerald-500 hover:bg-emerald-600 text-white font-bold py-3 rounded-xl text-sm uppercase shadow-sm">+ Vender</button>
-                      <button onClick={() => router.push(`/dashboard/fiar?clienteId=${clienteActivo.id}`)} className="flex-1 bg-rose-500 hover:bg-rose-600 text-white font-bold py-3 rounded-xl text-sm uppercase shadow-sm">+ Fiar</button>
-                      <button onClick={() => router.push(`/dashboard/abonar?clienteId=${clienteActivo.id}`)} className="flex-1 bg-blue-500 hover:bg-blue-600 text-white font-bold py-3 rounded-xl text-sm uppercase shadow-sm">+ Abonar</button>
-                    </div>
-                    {clienteActivo.celular && datosSesion?.rol !== 'cajero' && (
-                      <button onClick={() => abrirWhatsApp(generarTextoComprobante('estado', clienteActivo), clienteActivo.celular)} className="w-full bg-[#25D366]/10 hover:bg-[#25D366]/20 text-[#1ebd5a] dark:text-[#25D366] font-bold py-2.5 rounded-xl transition-colors flex justify-center items-center gap-2 text-sm border border-[#25D366]/20">
-                        <MessageCircle size={18} /> Enviar estado por WhatsApp
-                      </button>
-                    )}
-                  </div>
-
-                  <div className="p-6 overflow-y-auto flex-1 space-y-4 bg-slate-50/50 dark:bg-[#020617]/50">
-                    <h4 className="font-bold text-slate-400 uppercase text-xs tracking-wider mb-3 flex items-center gap-2"><Clock size={16}/> Historial Detallado</h4>
-                    {movimientosCliente.map(mov => (
-                      <div key={mov.id} className="p-4 md:p-5 bg-white dark:bg-[#0f172a] rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm relative overflow-hidden space-y-2 md:space-y-3">
-                        <div className={`absolute left-0 top-0 bottom-0 w-1.5 ${mov.tipo === 'fiado' ? 'bg-rose-500' : (mov.tipo === 'venta' ? 'bg-emerald-500' : 'bg-blue-500')}`}></div>
-                        <div className="pl-1 md:pl-2">
-                          <div className="flex justify-between items-center pb-1 md:pb-2 md:border-b md:border-slate-100 dark:border-slate-800/80">
-                            <span className={`text-[10px] md:text-xs font-black uppercase px-2.5 py-0.5 md:px-3 md:py-1 rounded-md md:rounded-lg ${mov.tipo === 'fiado' ? 'bg-rose-100 text-rose-700 dark:bg-rose-500/20 dark:text-rose-300' : (mov.tipo === 'venta' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300' : 'bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-300')}`}>{mov.tipo}</span>
-                            
-                            <div className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[10px] md:text-[11px] font-bold uppercase">
-                              {mov.registradoPor && (
-                                <span className="text-slate-500 dark:text-slate-400 whitespace-nowrap">
-                                  👤 {mov.registradoPor}
-                                </span>
-                              )}
-                              {mov.registradoPor && <span className="text-slate-300 dark:text-slate-600 whitespace-nowrap">•</span>}
-                              <span className="text-slate-400 whitespace-nowrap">
-                                {mov.fecha?.toDate().toLocaleDateString('es-CO', {day:'2-digit', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit'})}
-                              </span>
-                            </div>
-                          </div>
-                          
-                          {mov.detalles && mov.detalles.length > 0 ? (
-                            <div className="space-y-1 md:space-y-2 pt-1 border-t border-slate-200 dark:border-slate-700 md:border-none">
-                              {mov.detalles.map((d: any, idx: number) => (
-                                <div key={idx} className="flex justify-between items-center text-xs md:text-sm">
-                                  <span className="text-slate-600 dark:text-slate-300 font-medium">
-                                    {d.cantidad > 1 && <strong className={`${mov.tipo === 'venta' ? 'text-emerald-500' : (mov.tipo === 'abono' ? 'text-blue-500' : 'text-rose-500')} font-black mr-1 md:mr-1.5`}>{d.cantidad}x</strong>}
-                                    {d.descripcion}
-                                  </span>
-                                  <span className="font-bold text-slate-900 dark:text-slate-100">${d.valor.toLocaleString('es-CO')}</span>
-                                </div>
-                              ))}
-                            </div>
-                          ) : (
-                            <p className="text-xs md:text-sm font-bold text-slate-800 dark:text-slate-200">{mov.descripcion}</p>
-                          )}
-                          
-                          <div className="flex justify-between items-center pt-2 mt-1 md:mt-0 md:pt-3 border-t border-slate-200 dark:border-slate-700 md:border-slate-100 dark:md:border-slate-800 font-black">
-                            <span className="text-xs text-slate-400 uppercase tracking-wider">Total:</span>
-                            <div className="flex items-center gap-2">
-                              <button
-                                type="button"
-                                onClick={() => abrirTicketDeMovimiento(mov, clienteActivo)}
-                                title="Imprimir Factura / Ticket"
-                                className="p-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:text-blue-600 transition-colors"
-                              >
-                                <Printer size={14} />
-                              </button>
-                              <span className={`text-base md:text-xl ${mov.tipo === 'fiado' ? 'text-rose-500' : (mov.tipo === 'venta' ? 'text-emerald-500' : 'text-blue-500')}`}>
-                                {mov.tipo === 'fiado' ? '-' : '+'}${mov.monto.toLocaleString('es-CO')}
-                              </span>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                    {movimientosCliente.length === 0 && <p className="text-center text-slate-400 py-10">Sin transacciones registradas.</p>}
-                  </div>
-                </div>
-              ) : (
-                <div className="flex-1 flex flex-col items-center justify-center text-slate-400 p-8 text-center">
-                  <Users size={64} className="opacity-20 mb-4" />
-                  <h3 className="text-xl font-bold text-slate-700 dark:text-slate-300">Selecciona un cliente</h3>
-                  <p className="text-sm mt-1 max-w-sm">Haz clic en cualquier cliente de la lista para ver su historial.</p>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* --- PERFIL DEL CLIENTE EN MÓVIL --- */}
-      {clienteActivo && (
-        <div className="fixed inset-0 bg-black/70 dark:bg-black/85 backdrop-blur-sm flex items-end justify-center p-0 z-[500] md:hidden">
-          <div className="bg-white dark:bg-[#0f172a] rounded-t-[2.5rem] w-full max-w-xl shadow-2xl relative flex flex-col h-[96vh] overflow-hidden border border-slate-100 dark:border-slate-800/60">
-            <div className="p-4 flex justify-between items-center bg-slate-50 dark:bg-[#020617] shrink-0 border-b border-slate-100 dark:border-slate-800">
-              <h3 className="font-bold text-slate-700 dark:text-slate-300 text-lg">Perfil de Cliente</h3>
-              <button onClick={() => setClienteActivo(null)} className="bg-white dark:bg-[#0f172a] text-slate-600 dark:text-slate-300 rounded-full p-3 font-bold shadow-sm"><X size={20} /></button>
-            </div>
-            <div className="px-6 py-5 bg-slate-50 dark:bg-[#020617] text-center shrink-0 flex flex-col items-center border-b border-slate-200 dark:border-slate-800">
-              <div className="flex items-center justify-center gap-2 mb-1">
-                <h2 className="text-3xl font-black text-slate-900 dark:text-white">{clienteActivo.nombre}</h2>
-                {datosSesion?.rol !== 'cajero' && (
-                  <div className="flex items-center gap-1">
-                    <button
-                      type="button"
-                      onClick={() => setModalGestionCliente({ visible: true, modo: 'editar', cliente: clienteActivo })}
-                      title="Modificar Cliente"
-                      className="p-2 rounded-xl bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:text-blue-600 shadow-sm border border-slate-200 dark:border-slate-700"
-                    >
-                      <Edit3 size={15} />
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setModalGestionCliente({ visible: true, modo: 'eliminar', cliente: clienteActivo })}
-                      title="Eliminar Cliente"
-                      className="p-2 rounded-xl bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:text-rose-600 shadow-sm border border-slate-200 dark:border-slate-700"
-                    >
-                      <Trash2 size={15} />
-                    </button>
-                  </div>
-                )}
-              </div>
-              <p className="text-slate-500 font-medium text-base mb-4">{clienteActivo.celular || "Sin número registrado"}</p>
-              <div className="flex flex-col items-center justify-center bg-white dark:bg-[#0f172a] w-full py-4 px-3 rounded-2xl border shadow-sm mb-4">
-                <p className={`text-xs font-bold uppercase tracking-widest mb-1 px-2 py-0.5 rounded ${(clienteActivo.deudaTotal || 0) < 0 ? 'bg-emerald-500/20 text-emerald-400' : 'text-slate-400'}`}>{(clienteActivo.deudaTotal || 0) < 0 ? ' Saldo a favor' : (clienteActivo.deudaTotal === 0 ? 'CUENTA AL DÍA' : 'SALDO PENDIENTE')}</p>
-                <p className={`text-4xl sm:text-5xl font-black tracking-tighter ${clienteActivo.deudaTotal === 0 ? 'text-slate-300' : ((clienteActivo.deudaTotal || 0) < 0 ? 'text-emerald-500' : 'text-rose-500')}`}>${Math.abs(clienteActivo.deudaTotal || 0).toLocaleString('es-CO')}</p>
-              </div>
-              <div className="grid grid-cols-3 gap-2 w-full mb-3">
-                <button onClick={() => router.push(`/dashboard/vender?clienteId=${clienteActivo.id}`)} className="bg-emerald-500 text-white font-bold py-3 rounded-xl shadow-sm text-xs uppercase">Vender</button>
-                <button onClick={() => router.push(`/dashboard/fiar?clienteId=${clienteActivo.id}`)} className="bg-rose-500 text-white font-bold py-3 rounded-xl shadow-sm text-xs uppercase">Fiar</button>
-                <button onClick={() => router.push(`/dashboard/abonar?clienteId=${clienteActivo.id}`)} className="bg-blue-500 text-white font-bold py-3 rounded-xl shadow-sm text-xs uppercase">Abonar</button>
-              </div>
-            </div>
-            
-            <div className="bg-white dark:bg-[#0f172a] p-6 pb-10 flex-1 overflow-y-auto space-y-3">
-              <h4 className="font-bold text-slate-400 uppercase text-xs tracking-wider mb-3 flex items-center gap-2"><Clock size={16}/> Historial Reciente</h4>
-              {movimientosCliente.map(mov => (
-                <div key={mov.id} className="p-4 md:p-5 bg-slate-50 dark:bg-[#020617] rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm relative overflow-hidden space-y-2 md:space-y-3">
-                  <div className={`absolute left-0 top-0 bottom-0 w-1.5 ${mov.tipo === 'fiado' ? 'bg-rose-500' : (mov.tipo === 'venta' ? 'bg-emerald-500' : 'bg-blue-500')}`}></div>
-                  <div className="pl-1 md:pl-2">
-                    <div className="flex justify-between items-center pb-1 md:pb-2 md:border-b md:border-slate-100 dark:border-slate-800/80">
-                      <span className={`text-[10px] md:text-xs font-black uppercase px-2.5 py-0.5 md:px-3 md:py-1 rounded-md md:rounded-lg ${mov.tipo === 'fiado' ? 'bg-rose-100 text-rose-700 dark:bg-rose-500/20 dark:text-rose-300' : (mov.tipo === 'venta' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300' : 'bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-300')}`}>{mov.tipo}</span>
-                      
-                      <div className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[10px] md:text-[11px] font-bold uppercase">
-                        {mov.registradoPor && (
-                          <span className="text-slate-500 dark:text-slate-400 whitespace-nowrap">
-                            👤 {mov.registradoPor}
-                          </span>
-                        )}
-                        {mov.registradoPor && <span className="text-slate-300 dark:text-slate-600 whitespace-nowrap">•</span>}
-                        <span className="text-slate-400 whitespace-nowrap">
-                          {mov.fecha?.toDate ? mov.fecha.toDate().toLocaleDateString('es-CO', {day:'2-digit', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit'}) : (mov.fecha instanceof Date ? mov.fecha.toLocaleDateString('es-CO', {day:'2-digit', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit'}) : '')}
-                        </span>
-                      </div>
-                    </div>
-                    
-                    {mov.detalles && mov.detalles.length > 0 ? (
-                      <div className="space-y-1 md:space-y-2 pt-1 border-t border-slate-200 dark:border-slate-700 md:border-none">
-                        {mov.detalles.map((d: any, idx: number) => (
-                          <div key={idx} className="flex justify-between items-center text-xs md:text-sm">
-                            <span className="text-slate-600 dark:text-slate-300 font-medium">
-                              {d.cantidad > 1 && <strong className={`${mov.tipo === 'venta' ? 'text-emerald-500' : (mov.tipo === 'abono' ? 'text-blue-500' : 'text-rose-500')} font-black mr-1 md:mr-1.5`}>{d.cantidad}x</strong>}
-                              {d.descripcion}
-                            </span>
-                            <span className="font-bold text-slate-900 dark:text-slate-100">${d.valor.toLocaleString('es-CO')}</span>
-                          </div>
-                        ))}
-                      </div>
-                    ) : (
-                      <p className="text-xs md:text-sm font-bold text-slate-800 dark:text-slate-200">{mov.descripcion}</p>
-                    )}
-                    
-                    <div className="flex justify-between items-center pt-2 mt-1 md:mt-0 md:pt-3 border-t border-slate-200 dark:border-slate-700 md:border-slate-100 dark:md:border-slate-800 font-black">
-                      <span className="text-xs text-slate-400 uppercase tracking-wider">Total:</span>
-                      <div className="flex items-center gap-2">
+                    {datosSesion?.rol !== 'cajero' && (
+                      <div className="flex items-center gap-1.5 ml-2">
                         <button
                           type="button"
-                          onClick={() => abrirTicketDeMovimiento(mov, clienteActivo)}
-                          title="Imprimir Factura / Ticket"
-                          className="p-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:text-blue-600 transition-colors"
+                          onClick={() => setModalGestionCliente({ visible: true, modo: 'editar', cliente: clienteActivo })}
+                          title="Modificar Cliente"
+                          className="p-2 rounded-xl bg-slate-800 hover:bg-blue-600/80 text-slate-300 hover:text-white transition-colors cursor-pointer"
                         >
-                          <Printer size={14} />
+                          <Edit3 size={16} />
                         </button>
-                        <span className={`text-base md:text-xl ${mov.tipo === 'fiado' ? 'text-rose-500' : (mov.tipo === 'venta' ? 'text-emerald-500' : 'text-blue-500')}`}>
-                          {mov.tipo === 'fiado' ? '-' : '+'}${mov.monto.toLocaleString('es-CO')}
-                        </span>
+                        <button
+                          type="button"
+                          onClick={() => setModalGestionCliente({ visible: true, modo: 'eliminar', cliente: clienteActivo })}
+                          title="Eliminar Cliente"
+                          className="p-2 rounded-xl bg-slate-800 hover:bg-rose-600/80 text-slate-300 hover:text-white transition-colors cursor-pointer"
+                        >
+                          <Trash2 size={16} />
+                        </button>
                       </div>
-                    </div>
+                    )}
+                  </div>
+                  <div className="text-right">
+                    <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded mb-1 inline-block ${(clienteActivo.deudaTotal || 0) < 0 ? 'bg-emerald-500/20 text-emerald-300' : 'text-slate-400'}`}>
+                      {(clienteActivo.deudaTotal || 0) < 0 ? ' Saldo a favor' : 'Saldo Actual'}
+                    </span>
+                    <span className={`text-3xl font-black block ${clienteActivo.deudaTotal === 0 ? 'text-slate-300' : ((clienteActivo.deudaTotal || 0) < 0 ? 'text-emerald-400' : 'text-rose-400')}`}>
+                      ${Math.abs(clienteActivo.deudaTotal || 0).toLocaleString('es-CO')}
+                    </span>
                   </div>
                 </div>
-              ))}
-            </div>
+
+                {/* HEADER MÓVIL */}
+                <div className="md:hidden p-4 sm:p-5 flex justify-between items-center bg-slate-50 dark:bg-[#020617] shrink-0 border-b border-slate-100 dark:border-slate-800">
+                  <button 
+                    onClick={() => setClienteActivo(null)} 
+                    className="text-xs font-bold text-blue-600 dark:text-blue-400 flex items-center gap-1"
+                  >
+                    ← Volver a lista
+                  </button>
+                  <h3 className="font-bold text-slate-700 dark:text-slate-300 text-base">Perfil de Cliente</h3>
+                  <button 
+                    onClick={() => {
+                      setVerTodosClientes(false);
+                      setClienteActivo(null);
+                    }} 
+                    className="bg-white dark:bg-[#0f172a] text-slate-600 dark:text-slate-300 rounded-full p-2 font-bold shadow-sm"
+                  >
+                    <X size={18}/>
+                  </button>
+                </div>
+
+                <div className="md:hidden px-6 py-5 bg-slate-50 dark:bg-[#020617] text-center shrink-0 flex flex-col items-center border-b border-slate-200 dark:border-slate-800">
+                  <div className="flex items-center justify-center gap-2 mb-1">
+                    <h2 className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-white">{clienteActivo.nombre}</h2>
+                    {datosSesion?.rol !== 'cajero' && (
+                      <div className="flex items-center gap-1">
+                        <button
+                          type="button"
+                          onClick={() => setModalGestionCliente({ visible: true, modo: 'editar', cliente: clienteActivo })}
+                          title="Modificar Cliente"
+                          className="p-1.5 rounded-xl bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:text-blue-600 shadow-sm border border-slate-200 dark:border-slate-700"
+                        >
+                          <Edit3 size={15} />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setModalGestionCliente({ visible: true, modo: 'eliminar', cliente: clienteActivo })}
+                          title="Eliminar Cliente"
+                          className="p-1.5 rounded-xl bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:text-rose-600 shadow-sm border border-slate-200 dark:border-slate-700"
+                        >
+                          <Trash2 size={15} />
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                  <p className="text-slate-500 font-medium text-sm mb-3">{clienteActivo.celular || "Sin número registrado"}</p>
+                  
+                  <div className="flex flex-col items-center justify-center bg-white dark:bg-[#0f172a] w-full py-3 px-3 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm mb-2">
+                    <p className={`text-xs font-bold uppercase tracking-widest mb-1 px-2 py-0.5 rounded ${(clienteActivo.deudaTotal || 0) < 0 ? 'bg-emerald-500/20 text-emerald-400' : 'text-slate-400'}`}>
+                      {(clienteActivo.deudaTotal || 0) < 0 ? ' Saldo a favor' : (clienteActivo.deudaTotal === 0 ? 'CUENTA AL DÍA' : 'SALDO PENDIENTE')}
+                    </p>
+                    <p className={`text-3xl sm:text-4xl font-black tracking-tighter ${clienteActivo.deudaTotal === 0 ? 'text-slate-300' : ((clienteActivo.deudaTotal || 0) < 0 ? 'text-emerald-500' : 'text-rose-500')}`}>${Math.abs(clienteActivo.deudaTotal || 0).toLocaleString('es-CO')}</p>
+                  </div>
+                </div>
+
+                {/* BOTONES DE ACCIÓN: VENDER, FIAR, ABONAR Y WHATSAPP */}
+                <div className="p-4 md:p-6 bg-slate-50 dark:bg-[#020617] border-b border-slate-100 dark:border-slate-800 flex flex-col gap-3 shrink-0">
+                  <div className="flex gap-3">
+                    <button onClick={() => router.push(`/dashboard/vender?clienteId=${clienteActivo.id}`)} className="flex-1 bg-emerald-500 hover:bg-emerald-600 text-white font-bold py-3 rounded-xl text-xs md:text-sm uppercase shadow-sm transition-all active:scale-95 cursor-pointer">Vender</button>
+                    <button onClick={() => router.push(`/dashboard/fiar?clienteId=${clienteActivo.id}`)} className="flex-1 bg-rose-500 hover:bg-rose-600 text-white font-bold py-3 rounded-xl text-xs md:text-sm uppercase shadow-sm transition-all active:scale-95 cursor-pointer">Fiar</button>
+                    <button onClick={() => router.push(`/dashboard/abonar?clienteId=${clienteActivo.id}`)} className="flex-1 bg-blue-500 hover:bg-blue-600 text-white font-bold py-3 rounded-xl text-xs md:text-sm uppercase shadow-sm transition-all active:scale-95 cursor-pointer">Abonar</button>
+                  </div>
+
+                  {clienteActivo.celular && (
+                    <button onClick={() => abrirWhatsApp(generarTextoComprobante('estado', clienteActivo), clienteActivo.celular)} className="w-full bg-[#25D366]/10 hover:bg-[#25D366]/20 text-[#1ebd5a] dark:text-[#25D366] font-bold py-2.5 rounded-xl transition-colors flex justify-center items-center gap-2 text-sm border border-[#25D366]/20 cursor-pointer">
+                      <MessageCircle size={18} /> Enviar estado por WhatsApp
+                    </button>
+                  )}
+                </div>
+
+                {/* HISTORIAL INTERNO DEL PERFIL */}
+                <div className="bg-white dark:bg-[#0f172a] p-4 md:p-6 pb-10 flex-1 overflow-y-auto space-y-3 md:space-y-4">
+                  <h4 className="font-bold text-slate-400 uppercase text-xs tracking-wider mb-3 flex items-center gap-2"><Clock size={16}/> Historial Completo</h4>
+                  {movimientosCliente.map(mov => (
+                    <div key={mov.id} className="p-4 md:p-5 bg-slate-50 dark:bg-[#020617] rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm relative overflow-hidden space-y-2 md:space-y-3">
+                      <div className={`absolute left-0 top-0 bottom-0 w-1.5 ${mov.tipo === 'fiado' ? 'bg-rose-500' : (mov.tipo === 'venta' ? 'bg-emerald-500' : 'bg-blue-500')}`}></div>
+                      
+                      <div className="pl-1 md:pl-2">
+                        <div className="flex justify-between items-center pb-1 md:pb-2 md:border-b md:border-slate-100 dark:border-slate-800/80">
+                          <span className={`text-[10px] md:text-xs font-black uppercase px-2.5 py-0.5 md:px-3 md:py-1 rounded-md md:rounded-lg ${mov.tipo === 'fiado' ? 'bg-rose-100 text-rose-700 dark:bg-rose-500/20 dark:text-rose-300' : (mov.tipo === 'venta' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300' : 'bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-300')}`}>{mov.tipo}</span>
+                          
+                          <div className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[10px] md:text-[11px] font-bold uppercase">
+                            {mov.registradoPor && (
+                              <span className="text-slate-500 dark:text-slate-400 whitespace-nowrap">
+                                👤 {mov.registradoPor}
+                              </span>
+                            )}
+                            {mov.registradoPor && <span className="text-slate-300 dark:text-slate-600 whitespace-nowrap">•</span>}
+                            <span className="text-slate-400 whitespace-nowrap">
+                              {mov.fecha?.toDate ? mov.fecha.toDate().toLocaleDateString('es-CO', {day:'2-digit', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit'}) : (mov.fecha instanceof Date ? mov.fecha.toLocaleDateString('es-CO', {day:'2-digit', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit'}) : '')}
+                            </span>
+                          </div>
+                        </div>
+                        
+                        {mov.detalles && mov.detalles.length > 0 ? (
+                          <div className="space-y-1 md:space-y-2 pt-1 border-t border-slate-200 dark:border-slate-700 md:border-none">
+                            {mov.detalles.map((d: any, idx: number) => (
+                              <div key={idx} className="flex justify-between items-center text-xs md:text-sm">
+                                <span className="text-slate-600 dark:text-slate-300 font-medium">
+                                  {d.cantidad > 1 && <strong className={`${mov.tipo === 'venta' ? 'text-emerald-500' : (mov.tipo === 'abono' ? 'text-blue-500' : 'text-rose-500')} font-black mr-1 md:mr-1.5`}>{d.cantidad}x</strong>}
+                                  {d.descripcion}
+                                </span>
+                                <span className="font-bold text-slate-900 dark:text-slate-100">${d.valor.toLocaleString('es-CO')}</span>
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <p className="text-xs md:text-sm font-bold text-slate-800 dark:text-slate-200">{mov.descripcion}</p>
+                        )}
+                        
+                        <div className="flex justify-between items-center pt-2 mt-1 md:mt-0 md:pt-3 border-t border-slate-200 dark:border-slate-700 md:border-slate-100 dark:md:border-slate-800 font-black">
+                          <span className="text-xs text-slate-400 uppercase tracking-wider">Total:</span>
+                          <div className="flex items-center gap-2">
+                            <button
+                              type="button"
+                              onClick={() => abrirTicketDeMovimiento(mov, clienteActivo)}
+                              title="Imprimir Factura / Ticket"
+                              className="p-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:text-blue-600 transition-colors cursor-pointer"
+                            >
+                              <Printer size={14} />
+                            </button>
+                            <span className={`text-base md:text-xl ${mov.tipo === 'fiado' ? 'text-rose-500' : (mov.tipo === 'venta' ? 'text-emerald-500' : 'text-blue-500')}`}>
+                              {mov.tipo === 'fiado' ? '-' : '+'}${mov.monto.toLocaleString('es-CO')}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                  {movimientosCliente.length === 0 && <p className="text-center text-slate-400 py-10">Sin transacciones registradas.</p>}
+                </div>
+              </div>
+            ) : (
+              <div className="hidden md:flex flex-1 flex-col items-center justify-center p-12 text-center text-slate-400">
+                <Users size={48} className="text-slate-300 dark:text-slate-700 mb-4 stroke-1" />
+                <p className="text-base font-bold text-slate-600 dark:text-slate-300 mb-1">Selecciona un cliente</p>
+                <p className="text-xs text-slate-400">Haz clic en cualquier cliente de la lista para ver su perfil e historial de movimientos.</p>
+              </div>
+            )}
+            
           </div>
         </div>
       )}

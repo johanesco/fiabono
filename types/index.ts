@@ -4,6 +4,42 @@ export interface PermisosColaborador {
   verCelulares: boolean;
   verDirectorio: boolean;
   verReportes: boolean;
+  ventaDirecta: boolean;   // Puede confirmar venta/fiado sin aprobación del admin
+  abonar: boolean;         // Puede registrar abonos
+  editarInventario: boolean; // Puede editar/agregar productos en inventario
+  terminalMultivendedor?: boolean; // Permite seleccionar vendedor y cambiar turnos en una misma terminal
+  modificarPrecios?: boolean; // Permite cambiar precios de productos ya registrados en inventario
+  aplicarDescuentos?: boolean; // Permite aplicar descuentos comerciales a ventas/fiados
+}
+
+export type EstadoOrden = 'pendiente' | 'aprobado' | 'rechazado';
+
+export interface OrdenPendiente {
+  id: string;
+  tipo: 'venta' | 'fiado';
+  estado: EstadoOrden;
+  usuarioId: string;              // adminId (dueño de la cuenta)
+  creadoPor: string;              // uid del colaborador
+  nombreColaborador: string;
+  clienteId: string | null;
+  clienteNombre: string;
+  clienteCelular?: string;
+  items: { descripcion: string; valor: string; cantidad: number }[];
+  totalBruto: number;
+  descuentoTipo: 'porcentaje' | 'fijo' | null;
+  descuentoValor: number | null;
+  montoDescuento: number;
+  total: number;
+  pagoCliente?: number | string;            // cuánto pagó el cliente (para venta+fiado mixto o efectivo recibido)
+  metodoPago: string;
+  subMetodoPago?: string;
+  referenciaPago?: string;
+  fecha: any;
+  fechaProcesado: any | null;
+  aprobadoPor: string | null;
+  motivoRechazo: string | null;
+  idTransaccion?: string;
+  fechaModificado?: any;
 }
 
 export interface UsuarioBD {
@@ -51,7 +87,7 @@ export interface Movimiento {
   tipo: 'fiado' | 'abono' | 'venta';
   monto: number;
   descripcion: string;
-  detalles: DetalleMovimiento[];
+  detalles?: DetalleMovimiento[];
   saldoResultante?: number;
   fecha: any;
   registradoPor?: string;
@@ -60,6 +96,9 @@ export interface Movimiento {
   subtotal?: number;
   valorIva?: number;
   porcentajeIva?: number;
+  descuentoTipo?: 'porcentaje' | 'fijo' | null;
+  descuentoValor?: number;
+  montoDescuento?: number;
 }
 
 export interface DatosSesionContext {

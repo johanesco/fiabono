@@ -55,8 +55,10 @@ type DireccionOrden = 'asc' | 'desc';
 type FiltroStock = 'todos' | 'en_stock' | 'stock_bajo' | 'sin_stock' | 'servicios';
 type OrigenExportacionQR = 'seleccionados' | 'fecha' | 'todos';
 type FiltroFechaQR = 'hoy' | '7dias' | 'personalizado';
+type TipoImpresoraQR = 'termica' | 'hoja';
+type TamanoTermicoQR = '32x25' | '40x30' | '50x25' | '50x30' | '58x40' | '80x50' | 'personalizado';
 type TamanoEtiquetaQR = 'compacto' | 'estandar' | 'grande';
-type ModoCantidadQR = 'stock' | 'uno';
+type ModoCantidadQR = 'stock' | 'uno' | 'fijo' | 'selectivo';
 
 export default function InventarioPage() {
   const { datosSesion } = useAuth();
@@ -107,16 +109,24 @@ export default function InventarioPage() {
     }
   };
 
-  // Estados para el modal de configuración de exportación QR inteligente
+  // Estados para el modal de configuración de exportación QR inteligente y Térmica
   const [modalExportarQR, setModalExportarQR] = useState(false);
+  const [tipoImpresoraQR, setTipoImpresoraQR] = useState<TipoImpresoraQR>('termica');
+  const [tamanoTermicoQR, setTamanoTermicoQR] = useState<TamanoTermicoQR>('40x30');
+  const [anchoPersonalizadoMM, setAnchoPersonalizadoMM] = useState<number>(50);
+  const [altoPersonalizadoMM, setAltoPersonalizadoMM] = useState<number>(30);
   const [origenExportacion, setOrigenExportacion] = useState<OrigenExportacionQR>('todos');
   const [filtroFechaExportacion, setFiltroFechaExportacion] = useState<FiltroFechaQR>('hoy');
   const [fechaDesdePersonalizada, setFechaDesdePersonalizada] = useState<string>(new Date().toISOString().split('T')[0]);
   const [modoCantidadQR, setModoCantidadQR] = useState<ModoCantidadQR>('stock');
+  const [cantidadFijaQR, setCantidadFijaQR] = useState<number>(1);
+  const [cantidadesSelectivasQR, setCantidadesSelectivasQR] = useState<Record<string, number>>({});
+  const [busquedaModalSelectivoQR, setBusquedaModalSelectivoQR] = useState("");
   const [tamanoEtiqueta, setTamanoEtiqueta] = useState<TamanoEtiquetaQR>('estandar');
   const [opcionNombre, setOpcionNombre] = useState(true);
   const [opcionSku, setOpcionSku] = useState(true);
   const [opcionPrecio, setOpcionPrecio] = useState(true);
+  const [opcionNegocio, setOpcionNegocio] = useState(true);
   const [opcionCategoria, setOpcionCategoria] = useState(false);
 
   // Estados del Formulario de Producto
@@ -429,11 +439,40 @@ export default function InventarioPage() {
     if (modoCantidadQR === 'uno') {
       return productosParaExportarQR.length;
     }
+    if (modoCantidadQR === 'fijo') {
+      return productosParaExportarQR.length * Math.max(1, cantidadFijaQR);
+    }
+    if (modoCantidadQR === 'selectivo') {
+      return productosParaExportarQR.reduce((acc, p) => {
+        const cant = cantidadesSelectivasQR[p.id] !== undefined 
+          ? cantidadesSelectivasQR[p.id] 
+          : (Number(p.stock) > 0 ? Number(p.stock) : 1);
+        return acc + Math.max(0, cant);
+      }, 0);
+    }
+    // modo 'stock'
     return productosParaExportarQR.reduce((acc, p) => {
       const cant = Number(p.stock) > 0 ? Number(p.stock) : 1;
       return acc + cant;
     }, 0);
-  }, [productosParaExportarQR, modoCantidadQR]);
+  }, [productosParaExportarQR, modoCantidadQR, cantidadFijaQR, cantidadesSelectivasQR]);
+
+  const actualizarCantidadSelectiva = (productoId: string, delta: number) => {
+    setCantidadesSelectivasQR(prev => {
+      const actual = prev[productoId] !== undefined 
+        ? prev[productoId] 
+        : (Number(inventario.find(p => p.id === productoId)?.stock) > 0 ? Number(inventario.find(p => p.id === productoId)?.stock) : 1);
+      const nueva = Math.max(0, actual + delta);
+      return { ...prev, [productoId]: nueva };
+    });
+  };
+
+  const fijarCantidadSelectiva = (productoId: string, valor: number) => {
+    setCantidadesSelectivasQR(prev => ({
+      ...prev,
+      [productoId]: Math.max(0, valor)
+    }));
+  };
 
   const agregarProductoALaCarga = () => {
     const erroresNuevos = {
@@ -625,8 +664,18 @@ export default function InventarioPage() {
     setErrores({ nombre: '', categoria: '', stock: '', precio: '' });
   };
 
-  // GENERAR PDF CON DISEÑO MULTI-TAMAÑO Y FILTRADO INTELIGENTE
-  const generarPDFConQRs = async () => {
+  // Función auxiliar para evitar duplicar 'SKU:' si el código ya contiene 'SKU'
+  const formatearTextoSKU = (skuRaw?: string) => {
+    if (!skuRaw) return 'N/A';
+    const skuLimpio = String(skuRaw).trim();
+    if (/^sku[:\s\-_]/i.test(skuLimpio)) {
+      return skuLimpio;
+    }
+    return `SKU: ${skuLimpio}`;
+  };
+
+  // GENERAR PDF CON DISEÑO MULTI-TAMAÑO, IMPRESORA TÉRMICA (ROLLO) Y HOJA MULTI-ETIQUETA
+  const generarPDFConQRs = async (modoAccion: 'imprimir' | 'descargar' = 'imprimir') => {
     if (productosParaExportarQR.length === 0) {
       if (origenExportacion === 'seleccionados') {
         return toast.error("No has seleccionado productos en la tabla. Marca las casillas de los productos que deseas etiquetar.");
@@ -637,157 +686,626 @@ export default function InventarioPage() {
       return toast.error("No hay productos para exportar.");
     }
 
+    if (totalEtiquetasCalculadas <= 0) {
+      return toast.error("La cantidad total de etiquetas a imprimir es 0. Ajusta las cantidades.");
+    }
+
+    const toastId = toast.loading(modoAccion === 'imprimir' ? "Preparando impresión directa de etiquetas..." : "Generando archivo PDF de etiquetas...");
+
     try {
       setModalExportarQR(false);
-      const docPdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'letter' });
-      
-      // Configuraciones según el tamaño de etiqueta elegido
-      let anchoEtiqueta = 58;
-      let altoEtiqueta = 48;
-      let margenX = 8;
-      let margenY = 8;
-      let colsPorFila = 3;
-      let qrSize = 22;
-      let startX = 14;
-      let startY = 16;
-      let maxPageY = 262;
 
-      if (tamanoEtiqueta === 'compacto') {
-        // 44 x 34 mm, 4 columnas por fila (ideal para joyas, accesorios y cosméticos)
-        anchoEtiqueta = 44;
-        altoEtiqueta = 34;
-        margenX = 5;
-        margenY = 6;
-        colsPorFila = 4;
-        qrSize = 16;
-        startX = 12;
-        startY = 16;
-        maxPageY = 265;
-      } else if (tamanoEtiqueta === 'grande') {
-        // 90 x 56 mm, 2 columnas por fila (ideal para cajas grandes, bultos y vitrinas)
-        anchoEtiqueta = 90;
-        altoEtiqueta = 56;
-        margenX = 10;
-        margenY = 10;
-        colsPorFila = 2;
-        qrSize = 28;
-        startX = 13;
-        startY = 16;
-        maxPageY = 258;
-      }
+      if (tipoImpresoraQR === 'termica') {
+        // =========================================================================
+        // MODO 1: IMPRESORA TÉRMICA DE ETIQUETAS EN ROLLO (JALTECH, DIGITAL POS, ETC.)
+        // CADA PÁGINA ES 1 STICKER CON DIMENSIONES EXACTAS EN MILÍMETROS
+        // =========================================================================
+        let anchoMM = 40;
+        let altoMM = 30;
 
-      let x = startX;
-      let y = startY;
-      let contadorCol = 0;
+        if (tamanoTermicoQR === '32x25') { anchoMM = 32; altoMM = 25; }
+        else if (tamanoTermicoQR === '40x30') { anchoMM = 40; altoMM = 30; }
+        else if (tamanoTermicoQR === '50x25') { anchoMM = 50; altoMM = 25; }
+        else if (tamanoTermicoQR === '50x30') { anchoMM = 50; altoMM = 30; }
+        else if (tamanoTermicoQR === '58x40') { anchoMM = 58; altoMM = 40; }
+        else if (tamanoTermicoQR === '80x50') { anchoMM = 80; altoMM = 50; }
+        else if (tamanoTermicoQR === 'personalizado') {
+          anchoMM = Math.max(20, Number(anchoPersonalizadoMM) || 40);
+          altoMM = Math.max(15, Number(altoPersonalizadoMM) || 30);
+        }
 
-      docPdf.setFont("helvetica", "bold");
-      docPdf.setFontSize(11);
-      docPdf.text(`Etiquetas QR - Formato ${tamanoEtiqueta.toUpperCase()} (${productosParaExportarQR.length} referencias, ${totalEtiquetasCalculadas} etiquetas)`, startX, 10);
+        // Si es IMPRESIÓN DIRECTA, usamos HTML con @page size en mm para que el driver de la impresora térmica llene el 100% de la etiqueta
+        if (modoAccion === 'imprimir') {
+          const ventanaImpresion = window.open('', '_blank', 'width=450,height=600');
+          if (!ventanaImpresion) {
+            toast.dismiss(toastId);
+            return toast.error("Tu navegador bloqueó la ventana de impresión. Permite las ventanas emergentes (popups) para Fiabono.");
+          }
 
-      for (const prod of productosParaExportarQR) {
-        const cantidadImprimir = modoCantidadQR === 'stock' 
-          ? (Number(prod.stock) > 0 ? Number(prod.stock) : 1)
-          : 1;
+          let htmlEtiquetas = '';
 
-        const svgElement = document.getElementById(`qr-svg-${prod.id}`);
-        let qrDataUrl = "";
+          for (const prod of productosParaExportarQR) {
+            let cantidadImprimir = 1;
+            if (modoCantidadQR === 'stock') {
+              cantidadImprimir = Number(prod.stock) > 0 ? Number(prod.stock) : 1;
+            } else if (modoCantidadQR === 'uno') {
+              cantidadImprimir = 1;
+            } else if (modoCantidadQR === 'fijo') {
+              cantidadImprimir = Math.max(1, cantidadFijaQR);
+            } else if (modoCantidadQR === 'selectivo') {
+              cantidadImprimir = cantidadesSelectivasQR[prod.id] !== undefined ? cantidadesSelectivasQR[prod.id] : (Number(prod.stock) > 0 ? Number(prod.stock) : 1);
+            }
 
-        if (svgElement) {
-          const svgString = new XMLSerializer().serializeToString(svgElement);
-          const svgBlob = new Blob([svgString], { type: 'image/svg+xml;charset=utf-8' });
-          const URL = window.URL || window.webkitURL || window;
-          const blobURL = URL.createObjectURL(svgBlob);
-          
-          await new Promise((resolve) => {
-            const img = new Image();
-            img.onload = () => {
-              const canvas = document.createElement('canvas');
-              canvas.width = 160;
-              canvas.height = 160;
-              const ctx = canvas.getContext('2d');
-              if (ctx) {
-                ctx.fillStyle = '#FFFFFF';
-                ctx.fillRect(0, 0, canvas.width, canvas.height);
-                ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-                qrDataUrl = canvas.toDataURL('image/png');
+            if (cantidadImprimir <= 0) continue;
+
+            const svgElement = document.getElementById(`qr-svg-${prod.id}`);
+            let qrSvgHtml = svgElement ? svgElement.outerHTML : '';
+
+            for (let i = 0; i < cantidadImprimir; i++) {
+              const esHorizontal = anchoMM >= 50 && altoMM <= 28;
+
+              if (esHorizontal) {
+                htmlEtiquetas += `
+                  <div class="sticker sticker-horizontal">
+                    <div class="qr-col">${qrSvgHtml}</div>
+                    <div class="text-col">
+                      ${opcionNegocio && datosSesion?.nombreNegocio ? `<div class="negocio">${String(datosSesion.nombreNegocio).toUpperCase()}</div>` : ''}
+                      ${opcionNombre ? `<div class="nombre">${prod.nombre}</div>` : ''}
+                      ${opcionSku ? `<div class="sku">${formatearTextoSKU(prod.sku)}</div>` : ''}
+                      ${opcionPrecio ? `<div class="precio">$${(prod.precioVenta || 0).toLocaleString('es-CO')}</div>` : ''}
+                    </div>
+                  </div>
+                `;
+              } else {
+                htmlEtiquetas += `
+                  <div class="sticker sticker-vertical">
+                    <div class="info-top">
+                      ${opcionNegocio && datosSesion?.nombreNegocio ? `<div class="negocio">${String(datosSesion.nombreNegocio).toUpperCase()}</div>` : ''}
+                      ${opcionNombre ? `<div class="nombre">${prod.nombre}</div>` : ''}
+                      ${opcionSku ? `<div class="sku">${formatearTextoSKU(prod.sku)}</div>` : ''}
+                    </div>
+                    <div class="qr-container">${qrSvgHtml}</div>
+                    <div class="info-bottom">
+                      ${opcionPrecio ? `<div class="precio">$${(prod.precioVenta || 0).toLocaleString('es-CO')}</div>` : ''}
+                    </div>
+                  </div>
+                `;
               }
-              URL.revokeObjectURL(blobURL);
-              resolve(true);
-            };
-            img.onerror = () => resolve(true);
-            img.src = blobURL;
-          });
+            }
+          }
+
+          ventanaImpresion.document.write(`
+            <!DOCTYPE html>
+            <html>
+            <head>
+              <title>Imprimir Etiquetas QR - Fiabono</title>
+              <meta charset="utf-8">
+              <style>
+                @page {
+                  size: ${anchoMM}mm ${altoMM}mm;
+                  margin: 0mm;
+                }
+                * {
+                  box-sizing: border-box;
+                  -webkit-print-color-adjust: exact;
+                  print-color-adjust: exact;
+                }
+                html, body {
+                  margin: 0;
+                  padding: 0;
+                  background: #ffffff;
+                  color: #000000;
+                  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+                }
+                .sticker {
+                  width: ${anchoMM}mm;
+                  height: ${altoMM}mm;
+                  max-width: ${anchoMM}mm;
+                  max-height: ${altoMM}mm;
+                  padding: 1.2mm 1.5mm;
+                  box-sizing: border-box;
+                  page-break-after: always;
+                  break-after: page;
+                  page-break-inside: avoid;
+                  overflow: hidden;
+                  display: flex;
+                  background: #ffffff;
+                }
+                .sticker-vertical {
+                  flex-direction: column;
+                  align-items: center;
+                  justify-content: space-between;
+                  text-align: center;
+                }
+                .sticker-horizontal {
+                  flex-direction: row;
+                  align-items: center;
+                  justify-content: space-between;
+                  gap: 1.5mm;
+                  text-align: left;
+                }
+                .info-top {
+                  display: flex;
+                  flex-direction: column;
+                  align-items: center;
+                  justify-content: flex-start;
+                  width: 100%;
+                  gap: 0.4mm;
+                  line-height: 1.1;
+                }
+                .negocio {
+                  font-size: ${anchoMM <= 32 ? '5.5px' : '6.5px'};
+                  font-weight: 700;
+                  color: #444444;
+                  text-transform: uppercase;
+                  white-space: nowrap;
+                  overflow: hidden;
+                  text-overflow: ellipsis;
+                  max-width: 100%;
+                  line-height: 1;
+                }
+                .nombre {
+                  font-size: ${anchoMM <= 32 ? '7px' : (anchoMM <= 42 ? '8.5px' : '9.5px')};
+                  font-weight: 900;
+                  color: #000000;
+                  line-height: 1.1;
+                  white-space: nowrap;
+                  overflow: hidden;
+                  text-overflow: ellipsis;
+                  max-width: 100%;
+                }
+                .sku {
+                  font-size: ${anchoMM <= 32 ? '5.5px' : '6.5px'};
+                  font-family: monospace;
+                  font-weight: bold;
+                  color: #222222;
+                  line-height: 1;
+                  white-space: nowrap;
+                  overflow: hidden;
+                  text-overflow: ellipsis;
+                  max-width: 100%;
+                }
+                .info-bottom {
+                  display: flex;
+                  align-items: center;
+                  justify-content: center;
+                  width: 100%;
+                }
+                .precio {
+                  font-size: ${anchoMM <= 32 ? '8px' : (anchoMM <= 42 ? '9.5px' : '11px')};
+                  font-weight: 900;
+                  color: #000000;
+                  line-height: 1;
+                }
+                .qr-container {
+                  display: flex;
+                  align-items: center;
+                  justify-content: center;
+                  flex: 1;
+                  width: 100%;
+                  min-height: 0;
+                  padding: 0.5mm 0;
+                }
+                .qr-container svg {
+                  height: 100%;
+                  width: auto;
+                  max-width: 100%;
+                  max-height: 100%;
+                  object-fit: contain;
+                  display: block;
+                  margin: 0 auto;
+                }
+                .qr-col {
+                  width: 38%;
+                  display: flex;
+                  align-items: center;
+                  justify-content: center;
+                }
+                .qr-col svg {
+                  width: 100%;
+                  height: auto;
+                  max-height: ${altoMM - 2}mm;
+                }
+                .text-col {
+                  width: 62%;
+                  display: flex;
+                  flex-direction: column;
+                  justify-content: center;
+                  gap: 0.5mm;
+                }
+                @media screen {
+                  body {
+                    background: #f1f5f9;
+                    padding: 20px;
+                    display: flex;
+                    flex-direction: column;
+                    align-items: center;
+                    gap: 15px;
+                  }
+                  .sticker {
+                    border: 1px solid #cbd5e1;
+                    box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+                    border-radius: 4px;
+                  }
+                }
+              </style>
+            </head>
+            <body>
+              ${htmlEtiquetas}
+              <script>
+                window.onload = function() {
+                  setTimeout(function() {
+                    window.focus();
+                    window.print();
+                  }, 250);
+                };
+              </script>
+            </body>
+            </html>
+          `);
+
+          ventanaImpresion.document.close();
+          toast.dismiss(toastId);
+          toast.success(`¡Diálogo de impresión térmica abierto (${totalEtiquetasCalculadas} stickers)!`);
+          return;
         }
 
-        for (let i = 0; i < cantidadImprimir; i++) {
-          if (y + altoEtiqueta > maxPageY) {
-            docPdf.addPage();
-            x = startX;
-            y = startY;
-            contadorCol = 0;
+        // Si es DESCARGAR PDF:
+        const docPdf = new jsPDF({
+          orientation: anchoMM >= altoMM ? 'landscape' : 'portrait',
+          unit: 'mm',
+          format: [anchoMM, altoMM]
+        });
+
+        let esPrimeraPagina = true;
+
+        for (const prod of productosParaExportarQR) {
+          let cantidadImprimir = 1;
+          if (modoCantidadQR === 'stock') {
+            cantidadImprimir = Number(prod.stock) > 0 ? Number(prod.stock) : 1;
+          } else if (modoCantidadQR === 'uno') {
+            cantidadImprimir = 1;
+          } else if (modoCantidadQR === 'fijo') {
+            cantidadImprimir = Math.max(1, cantidadFijaQR);
+          } else if (modoCantidadQR === 'selectivo') {
+            cantidadImprimir = cantidadesSelectivasQR[prod.id] !== undefined ? cantidadesSelectivasQR[prod.id] : (Number(prod.stock) > 0 ? Number(prod.stock) : 1);
           }
 
-          // Borde guía suave para corte de etiqueta
-          docPdf.setDrawColor(210, 210, 210);
-          docPdf.setLineWidth(0.2);
-          docPdf.rect(x, y, anchoEtiqueta, altoEtiqueta);
+          if (cantidadImprimir <= 0) continue;
 
-          let cursorY = y + (tamanoEtiqueta === 'compacto' ? 4 : 5.5);
+          const svgElement = document.getElementById(`qr-svg-${prod.id}`);
+          let qrDataUrl = "";
 
-          if (opcionCategoria) {
-            docPdf.setFontSize(tamanoEtiqueta === 'compacto' ? 5.5 : 7);
-            docPdf.setFont("helvetica", "normal");
-            docPdf.setTextColor(110, 110, 110);
-            const catTexto = normalizarCategoria(prod.categoria).toUpperCase();
-            docPdf.text(catTexto, x + (anchoEtiqueta / 2), cursorY, { align: 'center' });
-            cursorY += (tamanoEtiqueta === 'compacto' ? 3 : 4);
-            docPdf.setTextColor(0, 0, 0);
+          if (svgElement) {
+            const svgString = new XMLSerializer().serializeToString(svgElement);
+            const svgBlob = new Blob([svgString], { type: 'image/svg+xml;charset=utf-8' });
+            const URL = window.URL || window.webkitURL || window;
+            const blobURL = URL.createObjectURL(svgBlob);
+            
+            await new Promise((resolve) => {
+              const img = new Image();
+              img.onload = () => {
+                const canvas = document.createElement('canvas');
+                canvas.width = 240;
+                canvas.height = 240;
+                const ctx = canvas.getContext('2d');
+                if (ctx) {
+                  ctx.fillStyle = '#FFFFFF';
+                  ctx.fillRect(0, 0, canvas.width, canvas.height);
+                  ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+                  qrDataUrl = canvas.toDataURL('image/png');
+                }
+                URL.revokeObjectURL(blobURL);
+                resolve(true);
+              };
+              img.onerror = () => resolve(true);
+              img.src = blobURL;
+            });
           }
 
-          if (opcionNombre) {
-            docPdf.setFontSize(tamanoEtiqueta === 'compacto' ? 7 : (tamanoEtiqueta === 'grande' ? 10.5 : 8.5));
-            docPdf.setFont("helvetica", "bold");
-            const maxChars = tamanoEtiqueta === 'compacto' ? 20 : (tamanoEtiqueta === 'grande' ? 36 : 24);
-            const nombreCorto = prod.nombre.length > maxChars ? prod.nombre.substring(0, maxChars - 2) + '...' : prod.nombre;
-            docPdf.text(nombreCorto, x + (anchoEtiqueta / 2), cursorY, { align: 'center' });
-            cursorY += (tamanoEtiqueta === 'compacto' ? 3.5 : 4.5);
+          for (let i = 0; i < cantidadImprimir; i++) {
+            if (!esPrimeraPagina) {
+              docPdf.addPage([anchoMM, altoMM], anchoMM >= altoMM ? 'landscape' : 'portrait');
+            }
+            esPrimeraPagina = false;
+
+            const esFormatoHorizontalAlargado = anchoMM >= 50 && altoMM <= 28;
+
+            if (esFormatoHorizontalAlargado) {
+              const qrTamano = Math.min(altoMM - 3, 20);
+              const qrX = 1.5;
+              const qrY = (altoMM - qrTamano) / 2;
+
+              if (qrDataUrl) {
+                docPdf.addImage(qrDataUrl, 'PNG', qrX, qrY, qrTamano, qrTamano);
+              }
+
+              const textoX = qrX + qrTamano + 2;
+              const textoAnchoMax = anchoMM - textoX - 1.5;
+              let curY = 4;
+
+              if (opcionNegocio && datosSesion?.nombreNegocio) {
+                docPdf.setFontSize(5.5);
+                docPdf.setFont("helvetica", "normal");
+                docPdf.setTextColor(90, 90, 90);
+                docPdf.text(String(datosSesion.nombreNegocio).toUpperCase().substring(0, 18), textoX, curY);
+                curY += 2.8;
+                docPdf.setTextColor(0, 0, 0);
+              }
+
+              if (opcionNombre) {
+                docPdf.setFontSize(6.5);
+                docPdf.setFont("helvetica", "bold");
+                const lineasNombre = docPdf.splitTextToSize(prod.nombre, textoAnchoMax);
+                docPdf.text(lineasNombre.slice(0, 2), textoX, curY);
+                curY += (Math.min(lineasNombre.length, 2) * 2.8);
+              }
+
+              if (opcionSku) {
+                docPdf.setFontSize(5.5);
+                docPdf.setFont("helvetica", "normal");
+                docPdf.text(formatearTextoSKU(prod.sku), textoX, curY);
+                curY += 2.8;
+              }
+
+              if (opcionPrecio) {
+                docPdf.setFontSize(7.5);
+                docPdf.setFont("helvetica", "bold");
+                docPdf.text(`$${(prod.precioVenta || 0).toLocaleString('es-CO')}`, textoX, Math.min(curY + 0.5, altoMM - 2));
+              }
+
+            } else {
+              let curY = altoMM <= 25 ? 2.2 : 3.0;
+              const centerX = anchoMM / 2;
+
+              if (opcionNegocio && datosSesion?.nombreNegocio && altoMM >= 25) {
+                docPdf.setFontSize(anchoMM <= 32 ? 4.8 : 5.8);
+                docPdf.setFont("helvetica", "normal");
+                docPdf.setTextColor(90, 90, 90);
+                docPdf.text(String(datosSesion.nombreNegocio).toUpperCase(), centerX, curY, { align: 'center' });
+                curY += (anchoMM <= 32 ? 2.2 : 2.6);
+                docPdf.setTextColor(0, 0, 0);
+              }
+
+              if (opcionNombre) {
+                const fuenteNombre = anchoMM <= 32 ? 5.5 : (anchoMM <= 42 ? 6.8 : 8.0);
+                docPdf.setFontSize(fuenteNombre);
+                docPdf.setFont("helvetica", "bold");
+                const maxChars = anchoMM <= 32 ? 14 : (anchoMM <= 42 ? 20 : 28);
+                const nombreCorto = prod.nombre.length > maxChars ? prod.nombre.substring(0, maxChars - 2) + '...' : prod.nombre;
+                docPdf.text(nombreCorto, centerX, curY, { align: 'center' });
+                curY += (anchoMM <= 32 ? 2.4 : 2.9);
+              }
+
+              if (opcionSku && altoMM >= 24) {
+                docPdf.setFontSize(anchoMM <= 32 ? 4.5 : 5.2);
+                docPdf.setFont("helvetica", "normal");
+                docPdf.text(formatearTextoSKU(prod.sku), centerX, curY, { align: 'center' });
+                curY += (anchoMM <= 32 ? 2.0 : 2.5);
+              }
+
+              const espacioRestanteY = altoMM - curY - (opcionPrecio ? (altoMM <= 25 ? 3.5 : 4.5) : 1);
+              const qrTamano = Math.min(espacioRestanteY, anchoMM - 4, altoMM <= 25 ? 12 : 18);
+              const qrX = (anchoMM - qrTamano) / 2;
+
+              if (qrDataUrl && qrTamano > 8) {
+                docPdf.addImage(qrDataUrl, 'PNG', qrX, curY + 0.5, qrTamano, qrTamano);
+                curY += qrTamano + (altoMM <= 25 ? 1 : 1.5);
+              }
+
+              if (opcionPrecio) {
+                const fuentePrecio = anchoMM <= 32 ? 6.5 : (anchoMM <= 42 ? 8 : 9.5);
+                docPdf.setFontSize(fuentePrecio);
+                docPdf.setFont("helvetica", "bold");
+                docPdf.text(`$${(prod.precioVenta || 0).toLocaleString('es-CO')}`, centerX, Math.min(curY + 1.5, altoMM - 1.5), { align: 'center' });
+              }
+            }
+          }
+        }
+
+        docPdf.save(`Etiquetas_Termica_${anchoMM}x${altoMM}mm_${Date.now()}.pdf`);
+        toast.dismiss(toastId);
+        toast.success(`¡PDF térmico descargado con éxito (${totalEtiquetasCalculadas} stickers en rollo)!`);
+
+      } else {
+        // =========================================================================
+        // MODO 2: HOJA CARTA / A4 MULTI-ETIQUETA (IMPRESORA DE OFICINA)
+        // =========================================================================
+        const docPdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'letter' });
+        
+        let anchoEtiqueta = 58;
+        let altoEtiqueta = 48;
+        let margenX = 8;
+        let margenY = 8;
+        let colsPorFila = 3;
+        let qrSize = 22;
+        let startX = 14;
+        let startY = 16;
+        let maxPageY = 262;
+
+        if (tamanoEtiqueta === 'compacto') {
+          anchoEtiqueta = 44;
+          altoEtiqueta = 34;
+          margenX = 5;
+          margenY = 6;
+          colsPorFila = 4;
+          qrSize = 16;
+          startX = 12;
+          startY = 16;
+          maxPageY = 265;
+        } else if (tamanoEtiqueta === 'grande') {
+          anchoEtiqueta = 90;
+          altoEtiqueta = 56;
+          margenX = 10;
+          margenY = 10;
+          colsPorFila = 2;
+          qrSize = 28;
+          startX = 13;
+          startY = 16;
+          maxPageY = 258;
+        }
+
+        let x = startX;
+        let y = startY;
+        let contadorCol = 0;
+
+        docPdf.setFont("helvetica", "bold");
+        docPdf.setFontSize(11);
+        docPdf.text(`Etiquetas QR - Hoja Carta (${productosParaExportarQR.length} referencias, ${totalEtiquetasCalculadas} etiquetas)`, startX, 10);
+
+        for (const prod of productosParaExportarQR) {
+          let cantidadImprimir = 1;
+          if (modoCantidadQR === 'stock') {
+            cantidadImprimir = Number(prod.stock) > 0 ? Number(prod.stock) : 1;
+          } else if (modoCantidadQR === 'uno') {
+            cantidadImprimir = 1;
+          } else if (modoCantidadQR === 'fijo') {
+            cantidadImprimir = Math.max(1, cantidadFijaQR);
+          } else if (modoCantidadQR === 'selectivo') {
+            cantidadImprimir = cantidadesSelectivasQR[prod.id] !== undefined ? cantidadesSelectivasQR[prod.id] : (Number(prod.stock) > 0 ? Number(prod.stock) : 1);
           }
 
-          if (opcionSku) {
-            docPdf.setFontSize(tamanoEtiqueta === 'compacto' ? 6 : (tamanoEtiqueta === 'grande' ? 8.5 : 7.5));
-            docPdf.setFont("helvetica", "normal");
-            docPdf.text(`SKU: ${prod.sku || 'N/A'}`, x + (anchoEtiqueta / 2), cursorY, { align: 'center' });
-            cursorY += (tamanoEtiqueta === 'compacto' ? 3.5 : 4);
+          if (cantidadImprimir <= 0) continue;
+
+          const svgElement = document.getElementById(`qr-svg-${prod.id}`);
+          let qrDataUrl = "";
+
+          if (svgElement) {
+            const svgString = new XMLSerializer().serializeToString(svgElement);
+            const svgBlob = new Blob([svgString], { type: 'image/svg+xml;charset=utf-8' });
+            const URL = window.URL || window.webkitURL || window;
+            const blobURL = URL.createObjectURL(svgBlob);
+            
+            await new Promise((resolve) => {
+              const img = new Image();
+              img.onload = () => {
+                const canvas = document.createElement('canvas');
+                canvas.width = 180;
+                canvas.height = 180;
+                const ctx = canvas.getContext('2d');
+                if (ctx) {
+                  ctx.fillStyle = '#FFFFFF';
+                  ctx.fillRect(0, 0, canvas.width, canvas.height);
+                  ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+                  qrDataUrl = canvas.toDataURL('image/png');
+                }
+                URL.revokeObjectURL(blobURL);
+                resolve(true);
+              };
+              img.onerror = () => resolve(true);
+              img.src = blobURL;
+            });
           }
 
-          if (opcionPrecio) {
-            docPdf.setFontSize(tamanoEtiqueta === 'compacto' ? 7 : (tamanoEtiqueta === 'grande' ? 9.5 : 8.5));
-            docPdf.setFont("helvetica", "bold");
-            docPdf.text(`$${(prod.precioVenta || 0).toLocaleString('es-CO')}`, x + (anchoEtiqueta / 2), cursorY, { align: 'center' });
-            cursorY += (tamanoEtiqueta === 'compacto' ? 1.5 : 2);
-          }
+          for (let i = 0; i < cantidadImprimir; i++) {
+            if (y + altoEtiqueta > maxPageY) {
+              docPdf.addPage();
+              x = startX;
+              y = startY;
+              contadorCol = 0;
+            }
 
-          if (qrDataUrl) {
-            const qrX = x + (anchoEtiqueta - qrSize) / 2;
-            docPdf.addImage(qrDataUrl, 'PNG', qrX, cursorY + 1, qrSize, qrSize);
-          }
+            // Borde guía suave
+            docPdf.setDrawColor(210, 210, 210);
+            docPdf.setLineWidth(0.2);
+            docPdf.rect(x, y, anchoEtiqueta, altoEtiqueta);
 
-          contadorCol++;
-          if (contadorCol < colsPorFila) {
-            x += anchoEtiqueta + margenX;
-          } else {
-            x = startX;
-            y += altoEtiqueta + margenY;
-            contadorCol = 0;
+            let cursorY = y + (tamanoEtiqueta === 'compacto' ? 4 : 5.5);
+
+            if (opcionNegocio && datosSesion?.nombreNegocio) {
+              docPdf.setFontSize(tamanoEtiqueta === 'compacto' ? 5.5 : 6.5);
+              docPdf.setFont("helvetica", "normal");
+              docPdf.setTextColor(110, 110, 110);
+              docPdf.text(String(datosSesion.nombreNegocio).toUpperCase(), x + (anchoEtiqueta / 2), cursorY, { align: 'center' });
+              cursorY += (tamanoEtiqueta === 'compacto' ? 2.5 : 3.5);
+              docPdf.setTextColor(0, 0, 0);
+            }
+
+            if (opcionCategoria) {
+              docPdf.setFontSize(tamanoEtiqueta === 'compacto' ? 5.5 : 6.5);
+              docPdf.setFont("helvetica", "normal");
+              docPdf.setTextColor(110, 110, 110);
+              const catTexto = normalizarCategoria(prod.categoria).toUpperCase();
+              docPdf.text(catTexto, x + (anchoEtiqueta / 2), cursorY, { align: 'center' });
+              cursorY += (tamanoEtiqueta === 'compacto' ? 2.8 : 3.5);
+              docPdf.setTextColor(0, 0, 0);
+            }
+
+            if (opcionNombre) {
+              docPdf.setFontSize(tamanoEtiqueta === 'compacto' ? 7 : (tamanoEtiqueta === 'grande' ? 10.5 : 8.5));
+              docPdf.setFont("helvetica", "bold");
+              const maxChars = tamanoEtiqueta === 'compacto' ? 20 : (tamanoEtiqueta === 'grande' ? 36 : 24);
+              const nombreCorto = prod.nombre.length > maxChars ? prod.nombre.substring(0, maxChars - 2) + '...' : prod.nombre;
+              docPdf.text(nombreCorto, x + (anchoEtiqueta / 2), cursorY, { align: 'center' });
+              cursorY += (tamanoEtiqueta === 'compacto' ? 3.5 : 4.5);
+            }
+
+            if (opcionSku) {
+              docPdf.setFontSize(tamanoEtiqueta === 'compacto' ? 6 : (tamanoEtiqueta === 'grande' ? 8.5 : 7.5));
+              docPdf.setFont("helvetica", "normal");
+              docPdf.text(formatearTextoSKU(prod.sku), x + (anchoEtiqueta / 2), cursorY, { align: 'center' });
+              cursorY += (tamanoEtiqueta === 'compacto' ? 3.5 : 4);
+            }
+
+            if (opcionPrecio) {
+              docPdf.setFontSize(tamanoEtiqueta === 'compacto' ? 7 : (tamanoEtiqueta === 'grande' ? 9.5 : 8.5));
+              docPdf.setFont("helvetica", "bold");
+              docPdf.text(`$${(prod.precioVenta || 0).toLocaleString('es-CO')}`, x + (anchoEtiqueta / 2), cursorY, { align: 'center' });
+              cursorY += (tamanoEtiqueta === 'compacto' ? 1.5 : 2);
+            }
+
+            if (qrDataUrl) {
+              const qrX = x + (anchoEtiqueta - qrSize) / 2;
+              docPdf.addImage(qrDataUrl, 'PNG', qrX, cursorY + 1, qrSize, qrSize);
+            }
+
+            contadorCol++;
+            if (contadorCol < colsPorFila) {
+              x += anchoEtiqueta + margenX;
+            } else {
+              x = startX;
+              y += altoEtiqueta + margenY;
+              contadorCol = 0;
+            }
           }
+        }
+
+        if (modoAccion === 'imprimir') {
+          docPdf.autoPrint();
+          const blobUrl = docPdf.output('bloburl');
+          
+          const iframe = document.createElement('iframe');
+          iframe.style.position = 'fixed';
+          iframe.style.right = '0';
+          iframe.style.bottom = '0';
+          iframe.style.width = '0';
+          iframe.style.height = '0';
+          iframe.style.border = '0';
+          iframe.src = String(blobUrl);
+          document.body.appendChild(iframe);
+          
+          iframe.onload = () => {
+            try {
+              iframe.contentWindow?.focus();
+              iframe.contentWindow?.print();
+            } catch (e) {
+              window.open(String(blobUrl), '_blank');
+            }
+          };
+
+          toast.dismiss(toastId);
+          toast.success(`¡Diálogo de impresión de hojas abierto (${totalEtiquetasCalculadas} etiquetas)!`);
+        } else {
+          docPdf.save(`Etiquetas_QR_Hoja_${tamanoEtiqueta}_${Date.now()}.pdf`);
+          toast.dismiss(toastId);
+          toast.success(`¡PDF generado con éxito con ${totalEtiquetasCalculadas} etiquetas!`);
         }
       }
 
-      docPdf.save(`Etiquetas_QR_${tamanoEtiqueta}_${Date.now()}.pdf`);
-      toast.success(`¡PDF generado con éxito con ${totalEtiquetasCalculadas} etiquetas!`);
     } catch (error) {
       console.error(error);
-      toast.error("Error al generar el PDF de etiquetas.");
+      toast.dismiss(toastId);
+      toast.error("Error al procesar las etiquetas.");
     }
   };
 
@@ -2838,23 +3356,23 @@ export default function InventarioPage() {
         </div>
       )}
 
-      {/* MODAL CONFIGURAR EXPORTACIÓN QR INTELIGENTE */}
+      {/* MODAL CONFIGURAR EXPORTACIÓN QR INTELIGENTE Y TÉRMICA */}
       {esAdmin && modalExportarQR && (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center p-3 sm:p-4 z-[950] animate-in fade-in duration-200">
-          <div className="bg-white dark:bg-[#0f172a] rounded-[2.5rem] w-full max-w-2xl shadow-2xl border border-slate-100 dark:border-slate-800 animate-in zoom-in-95 duration-200 overflow-hidden flex flex-col max-h-[90dvh]">
+          <div className="bg-white dark:bg-[#0f172a] rounded-[2.5rem] w-full max-w-3xl shadow-2xl border border-slate-100 dark:border-slate-800 animate-in zoom-in-95 duration-200 overflow-hidden flex flex-col max-h-[92dvh]">
             
             {/* Header del Modal */}
-            <div className="p-6 md:p-7 border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/50 flex items-center justify-between">
+            <div className="p-5 sm:p-6 border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/50 flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <div className="w-12 h-12 rounded-2xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shadow-inner">
+                <div className="w-11 h-11 sm:w-12 sm:h-12 rounded-2xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shadow-inner">
                   <Printer size={24} />
                 </div>
                 <div>
-                  <h3 className="text-xl md:text-2xl font-black text-slate-900 dark:text-white flex items-center gap-2">
+                  <h3 className="text-lg sm:text-2xl font-black text-slate-900 dark:text-white flex items-center gap-2">
                     Exportar Etiquetas QR
                   </h3>
-                  <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">
-                    Personaliza el lote, tamaño y datos para imprimir tus adhesivos
+                  <p className="text-[11px] sm:text-xs text-slate-500 dark:text-slate-400 font-medium">
+                    Compatible con impresoras térmicas de rollo (Jaltech, Digital POS, Zebra) y hojas de oficina
                   </p>
                 </div>
               </div>
@@ -2867,16 +3385,269 @@ export default function InventarioPage() {
             </div>
 
             {/* Cuerpo del Modal con Scroll */}
-            <div className="p-6 md:p-7 overflow-y-auto space-y-6 flex-1">
+            <div className="p-5 sm:p-6 overflow-y-auto space-y-6 flex-1">
               
-              {/* PASO 1: ¿Qué productos etiquetar? */}
+              {/* PASO 1: Tipo de Impresora */}
               <div className="space-y-3">
                 <label className="text-xs font-black uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
-                  <Package size={14} className="text-emerald-500" /> 1. ¿Qué productos deseas etiquetar?
+                  <Printer size={14} className="text-emerald-500" /> 1. ¿En qué tipo de impresora vas a imprimir?
+                </label>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  
+                  {/* Impresora Térmica en Rollo */}
+                  <div
+                    onClick={() => setTipoImpresoraQR('termica')}
+                    className={`p-4 rounded-2xl border transition-all cursor-pointer relative ${
+                      tipoImpresoraQR === 'termica'
+                        ? 'border-emerald-500 bg-emerald-50/50 dark:bg-emerald-950/20 ring-2 ring-emerald-500/20 shadow-sm'
+                        : 'border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700'
+                    }`}
+                  >
+                    <span className="absolute -top-2.5 right-3 bg-emerald-600 text-white text-[9px] font-black uppercase px-2 py-0.5 rounded-full shadow-sm">
+                      Jaltech / POS
+                    </span>
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="font-black text-sm text-slate-900 dark:text-white flex items-center gap-1.5">
+                        🏷️ Impresora Térmica (Rollo)
+                      </span>
+                      <CheckCircle2 size={16} className={tipoImpresoraQR === 'termica' ? "text-emerald-600" : "text-slate-300"} />
+                    </div>
+                    <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                      1 sticker por página en milímetros exactos. Ideal para Jaltech POS, Digital POS, Zebra, Xprinter.
+                    </p>
+                  </div>
+
+                  {/* Hoja de Oficina */}
+                  <div
+                    onClick={() => setTipoImpresoraQR('hoja')}
+                    className={`p-4 rounded-2xl border transition-all cursor-pointer ${
+                      tipoImpresoraQR === 'hoja'
+                        ? 'border-emerald-500 bg-emerald-50/50 dark:bg-emerald-950/20 ring-2 ring-emerald-500/20 shadow-sm'
+                        : 'border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="font-black text-sm text-slate-900 dark:text-white flex items-center gap-1.5">
+                        📄 Hoja Carta / A4 (Oficina)
+                      </span>
+                      <CheckCircle2 size={16} className={tipoImpresoraQR === 'hoja' ? "text-emerald-600" : "text-slate-300"} />
+                    </div>
+                    <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                      Cuadrícula multi-etiqueta en hoja completa para impresoras de inyección o láser estándar.
+                    </p>
+                  </div>
+
+                </div>
+              </div>
+
+              {/* PASO 2: Medidas y Tamaño */}
+              <div className="space-y-3">
+                <label className="text-xs font-black uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
+                  <Maximize2 size={14} className="text-emerald-500" /> 2. Tamaño del rollo / etiqueta
+                </label>
+
+                {tipoImpresoraQR === 'termica' ? (
+                  <div className="space-y-3">
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
+                      
+                      {/* 32x25 */}
+                      <div
+                        onClick={() => setTamanoTermicoQR('32x25')}
+                        className={`p-3 rounded-2xl border transition-all cursor-pointer ${
+                          tamanoTermicoQR === '32x25'
+                            ? 'border-emerald-500 bg-emerald-50/60 dark:bg-emerald-950/30 ring-2 ring-emerald-500/20'
+                            : 'border-slate-200 dark:border-slate-800 hover:border-slate-300'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between mb-0.5">
+                          <span className="font-black text-xs text-slate-900 dark:text-white">32 × 25 mm</span>
+                        </div>
+                        <p className="text-[10px] text-slate-500 dark:text-slate-400">Miniatura / Artículos pequeños</p>
+                      </div>
+
+                      {/* 40x30 */}
+                      <div
+                        onClick={() => setTamanoTermicoQR('40x30')}
+                        className={`p-3 rounded-2xl border transition-all cursor-pointer relative ${
+                          tamanoTermicoQR === '40x30'
+                            ? 'border-emerald-500 bg-emerald-50/60 dark:bg-emerald-950/30 ring-2 ring-emerald-500/20'
+                            : 'border-slate-200 dark:border-slate-800 hover:border-slate-300'
+                        }`}
+                      >
+                        <span className="absolute -top-2 right-2 bg-emerald-600 text-white text-[8px] font-black uppercase px-1.5 py-0.5 rounded-full">
+                          Estándar
+                        </span>
+                        <div className="flex items-center justify-between mb-0.5">
+                          <span className="font-black text-xs text-slate-900 dark:text-white">40 × 30 mm</span>
+                        </div>
+                        <p className="text-[10px] text-slate-500 dark:text-slate-400">Estándar comercio (Más usado)</p>
+                      </div>
+
+                      {/* 50x25 */}
+                      <div
+                        onClick={() => setTamanoTermicoQR('50x25')}
+                        className={`p-3 rounded-2xl border transition-all cursor-pointer ${
+                          tamanoTermicoQR === '50x25'
+                            ? 'border-emerald-500 bg-emerald-50/60 dark:bg-emerald-950/30 ring-2 ring-emerald-500/20'
+                            : 'border-slate-200 dark:border-slate-800 hover:border-slate-300'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between mb-0.5">
+                          <span className="font-black text-xs text-slate-900 dark:text-white">50 × 25 mm</span>
+                        </div>
+                        <p className="text-[10px] text-slate-500 dark:text-slate-400">Alargada horizontal (QR al lado)</p>
+                      </div>
+
+                      {/* 50x30 */}
+                      <div
+                        onClick={() => setTamanoTermicoQR('50x30')}
+                        className={`p-3 rounded-2xl border transition-all cursor-pointer relative ${
+                          tamanoTermicoQR === '50x30'
+                            ? 'border-emerald-500 bg-emerald-50/60 dark:bg-emerald-950/30 ring-2 ring-emerald-500/20'
+                            : 'border-slate-200 dark:border-slate-800 hover:border-slate-300'
+                        }`}
+                      >
+                        <span className="absolute -top-2 right-2 bg-blue-600 text-white text-[8px] font-black uppercase px-1.5 py-0.5 rounded-full">
+                          Universal
+                        </span>
+                        <div className="flex items-center justify-between mb-0.5">
+                          <span className="font-black text-xs text-slate-900 dark:text-white">50 × 30 mm</span>
+                        </div>
+                        <p className="text-[10px] text-slate-500 dark:text-slate-400">Universal (Ropa, calzado, cajas)</p>
+                      </div>
+
+                      {/* 58x40 */}
+                      <div
+                        onClick={() => setTamanoTermicoQR('58x40')}
+                        className={`p-3 rounded-2xl border transition-all cursor-pointer ${
+                          tamanoTermicoQR === '58x40'
+                            ? 'border-emerald-500 bg-emerald-50/60 dark:bg-emerald-950/30 ring-2 ring-emerald-500/20'
+                            : 'border-slate-200 dark:border-slate-800 hover:border-slate-300'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between mb-0.5">
+                          <span className="font-black text-xs text-slate-900 dark:text-white">58 × 40 mm</span>
+                        </div>
+                        <p className="text-[10px] text-slate-500 dark:text-slate-400">Ancho completo POS 58mm</p>
+                      </div>
+
+                      {/* 80x50 */}
+                      <div
+                        onClick={() => setTamanoTermicoQR('80x50')}
+                        className={`p-3 rounded-2xl border transition-all cursor-pointer ${
+                          tamanoTermicoQR === '80x50'
+                            ? 'border-emerald-500 bg-emerald-50/60 dark:bg-emerald-950/30 ring-2 ring-emerald-500/20'
+                            : 'border-slate-200 dark:border-slate-800 hover:border-slate-300'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between mb-0.5">
+                          <span className="font-black text-xs text-slate-900 dark:text-white">80 × 50 mm</span>
+                        </div>
+                        <p className="text-[10px] text-slate-500 dark:text-slate-400">Formato grande POS 80mm</p>
+                      </div>
+
+                      {/* Personalizado */}
+                      <div
+                        onClick={() => setTamanoTermicoQR('personalizado')}
+                        className={`p-3 rounded-2xl border transition-all cursor-pointer ${
+                          tamanoTermicoQR === 'personalizado'
+                            ? 'border-emerald-500 bg-emerald-50/60 dark:bg-emerald-950/30 ring-2 ring-emerald-500/20'
+                            : 'border-slate-200 dark:border-slate-800 hover:border-slate-300'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between mb-0.5">
+                          <span className="font-black text-xs text-slate-900 dark:text-white">⚙️ Personalizado</span>
+                        </div>
+                        <p className="text-[10px] text-slate-500 dark:text-slate-400">Medida personalizada (mm)</p>
+                      </div>
+
+                    </div>
+
+                    {tamanoTermicoQR === 'personalizado' && (
+                      <div className="p-4 bg-slate-50 dark:bg-slate-900/60 rounded-2xl border border-slate-200 dark:border-slate-800 flex items-center gap-4 animate-in fade-in duration-200">
+                        <div className="flex-1">
+                          <label className="text-[11px] font-bold text-slate-500 block mb-1">Ancho (mm):</label>
+                          <input
+                            type="number"
+                            min={20}
+                            max={100}
+                            value={anchoPersonalizadoMM}
+                            onChange={(e) => setAnchoPersonalizadoMM(Math.max(10, Number(e.target.value)))}
+                            className="w-full px-3 py-2 bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-700 rounded-xl font-bold text-xs outline-none focus:border-emerald-500"
+                          />
+                        </div>
+                        <div className="flex-1">
+                          <label className="text-[11px] font-bold text-slate-500 block mb-1">Alto (mm):</label>
+                          <input
+                            type="number"
+                            min={15}
+                            max={120}
+                            value={altoPersonalizadoMM}
+                            onChange={(e) => setAltoPersonalizadoMM(Math.max(10, Number(e.target.value)))}
+                            className="w-full px-3 py-2 bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-700 rounded-xl font-bold text-xs outline-none focus:border-emerald-500"
+                          />
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <div
+                      onClick={() => setTamanoEtiqueta('compacto')}
+                      className={`p-3.5 rounded-2xl border transition-all cursor-pointer ${
+                        tamanoEtiqueta === 'compacto'
+                          ? 'border-emerald-500 bg-emerald-50/50 dark:bg-emerald-950/20 ring-2 ring-emerald-500/20'
+                          : 'border-slate-200 dark:border-slate-800 hover:border-slate-300'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="font-black text-sm text-slate-900 dark:text-white">Compacto</span>
+                        <span className="text-[10px] bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-md font-bold">4×3.4 cm</span>
+                      </div>
+                      <p className="text-[11px] text-slate-500 dark:text-slate-400">4 col / hoja (24 por página)</p>
+                    </div>
+
+                    <div
+                      onClick={() => setTamanoEtiqueta('estandar')}
+                      className={`p-3.5 rounded-2xl border transition-all cursor-pointer ${
+                        tamanoEtiqueta === 'estandar'
+                          ? 'border-emerald-500 bg-emerald-50/50 dark:bg-emerald-950/20 ring-2 ring-emerald-500/20'
+                          : 'border-slate-200 dark:border-slate-800 hover:border-slate-300'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="font-black text-sm text-slate-900 dark:text-white">Estándar</span>
+                        <span className="text-[10px] bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-md font-bold">5.8×4.8 cm</span>
+                      </div>
+                      <p className="text-[11px] text-slate-500 dark:text-slate-400">3 col / hoja (15 por página)</p>
+                    </div>
+
+                    <div
+                      onClick={() => setTamanoEtiqueta('grande')}
+                      className={`p-3.5 rounded-2xl border transition-all cursor-pointer ${
+                        tamanoEtiqueta === 'grande'
+                          ? 'border-emerald-500 bg-emerald-50/50 dark:bg-emerald-950/20 ring-2 ring-emerald-500/20'
+                          : 'border-slate-200 dark:border-slate-800 hover:border-slate-300'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="font-black text-sm text-slate-900 dark:text-white">Grande</span>
+                        <span className="text-[10px] bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-md font-bold">9×5.6 cm</span>
+                      </div>
+                      <p className="text-[11px] text-slate-500 dark:text-slate-400">2 col / hoja (8 por página)</p>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* PASO 3: ¿Qué productos etiquetar? */}
+              <div className="space-y-3">
+                <label className="text-xs font-black uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
+                  <Package size={14} className="text-emerald-500" /> 3. ¿Qué productos deseas etiquetar?
                 </label>
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   
-                  {/* Opción A: Seleccionados en la tabla */}
+                  {/* Seleccionados en la tabla */}
                   <div
                     onClick={() => {
                       if (productosSeleccionados.length > 0) setOrigenExportacion('seleccionados');
@@ -2886,7 +3657,7 @@ export default function InventarioPage() {
                         ? 'opacity-40 border-slate-200 dark:border-slate-800 cursor-not-allowed bg-slate-50 dark:bg-slate-900/30' 
                         : origenExportacion === 'seleccionados'
                           ? 'border-emerald-500 bg-emerald-50/50 dark:bg-emerald-950/20 ring-2 ring-emerald-500/20'
-                          : 'border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700'
+                          : 'border-slate-200 dark:border-slate-800 hover:border-slate-300'
                     }`}
                   >
                     <div className="flex items-center justify-between mb-1.5">
@@ -2900,13 +3671,13 @@ export default function InventarioPage() {
                     </p>
                   </div>
 
-                  {/* Opción B: Nuevos por fecha */}
+                  {/* Nuevos por fecha */}
                   <div
                     onClick={() => setOrigenExportacion('fecha')}
                     className={`p-3.5 rounded-2xl border transition-all cursor-pointer flex flex-col justify-between ${
                       origenExportacion === 'fecha'
                         ? 'border-emerald-500 bg-emerald-50/50 dark:bg-emerald-950/20 ring-2 ring-emerald-500/20'
-                        : 'border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700'
+                        : 'border-slate-200 dark:border-slate-800 hover:border-slate-300'
                     }`}
                   >
                     <div className="flex items-center justify-between mb-1.5">
@@ -2918,13 +3689,13 @@ export default function InventarioPage() {
                     </p>
                   </div>
 
-                  {/* Opción C: Todo el catálogo filtrado */}
+                  {/* Todo el catálogo filtrado */}
                   <div
                     onClick={() => setOrigenExportacion('todos')}
                     className={`p-3.5 rounded-2xl border transition-all cursor-pointer flex flex-col justify-between ${
                       origenExportacion === 'todos'
                         ? 'border-emerald-500 bg-emerald-50/50 dark:bg-emerald-950/20 ring-2 ring-emerald-500/20'
-                        : 'border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700'
+                        : 'border-slate-200 dark:border-slate-800 hover:border-slate-300'
                     }`}
                   >
                     <div className="flex items-center justify-between mb-1.5">
@@ -2995,136 +3766,239 @@ export default function InventarioPage() {
                 )}
               </div>
 
-              {/* PASO 2: Cantidad de copias */}
+              {/* PASO 4: Cantidad de etiquetas inteligente */}
               <div className="space-y-3">
                 <label className="text-xs font-black uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
-                  <Layers size={14} className="text-emerald-500" /> 2. Cantidad de etiquetas a generar
-                </label>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div
-                    onClick={() => setModoCantidadQR('stock')}
-                    className={`p-3.5 rounded-2xl border transition-all cursor-pointer ${
-                      modoCantidadQR === 'stock'
-                        ? 'border-emerald-500 bg-emerald-50/50 dark:bg-emerald-950/20 ring-2 ring-emerald-500/20'
-                        : 'border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700'
-                    }`}
-                  >
-                    <span className="font-black text-sm text-slate-900 dark:text-white block mb-0.5">
-                      📦 1 etiqueta por cada unidad de stock
-                    </span>
-                    <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                      Si tienes 5 unidades en bodega, genera 5 adhesivos para pegarle a cada uno.
-                    </p>
-                  </div>
-
-                  <div
-                    onClick={() => setModoCantidadQR('uno')}
-                    className={`p-3.5 rounded-2xl border transition-all cursor-pointer ${
-                      modoCantidadQR === 'uno'
-                        ? 'border-emerald-500 bg-emerald-50/50 dark:bg-emerald-950/20 ring-2 ring-emerald-500/20'
-                        : 'border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700'
-                    }`}
-                  >
-                    <span className="font-black text-sm text-slate-900 dark:text-white block mb-0.5">
-                      🏷️ 1 etiqueta única por producto
-                    </span>
-                    <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                      Solo genera 1 adhesivo por referencia. Ideal para vitrinas, perchas o exhibidores.
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              {/* PASO 3: Tamaño de la etiqueta */}
-              <div className="space-y-3">
-                <label className="text-xs font-black uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
-                  <Maximize2 size={14} className="text-emerald-500" /> 3. Tamaño del adhesivo / papel
-                </label>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                  
-                  {/* Compacto */}
-                  <div
-                    onClick={() => setTamanoEtiqueta('compacto')}
-                    className={`p-3.5 rounded-2xl border transition-all cursor-pointer ${
-                      tamanoEtiqueta === 'compacto'
-                        ? 'border-emerald-500 bg-emerald-50/50 dark:bg-emerald-950/20 ring-2 ring-emerald-500/20'
-                        : 'border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700'
-                    }`}
-                  >
-                    <div className="flex items-center justify-between mb-1">
-                      <span className="font-black text-sm text-slate-900 dark:text-white">Compacto</span>
-                      <span className="text-[10px] bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-md font-bold text-slate-600 dark:text-slate-300">4x3.4 cm</span>
-                    </div>
-                    <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                      4 col / hoja. Joyería, cosméticos, papelería y productos pequeños.
-                    </p>
-                  </div>
-
-                  {/* Estándar */}
-                  <div
-                    onClick={() => setTamanoEtiqueta('estandar')}
-                    className={`p-3.5 rounded-2xl border transition-all cursor-pointer relative ${
-                      tamanoEtiqueta === 'estandar'
-                        ? 'border-emerald-500 bg-emerald-50/50 dark:bg-emerald-950/20 ring-2 ring-emerald-500/20'
-                        : 'border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700'
-                    }`}
-                  >
-                    <span className="absolute -top-2.5 right-3 bg-emerald-600 text-white text-[9px] font-black uppercase px-2 py-0.5 rounded-full shadow-sm">
-                      Recomendado
-                    </span>
-                    <div className="flex items-center justify-between mb-1">
-                      <span className="font-black text-sm text-slate-900 dark:text-white">Estándar</span>
-                      <span className="text-[10px] bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-md font-bold text-slate-600 dark:text-slate-300">5.8x4.8 cm</span>
-                    </div>
-                    <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                      3 col / hoja. Ropa, calzado, cajas y uso general.
-                    </p>
-                  </div>
-
-                  {/* Grande */}
-                  <div
-                    onClick={() => setTamanoEtiqueta('grande')}
-                    className={`p-3.5 rounded-2xl border transition-all cursor-pointer ${
-                      tamanoEtiqueta === 'grande'
-                        ? 'border-emerald-500 bg-emerald-50/50 dark:bg-emerald-950/20 ring-2 ring-emerald-500/20'
-                        : 'border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700'
-                    }`}
-                  >
-                    <div className="flex items-center justify-between mb-1">
-                      <span className="font-black text-sm text-slate-900 dark:text-white">Grande</span>
-                      <span className="text-[10px] bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-md font-bold text-slate-600 dark:text-slate-300">9x5.6 cm</span>
-                    </div>
-                    <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                      2 col / hoja. Bodega, bultos grandes y estanterías.
-                    </p>
-                  </div>
-
-                </div>
-              </div>
-
-              {/* PASO 4: Datos a mostrar */}
-              <div className="space-y-3">
-                <label className="text-xs font-black uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
-                  <Tag size={14} className="text-emerald-500" /> 4. Información impresa en cada etiqueta
+                  <Layers size={14} className="text-emerald-500" /> 4. Cantidad de etiquetas por producto
                 </label>
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
                   
-                  <label className="flex items-center gap-2 p-3 bg-slate-50 dark:bg-slate-900/40 rounded-xl cursor-pointer border border-slate-200 dark:border-slate-800 select-none">
-                    <input type="checkbox" checked={opcionNombre} onChange={(e) => setOpcionNombre(e.target.checked)} className="w-4 h-4 accent-emerald-600 rounded" />
-                    <span className="font-bold text-slate-800 dark:text-slate-200 text-xs">Nombre</span>
+                  {/* Stock */}
+                  <div
+                    onClick={() => setModoCantidadQR('stock')}
+                    className={`p-3 rounded-2xl border transition-all cursor-pointer ${
+                      modoCantidadQR === 'stock'
+                        ? 'border-emerald-500 bg-emerald-50/50 dark:bg-emerald-950/20 ring-2 ring-emerald-500/20'
+                        : 'border-slate-200 dark:border-slate-800 hover:border-slate-300'
+                    }`}
+                  >
+                    <span className="font-black text-xs text-slate-900 dark:text-white block mb-0.5">
+                      📦 Según Stock
+                    </span>
+                    <p className="text-[10px] text-slate-500 dark:text-slate-400">1 por unidad disponible</p>
+                  </div>
+
+                  {/* 1 por referencia */}
+                  <div
+                    onClick={() => setModoCantidadQR('uno')}
+                    className={`p-3 rounded-2xl border transition-all cursor-pointer ${
+                      modoCantidadQR === 'uno'
+                        ? 'border-emerald-500 bg-emerald-50/50 dark:bg-emerald-950/20 ring-2 ring-emerald-500/20'
+                        : 'border-slate-200 dark:border-slate-800 hover:border-slate-300'
+                    }`}
+                  >
+                    <span className="font-black text-xs text-slate-900 dark:text-white block mb-0.5">
+                      🏷️ 1 por Producto
+                    </span>
+                    <p className="text-[10px] text-slate-500 dark:text-slate-400">Vitrinas o exhibidores</p>
+                  </div>
+
+                  {/* Cantidad Fija */}
+                  <div
+                    onClick={() => setModoCantidadQR('fijo')}
+                    className={`p-3 rounded-2xl border transition-all cursor-pointer ${
+                      modoCantidadQR === 'fijo'
+                        ? 'border-emerald-500 bg-emerald-50/50 dark:bg-emerald-950/20 ring-2 ring-emerald-500/20'
+                        : 'border-slate-200 dark:border-slate-800 hover:border-slate-300'
+                    }`}
+                  >
+                    <span className="font-black text-xs text-slate-900 dark:text-white block mb-0.5">
+                      🔢 Cantidad Fija
+                    </span>
+                    <p className="text-[10px] text-slate-500 dark:text-slate-400">Mismo número a todos</p>
+                  </div>
+
+                  {/* Selectivo Inteligente */}
+                  <div
+                    onClick={() => setModoCantidadQR('selectivo')}
+                    className={`p-3 rounded-2xl border transition-all cursor-pointer relative ${
+                      modoCantidadQR === 'selectivo'
+                        ? 'border-emerald-500 bg-emerald-50/60 dark:bg-emerald-950/30 ring-2 ring-emerald-500/20 shadow-sm'
+                        : 'border-slate-200 dark:border-slate-800 hover:border-slate-300'
+                    }`}
+                  >
+                    <span className="absolute -top-2 right-2 bg-emerald-600 text-white text-[8px] font-black uppercase px-1.5 py-0.5 rounded-full">
+                      Personalizado
+                    </span>
+                    <span className="font-black text-xs text-slate-900 dark:text-white block mb-0.5">
+                      ✨ Selectivo Pro
+                    </span>
+                    <p className="text-[10px] text-slate-500 dark:text-slate-400">Elegir cantidad por producto</p>
+                  </div>
+
+                </div>
+
+                {/* Sub-selector si eligió Fijo */}
+                {modoCantidadQR === 'fijo' && (
+                  <div className="p-3.5 bg-slate-50 dark:bg-slate-900/60 rounded-2xl border border-slate-200 dark:border-slate-800 flex items-center gap-3 animate-in fade-in duration-200">
+                    <label className="text-xs font-bold text-slate-700 dark:text-slate-300">Imprimir exactamente:</label>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setCantidadFijaQR(Math.max(1, cantidadFijaQR - 1))}
+                        className="w-8 h-8 rounded-xl bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-700 flex items-center justify-center font-black text-sm active:scale-90"
+                      >
+                        -
+                      </button>
+                      <input
+                        type="number"
+                        min={1}
+                        max={500}
+                        value={cantidadFijaQR}
+                        onChange={(e) => setCantidadFijaQR(Math.max(1, Number(e.target.value)))}
+                        className="w-16 text-center py-1 bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-700 rounded-xl font-black text-sm"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setCantidadFijaQR(cantidadFijaQR + 1)}
+                        className="w-8 h-8 rounded-xl bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-700 flex items-center justify-center font-black text-sm active:scale-90"
+                      >
+                        +
+                      </button>
+                      <span className="text-xs text-slate-500 font-medium">etiquetas de cada producto</span>
+                    </div>
+                  </div>
+                )}
+
+                {/* Panel Selectivo Pro: Lista interactiva de productos con contadores */}
+                {modoCantidadQR === 'selectivo' && (
+                  <div className="p-4 bg-slate-50 dark:bg-slate-900/60 rounded-2xl border border-slate-200 dark:border-slate-800 space-y-3 animate-in fade-in duration-200">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                      <span className="text-xs font-bold text-slate-800 dark:text-slate-200">
+                        Ajusta la cantidad exacta para cada referencia:
+                      </span>
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const mapa: Record<string, number> = {};
+                            productosParaExportarQR.forEach(p => {
+                              mapa[p.id] = Number(p.stock) > 0 ? Number(p.stock) : 1;
+                            });
+                            setCantidadesSelectivasQR(mapa);
+                          }}
+                          className="text-[10px] font-black bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-700 px-2.5 py-1 rounded-lg text-slate-700 dark:text-slate-300 hover:bg-slate-100 active:scale-95"
+                        >
+                          📦 Todos a stock
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const mapa: Record<string, number> = {};
+                            productosParaExportarQR.forEach(p => { mapa[p.id] = 1; });
+                            setCantidadesSelectivasQR(mapa);
+                          }}
+                          className="text-[10px] font-black bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-700 px-2.5 py-1 rounded-lg text-slate-700 dark:text-slate-300 hover:bg-slate-100 active:scale-95"
+                        >
+                          🏷️ Todos a 1
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Buscador dentro del selector */}
+                    <div className="relative">
+                      <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                      <input
+                        type="text"
+                        placeholder="Buscar producto en la lista para cambiar cantidad..."
+                        value={busquedaModalSelectivoQR}
+                        onChange={(e) => setBusquedaModalSelectivoQR(e.target.value)}
+                        className="w-full pl-8 pr-3 py-1.5 bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-medium outline-none focus:border-emerald-500"
+                      />
+                    </div>
+
+                    {/* Lista scrollable de productos */}
+                    <div className="max-h-48 overflow-y-auto space-y-1.5 pr-1 divide-y divide-slate-100 dark:divide-slate-800">
+                      {productosParaExportarQR
+                        .filter(p => !busquedaModalSelectivoQR || p.nombre?.toLowerCase().includes(busquedaModalSelectivoQR.toLowerCase()) || p.sku?.toLowerCase().includes(busquedaModalSelectivoQR.toLowerCase()))
+                        .map(prod => {
+                          const cantActual = cantidadesSelectivasQR[prod.id] !== undefined 
+                            ? cantidadesSelectivasQR[prod.id] 
+                            : (Number(prod.stock) > 0 ? Number(prod.stock) : 1);
+
+                          return (
+                            <div key={prod.id} className="pt-1.5 flex items-center justify-between gap-2">
+                              <div className="min-w-0 flex-1">
+                                <p className="text-xs font-bold text-slate-900 dark:text-white truncate">
+                                  {prod.nombre}
+                                </p>
+                                <p className="text-[10px] text-slate-400 truncate">
+                                  SKU: {prod.sku || 'N/A'} • Stock: {prod.stock || 0} • ${(prod.precioVenta || 0).toLocaleString('es-CO')}
+                                </p>
+                              </div>
+
+                              <div className="flex items-center gap-1.5 shrink-0">
+                                <button
+                                  type="button"
+                                  onClick={() => actualizarCantidadSelectiva(prod.id, -1)}
+                                  className="w-7 h-7 rounded-lg bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-700 flex items-center justify-center font-black text-xs hover:bg-slate-100 dark:hover:bg-slate-800 active:scale-90"
+                                >
+                                  -
+                                </button>
+                                <input
+                                  type="number"
+                                  min={0}
+                                  max={500}
+                                  value={cantActual}
+                                  onChange={(e) => fijarCantidadSelectiva(prod.id, Number(e.target.value))}
+                                  className={`w-12 text-center py-1 bg-white dark:bg-[#0f172a] border rounded-lg font-black text-xs ${
+                                    cantActual > 0 ? 'border-emerald-500 text-emerald-600 dark:text-emerald-400' : 'border-slate-200 dark:border-slate-700 text-slate-400'
+                                  }`}
+                                />
+                                <button
+                                  type="button"
+                                  onClick={() => actualizarCantidadSelectiva(prod.id, 1)}
+                                  className="w-7 h-7 rounded-lg bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-700 flex items-center justify-center font-black text-xs hover:bg-slate-100 dark:hover:bg-slate-800 active:scale-90"
+                                >
+                                  +
+                                </button>
+                              </div>
+                            </div>
+                          );
+                        })}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* PASO 5: Información a incluir en cada etiqueta */}
+              <div className="space-y-3">
+                <label className="text-xs font-black uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
+                  <Tag size={14} className="text-emerald-500" /> 5. Datos impresos en el sticker
+                </label>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
+                  
+                  <label className="flex items-center gap-2 p-2.5 bg-slate-50 dark:bg-slate-900/40 rounded-xl cursor-pointer border border-slate-200 dark:border-slate-800 select-none">
+                    <input type="checkbox" checked={opcionNegocio} onChange={(e) => setOpcionNegocio(e.target.checked)} className="w-4 h-4 accent-emerald-600 rounded" />
+                    <span className="font-bold text-slate-800 dark:text-slate-200 text-xs">Nombre Negocio</span>
                   </label>
 
-                  <label className="flex items-center gap-2 p-3 bg-slate-50 dark:bg-slate-900/40 rounded-xl cursor-pointer border border-slate-200 dark:border-slate-800 select-none">
+                  <label className="flex items-center gap-2 p-2.5 bg-slate-50 dark:bg-slate-900/40 rounded-xl cursor-pointer border border-slate-200 dark:border-slate-800 select-none">
+                    <input type="checkbox" checked={opcionNombre} onChange={(e) => setOpcionNombre(e.target.checked)} className="w-4 h-4 accent-emerald-600 rounded" />
+                    <span className="font-bold text-slate-800 dark:text-slate-200 text-xs">Nombre Producto</span>
+                  </label>
+
+                  <label className="flex items-center gap-2 p-2.5 bg-slate-50 dark:bg-slate-900/40 rounded-xl cursor-pointer border border-slate-200 dark:border-slate-800 select-none">
                     <input type="checkbox" checked={opcionSku} onChange={(e) => setOpcionSku(e.target.checked)} className="w-4 h-4 accent-emerald-600 rounded" />
                     <span className="font-bold text-slate-800 dark:text-slate-200 text-xs">SKU / Código</span>
                   </label>
 
-                  <label className="flex items-center gap-2 p-3 bg-slate-50 dark:bg-slate-900/40 rounded-xl cursor-pointer border border-slate-200 dark:border-slate-800 select-none">
+                  <label className="flex items-center gap-2 p-2.5 bg-slate-50 dark:bg-slate-900/40 rounded-xl cursor-pointer border border-slate-200 dark:border-slate-800 select-none">
                     <input type="checkbox" checked={opcionPrecio} onChange={(e) => setOpcionPrecio(e.target.checked)} className="w-4 h-4 accent-emerald-600 rounded" />
-                    <span className="font-bold text-slate-800 dark:text-slate-200 text-xs">Precio</span>
+                    <span className="font-bold text-slate-800 dark:text-slate-200 text-xs">Precio de Venta</span>
                   </label>
 
-                  <label className="flex items-center gap-2 p-3 bg-slate-50 dark:bg-slate-900/40 rounded-xl cursor-pointer border border-slate-200 dark:border-slate-800 select-none">
+                  <label className="flex items-center gap-2 p-2.5 bg-slate-50 dark:bg-slate-900/40 rounded-xl cursor-pointer border border-slate-200 dark:border-slate-800 select-none">
                     <input type="checkbox" checked={opcionCategoria} onChange={(e) => setOpcionCategoria(e.target.checked)} className="w-4 h-4 accent-emerald-600 rounded" />
                     <span className="font-bold text-slate-800 dark:text-slate-200 text-xs">Categoría</span>
                   </label>
@@ -3132,30 +4006,73 @@ export default function InventarioPage() {
                 </div>
               </div>
 
+              {/* VISTA PREVIA EN VIVO (LIVE PREVIEW) */}
+              <div className="p-4 bg-slate-100 dark:bg-slate-900/80 rounded-2xl border border-slate-200 dark:border-slate-800 flex flex-col items-center justify-center gap-2">
+                <span className="text-[11px] font-black uppercase tracking-wider text-slate-400">
+                  Vista Previa del Sticker
+                </span>
+                
+                {/* Contenedor simulado del sticker */}
+                <div className="bg-white text-slate-900 p-3 rounded-xl shadow-md border border-slate-300 flex flex-col items-center text-center max-w-[220px] w-full">
+                  {opcionNegocio && (
+                    <span className="text-[9px] font-medium text-slate-500 uppercase leading-tight truncate max-w-full">
+                      {datosSesion?.nombreNegocio || "MI NEGOCIO"}
+                    </span>
+                  )}
+                  {opcionNombre && (
+                    <span className="text-[11px] font-black leading-snug line-clamp-1">
+                      {productosParaExportarQR[0]?.nombre || "Camiseta Básica Pro"}
+                    </span>
+                  )}
+                  {opcionSku && (
+                    <span className="text-[9px] text-slate-500 font-mono leading-none my-0.5">
+                      {formatearTextoSKU(productosParaExportarQR[0]?.sku || "CAM-001")}
+                    </span>
+                  )}
+                  <div className="my-1.5 p-1 bg-white border border-slate-200 rounded-lg">
+                    <QrCode size={46} className="text-slate-900" />
+                  </div>
+                  {opcionPrecio && (
+                    <span className="text-xs font-black text-slate-900 leading-none">
+                      ${(productosParaExportarQR[0]?.precioVenta || 45000).toLocaleString('es-CO')}
+                    </span>
+                  )}
+                </div>
+              </div>
+
             </div>
 
             {/* Footer con Resumen Dinámico y Botones */}
-            <div className="p-5 md:p-6 border-t border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/80 flex flex-col sm:flex-row items-center justify-between gap-4">
+            <div className="p-5 sm:p-6 border-t border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/80 flex flex-col sm:flex-row items-center justify-between gap-4">
               <div className="text-xs text-slate-600 dark:text-slate-300 w-full sm:w-auto text-center sm:text-left">
                 <span className="font-medium text-slate-400 block text-[11px]">Resumen de exportación:</span>
-                <strong>{productosParaExportarQR.length} productos</strong> seleccionados • <strong className="text-emerald-600 dark:text-emerald-400">{totalEtiquetasCalculadas} etiquetas en total</strong>
+                <strong>{productosParaExportarQR.length} referencias</strong> seleccionadas • <strong className="text-emerald-600 dark:text-emerald-400">{totalEtiquetasCalculadas} stickers en total</strong>
               </div>
 
-              <div className="flex items-center gap-3 w-full sm:w-auto">
+              <div className="flex flex-wrap items-center gap-2.5 w-full sm:w-auto">
                 <button 
                   type="button"
                   onClick={() => setModalExportarQR(false)} 
-                  className="flex-1 sm:flex-none bg-white dark:bg-slate-800 hover:bg-slate-100 text-slate-700 dark:text-slate-300 font-bold py-3 px-5 rounded-2xl text-sm border border-slate-200 dark:border-slate-700 transition-colors"
+                  className="bg-white dark:bg-slate-800 hover:bg-slate-100 text-slate-700 dark:text-slate-300 font-bold py-2.5 sm:py-3 px-4 rounded-2xl text-xs sm:text-sm border border-slate-200 dark:border-slate-700 transition-colors"
                 >
                   Cancelar
                 </button>
                 <button 
                   type="button"
-                  onClick={generarPDFConQRs} 
-                  disabled={productosParaExportarQR.length === 0}
-                  className="flex-1 sm:flex-none bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-black py-3 px-6 rounded-2xl shadow-lg shadow-emerald-600/25 flex items-center justify-center gap-2 text-sm transition-all active:scale-95"
+                  onClick={() => generarPDFConQRs('descargar')} 
+                  disabled={productosParaExportarQR.length === 0 || totalEtiquetasCalculadas === 0}
+                  className="bg-white dark:bg-slate-800 hover:bg-slate-100 text-slate-700 dark:text-slate-300 font-bold py-2.5 sm:py-3 px-4 rounded-2xl text-xs sm:text-sm border border-slate-200 dark:border-slate-700 transition-colors flex items-center gap-1.5 active:scale-95 disabled:opacity-50"
+                  title="Descargar archivo PDF en tu equipo"
                 >
-                  <Download size={17}/> Descargar PDF ({totalEtiquetasCalculadas})
+                  <Download size={15} /> <span>Descargar PDF</span>
+                </button>
+                <button 
+                  type="button"
+                  onClick={() => generarPDFConQRs('imprimir')} 
+                  disabled={productosParaExportarQR.length === 0 || totalEtiquetasCalculadas === 0}
+                  className="flex-1 sm:flex-none bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-black py-2.5 sm:py-3 px-5 rounded-2xl shadow-lg shadow-emerald-600/25 flex items-center justify-center gap-2 text-xs sm:text-sm transition-all active:scale-95"
+                >
+                  <Printer size={16}/> <span>Imprimir Ahora ({totalEtiquetasCalculadas})</span>
                 </button>
               </div>
             </div>

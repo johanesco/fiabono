@@ -9,6 +9,7 @@ import ModalHorarios from '@/components/ModalHorarios';
 import { useAuth } from "../../../hooks/AuthContext";
 import ModalSuscripcion from "@/components/ModalSuscripcion";
 import ModalAjustarImagen from "@/components/ModalAjustarImagen";
+import { PermisosColaborador } from "@/types";
 import toast from "react-hot-toast";
 
 export default function PerfilPage() {
@@ -51,9 +52,22 @@ export default function PerfilPage() {
   const [modoCrearColaborador, setModoCrearColaborador] = useState(false);
   const [colaboradorEnEdicion, setColaboradorEnEdicion] = useState<any | null>(null);
   const [colaboradoresRegistrados, setColaboradoresRegistrados] = useState<any[]>([]);
-  const [formColaborador, setFormColaborador] = useState({ 
-    nombre: "", usuarioAcceso: "", password: "", confirmPassword: "",
-    permisos: { verCelulares: false, verDirectorio: false, verReportes: false }
+  const [formColaborador, setFormColaborador] = useState<{ nombre: string; usuarioAcceso: string; password: string; confirmPassword: string; permisos: PermisosColaborador }>({
+    nombre: "",
+    usuarioAcceso: "",
+    password: "",
+    confirmPassword: "",
+    permisos: {
+      verCelulares: false,
+      verDirectorio: false,
+      verReportes: false,
+      ventaDirecta: false,
+      abonar: false,
+      editarInventario: false,
+      terminalMultivendedor: false,
+      modificarPrecios: false,
+      aplicarDescuentos: false
+    }
   });
   const [errorFormColaborador, setErrorFormColaborador] = useState({ usuarioAcceso: "", general: "" });
   const [creandoColaborador, setCreandoColaborador] = useState(false);
@@ -299,7 +313,7 @@ export default function PerfilPage() {
         await secondaryAuthObj.signOut();
         setModalAvisoColaborador({ visible: true, titulo: "¡Acceso Creado!", mensaje: `El colaborador fue creado exitosamente.\n\nUsuario para entrar: \n${correoGenerado}`, icono: 'exito' });
       }
-      setFormColaborador({ nombre:"", usuarioAcceso:"", password:"", confirmPassword: "", permisos: { verCelulares: false, verDirectorio: false, verReportes: false } });
+      setFormColaborador({ nombre:"", usuarioAcceso:"", password:"", confirmPassword: "", permisos: { verCelulares: false, verDirectorio: false, verReportes: false, ventaDirecta: false, abonar: false, editarInventario: false, terminalMultivendedor: false } });
       setModoCrearColaborador(false); setColaboradorEnEdicion(null);
       cargarListaColaboradores(adminId);
     } catch (error: any) {
@@ -457,7 +471,23 @@ export default function PerfilPage() {
                         <div className="flex gap-2 shrink-0">
                           <button onClick={() => { 
                             setColaboradorEnEdicion(c); 
-                            setFormColaborador({nombre: c.nombreUsuario, usuarioAcceso: c.email.split('@')[0], password: '', confirmPassword: '', permisos: c.permisos || {verCelulares: false, verDirectorio: false, verReportes: false}}); 
+                            setFormColaborador({
+                              nombre: c.nombreUsuario, 
+                              usuarioAcceso: c.email.split('@')[0], 
+                              password: '', 
+                              confirmPassword: '', 
+                              permisos: {
+                                verCelulares: c.permisos?.verCelulares || false, 
+                                verDirectorio: c.permisos?.verDirectorio || false, 
+                                verReportes: c.permisos?.verReportes || false,
+                                ventaDirecta: c.permisos?.ventaDirecta || false,
+                                abonar: c.permisos?.abonar || false,
+                                editarInventario: c.permisos?.editarInventario || false,
+                                terminalMultivendedor: c.permisos?.terminalMultivendedor || false,
+                                modificarPrecios: c.permisos?.modificarPrecios || false,
+                                aplicarDescuentos: c.permisos?.aplicarDescuentos || false
+                              }
+                            }); 
                             setModoCrearColaborador(true); 
                           }} className="bg-white dark:bg-[#0f172a] p-2.5 rounded-lg border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors shadow-sm">
                             <Edit2 size={20} className="text-slate-500 shrink-0" />
@@ -482,10 +512,15 @@ export default function PerfilPage() {
                       </div>
 
                       <div className="flex flex-wrap gap-1.5 mt-1 border-t border-slate-200 dark:border-slate-800 pt-3">
+                        {c.permisos?.ventaDirecta ? <span className="text-[10px] bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-400 font-bold px-2 py-1 rounded-md">Venta directa</span> : <span className="text-[10px] bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-400 font-bold px-2 py-1 rounded-md">Solo Órdenes</span>}
+                        {c.permisos?.terminalMultivendedor ? <span className="text-[10px] bg-indigo-100 text-indigo-700 dark:bg-indigo-500/20 dark:text-indigo-400 font-bold px-2 py-1 rounded-md">Terminal Multi</span> : null}
+                        {c.permisos?.modificarPrecios ? <span className="text-[10px] bg-cyan-100 text-cyan-700 dark:bg-cyan-500/20 dark:text-cyan-400 font-bold px-2 py-1 rounded-md">Editar Precios</span> : null}
+                        {c.permisos?.aplicarDescuentos ? <span className="text-[10px] bg-rose-100 text-rose-700 dark:bg-rose-500/20 dark:text-rose-400 font-bold px-2 py-1 rounded-md">Descuentos</span> : null}
+                        {c.permisos?.abonar ? <span className="text-[10px] bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-400 font-bold px-2 py-1 rounded-md">Abonar</span> : null}
+                        {c.permisos?.editarInventario ? <span className="text-[10px] bg-teal-100 text-teal-700 dark:bg-teal-500/20 dark:text-teal-400 font-bold px-2 py-1 rounded-md">Editar Inv.</span> : null}
                         {c.permisos?.verCelulares ? <span className="text-[10px] bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-400 font-bold px-2 py-1 rounded-md">Celulares</span> : null}
                         {c.permisos?.verDirectorio ? <span className="text-[10px] bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-400 font-bold px-2 py-1 rounded-md">Directorio</span> : null}
                         {c.permisos?.verReportes ? <span className="text-[10px] bg-purple-100 text-purple-700 dark:bg-purple-500/20 dark:text-purple-400 font-bold px-2 py-1 rounded-md">Reportes</span> : null}
-                        {!c.permisos?.verCelulares && !c.permisos?.verDirectorio && !c.permisos?.verReportes ? <span className="text-[10px] bg-slate-200 text-slate-600 dark:bg-slate-800 dark:text-slate-400 font-bold px-2 py-1 rounded-md">Modo Ciego Total</span> : null}
                       </div>
                     </div>
                   ))
@@ -500,7 +535,7 @@ export default function PerfilPage() {
                     setModalAvisoColaborador({ visible: true, titulo: "Límite Alcanzado", mensaje: "Tu plan PRO permite un máximo de 4 colaboradores simultáneos para tu negocio.", icono: 'error' });
                     return;
                   }
-                  setFormColaborador({nombre:"", usuarioAcceso:"", password:"", confirmPassword: "", permisos: {verCelulares: false, verDirectorio: false, verReportes: false}}); 
+                  setFormColaborador({nombre:"", usuarioAcceso:"", password:"", confirmPassword: "", permisos: {verCelulares: false, verDirectorio: false, verReportes: false, ventaDirecta: false, abonar: false, editarInventario: false, terminalMultivendedor: false, modificarPrecios: false, aplicarDescuentos: false}}); 
                   setColaboradorEnEdicion(null); 
                   setModoCrearColaborador(true); 
                 }} className="w-full bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400 font-bold py-5 rounded-2xl border border-blue-200 dark:border-blue-500/20 hover:bg-blue-100 dark:hover:bg-blue-500/20 transition-colors flex justify-center items-center gap-2 text-lg">
@@ -550,17 +585,86 @@ export default function PerfilPage() {
                 {/* Permisos */}
                 <div className="flex flex-col gap-4 mt-2 mb-2 bg-slate-50 dark:bg-[#020617] p-5 rounded-xl border border-slate-200 dark:border-slate-800">
                    <p className="text-base font-black text-slate-800 dark:text-slate-200 mb-1">Permisos Especiales:</p>
-                   <label className="flex items-center gap-3 text-base font-medium text-slate-600 dark:text-slate-300 cursor-pointer">
-                     <input type="checkbox" className="w-6 h-6 accent-blue-600 shrink-0" checked={formColaborador.permisos.verCelulares} onChange={e => setFormColaborador({...formColaborador, permisos: {...formColaborador.permisos, verCelulares: e.target.checked}})}/> 
-                     <span className="truncate">Ver números de celular</span>
+                   
+                   {/* Venta Directa */}
+                   <label className="flex items-start gap-3 text-sm font-medium text-slate-600 dark:text-slate-300 cursor-pointer">
+                     <input type="checkbox" className="w-5 h-5 mt-0.5 accent-blue-600 shrink-0" checked={formColaborador.permisos.ventaDirecta} onChange={e => setFormColaborador({...formColaborador, permisos: {...formColaborador.permisos, ventaDirecta: e.target.checked}})}/> 
+                     <div>
+                       <span className="font-bold text-slate-800 dark:text-slate-200 block">Confirmar Ventas y Fiados directamente</span>
+                       <span className="text-xs text-slate-400">Si está desactivado, solo podrá enviar órdenes pendientes para tu aprobación.</span>
+                     </div>
                    </label>
-                   <label className="flex items-center gap-3 text-base font-medium text-slate-600 dark:text-slate-300 cursor-pointer">
-                     <input type="checkbox" className="w-6 h-6 accent-blue-600 shrink-0" checked={formColaborador.permisos.verDirectorio} onChange={e => setFormColaborador({...formColaborador, permisos: {...formColaborador.permisos, verDirectorio: e.target.checked}})}/> 
-                     <span className="truncate">Abrir Directorio completo</span>
+
+                   {/* Abonar */}
+                   <label className="flex items-start gap-3 text-sm font-medium text-slate-600 dark:text-slate-300 cursor-pointer">
+                     <input type="checkbox" className="w-5 h-5 mt-0.5 accent-blue-600 shrink-0" checked={formColaborador.permisos.abonar} onChange={e => setFormColaborador({...formColaborador, permisos: {...formColaborador.permisos, abonar: e.target.checked}})}/> 
+                     <div>
+                       <span className="font-bold text-slate-800 dark:text-slate-200 block">Registrar Abonos</span>
+                       <span className="text-xs text-slate-400">Permite recibir y registrar pagos de deudas de clientes.</span>
+                     </div>
                    </label>
-                   <label className="flex items-center gap-3 text-base font-medium text-slate-600 dark:text-slate-300 cursor-pointer">
-                     <input type="checkbox" className="w-6 h-6 accent-blue-600 shrink-0" checked={formColaborador.permisos.verReportes} onChange={e => setFormColaborador({...formColaborador, permisos: {...formColaborador.permisos, verReportes: e.target.checked}})}/> 
-                     <span className="truncate">Ver Estadísticas de dinero</span>
+
+                   {/* Editar Inventario */}
+                   <label className="flex items-start gap-3 text-sm font-medium text-slate-600 dark:text-slate-300 cursor-pointer">
+                     <input type="checkbox" className="w-5 h-5 mt-0.5 accent-blue-600 shrink-0" checked={formColaborador.permisos.editarInventario} onChange={e => setFormColaborador({...formColaborador, permisos: {...formColaborador.permisos, editarInventario: e.target.checked}})}/> 
+                     <div>
+                       <span className="font-bold text-slate-800 dark:text-slate-200 block">Editar y Crear Inventario</span>
+                       <span className="text-xs text-slate-400">Permite crear nuevos productos y modificar cantidades o precios.</span>
+                     </div>
+                   </label>
+
+                   {/* Celulares */}
+                   <label className="flex items-start gap-3 text-sm font-medium text-slate-600 dark:text-slate-300 cursor-pointer">
+                     <input type="checkbox" className="w-5 h-5 mt-0.5 accent-blue-600 shrink-0" checked={formColaborador.permisos.verCelulares} onChange={e => setFormColaborador({...formColaborador, permisos: {...formColaborador.permisos, verCelulares: e.target.checked}})}/> 
+                     <div>
+                       <span className="font-bold text-slate-800 dark:text-slate-200 block">Ver números de celular</span>
+                       <span className="text-xs text-slate-400">Permite ver los teléfonos de los clientes.</span>
+                     </div>
+                   </label>
+
+                   {/* Directorio */}
+                   <label className="flex items-start gap-3 text-sm font-medium text-slate-600 dark:text-slate-300 cursor-pointer">
+                     <input type="checkbox" className="w-5 h-5 mt-0.5 accent-blue-600 shrink-0" checked={formColaborador.permisos.verDirectorio} onChange={e => setFormColaborador({...formColaborador, permisos: {...formColaborador.permisos, verDirectorio: e.target.checked}})}/> 
+                     <div>
+                       <span className="font-bold text-slate-800 dark:text-slate-200 block">Abrir Directorio completo</span>
+                       <span className="text-xs text-slate-400">Permite consultar la lista general de clientes.</span>
+                     </div>
+                   </label>
+
+                   {/* Reportes */}
+                   <label className="flex items-start gap-3 text-sm font-medium text-slate-600 dark:text-slate-300 cursor-pointer">
+                     <input type="checkbox" className="w-5 h-5 mt-0.5 accent-blue-600 shrink-0" checked={formColaborador.permisos.verReportes} onChange={e => setFormColaborador({...formColaborador, permisos: {...formColaborador.permisos, verReportes: e.target.checked}})}/> 
+                     <div>
+                       <span className="font-bold text-slate-800 dark:text-slate-200 block">Ver Estadísticas de dinero</span>
+                       <span className="text-xs text-slate-400">Permite ver reportes financieros y totales.</span>
+                     </div>
+                   </label>
+
+                   {/* Modificar Precios de Inventario */}
+                   <label className="flex items-start gap-3 text-sm font-medium text-slate-600 dark:text-slate-300 cursor-pointer">
+                     <input type="checkbox" className="w-5 h-5 mt-0.5 accent-blue-600 shrink-0" checked={formColaborador.permisos.modificarPrecios} onChange={e => setFormColaborador({...formColaborador, permisos: {...formColaborador.permisos, modificarPrecios: e.target.checked}})}/> 
+                     <div>
+                       <span className="font-bold text-slate-800 dark:text-slate-200 block">Modificar precios de inventario</span>
+                       <span className="text-xs text-slate-400">Si está desactivado, el colaborador no podrá alterar los precios de productos que ya estén en inventario.</span>
+                     </div>
+                   </label>
+
+                   {/* Aplicar Descuentos Comerciales */}
+                   <label className="flex items-start gap-3 text-sm font-medium text-slate-600 dark:text-slate-300 cursor-pointer">
+                     <input type="checkbox" className="w-5 h-5 mt-0.5 accent-blue-600 shrink-0" checked={formColaborador.permisos.aplicarDescuentos} onChange={e => setFormColaborador({...formColaborador, permisos: {...formColaborador.permisos, aplicarDescuentos: e.target.checked}})}/> 
+                     <div>
+                       <span className="font-bold text-slate-800 dark:text-slate-200 block">Aplicar Descuentos Comerciales</span>
+                       <span className="text-xs text-slate-400">Permite aplicar rebajas en porcentaje o monto fijo a las transacciones.</span>
+                     </div>
+                   </label>
+
+                   {/* Terminal Multivendedor (Caja Compartida) */}
+                   <label className="flex items-start gap-3 text-sm font-medium text-slate-600 dark:text-slate-300 cursor-pointer">
+                     <input type="checkbox" className="w-5 h-5 mt-0.5 accent-blue-600 shrink-0" checked={formColaborador.permisos.terminalMultivendedor} onChange={e => setFormColaborador({...formColaborador, permisos: {...formColaborador.permisos, terminalMultivendedor: e.target.checked}})}/> 
+                     <div>
+                       <span className="font-bold text-slate-800 dark:text-slate-200 block">Terminal Multivendedor (Caja Compartida)</span>
+                       <span className="text-xs text-slate-400">Permite a este usuario seleccionar diferentes vendedores y alternar turnos en el mostrador.</span>
+                     </div>
                    </label>
                 </div>
 

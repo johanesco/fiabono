@@ -1,9 +1,17 @@
 "use client";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Home as HomeIcon, PieChart, Clock, UserCog, Package } from 'lucide-react';
+import { Home as HomeIcon, PieChart, Clock, UserCog, Package, Receipt } from 'lucide-react';
 
-export default function BottomNav({ puedeVerReportes }: { puedeVerReportes: boolean }) {
+export default function BottomNav({ 
+  puedeVerReportes,
+  esAdmin = true,
+  ordenesPendientesCount = 0
+}: { 
+  puedeVerReportes: boolean;
+  esAdmin?: boolean;
+  ordenesPendientesCount?: number;
+}) {
   const pathname = usePathname();
 
   return (
@@ -27,9 +35,25 @@ export default function BottomNav({ puedeVerReportes }: { puedeVerReportes: bool
           <Package size={21} className={pathname?.includes('/inventario') ? 'stroke-[2.5]' : 'stroke-2'} /> 
           <span className="text-[10px] uppercase tracking-wider">Inventario</span>
         </Link>
+
+        {/* Órdenes */}
+        <Link 
+          href="/dashboard/ordenes" 
+          className={`flex-1 py-2.5 flex flex-col items-center gap-1 transition-all active:scale-90 relative ${pathname?.includes('/ordenes') ? 'text-amber-600 dark:text-amber-400 font-black' : 'text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300 font-bold'}`}
+        >
+          <div className="relative">
+            <Receipt size={21} className={pathname?.includes('/ordenes') ? 'stroke-[2.5]' : 'stroke-2'} />
+            {ordenesPendientesCount > 0 && (
+              <span className="absolute -top-1 -right-2 w-3.5 h-3.5 bg-rose-500 text-white text-[8px] font-black rounded-full flex items-center justify-center animate-pulse">
+                {ordenesPendientesCount}
+              </span>
+            )}
+          </div>
+          <span className="text-[10px] uppercase tracking-wider">Órdenes</span>
+        </Link>
         
-        {/* Reportes (Solo Admin) */}
-        {puedeVerReportes && (
+        {/* Reportes (Solo si tiene permiso y no se satura la barra) */}
+        {puedeVerReportes && !esAdmin && (
           <Link 
             href="/dashboard/reportes" 
             className={`flex-1 py-2.5 flex flex-col items-center gap-1 transition-all active:scale-90 ${pathname?.includes('/reportes') ? 'text-emerald-600 dark:text-emerald-400 font-black' : 'text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300 font-bold'}`}

@@ -205,10 +205,15 @@ export const API_DB = {
       }
 
       const nuevoMovRef = doc(collection(db, "movimientos"));
-      const movimientoAGuardar = {
-        ...datosMovimiento,
-        ...(nuevoSaldo !== undefined ? { saldoResultante: nuevoSaldo } : {})
-      };
+      const movimientoAGuardar: Record<string, any> = {};
+      Object.entries(datosMovimiento).forEach(([k, v]) => {
+        if (v !== undefined) {
+          movimientoAGuardar[k] = v;
+        }
+      });
+      if (nuevoSaldo !== undefined) {
+        movimientoAGuardar.saldoResultante = nuevoSaldo;
+      }
       transaction.set(nuevoMovRef, movimientoAGuardar);
 
       return {

@@ -58,6 +58,8 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
           }
         }
 
+        const esAdmin = data.rol !== 'cajero';
+        const permisos = data.permisos || null;
         setDatosSesion({
           uid: user.uid,
           cuentaPrincipalId: idParaConsultar,
@@ -72,11 +74,19 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
           habilitarIva: adminData.habilitarIva || false,
           porcentajeIva: typeof adminData.porcentajeIva === 'number' ? adminData.porcentajeIva : 19,
           rol: data.rol,
-          permisos: data.permisos || null,
+          permisos,
+          // Helpers derivados de permisos para uso fácil en páginas
+          esAdmin,
+          puedeVentaDirecta: esAdmin || permisos?.ventaDirecta === true,
+          puedeAbonar: esAdmin || permisos?.abonar === true,
+          puedeEditarInventario: esAdmin || permisos?.editarInventario === true,
+          puedeModificarPrecios: esAdmin || permisos?.modificarPrecios === true,
+          puedeAplicarDescuentos: esAdmin || permisos?.aplicarDescuentos === true,
+          esTerminalMultivendedor: permisos?.terminalMultivendedor === true,
           planActual,
           diasPro,
           avisoExpiracion,
-          datosUsuarioOriginales: data // Guardamos la data cruda por si acaso
+          datosUsuarioOriginales: data
         });
       } catch (e) {
         await signOut(auth);
