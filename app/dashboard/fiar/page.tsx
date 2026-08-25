@@ -1,7 +1,7 @@
 "use client";
 import { useState, useEffect, Suspense, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { collection, addDoc, getDocs, query, doc, updateDoc, where } from "firebase/firestore";
+import { collection, addDoc, getDocs, query, doc, updateDoc, where, increment } from "firebase/firestore";
 import { db } from "../../../firebase";
 import { Search, ShoppingBag, CheckCircle2, ChevronRight, X, AlertCircle, UserCog, Plus, Minus, ArrowLeft, MessageCircle, Package, QrCode, Volume2, Printer, ChevronDown, ChevronUp, Tag, Receipt, Pause, FolderOpen, User, Trash2 } from 'lucide-react';
 import { useAuth } from "@/hooks/AuthContext";
@@ -26,9 +26,10 @@ function FiarContenido() {
     const cuentaPrincipalId = datosSesion?.cuentaPrincipalId;
     const nombreUsuario = datosSesion?.nombreUsuario;
     const nombreNegocio = datosSesion?.nombreNegocio;
+    const esAdmin = datosSesion?.tipoUsuario === 'principal';
     const puedeVentaDirecta: boolean = datosSesion?.puedeVentaDirecta ?? true;
-    const puedeModificarPrecios: boolean = datosSesion?.puedeModificarPrecios ?? true;
-    const puedeAplicarDescuentos: boolean = datosSesion?.puedeAplicarDescuentos ?? true;
+    const puedeModificarPrecios = esAdmin;
+    const puedeAplicarDescuentos = esAdmin;
 
     const [vendedorActivo, setVendedorActivo] = useState(nombreUsuario || "Vendedor");
     const [listaVendedores, setListaVendedores] = useState<string[]>([]);
@@ -95,20 +96,70 @@ function FiarContenido() {
         } catch (e) {}
     };
 
-    // Cargar pestañas iniciales desde LocalStorage para el vendedor activo
+    // Cargar pestañas iniciales desde LocalStorage para el vendedor activo (con soporte robusto de precarga desde inventario)
     useEffect(() => {
         if (!vendedorActivo) return;
         try {
+            // 1. Revisar si hay productos precargados desde inventario
+            const precarga = sessionStorage.getItem('fiabono_productos_precargados');
+            let itemsPrecargados: any[] | null = null;
+            if (precarga) {
+                try {
+                    const parsedPrecarga = JSON.parse(precarga);
+                    if (Array.isArray(parsedPrecarga) && parsedPrecarga.length > 0) {
+                        itemsPrecargados = parsedPrecarga;
+                    }
+                } catch (e) {}
+                sessionStorage.removeItem('fiabono_productos_precargados');
+            }
+
+            const origen = sessionStorage.getItem('fiabono_origen_despacho');
+            if (origen) {
+                setOrigenRuta(origen);
+                sessionStorage.removeItem('fiabono_origen_despacho');
+            }
+
             const key = getStorageKey(vendedorActivo);
             const dataGuardada = localStorage.getItem(key);
+            let listaPestanas: PestanaFiado[] = [];
+
             if (dataGuardada) {
-                const parsed = JSON.parse(dataGuardada);
-                if (Array.isArray(parsed) && parsed.length > 0) {
-                    setPestanas(parsed);
-                    setPestanaActivaId(parsed[0].id);
-                    cargarDatosDePestana(parsed[0]);
-                    return;
-                }
+                try {
+                    const parsed = JSON.parse(dataGuardada);
+                    if (Array.isArray(parsed) && parsed.length > 0) {
+                        listaPestanas = parsed;
+                    }
+                } catch (e) {}
+            }
+
+            if (listaPestanas.length === 0) {
+                listaPestanas = [{
+                    id: '1',
+                    nombre: 'Fiado #1',
+                    vendedor: vendedorActivo,
+                    filas: [{ descripcion: "", valor: "", cantidad: 1 }],
+                    cliente: null,
+                    mostrarDescuento: false,
+                    tipoDescuento: 'porcentaje',
+                    valorDescuento: ''
+                }];
+            }
+
+            if (itemsPrecargados && itemsPrecargados.length > 0) {
+                const pestanaInicial: PestanaFiado = {
+                    ...listaPestanas[0],
+                    filas: itemsPrecargados
+                };
+                const actualizadas = [pestanaInicial, ...listaPestanas.slice(1)];
+                setPestanas(actualizadas);
+                setPestanaActivaId(pestanaInicial.id);
+                cargarDatosDePestana(pestanaInicial);
+                persistirPestanas(actualizadas, vendedorActivo);
+                toast.success(`${itemsPrecargados.length} producto(s) cargado(s) desde inventario`);
+            } else {
+                setPestanas(listaPestanas);
+                setPestanaActivaId(listaPestanas[0].id);
+                cargarDatosDePestana(listaPestanas[0]);
             }
         } catch (e) {
             console.error("Error al cargar borrador de fiados:", e);
@@ -268,7 +319,7 @@ function FiarContenido() {
         setPestanaActivaId(nuevoId);
     };
 
-    // Cerrar pestaña
+    // Cerrar pestaña (o limpiar si es la única)
     const cerrarPestana = (idACerrar: string, e: React.MouseEvent) => {
         e.stopPropagation();
         if (pestanas.length <= 1) {
@@ -286,6 +337,7 @@ function FiarContenido() {
             persistirPestanas([reiniciada], vendedorActivo);
             setPestanaActivaId('1');
             cargarDatosDePestana(reiniciada);
+            toast.success("Fiado limpiado con éxito", { icon: '🧹' });
             return;
         }
 
@@ -326,21 +378,43 @@ function FiarContenido() {
                 const nombres: string[] = [];
                 if (nombreUsuario) nombres.push(nombreUsuario);
 
-                const qUsers = query(collection(db, "usuarios"), where("cuentaPrincipalId", "==", cuentaPrincipalId));
-                const snapU = await getDocs(qUsers);
-                snapU.forEach(d => {
-                    const u = d.data();
-                    if (u.nombre && !nombres.includes(u.nombre)) {
-                        nombres.push(u.nombre);
-                    }
-                });
-
-                const guardadosLocales = localStorage.getItem('fiabono_vendedores_rapidos');
-                if (guardadosLocales) {
-                    const parseados: string[] = JSON.parse(guardadosLocales);
-                    parseados.forEach(n => {
-                        if (!nombres.includes(n)) nombres.push(n);
+                // 1. Consultar colaboradores creados en Perfil (adminId == cuentaPrincipalId)
+                try {
+                    const qAdmin = query(collection(db, "usuarios"), where("adminId", "==", cuentaPrincipalId));
+                    const snapAdmin = await getDocs(qAdmin);
+                    snapAdmin.forEach(d => {
+                        const u = d.data();
+                        const nom = u.nombreUsuario || u.nombre || u.nombreColaborador;
+                        if (nom && !nombres.includes(nom)) {
+                            nombres.push(nom);
+                        }
                     });
+                } catch (e) {}
+
+                // 2. Consultar usuarios donde cuentaPrincipalId == cuentaPrincipalId
+                try {
+                    const qUsers = query(collection(db, "usuarios"), where("cuentaPrincipalId", "==", cuentaPrincipalId));
+                    const snapU = await getDocs(qUsers);
+                    snapU.forEach(d => {
+                        const u = d.data();
+                        const nom = u.nombreUsuario || u.nombre || u.nombreColaborador;
+                        if (nom && !nombres.includes(nom)) {
+                            nombres.push(nom);
+                        }
+                    });
+                } catch (e) {}
+
+                // 3. Vendedores guardados en localStorage
+                const guardadosLocales = localStorage.getItem(`fiabono_vendedores_${cuentaPrincipalId || 'local'}`) || localStorage.getItem('fiabono_vendedores_rapidos');
+                if (guardadosLocales) {
+                    try {
+                        const parseados: string[] = JSON.parse(guardadosLocales);
+                        if (Array.isArray(parseados)) {
+                            parseados.forEach(n => {
+                                if (n && !nombres.includes(n)) nombres.push(n);
+                            });
+                        }
+                    } catch (e) {}
                 }
 
                 setListaVendedores(nombres.length > 0 ? nombres : [nombreUsuario || "Vendedor"]);
@@ -381,26 +455,7 @@ function FiarContenido() {
         }
     }, [cuentaPrincipalId]);
 
-    useEffect(() => {
-        try {
-            const precarga = sessionStorage.getItem('fiabono_productos_precargados');
-            if (precarga) {
-                const items = JSON.parse(precarga);
-                if (Array.isArray(items) && items.length > 0) {
-                    setFilasRegistro(items);
-                    sessionStorage.removeItem('fiabono_productos_precargados');
-                    toast.success(`${items.length} producto(s) cargado(s) desde inventario`);
-                }
-            }
-            const origen = sessionStorage.getItem('fiabono_origen_despacho');
-            if (origen) {
-                setOrigenRuta(origen);
-                sessionStorage.removeItem('fiabono_origen_despacho');
-            }
-        } catch (e) {
-            console.error(e);
-        }
-    }, []);
+
 
     // Inicialización y limpieza del escáner con cámara directa
     useEffect(() => {
@@ -619,6 +674,30 @@ function FiarContenido() {
         });
     };
 
+    // Ordenamiento inteligente de sugerencias de inventario (Prioridad: Inicia con > Palabra inicia con > Contiene)
+    const ordenarProductosSugeridos = (lista: any[], queryText: string) => {
+        const q = queryText.trim().toLowerCase();
+        if (!q) return [];
+        return lista.filter(p => {
+            const n = (p.nombre || "").toLowerCase();
+            const s = (p.sku || "").toLowerCase();
+            const c = (p.codigo || "").toLowerCase();
+            return n.includes(q) || s.includes(q) || c.includes(q);
+        }).sort((a, b) => {
+            const aName = (a.nombre || "").toLowerCase();
+            const bName = (b.nombre || "").toLowerCase();
+            const aStarts = aName.startsWith(q);
+            const bStarts = bName.startsWith(q);
+            if (aStarts && !bStarts) return -1;
+            if (!aStarts && bStarts) return 1;
+            const aWordStarts = aName.split(/\s+/).some((w: string) => w.startsWith(q));
+            const bWordStarts = bName.split(/\s+/).some((w: string) => w.startsWith(q));
+            if (aWordStarts && !bWordStarts) return -1;
+            if (!aWordStarts && bWordStarts) return 1;
+            return aName.localeCompare(bName);
+        }).slice(0, 8);
+    };
+
     const guardarClienteNuevo = async () => {
         if (!nombreNuevo.trim()) return alert("El nombre del cliente es obligatorio.");
         setGuardandoCliente(true);
@@ -641,12 +720,19 @@ function FiarContenido() {
     };
 
     const agregarFila = () => {
-        const nuevoIndex = filasRegistro.length;
-        setFilasRegistro([...filasRegistro, { descripcion: "", valor: "", cantidad: 1 }]);
-        setTimeout(() => {
-            finalListaRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-            inputsDescripcionRef.current[nuevoIndex]?.focus();
-        }, 80);
+        setFilasRegistro(prev => {
+            const nuevoIndex = prev.length;
+            const nueva = [...prev, { descripcion: "", valor: "", cantidad: 1 }];
+            setBusquedaProductoIndex(nuevoIndex);
+            setTimeout(() => {
+                inputsDescripcionRef.current[nuevoIndex]?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                inputsDescripcionRef.current[nuevoIndex]?.focus();
+                if (scrollArticulosRef.current) {
+                    scrollArticulosRef.current.scrollTo({ top: scrollArticulosRef.current.scrollHeight, behavior: 'smooth' });
+                }
+            }, 80);
+            return nueva;
+        });
     };
 
     const actualizarFila = (index: number, campo: 'descripcion' | 'valor', valorNuevo: string) => {
@@ -664,21 +750,35 @@ function FiarContenido() {
         if (nuevaCant < 1) return;
 
         if (filaActual.descripcion.trim() !== "") {
-            const productoEnInventario = inventario.find(p => p.nombre.toLowerCase() === filaActual.descripcion.toLowerCase());
+            const descLim = filaActual.descripcion.toLowerCase().trim();
+            const productoEnInventario = inventario.find(p => 
+                p.nombre.toLowerCase().trim() === descLim ||
+                (p.sku && p.sku.toLowerCase().trim() === descLim) ||
+                (p.codigo && p.codigo.toLowerCase().trim() === descLim)
+            );
             const esInventariable = productoEnInventario && productoEnInventario.tipoProducto !== 'servicio' && productoEnInventario.inventariable !== false;
 
             if (esInventariable) {
                 const cantidadEnOtrasFilas = nuevasFilas.reduce((acc, f, i) => {
-                    if (i !== index && f.descripcion.toLowerCase() === filaActual.descripcion.toLowerCase()) {
+                    const fDesc = f.descripcion.toLowerCase().trim();
+                    if (i !== index && (
+                        fDesc === productoEnInventario.nombre.toLowerCase().trim() ||
+                        (productoEnInventario.sku && fDesc === productoEnInventario.sku.toLowerCase().trim())
+                    )) {
                         return acc + f.cantidad;
                     }
                     return acc;
                 }, 0);
 
-                const stockTotalPermitido = productoEnInventario.stock - cantidadEnOtrasFilas;
+                const stockTotalPermitido = (productoEnInventario.stock || 0) - cantidadEnOtrasFilas;
 
                 if (nuevaCant > stockTotalPermitido) {
-                    toast.error(`¡No hay más stock! Solo quedan ${stockTotalPermitido} unidades disponibles de ${productoEnInventario.nombre}.`);
+                    const totalYaEnLista = cantidadEnOtrasFilas + filaActual.cantidad;
+                    if (totalYaEnLista >= (productoEnInventario.stock || 0)) {
+                        toast.error(`⚠️ Ya tienes todas las unidades disponibles de "${productoEnInventario.nombre}" en tu lista (${productoEnInventario.stock || 0} en total).`, { position: 'bottom-center', icon: '🚫' });
+                    } else {
+                        toast.error(`⚠️ Solo puedes agregar ${Math.max(0, stockTotalPermitido - filaActual.cantidad)} unidad(es) más de "${productoEnInventario.nombre}".`, { position: 'bottom-center', icon: '🚫' });
+                    }
                     return;
                 }
             }
@@ -716,9 +816,20 @@ function FiarContenido() {
         if (filasValidas.length === 0) return toast.error("Ingresa al menos un artículo con valor.");
         if (!cuentaPrincipalId) return;
 
-        if (!clienteTransaccion) {
-            setModalFaltaCliente(true);
-            return;
+        // Validar stock antes de enviar orden de fiado
+        for (const fila of filasValidas) {
+            const item = inventario.find(p => p.nombre.toLowerCase() === fila.descripcion.toLowerCase());
+            const esInventariable = item && item.tipoProducto !== 'servicio' && item.inventariable !== false;
+            if (esInventariable) {
+                const totalRequerido = filasValidas
+                    .filter(f => f.descripcion.toLowerCase() === fila.descripcion.toLowerCase())
+                    .reduce((sum, f) => sum + f.cantidad, 0);
+
+                if (totalRequerido > (item.stock || 0)) {
+                    toast.error(`¡Stock insuficiente! Para "${item.nombre}" solicitas ${totalRequerido} pero solo quedan ${item.stock || 0} disponibles.`);
+                    return;
+                }
+            }
         }
 
         try {
@@ -790,6 +901,22 @@ function FiarContenido() {
 
     const ejecutarFiadoFinal = async () => {
         const filasValidas = filasRegistro.filter(f => parseFloat(f.valor) > 0);
+
+        for (const fila of filasValidas) {
+            const item = inventario.find(p => p.nombre.toLowerCase() === fila.descripcion.toLowerCase());
+            const esInventariable = item && item.tipoProducto !== 'servicio' && item.inventariable !== false;
+            if (esInventariable) {
+                const totalRequerido = filasValidas
+                    .filter(f => f.descripcion.toLowerCase() === fila.descripcion.toLowerCase())
+                    .reduce((sum, f) => sum + f.cantidad, 0);
+
+                if (totalRequerido > (item.stock || 0)) {
+                    toast.error(`¡Sin stock suficiente! Para "${item.nombre}" solicitas ${totalRequerido} pero solo quedan ${item.stock || 0} disponibles.`);
+                    return;
+                }
+            }
+        }
+
         const faltante = totalFilasRegistro;
 
         try {
@@ -828,12 +955,20 @@ function FiarContenido() {
                 }
             );
 
+            // Descontar inventario consolidado por ID de forma atómica
+            const cantidadesPorProducto: Record<string, number> = {};
             for (const fila of filasValidas) {
                 const item = inventario.find(p => p.nombre.toLowerCase() === fila.descripcion.toLowerCase());
                 const esInventariable = item && item.tipoProducto !== 'servicio' && item.inventariable !== false;
-                if (esInventariable) {
-                    await updateDoc(doc(db, "inventario", item.id), { stock: item.stock - fila.cantidad });
+                if (esInventariable && item.id) {
+                    cantidadesPorProducto[item.id] = (cantidadesPorProducto[item.id] || 0) + fila.cantidad;
                 }
+            }
+
+            for (const [pId, cant] of Object.entries(cantidadesPorProducto)) {
+                await updateDoc(doc(db, "inventario", pId), {
+                    stock: increment(-cant)
+                });
             }
 
             const saldoFinal = resFiado.nuevoSaldoCliente !== undefined ? resFiado.nuevoSaldoCliente : ((clienteTransaccion.deudaTotal || 0) + faltante);
@@ -1010,9 +1145,11 @@ Estamos atentos para cualquier consulta.
                                         {v}
                                     </option>
                                 ))}
-                                <option value="__nuevo__" className="bg-slate-900 text-amber-300 font-bold">
-                                    + Agregar otro vendedor...
-                                </option>
+                                {esAdmin && (
+                                    <option value="__nuevo__" className="bg-slate-900 text-amber-300 font-bold">
+                                        + Agregar otro vendedor...
+                                    </option>
+                                )}
                             </select>
                         </div>
                     ) : (
@@ -1028,7 +1165,7 @@ Estamos atentos para cualquier consulta.
                         className="bg-white text-rose-700 hover:bg-rose-50 px-3 py-1.5 sm:py-2 rounded-xl font-black text-xs sm:text-sm flex items-center gap-1.5 shadow-md transition-transform active:scale-95 cursor-pointer shrink-0"
                     >
                         <QrCode size={15} /> 
-                        <span className="hidden sm:inline">Escanear</span>
+                        <span className="hidden sm:inline">Escanear producto</span>
                     </button>
                 </div>
             </div>
@@ -1060,16 +1197,15 @@ Estamos atentos para cualquier consulta.
                                 </span>
                             )}
 
-                            {pestanas.length > 1 && (
-                                <button
-                                    type="button"
-                                    onClick={(e) => cerrarPestana(p.id, e)}
-                                    className={`p-0.5 rounded-full hover:bg-rose-100 hover:text-rose-600 transition-colors ${activa ? 'text-slate-400' : 'text-white/60'}`}
-                                    title="Cerrar este fiado"
-                                >
-                                    <X size={13} />
-                                </button>
-                            )}
+                            {/* Botón Cerrar o Limpiar Pestaña */}
+                            <button
+                                type="button"
+                                onClick={(e) => cerrarPestana(p.id, e)}
+                                className={`p-0.5 rounded-full hover:bg-rose-100 hover:text-rose-600 transition-colors ${activa ? 'text-slate-400' : 'text-white/60'}`}
+                                title={pestanas.length > 1 ? "Cerrar este fiado" : "Limpiar este fiado"}
+                            >
+                                <X size={13} />
+                            </button>
                         </div>
                     );
                 })}
@@ -1094,7 +1230,7 @@ Estamos atentos para cualquier consulta.
             >
 
                 {/* COLUMNA IZQUIERDA: ARTÍCULOS A FIAR */}
-                <div className="flex-1 flex flex-col bg-slate-50/60 dark:bg-[#020617]/50 lg:min-h-0 lg:overflow-hidden">
+                <div className="flex-1 flex flex-col bg-slate-50/60 dark:bg-[#020617]/50 lg:min-h-0 lg:overflow-hidden shrink-0">
 
                     <div ref={scrollArticulosRef} className="p-3 sm:p-5 lg:p-6 xl:p-8 space-y-3 sm:space-y-4 lg:flex-1 lg:overflow-y-auto min-h-0">
                         <div className="max-w-4xl mx-auto space-y-3 sm:space-y-4">
@@ -1102,13 +1238,10 @@ Estamos atentos para cualquier consulta.
 
                             <div className="space-y-3">
                                 {filasRegistro.map((fila, index) => {
-                                    const productosFiltradosInventario = inventario.filter(p =>
-                                        p.nombre?.toLowerCase().includes((fila.descripcion || "").toLowerCase()) ||
-                                        p.sku?.toLowerCase().includes((fila.descripcion || "").toLowerCase())
-                                    );
+                                    const productosFiltradosInventario = ordenarProductosSugeridos(inventario, fila.descripcion);
 
                                     return (
-                                        <div key={index} className="flex flex-col sm:flex-row gap-2.5 sm:gap-3 md:gap-4 p-3 sm:p-4 bg-white dark:bg-[#0f172a] rounded-2xl border border-slate-200 dark:border-slate-800 relative shadow-sm transition-colors hover:border-rose-300">
+                                        <div key={index} className={`flex flex-col sm:flex-row gap-2.5 sm:gap-3 md:gap-4 p-3 sm:p-4 bg-white dark:bg-[#0f172a] rounded-2xl border border-slate-200 dark:border-slate-800 relative shadow-sm transition-colors hover:border-rose-300 ${busquedaProductoIndex === index ? 'z-40' : 'z-10'}`}>
 
                                             {filasRegistro.length > 1 && (
                                                 <button onClick={() => eliminarFila(index)} className="absolute -top-2 -right-2 bg-rose-100 text-rose-600 rounded-full p-1 shadow-sm hover:scale-110 transition-transform z-10">
@@ -1128,30 +1261,36 @@ Estamos atentos para cualquier consulta.
                                                         actualizarFila(index, 'descripcion', e.target.value);
                                                         setBusquedaProductoIndex(index);
                                                     }}
-                                                    onFocus={() => setBusquedaProductoIndex(index)}
+                                                    onFocus={() => {
+                                                        setBusquedaProductoIndex(index);
+                                                        inputsDescripcionRef.current[index]?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                                                    }}
                                                     onKeyDown={(e) => {
                                                         if (e.key === 'Enter') {
                                                             if (busquedaProductoIndex === index && productosFiltradosInventario.length > 0) {
-                                                                e.preventDefault();
-                                                                const p = productosFiltradosInventario[0];
+                                                                 e.preventDefault();
+                                                                 const p = productosFiltradosInventario[0];
 
-                                                                const cantEnOtras = filasRegistro.reduce((acc, f, i) => i !== index && f.descripcion.toLowerCase() === p.nombre.toLowerCase() ? acc + f.cantidad : acc, 0);
-                                                                const stockDisp = (p.stock || 0) - cantEnOtras;
+                                                                 const cantEnOtras = filasRegistro.reduce((acc, f, i) => i !== index && f.descripcion.toLowerCase() === p.nombre.toLowerCase() ? acc + f.cantidad : acc, 0);
+                                                                 const stockDisp = (p.stock || 0) - cantEnOtras;
 
-                                                                if (p.tipoProducto !== 'servicio' && p.inventariable !== false && stockDisp <= 0) {
-                                                                    toast.error("Sin stock disponible de " + p.nombre);
-                                                                    return;
-                                                                }
+                                                                 if (p.tipoProducto !== 'servicio' && p.inventariable !== false && stockDisp <= 0) {
+                                                                     toast.error("Sin stock disponible de " + p.nombre);
+                                                                     return;
+                                                                 }
 
-                                                                const nuevas = [...filasRegistro];
-                                                                nuevas[index].descripcion = p.nombre;
-                                                                nuevas[index].valor = p.precioVenta.toString();
-                                                                nuevas[index].cantidad = 1;
-                                                                setFilasRegistro(nuevas);
-                                                                setBusquedaProductoIndex(null);
+                                                                 const nuevas = [...filasRegistro];
+                                                                 nuevas[index].descripcion = p.nombre;
+                                                                 nuevas[index].valor = p.precioVenta.toString();
+                                                                 nuevas[index].cantidad = 1;
+                                                                 setFilasRegistro(nuevas);
+                                                                 setBusquedaProductoIndex(null);
+                                                                 setTimeout(() => {
+                                                                     agregarFila();
+                                                                 }, 100);
                                                             } else if (fila.descripcion.trim().length > 0) {
-                                                                e.preventDefault();
-                                                                agregarFila();
+                                                                 e.preventDefault();
+                                                                 agregarFila();
                                                             }
                                                         }
                                                     }}
@@ -1160,18 +1299,19 @@ Estamos atentos para cualquier consulta.
                                                 />
 
                                                 {busquedaProductoIndex === index && fila.descripcion.trim().length > 0 && productosFiltradosInventario.length > 0 && (
-                                                    <div className="absolute top-full left-0 right-0 mt-1 bg-white dark:bg-[#1e293b] border border-slate-200 dark:border-slate-700 rounded-xl shadow-2xl z-50 overflow-hidden max-h-56 overflow-y-auto">
+                                                    <div className="absolute top-full left-0 right-0 mt-1.5 bg-white dark:bg-[#0f172a] border border-slate-200/80 dark:border-slate-800 rounded-2xl shadow-2xl z-50 overflow-hidden max-h-60 overflow-y-auto divide-y divide-slate-100 dark:divide-slate-800/60 backdrop-blur-md">
                                                         {productosFiltradosInventario.map(p => {
                                                             const esInv = p.tipoProducto !== 'servicio' && p.inventariable !== false;
-                                                            const cantEnOtras = filasRegistro.reduce((acc, f, i) => i !== index && f.descripcion.toLowerCase() === p.nombre.toLowerCase() ? acc + f.cantidad : acc, 0);
+                                                            const cantEnOtras = filasRegistro.reduce((acc, f, i) => i !== index && f.descripcion.toLowerCase().trim() === p.nombre.toLowerCase().trim() ? acc + f.cantidad : acc, 0);
                                                             const stockDisp = (p.stock || 0) - cantEnOtras;
+                                                            const estaAgotado = esInv && stockDisp <= 0;
 
                                                             return (
                                                                 <div
                                                                     key={p.id}
                                                                     onClick={() => {
-                                                                        if (esInv && stockDisp <= 0) {
-                                                                            toast.error("Sin stock disponible de " + p.nombre);
+                                                                        if (estaAgotado) {
+                                                                            toast.error(`⚠️ "${p.nombre}" no tiene existencias disponibles.`, { position: 'bottom-center', icon: '🚫' });
                                                                             return;
                                                                         }
                                                                         const nuevas = [...filasRegistro];
@@ -1180,36 +1320,52 @@ Estamos atentos para cualquier consulta.
                                                                         nuevas[index].cantidad = esInv ? Math.min(1, stockDisp) : 1;
                                                                         setFilasRegistro(nuevas);
                                                                         setBusquedaProductoIndex(null);
+                                                                        setTimeout(() => {
+                                                                            agregarFila();
+                                                                        }, 100);
                                                                     }}
-                                                                    className="p-2.5 sm:p-3 border-b border-slate-100 dark:border-slate-700 hover:bg-rose-50 dark:hover:bg-slate-800 cursor-pointer flex justify-between items-center text-xs sm:text-sm"
+                                                                    className={`p-3 transition-all flex justify-between items-center text-xs sm:text-sm ${
+                                                                        estaAgotado 
+                                                                            ? 'bg-rose-50/50 dark:bg-rose-950/20 opacity-60 cursor-not-allowed hover:bg-rose-100/60 border-l-4 border-rose-500' 
+                                                                            : 'hover:bg-rose-50/80 dark:hover:bg-slate-800/80 cursor-pointer active:scale-[0.99]'
+                                                                    }`}
                                                                 >
-                                                                    <div className="min-w-0 pr-2">
-                                                                        <span className="font-bold text-slate-800 dark:text-slate-200 block truncate">{p.nombre}</span>
-                                                                        {!esInv ? (
-                                                                            <span className="text-[9px] sm:text-[10px] font-bold text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-500/20 px-2 py-0.5 rounded-full mt-0.5 inline-block">
-                                                                                🛠️ Servicio / Ilimitado
+                                                                    <div className="min-w-0 pr-3">
+                                                                        <div className="flex items-center gap-2">
+                                                                            <span className={`font-bold block truncate ${estaAgotado ? 'text-slate-500 line-through' : 'text-slate-800 dark:text-slate-100'}`}>
+                                                                                {p.nombre}
                                                                             </span>
-                                                                        ) : (
-                                                                            <>
-                                                                                {stockDisp <= 5 && stockDisp > 0 && (
-                                                                                    <span className="text-[9px] sm:text-[10px] font-bold text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full mt-0.5 inline-block">
-                                                                                        ⚠️ Pocas unidades: {stockDisp} restantes
-                                                                                    </span>
-                                                                                )}
-                                                                                {stockDisp > 5 && (
-                                                                                    <span className="text-[9px] sm:text-[10px] font-mono bg-slate-100 dark:bg-slate-700 px-1.5 py-0.5 rounded text-slate-500 dark:text-slate-300">
-                                                                                        SKU: {p.sku || 'N/A'} | Disp: {stockDisp}
-                                                                                    </span>
-                                                                                )}
-                                                                                {stockDisp <= 0 && (
-                                                                                    <span className="text-[9px] sm:text-[10px] font-bold text-rose-600 bg-rose-100 px-2 py-0.5 rounded-full mt-0.5 inline-block">
-                                                                                        ❌ Agotado
-                                                                                    </span>
-                                                                                )}
-                                                                            </>
-                                                                        )}
+                                                                            {p.sku && (
+                                                                                <span className="text-[9px] font-mono px-1.5 py-0.5 bg-slate-100 dark:bg-slate-800 text-slate-500 rounded">
+                                                                                    {p.sku}
+                                                                                </span>
+                                                                            )}
+                                                                        </div>
+
+                                                                        <div className="mt-1 flex items-center gap-1.5 flex-wrap">
+                                                                            {!esInv ? (
+                                                                                <span className="text-[10px] font-bold text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-500/20 px-2 py-0.5 rounded-full inline-flex items-center gap-1">
+                                                                                    🛠️ Servicio / Ilimitado
+                                                                                </span>
+                                                                            ) : estaAgotado ? (
+                                                                                <span className="text-[10px] font-bold text-rose-700 dark:text-rose-400 bg-rose-100 dark:bg-rose-500/20 px-2.5 py-0.5 rounded-full inline-flex items-center gap-1">
+                                                                                    🚫 Agotado ({cantEnOtras > 0 ? `${cantEnOtras} en tu lista` : '0 disponibles'})
+                                                                                </span>
+                                                                            ) : stockDisp <= 5 ? (
+                                                                                <span className="text-[10px] font-bold text-amber-700 dark:text-amber-300 bg-amber-100 dark:bg-amber-500/20 px-2.5 py-0.5 rounded-full inline-flex items-center gap-1">
+                                                                                    <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse"></span>
+                                                                                    ⚡ ¡Solo quedan {stockDisp}!
+                                                                                </span>
+                                                                            ) : (
+                                                                                <span className="text-[10px] font-medium text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-500/10 px-2.5 py-0.5 rounded-full inline-flex items-center gap-1">
+                                                                                    ✓ {stockDisp} disponibles
+                                                                                </span>
+                                                                            )}
+                                                                        </div>
                                                                     </div>
-                                                                    <span className="font-black text-rose-600 dark:text-rose-400 shrink-0">${p.precioVenta.toLocaleString('es-CO')}</span>
+                                                                    <span className={`font-black shrink-0 ${estaAgotado ? 'text-slate-400' : 'text-rose-600 dark:text-rose-400'}`}>
+                                                                        ${p.precioVenta.toLocaleString('es-CO')}
+                                                                    </span>
                                                                 </div>
                                                             );
                                                         })}
@@ -1243,18 +1399,8 @@ Estamos atentos para cualquier consulta.
                                                                     onChange={(e) => actualizarFila(index, 'valor', e.target.value)}
                                                                     disabled={precioBloqueado}
                                                                     title={precioBloqueado ? "Precio fijado por inventario (no editable)" : ""}
-                                                                    onKeyDown={(e) => {
-                                                                        if (e.key === 'Enter') {
-                                                                            e.preventDefault();
-                                                                            agregarFila();
-                                                                        }
-                                                                    }}
                                                                     placeholder="0"
-                                                                    className={`w-full pl-6 sm:pl-7 pr-2 py-2 h-full border border-slate-200 dark:border-slate-800 rounded-xl outline-none font-black text-sm sm:text-base md:text-lg min-w-0 focus:border-rose-500 transition-colors ${
-                                                                        precioBloqueado
-                                                                            ? 'bg-slate-200/60 dark:bg-slate-800/80 cursor-not-allowed text-slate-500 dark:text-slate-400'
-                                                                            : 'bg-slate-50 dark:bg-[#020617] text-slate-900 dark:!text-white'
-                                                                    }`}
+                                                                    className={`w-full h-full pl-6 sm:pl-7 pr-2.5 border rounded-xl outline-none font-black text-sm sm:text-base md:text-lg text-right text-slate-900 dark:!text-white focus:border-rose-500 transition-colors placeholder:text-slate-400 dark:placeholder:text-slate-500 placeholder:font-normal ${precioBloqueado ? 'bg-slate-100 dark:bg-slate-800/60 text-slate-500 dark:text-slate-400 cursor-not-allowed border-slate-200 dark:border-slate-700' : 'bg-slate-50 dark:bg-[#020617] border-slate-200 dark:border-slate-800'}`}
                                                                 />
                                                             </div>
                                                         );
@@ -1265,8 +1411,13 @@ Estamos atentos para cualquier consulta.
                                     );
                                 })}
 
+                                {/* BOTONES INFERIORES: AÑADIR ARTÍCULO + APLICAR DESCUENTO */}
                                 <div className="flex flex-wrap items-center gap-2 pt-1">
-                                    <button onClick={agregarFila} className="font-bold text-rose-600 bg-rose-50 dark:bg-rose-500/10 hover:bg-rose-100 dark:hover:bg-rose-500/20 px-3.5 py-2 sm:py-2.5 rounded-xl transition-colors flex items-center justify-center gap-1.5 text-xs sm:text-sm shadow-sm">
+                                    <button
+                                        type="button"
+                                        onClick={agregarFila}
+                                        className="font-bold text-rose-600 bg-rose-50 dark:bg-rose-500/10 hover:bg-rose-100 dark:hover:bg-rose-500/20 px-3.5 py-2 sm:py-2.5 rounded-xl transition-colors flex items-center justify-center gap-1.5 text-xs sm:text-sm shadow-sm cursor-pointer active:scale-95"
+                                    >
                                         <Plus size={15} /> Añadir artículo
                                     </button>
 
@@ -1285,10 +1436,9 @@ Estamos atentos para cualquier consulta.
                                     )}
                                 </div>
 
-                                {/* TARJETA DE DESCUENTO EN COLUMNA IZQUIERDA (RESPONSIVE, SIN SOLAPAMIENTOS) */}
-                                {mostrarDescuento && (
+                                {/* TARJETA DE DESCUENTO EN COLUMNA IZQUIERDA */}
+                                {mostrarDescuento && puedeAplicarDescuentos && (
                                     <div className="mt-2 bg-slate-50 dark:bg-[#020617] p-2.5 sm:p-3 rounded-2xl border border-rose-300 dark:border-rose-800/80 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 animate-in fade-in slide-in-from-top-1 duration-150 shadow-sm">
-                                        {/* Controles de entrada */}
                                         <div className="flex flex-wrap items-center gap-2">
                                             <span className="text-[10px] font-black text-rose-600 dark:text-rose-400 uppercase tracking-wider flex items-center gap-1 shrink-0">
                                                 <Tag size={12} /> Descuento:
@@ -1346,7 +1496,6 @@ Estamos atentos para cualquier consulta.
                                             )}
                                         </div>
 
-                                        {/* Rebaja calculada y botón Quitar */}
                                         <div className="flex items-center justify-between sm:justify-end gap-2.5 shrink-0 pt-1 sm:pt-0 border-t sm:border-t-0 border-slate-200/60 dark:border-slate-800">
                                             {montoDescuentoTotal > 0 && (
                                                 <span className="text-[11px] font-bold text-rose-700 dark:text-rose-400 bg-rose-100/70 dark:bg-rose-950/60 px-2 py-0.5 rounded-md whitespace-nowrap">
@@ -1356,7 +1505,7 @@ Estamos atentos para cualquier consulta.
                                             <button
                                                 type="button"
                                                 onClick={() => { setMostrarDescuento(false); setValorDescuento(''); }}
-                                                className="text-[11px] font-bold text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/30 px-2 py-1 rounded-lg flex items-center gap-0.5 transition-colors whitespace-nowrap"
+                                                className="text-[11px] font-bold text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/30 px-2 py-1 rounded-lg flex items-center gap-0.5 transition-colors whitespace-nowrap cursor-pointer"
                                             >
                                                 <X size={12} /> Quitar
                                             </button>
@@ -1570,8 +1719,8 @@ Estamos atentos para cualquier consulta.
                                         <div className="absolute -bottom-1 -left-1 w-4 h-4 border-b-4 border-l-4 border-rose-400 rounded-bl-md"></div>
                                         <div className="absolute -bottom-1 -right-1 w-4 h-4 border-b-4 border-r-4 border-rose-400 rounded-br-md"></div>
 
-                                        {/* Línea Láser Animada */}
-                                        <div className="w-full h-0.5 bg-gradient-to-r from-transparent via-rose-400 to-transparent shadow-[0_0_10px_#fb7185] animate-pulse"></div>
+                                        {/* Línea Láser Animada con barrido vertical continuo */}
+                                        <div className="absolute left-0 right-0 h-0.5 bg-gradient-to-r from-transparent via-rose-400 to-transparent shadow-[0_0_12px_#fb7185] animate-laser-sweep"></div>
                                     </div>
                                 </div>
                             )}

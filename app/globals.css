@@ -58,3 +58,25 @@ html:not(.dark) textarea::placeholder {
   -webkit-text-fill-color: rgba(15, 23, 42, 0.4) !important;
 }
 
+/* =========================================================
+   ANIMACIÓN LÁSER VERTICAL PARA ESCÁNER POS
+   ========================================================= */
+@keyframes laser-sweep {
+  0% {
+    top: 6%;
+    opacity: 0.7;
+  }
+  50% {
+    top: 92%;
+    opacity: 1;
+  }
+  100% {
+    top: 6%;
+    opacity: 0.7;
+  }
+}
+
+.animate-laser-sweep {
+  animation: laser-sweep 2.2s ease-in-out infinite;
+}
+

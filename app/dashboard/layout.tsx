@@ -1,7 +1,7 @@
 "use client";
 import { useState, useEffect } from "react";
 import { useRouter, usePathname } from "next/navigation";
-import { Home, BarChart3, Clock, Settings, LogOut, ChevronLeft, ChevronRight, Package, Receipt } from 'lucide-react';
+import { Home, BarChart3, Clock, Settings, LogOut, ChevronLeft, ChevronRight, Package, Receipt, Bookmark } from 'lucide-react';
 import { collection, query, where, onSnapshot } from "firebase/firestore";
 import { db } from "../../firebase";
 import { useAuth } from "@/hooks/AuthContext";
@@ -9,18 +9,19 @@ import BottomNav from "../../components/BottomNav";
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const auth = useAuth();
-
-  if (!auth) return <div className="p-10 font-bold text-slate-500">Cargando sistema...</div>;
-
-  const { datosSesion, cerrarSesion } = auth;
   const router = useRouter();
   const pathname = usePathname();
   const [menuColapsado, setMenuColapsado] = useState(false);
   const [ordenesPendientesCount, setOrdenesPendientesCount] = useState(0);
+  const [separesActivosCount, setSeparesActivosCount] = useState(0);
 
+  const datosSesion = auth?.datosSesion;
+  const cerrarSesion = auth?.cerrarSesion || (() => {});
   const cuentaPrincipalId = datosSesion?.cuentaPrincipalId;
-  const esAdmin = datosSesion?.esAdmin ?? (datosSesion?.rol !== 'cajero');
-
+  const esAdmin = datosSesion?.tipoUsuario === 'principal' || datosSesion?.esAdmin === true || (datosSesion?.rol !== 'cajero');
+  const puedeAbonar = esAdmin || (datosSesion?.permisos?.abonar === true);
+  const puedeSepare = datosSesion?.puedeSepare ?? true;
+  const puedeGestionarSepares = esAdmin || puedeAbonar;
   // Función para reproducir sonido sutil de campana POS (Web Audio API)
   const reproducirSonidoOrden = () => {
     try {
@@ -82,6 +83,23 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
     return () => unsub();
   }, [cuentaPrincipalId, esAdmin]);
+
+  // Listener para contar separes activos en tiempo real
+  useEffect(() => {
+    if (!cuentaPrincipalId || !puedeSepare) {
+      setSeparesActivosCount(0);
+      return;
+    }
+    const q = query(
+      collection(db, "separes"),
+      where("usuarioId", "==", cuentaPrincipalId),
+      where("estado", "==", "activo")
+    );
+    const unsub = onSnapshot(q, (snap) => {
+      setSeparesActivosCount(snap.size);
+    }, (e) => console.error("Error contando separes:", e));
+    return () => unsub();
+  }, [cuentaPrincipalId, puedeSepare]);
 
   // Adaptabilidad Inteligente: en tablets (768px - 1023px) inicia colapsado, en PC (1024px+) expandido
   useEffect(() => {
@@ -167,6 +185,34 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             )}
           </button>
 
+          {/* Planes Separe (Solo Admin / Encargados con permiso de abono) */}
+          {puedeGestionarSepares && (
+            <button
+              onClick={() => router.push('/dashboard/separes')}
+              title="Planes Separe"
+              className={`w-full flex items-center gap-3.5 p-3 rounded-2xl font-bold transition-all active:scale-95 relative ${menuColapsado ? 'justify-center' : ''} ${pathname?.startsWith('/dashboard/separe') ? 'bg-violet-50 dark:bg-violet-500/10 text-violet-600 dark:text-violet-400 shadow-sm' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800/50'}`}
+            >
+              <div className="relative shrink-0">
+                <Bookmark size={22} />
+                {separesActivosCount > 0 && (
+                  <span className="absolute -top-1.5 -right-1.5 w-4 h-4 bg-violet-500 text-white text-[9px] font-black rounded-full flex items-center justify-center">
+                    {separesActivosCount}
+                  </span>
+                )}
+              </div>
+              {!menuColapsado && (
+                <div className="flex-1 flex justify-between items-center">
+                  <span>Planes Separe</span>
+                  {separesActivosCount > 0 && (
+                    <span className="bg-violet-500 text-white text-[10px] font-black px-2 py-0.5 rounded-full">
+                      {separesActivosCount}
+                    </span>
+                  )}
+                </div>
+              )}
+            </button>
+          )}
+
           {puedeVerReportes && (
             <button
               onClick={() => router.push('/dashboard/reportes')}
@@ -222,7 +268,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           <BottomNav 
             puedeVerReportes={puedeVerReportes} 
             esAdmin={esAdmin}
+            puedeAbonar={puedeAbonar}
             ordenesPendientesCount={ordenesPendientesCount}
+            puedeSepare={puedeSepare}
+            separesActivosCount={separesActivosCount}
           />
         </div>
       </main>

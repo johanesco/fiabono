@@ -666,6 +666,15 @@ export default function PerfilPage() {
                        <span className="text-xs text-slate-400">Permite a este usuario seleccionar diferentes vendedores y alternar turnos en el mostrador.</span>
                      </div>
                    </label>
+
+                   {/* Plan Separe */}
+                   <label className="flex items-start gap-3 text-sm font-medium text-slate-600 dark:text-slate-300 cursor-pointer">
+                     <input type="checkbox" className="w-5 h-5 mt-0.5 accent-violet-600 shrink-0" checked={formColaborador.permisos.planSepare ?? false} onChange={e => setFormColaborador({...formColaborador, permisos: {...formColaborador.permisos, planSepare: e.target.checked}})}/> 
+                     <div>
+                       <span className="font-bold text-slate-800 dark:text-slate-200 block">Plan Separe (Pago en Cuotas)</span>
+                       <span className="text-xs text-slate-400">Permite registrar y gestionar planes de pago en abonos para productos separados por clientes.</span>
+                     </div>
+                   </label>
                 </div>
 
                 <div className="grid grid-cols-2 gap-3 mt-2">

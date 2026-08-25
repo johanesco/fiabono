@@ -71,7 +71,7 @@ export default function ModalRegistro({
                 ))}
                 {clientesFiltrados.length === 0 && (
                   <button onClick={() => { setNombreNuevo(busqueda); abrirModalNuevoCliente(); setBusqueda(""); }} className="w-full bg-slate-100 dark:bg-[#020617] text-slate-700 dark:text-slate-300 font-bold py-5 rounded-2xl hover:bg-slate-200 dark:hover:bg-[#1e293b] transition-colors flex justify-center items-center gap-2 border dark:border-slate-800/80 text-lg">
-                    <UserCog size={20}/> Crear "{busqueda}" como nuevo
+                    <UserCog size={20}/> Crear &quot;{busqueda}&quot; como nuevo
                   </button>
                 )}
               </div>
@@ -179,7 +179,7 @@ export default function ModalRegistro({
                                    ))}
                                    {clientesFiltrados.length === 0 && (
                                     <button onClick={() => { setNombreNuevo(busqueda); abrirModalNuevoCliente(); setBusqueda(""); }} className="w-full p-4 text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-lg font-bold flex items-center justify-center gap-2">
-                                      <UserCog size={18}/> Crear "{busqueda}"
+                                      <UserCog size={18}/> Crear &quot;{busqueda}&quot;
                                     </button>
                                    )}
                                 </div>

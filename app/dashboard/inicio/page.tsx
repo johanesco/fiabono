@@ -3,7 +3,7 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { collection, addDoc, getDocs, query, where, onSnapshot } from "firebase/firestore";
 import { db } from "../../../firebase";
-import { Search, ShoppingBag, Banknote, Users, CheckCircle2, ChevronRight, X, MessageCircle, UserCog, ShoppingCart, Star, Clock, Store, Printer, Edit3, Trash2, Receipt } from 'lucide-react';
+import { Search, ShoppingBag, Banknote, Users, CheckCircle2, ChevronRight, X, MessageCircle, UserCog, ShoppingCart, Star, Clock, Store, Printer, Edit3, Trash2, Receipt, Bookmark } from 'lucide-react';
 import toast from "react-hot-toast";
 import { useAuth } from "../../../hooks/AuthContext";
 import TicketFacturaModal, { DatosFacturaProps } from "@/components/TicketFacturaModal";
@@ -19,6 +19,7 @@ export default function InicioPage() {
   const nombreNegocio = datosSesion?.nombreNegocio;
   const puedeVerDirectorio = datosSesion?.rol !== 'cajero' || datosSesion?.permisos?.verDirectorio === true;
   const puedeAbonar: boolean = datosSesion?.puedeAbonar ?? true;
+  const puedeSepare: boolean = datosSesion?.puedeSepare ?? true;
 
   const [clientes, setClientes] = useState<any[]>([]);
   const [todosMovimientos, setTodosMovimientos] = useState<any[]>([]);
@@ -27,6 +28,7 @@ export default function InicioPage() {
   const [busquedaDirectorio, setBusquedaDirectorio] = useState("");
   const [clienteActivo, setClienteActivo] = useState<any | null>(null);
   const [movimientosCliente, setMovimientosCliente] = useState<any[]>([]);
+  const [separesCliente, setSeparesCliente] = useState<any[]>([]);
 
   const [modalNuevoCliente, setModalNuevoCliente] = useState(false);
   const [verTodosClientes, setVerTodosClientes] = useState(false);
@@ -125,12 +127,27 @@ export default function InicioPage() {
   };
 
   const cargarMovimientosClienteDirecto = async (clienteId: string) => {
-    const qM = query(collection(db, "movimientos"), where("clienteId", "==", clienteId));
-    const snapM = await getDocs(qM);
-    const lista: any[] = [];
-    snapM.forEach(doc => lista.push({ id: doc.id, ...doc.data() }));
-    lista.sort((a, b) => b.fecha.toMillis() - a.fecha.toMillis());
-    setMovimientosCliente(lista);
+    try {
+      const qM = query(collection(db, "movimientos"), where("clienteId", "==", clienteId));
+      const snapM = await getDocs(qM);
+      const lista: any[] = [];
+      snapM.forEach(doc => lista.push({ id: doc.id, ...doc.data() }));
+      lista.sort((a, b) => (b.fecha?.toMillis ? b.fecha.toMillis() : 0) - (a.fecha?.toMillis ? a.fecha.toMillis() : 0));
+      setMovimientosCliente(lista);
+    } catch (e) {
+      console.error("Error cargando movimientos del cliente:", e);
+    }
+
+    try {
+      const qS = query(collection(db, "separes"), where("clienteId", "==", clienteId));
+      const snapS = await getDocs(qS);
+      const listaS: any[] = [];
+      snapS.forEach(doc => listaS.push({ id: doc.id, ...doc.data() }));
+      listaS.sort((a, b) => (b.fechaCreacion?.toMillis ? b.fechaCreacion.toMillis() : 0) - (a.fechaCreacion?.toMillis ? a.fechaCreacion.toMillis() : 0));
+      setSeparesCliente(listaS);
+    } catch (e) {
+      console.error("Error cargando separes del cliente:", e);
+    }
   };
 
   const abrirUpsell = (titulo: string, mensaje: string) => { setModalSuscripcion({ visible: true, titulo, mensaje }); };
@@ -351,108 +368,111 @@ Quedamos pendientes para revisar detalles o responder cualquier duda.
           )}
         </section>
 
-        {/* TARJETA DE ALERTA DE ÓRDENES PENDIENTES (Solo Admin) */}
+        {/* BANNER MINIMALISTA DE NOTIFICACIÓN DE ÓRDENES PENDIENTES */}
         {esAdmin && ordenesPendientes.length > 0 && (
-          <section className="bg-gradient-to-r from-amber-500/15 via-amber-500/10 to-transparent border border-amber-300 dark:border-amber-500/30 rounded-3xl p-4 sm:p-5 shadow-sm animate-in zoom-in-95 duration-200">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-              <div className="flex items-start sm:items-center gap-3">
-                <div className="w-10 h-10 rounded-2xl bg-amber-500 text-white flex items-center justify-center shrink-0 shadow-md shadow-amber-500/30 animate-bounce">
-                  <Receipt size={20} />
-                </div>
-                <div>
-                  <div className="flex items-center gap-2">
-                    <h3 className="font-black text-slate-900 dark:text-white text-sm sm:text-base">
-                      {ordenesPendientes.length} Órden{ordenesPendientes.length > 1 ? 'es' : ''} Pendiente{ordenesPendientes.length > 1 ? 's' : ''} de Aprobación
-                    </h3>
-                    <span className="bg-rose-500 text-white text-[10px] font-black px-2 py-0.5 rounded-full">
-                      Por revisar
-                    </span>
-                  </div>
-                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                    Última enviada por <strong>{ordenesPendientes[0]?.nombreColaborador || 'Colaborador'}</strong> ({ordenesPendientes[0]?.tipo === 'fiado' ? 'Fiado' : 'Venta'} de ${ordenesPendientes[0]?.total?.toLocaleString('es-CO')})
-                  </p>
-                </div>
+          <div 
+            onClick={() => router.push('/dashboard/ordenes')}
+            className="bg-amber-500/10 hover:bg-amber-500/15 border border-amber-400/40 dark:border-amber-500/30 rounded-2xl p-2.5 sm:p-3 shadow-sm flex items-center justify-between gap-3 transition-all cursor-pointer group active:scale-[0.99]"
+          >
+            <div className="flex items-center gap-2.5 min-w-0">
+              <div className="w-8 h-8 rounded-xl bg-amber-500 text-white flex items-center justify-center shrink-0 shadow-sm">
+                <Receipt size={16} />
               </div>
-
-              <button
-                onClick={() => router.push('/dashboard/ordenes')}
-                className="bg-amber-500 hover:bg-amber-600 active:scale-95 text-white font-black px-4 py-2.5 rounded-2xl text-xs sm:text-sm shadow-md shadow-amber-500/20 transition-all flex items-center justify-center gap-1.5 self-end sm:self-center shrink-0"
-              >
-                <span>Revisar y Aprobar</span>
-                <ChevronRight size={16} />
-              </button>
+              <div className="flex items-center gap-2 truncate min-w-0">
+                <span className="font-black text-xs sm:text-sm text-slate-900 dark:text-white truncate">
+                  {ordenesPendientes.length} órden{ordenesPendientes.length > 1 ? 'es' : ''} pendiente{ordenesPendientes.length > 1 ? 's' : ''} por aprobar
+                </span>
+                <span className="bg-rose-500 text-white text-[9px] font-black px-1.5 py-0.5 rounded-full shrink-0">
+                  Revisar
+                </span>
+              </div>
             </div>
-          </section>
-        )}
 
-        {/* BOTONES PRINCIPALES: Adaptables según permisos de Abono */}
-        {puedeAbonar ? (
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-6 md:gap-3 lg:gap-4">
-            {/* Botón VENDER */}
-            <button
-              onClick={() => router.push('/dashboard/vender')}
-              className="w-full bg-gradient-to-br from-emerald-500 to-green-700 hover:from-emerald-600 hover:to-green-800 text-white font-black text-2xl sm:text-4xl md:text-2xl lg:text-3xl xl:text-4xl py-10 md:py-6 lg:py-7 xl:py-8 rounded-[2rem] md:rounded-2xl lg:rounded-3xl shadow-lg flex flex-col items-center justify-center transition-transform transform active:scale-95 border border-emerald-400/30 dark:border-emerald-500/20"
-            >
-              <ShoppingCart className="mb-2 sm:mb-3 opacity-90 shrink-0 w-10 h-10 sm:w-14 sm:h-14 md:w-9 md:h-9 lg:w-11 lg:h-11" />
-              VENDER
-            </button>
-
-            {/* Botón FIAR */}
-            <button
-              onClick={() => router.push('/dashboard/fiar')}
-              className="w-full bg-gradient-to-br from-rose-500 to-red-700 hover:from-rose-600 hover:to-red-800 text-white font-black text-2xl sm:text-4xl md:text-2xl lg:text-3xl xl:text-4xl py-10 md:py-6 lg:py-7 xl:py-8 rounded-[2rem] md:rounded-2xl lg:rounded-3xl shadow-lg flex flex-col items-center justify-center transition-transform transform active:scale-95 border border-rose-400/30 dark:border-rose-500/20"
-            >
-              <ShoppingBag className="mb-2 sm:mb-3 opacity-90 shrink-0 w-10 h-10 sm:w-14 sm:h-14 md:w-9 md:h-9 lg:w-11 lg:h-11" />
-              FIAR
-            </button>
-
-            {/* Botón ABONAR */}
-            <button
-              onClick={() => router.push('/dashboard/abonar')}
-              className="w-full bg-gradient-to-br from-blue-500 to-blue-700 dark:from-blue-600 dark:to-blue-800 hover:from-blue-600 hover:to-blue-700 text-white font-black text-2xl sm:text-4xl md:text-2xl lg:text-3xl xl:text-4xl py-10 md:py-6 lg:py-7 xl:py-8 rounded-[2rem] md:rounded-2xl lg:rounded-3xl shadow-lg flex flex-col items-center justify-center transition-transform transform active:scale-95 border border-blue-400/30 dark:border-blue-500/20"
-            >
-              <Banknote className="mb-2 sm:mb-3 opacity-90 shrink-0 w-10 h-10 sm:w-14 sm:h-14 md:w-9 md:h-9 lg:w-11 lg:h-11" />
-              ABONAR
-            </button>
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6 md:gap-3 lg:gap-4">
-            {/* Botón VENDER (50% en escritorio) */}
-            <button
-              onClick={() => router.push('/dashboard/vender')}
-              className="w-full bg-gradient-to-br from-emerald-500 to-green-700 hover:from-emerald-600 hover:to-green-800 text-white font-black text-2xl sm:text-4xl md:text-2xl lg:text-3xl xl:text-4xl py-12 md:py-8 lg:py-10 rounded-[2rem] md:rounded-2xl lg:rounded-3xl shadow-lg flex flex-col items-center justify-center transition-transform transform active:scale-95 border border-emerald-400/30 dark:border-emerald-500/20"
-            >
-              <ShoppingCart className="mb-2 sm:mb-3 opacity-90 shrink-0 w-12 h-12 sm:w-16 sm:h-16 md:w-10 md:h-10 lg:w-12 lg:h-12" />
-              VENDER
-            </button>
-
-            {/* Botón FIAR (50% en escritorio) */}
-            <button
-              onClick={() => router.push('/dashboard/fiar')}
-              className="w-full bg-gradient-to-br from-rose-500 to-red-700 hover:from-rose-600 hover:to-red-800 text-white font-black text-2xl sm:text-4xl md:text-2xl lg:text-3xl xl:text-4xl py-12 md:py-8 lg:py-10 rounded-[2rem] md:rounded-2xl lg:rounded-3xl shadow-lg flex flex-col items-center justify-center transition-transform transform active:scale-95 border border-rose-400/30 dark:border-rose-500/20"
-            >
-              <ShoppingBag className="mb-2 sm:mb-3 opacity-90 shrink-0 w-12 h-12 sm:w-16 sm:h-16 md:w-10 md:h-10 lg:w-12 lg:h-12" />
-              FIAR
-            </button>
+            <div className="flex items-center gap-1 text-amber-700 dark:text-amber-400 font-bold text-xs shrink-0 group-hover:translate-x-0.5 transition-transform">
+              <span className="hidden sm:inline">Ver órdenes</span>
+              <ChevronRight size={15} />
+            </div>
           </div>
         )}
 
-        {/* BOTÓN O SECCIÓN PARA VER CLIENTES */}
+        {/* BOTONES PRINCIPALES: Vender full width, Fiar, Abonar y Separe adaptativos abajo */}
+        <div className="flex flex-col gap-4 sm:gap-5">
+          {/* Botón VENDER (Todo el ancho) */}
+          <button
+            onClick={() => router.push('/dashboard/vender')}
+            className="w-full bg-gradient-to-br from-emerald-500 to-green-700 hover:from-emerald-600 hover:to-green-800 text-white font-black text-2xl sm:text-3xl lg:text-4xl py-6 sm:py-8 lg:py-10 rounded-2xl sm:rounded-3xl shadow-lg flex flex-col items-center justify-center transition-transform transform active:scale-95 border border-emerald-400/30 dark:border-emerald-500/20 cursor-pointer"
+          >
+            <ShoppingCart className="mb-2 opacity-90 shrink-0 w-9 h-9 sm:w-12 sm:h-12 lg:w-14 lg:h-14" />
+            VENDER
+          </button>
+
+          {/* Fila inferior adaptativa */}
+          {(() => {
+            const botonesSecundarios = [
+              {
+                id: 'fiar',
+                nombre: 'FIAR',
+                icono: ShoppingBag,
+                ruta: '/dashboard/fiar',
+                gradiente: 'from-rose-500 to-red-700 hover:from-rose-600 hover:to-red-800 border-rose-400/30 dark:border-rose-500/20'
+              },
+              ...(puedeAbonar ? [{
+                id: 'abonar',
+                nombre: 'ABONAR',
+                icono: Banknote,
+                ruta: '/dashboard/abonar',
+                gradiente: 'from-blue-500 to-blue-700 dark:from-blue-600 dark:to-blue-800 hover:from-blue-600 hover:to-blue-700 border-blue-400/30 dark:border-blue-500/20'
+              }] : []),
+              ...(puedeSepare ? [{
+                id: 'separe',
+                nombre: 'SEPARE',
+                icono: Bookmark,
+                ruta: '/dashboard/separe',
+                gradiente: 'from-violet-600 to-purple-800 hover:from-violet-700 hover:to-purple-900 border-violet-400/30 dark:border-violet-500/20'
+              }] : [])
+            ];
+
+            const gridColsClass = botonesSecundarios.length === 3 
+              ? 'grid grid-cols-3 gap-3 sm:gap-4 lg:gap-5'
+              : botonesSecundarios.length === 2
+                ? 'grid grid-cols-2 gap-4 sm:gap-5'
+                : 'grid grid-cols-1 gap-4 sm:gap-5';
+
+            return (
+              <div className={gridColsClass}>
+                {botonesSecundarios.map((btn) => {
+                  const Icono = btn.icono;
+                  return (
+                    <button
+                      key={btn.id}
+                      onClick={() => router.push(btn.ruta)}
+                      className={`w-full bg-gradient-to-br ${btn.gradiente} text-white font-black text-lg sm:text-2xl lg:text-3xl py-5 sm:py-7 lg:py-8 rounded-2xl sm:rounded-3xl shadow-lg flex flex-col items-center justify-center transition-transform transform active:scale-95 border cursor-pointer`}
+                    >
+                      <Icono className="mb-2 opacity-90 shrink-0 w-7 h-7 sm:w-10 sm:h-10 lg:w-12 lg:h-12" />
+                      {btn.nombre}
+                    </button>
+                  );
+                })}
+              </div>
+            );
+          })()}
+        </div>
+
+        {/* BOTÓN DIRECTORIO DE CLIENTES (MINIMALISTA Y LIMPIO) */}
         {puedeVerDirectorio && (
-          <button onClick={() => setVerTodosClientes(true)}
-            className="w-full bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-800/80 hover:border-slate-300 dark:hover:border-slate-700 p-6 md:p-3 lg:p-4 rounded-[2rem] md:rounded-2xl lg:rounded-3xl shadow-sm flex items-center justify-between transition-all group">
-            <div className="flex items-center gap-4 md:gap-3">
-              <div className="p-3 md:p-2 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 rounded-2xl group-hover:bg-blue-50 dark:group-hover:bg-blue-500/10 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
-                <Users size={28} className="md:w-5 md:h-5" />
+          <button 
+            onClick={() => setVerTodosClientes(true)}
+            className="w-full bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-800 hover:border-blue-400/50 py-2.5 px-3.5 sm:px-4 rounded-2xl shadow-sm flex items-center justify-between transition-all group cursor-pointer active:scale-[0.99]"
+          >
+            <div className="flex items-center gap-2.5">
+              <div className="p-1.5 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 rounded-xl group-hover:bg-blue-50 dark:group-hover:bg-blue-500/10 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
+                <Users size={16} />
               </div>
-              <div className="text-left">
-                <h3 className="font-black text-slate-800 dark:text-slate-200 text-xl md:text-base">Directorio de Clientes</h3>
-                <p className="text-slate-500 dark:text-slate-400 font-medium text-sm md:text-xs">{clientes.length} registrados</p>
-              </div>
+              <h3 className="font-bold text-slate-800 dark:text-slate-200 text-xs sm:text-sm">Directorio de Clientes</h3>
             </div>
-            <div className="flex items-center gap-2 text-slate-400 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors font-bold text-sm">
-              <span className="hidden sm:inline">Ver todos</span>
-              <ChevronRight size={20} />
+            <div className="flex items-center gap-1 text-slate-400 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors font-bold text-xs">
+              <span className="hidden sm:inline text-[11px]">Abrir</span>
+              <ChevronRight size={15} />
             </div>
           </button>
         )}
@@ -627,20 +647,48 @@ Quedamos pendientes para revisar detalles o responder cualquier duda.
                   </div>
                   <p className="text-slate-500 font-medium text-sm mb-3">{clienteActivo.celular || "Sin número registrado"}</p>
                   
-                  <div className="flex flex-col items-center justify-center bg-white dark:bg-[#0f172a] w-full py-3 px-3 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm mb-2">
-                    <p className={`text-xs font-bold uppercase tracking-widest mb-1 px-2 py-0.5 rounded ${(clienteActivo.deudaTotal || 0) < 0 ? 'bg-emerald-500/20 text-emerald-400' : 'text-slate-400'}`}>
-                      {(clienteActivo.deudaTotal || 0) < 0 ? ' Saldo a favor' : (clienteActivo.deudaTotal === 0 ? 'CUENTA AL DÍA' : 'SALDO PENDIENTE')}
-                    </p>
-                    <p className={`text-3xl sm:text-4xl font-black tracking-tighter ${clienteActivo.deudaTotal === 0 ? 'text-slate-300' : ((clienteActivo.deudaTotal || 0) < 0 ? 'text-emerald-500' : 'text-rose-500')}`}>${Math.abs(clienteActivo.deudaTotal || 0).toLocaleString('es-CO')}</p>
-                  </div>
+                  {(() => {
+                    const saldoSeparesActivos = separesCliente
+                      .filter(s => s.estado === 'activo')
+                      .reduce((acc, s) => acc + (s.saldoPendiente || 0), 0);
+
+                    const totalCompromiso = (clienteActivo.deudaTotal || 0) + saldoSeparesActivos;
+
+                    return (
+                      <div className="flex flex-col items-center justify-center bg-white dark:bg-[#0f172a] w-full py-3 px-3 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm mb-2">
+                        <p className={`text-xs font-bold uppercase tracking-widest mb-1 px-2 py-0.5 rounded ${(clienteActivo.deudaTotal || 0) < 0 ? 'bg-emerald-500/20 text-emerald-400' : 'text-slate-400'}`}>
+                          {(clienteActivo.deudaTotal || 0) < 0 ? ' Saldo a favor' : (totalCompromiso === 0 ? 'CUENTA AL DÍA' : (saldoSeparesActivos > 0 ? 'SALDO TOTAL PENDIENTE' : 'SALDO PENDIENTE'))}
+                        </p>
+                        <p className={`text-3xl sm:text-4xl font-black tracking-tighter ${totalCompromiso === 0 ? 'text-slate-300' : ((clienteActivo.deudaTotal || 0) < 0 ? 'text-emerald-500' : 'text-rose-500')}`}>
+                          ${Math.abs(totalCompromiso).toLocaleString('es-CO')}
+                        </p>
+
+                        {saldoSeparesActivos > 0 && (
+                          <div className="grid grid-cols-2 gap-2 w-full pt-2.5 mt-2 border-t border-slate-100 dark:border-slate-800/80 text-[11px] font-bold">
+                            <div className="bg-rose-50 dark:bg-rose-950/30 p-2 rounded-xl text-left border border-rose-100 dark:border-rose-900/40">
+                              <span className="text-rose-600 block text-[9px] uppercase font-black">Deuda Fiados:</span>
+                              <span className="text-rose-700 dark:text-rose-300 font-black">${(clienteActivo.deudaTotal || 0).toLocaleString('es-CO')}</span>
+                            </div>
+                            <div className="bg-violet-50 dark:bg-violet-950/30 p-2 rounded-xl text-left border border-violet-100 dark:border-violet-900/40">
+                              <span className="text-violet-600 block text-[9px] uppercase font-black">Saldo Separes:</span>
+                              <span className="text-violet-700 dark:text-violet-300 font-black">${saldoSeparesActivos.toLocaleString('es-CO')}</span>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })()}
                 </div>
 
                 {/* BOTONES DE ACCIÓN: VENDER, FIAR, ABONAR Y WHATSAPP */}
                 <div className="p-4 md:p-6 bg-slate-50 dark:bg-[#020617] border-b border-slate-100 dark:border-slate-800 flex flex-col gap-3 shrink-0">
-                  <div className="flex gap-3">
+                  <div className="flex gap-2 sm:gap-3">
                     <button onClick={() => router.push(`/dashboard/vender?clienteId=${clienteActivo.id}`)} className="flex-1 bg-emerald-500 hover:bg-emerald-600 text-white font-bold py-3 rounded-xl text-xs md:text-sm uppercase shadow-sm transition-all active:scale-95 cursor-pointer">Vender</button>
                     <button onClick={() => router.push(`/dashboard/fiar?clienteId=${clienteActivo.id}`)} className="flex-1 bg-rose-500 hover:bg-rose-600 text-white font-bold py-3 rounded-xl text-xs md:text-sm uppercase shadow-sm transition-all active:scale-95 cursor-pointer">Fiar</button>
                     <button onClick={() => router.push(`/dashboard/abonar?clienteId=${clienteActivo.id}`)} className="flex-1 bg-blue-500 hover:bg-blue-600 text-white font-bold py-3 rounded-xl text-xs md:text-sm uppercase shadow-sm transition-all active:scale-95 cursor-pointer">Abonar</button>
+                    {puedeSepare && (
+                      <button onClick={() => router.push(`/dashboard/separe?clienteId=${clienteActivo.id}`)} className="flex-1 bg-violet-600 hover:bg-violet-700 text-white font-bold py-3 rounded-xl text-xs md:text-sm uppercase shadow-sm transition-all active:scale-95 cursor-pointer">Separe</button>
+                    )}
                   </div>
 
                   {clienteActivo.celular && (
@@ -651,64 +699,151 @@ Quedamos pendientes para revisar detalles o responder cualquier duda.
                 </div>
 
                 {/* HISTORIAL INTERNO DEL PERFIL */}
-                <div className="bg-white dark:bg-[#0f172a] p-4 md:p-6 pb-10 flex-1 overflow-y-auto space-y-3 md:space-y-4">
-                  <h4 className="font-bold text-slate-400 uppercase text-xs tracking-wider mb-3 flex items-center gap-2"><Clock size={16}/> Historial Completo</h4>
-                  {movimientosCliente.map(mov => (
-                    <div key={mov.id} className="p-4 md:p-5 bg-slate-50 dark:bg-[#020617] rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm relative overflow-hidden space-y-2 md:space-y-3">
-                      <div className={`absolute left-0 top-0 bottom-0 w-1.5 ${mov.tipo === 'fiado' ? 'bg-rose-500' : (mov.tipo === 'venta' ? 'bg-emerald-500' : 'bg-blue-500')}`}></div>
-                      
-                      <div className="pl-1 md:pl-2">
-                        <div className="flex justify-between items-center pb-1 md:pb-2 md:border-b md:border-slate-100 dark:border-slate-800/80">
-                          <span className={`text-[10px] md:text-xs font-black uppercase px-2.5 py-0.5 md:px-3 md:py-1 rounded-md md:rounded-lg ${mov.tipo === 'fiado' ? 'bg-rose-100 text-rose-700 dark:bg-rose-500/20 dark:text-rose-300' : (mov.tipo === 'venta' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300' : 'bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-300')}`}>{mov.tipo}</span>
-                          
-                          <div className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[10px] md:text-[11px] font-bold uppercase">
-                            {mov.registradoPor && (
-                              <span className="text-slate-500 dark:text-slate-400 whitespace-nowrap">
-                                👤 {mov.registradoPor}
-                              </span>
-                            )}
-                            {mov.registradoPor && <span className="text-slate-300 dark:text-slate-600 whitespace-nowrap">•</span>}
-                            <span className="text-slate-400 whitespace-nowrap">
-                              {mov.fecha?.toDate ? mov.fecha.toDate().toLocaleDateString('es-CO', {day:'2-digit', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit'}) : (mov.fecha instanceof Date ? mov.fecha.toLocaleDateString('es-CO', {day:'2-digit', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit'}) : '')}
-                            </span>
-                          </div>
+                <div className="bg-white dark:bg-[#0f172a] p-4 md:p-6 pb-10 flex-1 overflow-y-auto space-y-4">
+                  {/* SECCIÓN DE PLANES SEPARE DEL CLIENTE (SOLO SI TIENE ACTIVOS ANCLADOS) */}
+                  {(() => {
+                    const separesActivosCliente = separesCliente.filter(s => s.estado === 'activo');
+                    if (separesActivosCliente.length === 0) return null;
+
+                    return (
+                      <div className="space-y-2.5 pb-2">
+                        <div className="flex items-center justify-between">
+                          <h4 className="font-bold text-violet-600 dark:text-violet-400 uppercase text-xs tracking-wider flex items-center gap-1.5">
+                            <Bookmark size={15} /> Planes Separe Activos ({separesActivosCliente.length})
+                          </h4>
+                          <button
+                            onClick={() => router.push(`/dashboard/separes?tab=activos&busqueda=${encodeURIComponent(clienteActivo.nombre)}`)}
+                            className="text-[11px] font-bold text-violet-600 dark:text-violet-400 hover:underline flex items-center gap-0.5"
+                          >
+                            Ver en separes <ChevronRight size={13} />
+                          </button>
                         </div>
-                        
-                        {mov.detalles && mov.detalles.length > 0 ? (
-                          <div className="space-y-1 md:space-y-2 pt-1 border-t border-slate-200 dark:border-slate-700 md:border-none">
-                            {mov.detalles.map((d: any, idx: number) => (
-                              <div key={idx} className="flex justify-between items-center text-xs md:text-sm">
-                                <span className="text-slate-600 dark:text-slate-300 font-medium">
-                                  {d.cantidad > 1 && <strong className={`${mov.tipo === 'venta' ? 'text-emerald-500' : (mov.tipo === 'abono' ? 'text-blue-500' : 'text-rose-500')} font-black mr-1 md:mr-1.5`}>{d.cantidad}x</strong>}
-                                  {d.descripcion}
-                                </span>
-                                <span className="font-bold text-slate-900 dark:text-slate-100">${d.valor.toLocaleString('es-CO')}</span>
+
+                        <div className="space-y-2">
+                          {separesActivosCliente.map((sep) => {
+                            const porcentaje = sep.total > 0 ? Math.min(100, Math.round(((sep.montoPagado || 0) / sep.total) * 100)) : 0;
+
+                            return (
+                              <div 
+                                key={sep.id} 
+                                onClick={() => router.push(`/dashboard/separes?tab=activos&busqueda=${encodeURIComponent(clienteActivo.nombre)}`)}
+                                className="p-3.5 bg-violet-50/50 dark:bg-violet-950/20 border border-violet-100 dark:border-violet-900/40 rounded-2xl cursor-pointer hover:border-violet-300 dark:hover:border-violet-700 transition-all space-y-2"
+                              >
+                                <div className="flex justify-between items-center text-xs">
+                                  <span className="font-bold text-slate-800 dark:text-slate-200 truncate flex-1 mr-2">
+                                    {sep.items?.map((it: any) => `${it.cantidad > 1 ? `${it.cantidad}x ` : ''}${it.descripcion}`).join(', ') || 'Productos separados'}
+                                  </span>
+                                  <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded-full bg-violet-100 text-violet-700 dark:bg-violet-500/20 dark:text-violet-300">
+                                    Activo
+                                  </span>
+                                </div>
+
+                                <div className="space-y-1">
+                                  <div className="w-full bg-slate-200 dark:bg-slate-800 rounded-full h-2 overflow-hidden">
+                                    <div 
+                                      className={`h-full rounded-full transition-all duration-300 ${
+                                        porcentaje >= 100 
+                                          ? 'bg-emerald-500' 
+                                          : porcentaje >= 50 
+                                            ? 'bg-violet-600' 
+                                            : 'bg-amber-500'
+                                      }`} 
+                                      style={{ width: `${porcentaje}%` }} 
+                                    />
+                                  </div>
+                                  <div className="flex justify-between items-center text-[11px] font-bold text-slate-500 dark:text-slate-400">
+                                    <span>Pagado: ${(sep.montoPagado || 0).toLocaleString('es-CO')} ({porcentaje}%)</span>
+                                    <span className="text-violet-700 dark:text-violet-300 font-black">Saldo: ${(sep.saldoPendiente || 0).toLocaleString('es-CO')}</span>
+                                  </div>
+                                </div>
                               </div>
-                            ))}
-                          </div>
-                        ) : (
-                          <p className="text-xs md:text-sm font-bold text-slate-800 dark:text-slate-200">{mov.descripcion}</p>
-                        )}
+                            );
+                          })}
+                        </div>
+                      </div>
+                    );
+                  })()}
+
+                  <h4 className="font-bold text-slate-400 uppercase text-xs tracking-wider flex items-center gap-2 pt-1 border-t border-slate-100 dark:border-slate-800">
+                    <Clock size={16}/> Historial de Movimientos
+                  </h4>
+                  {movimientosCliente.map(mov => {
+                    const esDevolucionSepare = mov.categoria === 'devolucion_separe' || (mov.tipo === 'egreso' && (mov.concepto || '').toLowerCase().includes('separe'));
+                    const esEgreso = mov.tipo === 'egreso';
+
+                    return (
+                      <div key={mov.id} className="p-4 md:p-5 bg-slate-50 dark:bg-[#020617] rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm relative overflow-hidden space-y-2 md:space-y-3">
+                        <div className={`absolute left-0 top-0 bottom-0 w-1.5 ${
+                          esDevolucionSepare ? 'bg-amber-500' : (esEgreso ? 'bg-orange-500' : (mov.tipo === 'fiado' ? 'bg-rose-500' : (mov.tipo === 'venta' ? 'bg-emerald-500' : 'bg-blue-500')))
+                        }`}></div>
                         
-                        <div className="flex justify-between items-center pt-2 mt-1 md:mt-0 md:pt-3 border-t border-slate-200 dark:border-slate-700 md:border-slate-100 dark:md:border-slate-800 font-black">
-                          <span className="text-xs text-slate-400 uppercase tracking-wider">Total:</span>
-                          <div className="flex items-center gap-2">
-                            <button
-                              type="button"
-                              onClick={() => abrirTicketDeMovimiento(mov, clienteActivo)}
-                              title="Imprimir Factura / Ticket"
-                              className="p-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:text-blue-600 transition-colors cursor-pointer"
-                            >
-                              <Printer size={14} />
-                            </button>
-                            <span className={`text-base md:text-xl ${mov.tipo === 'fiado' ? 'text-rose-500' : (mov.tipo === 'venta' ? 'text-emerald-500' : 'text-blue-500')}`}>
-                              {mov.tipo === 'fiado' ? '-' : '+'}${mov.monto.toLocaleString('es-CO')}
+                        <div className="pl-1 md:pl-2">
+                          <div className="flex justify-between items-center pb-1 md:pb-2 md:border-b md:border-slate-100 dark:border-slate-800/80">
+                            <span className={`text-[10px] md:text-xs font-black uppercase px-2.5 py-0.5 md:px-3 md:py-1 rounded-md md:rounded-lg ${
+                              esDevolucionSepare
+                                ? 'bg-amber-100 text-amber-800 dark:bg-amber-500/20 dark:text-amber-300'
+                                : (esEgreso
+                                  ? 'bg-orange-100 text-orange-800 dark:bg-orange-500/20 dark:text-orange-300'
+                                  : (mov.tipo === 'fiado' ? 'bg-rose-100 text-rose-700 dark:bg-rose-500/20 dark:text-rose-300' : (mov.tipo === 'venta' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300' : 'bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-300')))
+                            }`}>
+                              {esDevolucionSepare ? 'DEVOLUCIÓN SEPARE' : (esEgreso ? 'EGRESO' : mov.tipo)}
                             </span>
+                            
+                            <div className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[10px] md:text-[11px] font-bold uppercase">
+                              {mov.registradoPor && (
+                                <span className="text-slate-500 dark:text-slate-400 whitespace-nowrap">
+                                  👤 {mov.registradoPor}
+                                </span>
+                              )}
+                              {mov.registradoPor && <span className="text-slate-300 dark:text-slate-600 whitespace-nowrap">•</span>}
+                              <span className="text-slate-400 whitespace-nowrap">
+                                {mov.fecha?.toDate ? mov.fecha.toDate().toLocaleDateString('es-CO', {day:'2-digit', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit'}) : (mov.fecha instanceof Date ? mov.fecha.toLocaleDateString('es-CO', {day:'2-digit', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit'}) : '')}
+                              </span>
+                            </div>
+                          </div>
+                          
+                          {mov.detalles && mov.detalles.length > 0 ? (
+                            <div className="space-y-1 md:space-y-2 pt-1 border-t border-slate-200 dark:border-slate-700 md:border-none">
+                              {mov.detalles.map((d: any, idx: number) => (
+                                <div key={idx} className="flex justify-between items-center text-xs md:text-sm">
+                                  <span className="text-slate-600 dark:text-slate-300 font-medium">
+                                    {d.cantidad > 1 && <strong className={`${mov.tipo === 'venta' ? 'text-emerald-500' : (mov.tipo === 'abono' ? 'text-blue-500' : 'text-rose-500')} font-black mr-1 md:mr-1.5`}>{d.cantidad}x</strong>}
+                                    {d.descripcion}
+                                  </span>
+                                  <span className="font-bold text-slate-900 dark:text-slate-100">${d.valor.toLocaleString('es-CO')}</span>
+                                </div>
+                              ))}
+                            </div>
+                          ) : (
+                            <p className="text-xs md:text-sm font-bold text-slate-800 dark:text-slate-200">{mov.descripcion || mov.concepto}</p>
+                          )}
+                          
+                          <div className="flex justify-between items-center pt-2 mt-1 md:mt-0 md:pt-3 border-t border-slate-200 dark:border-slate-700 md:border-slate-100 dark:md:border-slate-800 font-black">
+                            <span className="text-xs text-slate-400 uppercase tracking-wider">
+                              {esDevolucionSepare || esEgreso ? 'Devuelto:' : 'Total:'}
+                            </span>
+                            <div className="flex items-center gap-2">
+                              {mov.tipo !== 'egreso' && (
+                                <button
+                                  type="button"
+                                  onClick={() => abrirTicketDeMovimiento(mov, clienteActivo)}
+                                  title="Imprimir Factura / Ticket"
+                                  className="p-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:text-blue-600 transition-colors cursor-pointer"
+                                >
+                                  <Printer size={14} />
+                                </button>
+                              )}
+                              <span className={`text-base md:text-xl ${
+                                esDevolucionSepare || esEgreso ? 'text-amber-600 dark:text-amber-400' : (mov.tipo === 'fiado' ? 'text-rose-500' : (mov.tipo === 'venta' ? 'text-emerald-500' : 'text-blue-500'))
+                              }`}>
+                                {mov.tipo === 'fiado' ? '-' : (esDevolucionSepare || esEgreso ? '-' : '+')}${mov.monto.toLocaleString('es-CO')}
+                              </span>
+                            </div>
                           </div>
                         </div>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                   {movimientosCliente.length === 0 && <p className="text-center text-slate-400 py-10">Sin transacciones registradas.</p>}
                 </div>
               </div>
