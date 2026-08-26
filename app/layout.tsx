@@ -8,6 +8,10 @@ export const metadata = {
   title: "Fiabono",
   description: "Sistema de gestión y control de inventario y fiados",
   manifest: "/manifest.json",
+  icons: {
+    icon: "/icon-512.jpg",
+    apple: "/icon-512.jpg",
+  },
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",
@@ -16,10 +20,6 @@ export const metadata = {
   formatDetection: {
     telephone: false,
   },
-  themeColor: [
-    { media: "(prefers-color-scheme: light)", color: "#10b981" },
-    { media: "(prefers-color-scheme: dark)", color: "#0f172a" },
-  ],
 };
 
 export const viewport = {
@@ -28,6 +28,10 @@ export const viewport = {
   maximumScale: 1,
   userScalable: false,
   viewportFit: "cover",
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#10b981" },
+    { media: "(prefers-color-scheme: dark)", color: "#0f172a" },
+  ],
 };
 
 export default function RootLayout({
@@ -37,11 +41,6 @@ export default function RootLayout({
 }) {
   return (
     <html lang="es">
-      <head>
-        {/* Ícono para Apple Touch */}
-        <link rel="apple-touch-icon" href="/icon-512.jpg" />
-        <link rel="apple-touch-icon" sizes="180x180" href="/icon-512.jpg" />
-      </head>
       <body className="font-sans antialiased bg-slate-100 dark:bg-slate-950">
         <ServiceWorkerRegistrar />
         <AuthProvider>

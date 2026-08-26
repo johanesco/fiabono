@@ -700,30 +700,30 @@ export default function InventarioPage() {
     <div className="flex flex-col w-full h-full pb-24 md:pb-0 bg-slate-50 dark:bg-[#020617] md:rounded-[2.5rem] overflow-hidden md:border md:border-slate-100 dark:md:border-slate-800/60 shadow-none md:shadow-2xl animate-in fade-in duration-300">
       
       {/* HEADER */}
-      <div className="bg-emerald-600 dark:bg-emerald-700 p-4 md:p-6 text-white flex justify-between items-center shrink-0 z-30 shadow-sm">
-        <div className="flex items-center gap-3 md:gap-4">
-          <button onClick={() => router.push('/dashboard/inicio')} className="bg-white/20 hover:bg-white/30 p-2.5 rounded-full transition-colors backdrop-blur-sm">
-            <ArrowLeft size={22} />
+      <div className="bg-emerald-600 dark:bg-emerald-700 p-4 md:p-6 text-white flex justify-between items-center shrink-0 z-30 shadow-sm gap-2">
+        <div className="flex items-center gap-2.5 sm:gap-3 md:gap-4 min-w-0">
+          <button onClick={() => router.push('/dashboard/inicio')} className="bg-white/20 hover:bg-white/30 p-2 sm:p-2.5 rounded-full transition-colors backdrop-blur-sm shrink-0">
+            <ArrowLeft size={20} className="sm:w-[22px] sm:h-[22px]" />
           </button>
-          <div>
-            <h2 className="text-xl md:text-3xl font-black uppercase tracking-wide flex items-center gap-2">
-              <Package size={26}/> Inventario General
+          <div className="min-w-0">
+            <h2 className="text-lg sm:text-xl md:text-3xl font-black uppercase tracking-wide flex items-center gap-1.5 sm:gap-2 truncate">
+              <Package size={22} className="sm:w-[26px] sm:h-[26px] shrink-0" /> <span className="truncate">Inventario General</span>
             </h2>
             <p className="text-xs text-white/80 font-medium hidden sm:block">Control de stock, precios y catálogo de productos</p>
           </div>
         </div>
-        <div className="flex gap-2">
+        <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
           <button 
             onClick={() => setModalExportarQR(true)} 
-            className="bg-white/20 hover:bg-white/30 px-3 md:px-4 py-2.5 rounded-xl font-bold text-sm flex items-center gap-2 transition-colors backdrop-blur-sm shadow-sm"
+            className="bg-white/20 hover:bg-white/30 px-2.5 sm:px-4 py-2 sm:py-2.5 rounded-xl font-bold text-xs sm:text-sm flex items-center gap-1.5 sm:gap-2 transition-colors backdrop-blur-sm shadow-sm"
           >
-            <FileText size={18}/> <span className="hidden sm:inline">Exportar QRs</span>
+            <FileText size={16} className="sm:w-[18px] sm:h-[18px]" /> <span className="hidden sm:inline">Exportar QRs</span>
           </button>
           <button 
             onClick={() => { limpiarFormulario(); setModalProducto(true); }} 
-            className="bg-white text-emerald-700 hover:bg-emerald-50 px-4 py-2.5 rounded-xl font-black text-sm flex items-center gap-2 shadow-md transition-transform active:scale-95"
+            className="bg-white text-emerald-700 hover:bg-emerald-50 px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl font-black text-xs sm:text-sm flex items-center gap-1.5 sm:gap-2 shadow-md transition-transform active:scale-95 shrink-0"
           >
-            <Plus size={18}/> Nuevo Producto
+            <Plus size={16} className="sm:w-[18px] sm:h-[18px]" /> <span className="hidden sm:inline">Nuevo Producto</span><span className="sm:hidden">Nuevo</span>
           </button>
         </div>
       </div>
@@ -1044,7 +1044,7 @@ export default function InventarioPage() {
 
                         {/* Nombre del Producto */}
                         <td className="p-4">
-                          <span className="font-bold text-slate-900 dark:text-white block max-w-[240px] truncate">{prod.nombre}</span>
+                          <span className="font-bold text-slate-900 dark:text-white block max-w-[180px] sm:max-w-[240px] md:max-w-none truncate">{prod.nombre}</span>
                           {prod.tipoProducto === 'servicio' && (
                             <span className="text-[10px] text-indigo-500 font-bold uppercase tracking-wider block mt-0.5">Servicio</span>
                           )}
@@ -1388,7 +1388,7 @@ export default function InventarioPage() {
                               <div className="min-w-0 flex-1">
                                 <p className="truncate text-sm font-bold text-slate-800 dark:text-slate-100">{prod.nombre}</p>
                                 <p className="mt-0.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-slate-400">{prod.sku || 'SIN SKU'} • {prod.categoria || 'General'}</p>
-                                <div className="mt-1 flex items-center gap-2 text-[10px] text-slate-500 dark:text-slate-300">
+                                <div className="mt-1 flex flex-wrap items-center gap-1.5 text-[10px] text-slate-500 dark:text-slate-300">
                                   <span>Stock: {prod.stock}</span>
                                   <span>•</span>
                                   <span>Precio: ${Number(prod.precioVenta || 0).toLocaleString('es-CO')}</span>

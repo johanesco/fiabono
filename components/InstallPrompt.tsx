@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
-import { X, Download, Share2 } from "lucide-react";
+import { X, Download, ArrowUpFromLine } from "lucide-react";
 
 // Detecta si la app ya está en modo standalone (instalada)
 function estaInstalada(): boolean {
@@ -130,15 +130,15 @@ export default function InstallPrompt() {
           <div className="bg-slate-50 dark:bg-slate-900/60 rounded-xl p-3 space-y-2">
             <div className="flex items-center gap-2 text-xs text-slate-700 dark:text-slate-300">
               <span className="w-5 h-5 rounded-full bg-emerald-500 text-white flex items-center justify-center font-bold text-[10px] shrink-0">1</span>
-              <span>Toca el botón <Share2 size={12} className="inline mx-0.5" /> <strong>Compartir</strong> en Safari</span>
+              <span>Toca el botón <ArrowUpFromLine size={12} className="inline mx-0.5 relative -top-px" /> <strong>Compartir</strong> en Safari</span>
             </div>
             <div className="flex items-center gap-2 text-xs text-slate-700 dark:text-slate-300">
               <span className="w-5 h-5 rounded-full bg-emerald-500 text-white flex items-center justify-center font-bold text-[10px] shrink-0">2</span>
-              <span>Selecciona <strong>&quot;Agregar a pantalla de inicio&quot;</strong></span>
+              <span>Selecciona <strong>&quot;Añadir a pantalla de inicio&quot;</strong></span>
             </div>
             <div className="flex items-center gap-2 text-xs text-slate-700 dark:text-slate-300">
               <span className="w-5 h-5 rounded-full bg-emerald-500 text-white flex items-center justify-center font-bold text-[10px] shrink-0">3</span>
-              <span>Toca <strong>Agregar</strong> ✓</span>
+              <span>Toca <strong>Añadir</strong> ✓</span>
             </div>
           </div>
         </div>

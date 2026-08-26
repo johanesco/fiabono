@@ -1383,11 +1383,11 @@ ${detalleTexto}*TOTAL: $${orden.total.toLocaleString('es-CO')}*
                       {/* LISTA DE ARTÍCULOS */}
                       <div className="bg-slate-50 dark:bg-[#020617] rounded-2xl p-3 space-y-1.5 mb-3 border border-slate-100 dark:border-slate-800/80">
                         {ord.items.map((item, idx) => (
-                          <div key={idx} className="flex justify-between items-center text-xs">
-                            <span className="font-semibold text-slate-700 dark:text-slate-300 truncate max-w-[200px]">
+                          <div key={idx} className="flex justify-between items-center text-xs min-w-0 gap-2">
+                            <span className="font-semibold text-slate-700 dark:text-slate-300 truncate flex-1 min-w-0">
                               {item.cantidad}x {item.descripcion || "Artículo"}
                             </span>
-                            <span className="font-bold text-slate-900 dark:text-white">
+                            <span className="font-bold text-slate-900 dark:text-white shrink-0">
                               ${((parseFloat(item.valor) || 0) * item.cantidad).toLocaleString('es-CO')}
                             </span>
                           </div>
@@ -1581,15 +1581,15 @@ ${detalleTexto}*TOTAL: $${orden.total.toLocaleString('es-CO')}*
               </div>
 
               {/* Vendedor Responsable */}
-              <div className="flex items-center gap-2 shrink-0">
-                <div className="flex items-center bg-white/15 backdrop-blur-sm rounded-xl px-3 py-1.5 border border-white/20 text-white text-xs font-bold gap-1.5">
-                  <User size={14} className="text-white/80" />
-                  <span className="truncate max-w-[120px]">{modalEdicion.orden.nombreColaborador}</span>
+              <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+                <div className="flex items-center bg-white/15 backdrop-blur-sm rounded-xl px-2 sm:px-3 py-1 sm:py-1.5 border border-white/20 text-white text-xs font-bold gap-1.5 max-w-[90px] sm:max-w-[140px] min-w-0">
+                  <User size={14} className="text-white/80 shrink-0" />
+                  <span className="truncate">{modalEdicion.orden.nombreColaborador}</span>
                 </div>
                 <button
                   type="button"
                   onClick={() => setModalEdicion({ ...modalEdicion, visible: false, orden: null })}
-                  className="bg-white/20 hover:bg-white/30 p-1.5 rounded-xl text-white transition-colors cursor-pointer"
+                  className="bg-white/20 hover:bg-white/30 p-1.5 rounded-xl text-white transition-colors cursor-pointer shrink-0"
                   title="Cerrar"
                 >
                   <X size={18} />
@@ -1717,12 +1717,12 @@ ${detalleTexto}*TOTAL: $${orden.total.toLocaleString('es-CO')}*
                                       }`}
                                     >
                                       <div className="min-w-0 pr-3">
-                                        <div className="flex items-center gap-2">
+                                        <div className="flex items-center gap-2 min-w-0">
                                           <span className={`font-bold block truncate ${estaAgotado ? 'text-slate-500 line-through' : 'text-slate-800 dark:text-slate-100'}`}>
                                             {p.nombre}
                                           </span>
                                           {p.sku && (
-                                            <span className="text-[9px] font-mono px-1.5 py-0.5 bg-slate-100 dark:bg-slate-800 text-slate-500 rounded">
+                                            <span className="text-[9px] font-mono px-1.5 py-0.5 bg-slate-100 dark:bg-slate-800 text-slate-500 rounded shrink-0">
                                               {p.sku}
                                             </span>
                                           )}

@@ -357,8 +357,7 @@ Quedamos pendientes para revisar detalles o responder cualquier duda.
                     </span>
                   </div>
                 </div>
-                <div className="flex flex-col items-end gap-2">
-                  <div className="flex items-center gap-2">
+                <div className="flex flex-col items-end gap-2 shrink-0">
                     <button
                       type="button"
                       onClick={(e) => {
@@ -511,29 +510,24 @@ Quedamos pendientes para revisar detalles o responder cualquier duda.
               </div>
 
               <div className="md:hidden px-6 py-5 bg-slate-50 dark:bg-[#020617] text-center shrink-0 flex flex-col items-center border-b border-slate-200 dark:border-slate-800">
-                <div className="flex items-center justify-center gap-2 mb-1">
-                  <h2 className="text-3xl font-black text-slate-900 dark:text-white">{clienteActivo.nombre}</h2>
+                <div className="flex items-center justify-center gap-2 mb-1 max-w-full min-w-0 px-2">
+                  <h2 className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-white truncate">{clienteActivo.nombre}</h2>
                   {datosSesion?.rol !== 'cajero' && (
-                    <div className="flex items-center gap-1">
-                      <button
                         type="button"
                         onClick={() => setModalGestionCliente({ visible: true, modo: 'editar', cliente: clienteActivo })}
-                        title="Modificar Cliente"
-                        className="p-2 rounded-xl bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:text-blue-600 shadow-sm border border-slate-200 dark:border-slate-700"
+                        className="p-1.5 rounded-xl bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:text-blue-600 shadow-sm border border-slate-200 dark:border-slate-700"
                       >
                         <Edit3 size={15} />
                       </button>
                       <button
-                        type="button"
                         onClick={() => setModalGestionCliente({ visible: true, modo: 'eliminar', cliente: clienteActivo })}
                         title="Eliminar Cliente"
-                        className="p-2 rounded-xl bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:text-rose-600 shadow-sm border border-slate-200 dark:border-slate-700"
+                        className="p-1.5 rounded-xl bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:text-rose-600 shadow-sm border border-slate-200 dark:border-slate-700"
                       >
                         <Trash2 size={15} />
                       </button>
                     </div>
                   )}
-                </div>
                 <p className="text-slate-500 font-medium text-base mb-4">{clienteActivo.celular || "Sin número registrado"}</p>
                 
                 <div className="flex flex-col items-center justify-center bg-white dark:bg-[#0f172a] w-full py-4 px-3 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm mb-4">
@@ -567,16 +561,14 @@ Quedamos pendientes para revisar detalles o responder cualquier duda.
                     <div className={`absolute left-0 top-0 bottom-0 w-1.5 ${mov.tipo === 'fiado' ? 'bg-rose-500' : (mov.tipo === 'venta' ? 'bg-emerald-500' : 'bg-blue-500')}`}></div>
                     
                     <div className="pl-1 md:pl-2">
-                      <div className="flex justify-between items-center pb-1 md:pb-2 md:border-b md:border-slate-100 dark:border-slate-800/80">
-                        <span className={`text-[10px] md:text-xs font-black uppercase px-2.5 py-0.5 md:px-3 md:py-1 rounded-md md:rounded-lg ${mov.tipo === 'fiado' ? 'bg-rose-100 text-rose-700 dark:bg-rose-500/20 dark:text-rose-300' : (mov.tipo === 'venta' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300' : 'bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-300')}`}>{mov.tipo}</span>
+                      <div className="flex flex-wrap sm:flex-nowrap justify-between items-center gap-1.5 pb-1 md:pb-2 md:border-b md:border-slate-100 dark:border-slate-800/80">
+                        <span className={`text-[10px] md:text-xs font-black uppercase px-2.5 py-0.5 md:px-3 md:py-1 rounded-md md:rounded-lg shrink-0 ${mov.tipo === 'fiado' ? 'bg-rose-100 text-rose-700 dark:bg-rose-500/20 dark:text-rose-300' : (mov.tipo === 'venta' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300' : 'bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-300')}`}>{mov.tipo}</span>
                         
                         <div className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[10px] md:text-[11px] font-bold uppercase">
                           {mov.registradoPor && (
                             <span className="text-slate-500 dark:text-slate-400 whitespace-nowrap">
                               👤 {mov.registradoPor}
                             </span>
-                          )}
-                          {mov.registradoPor && <span className="text-slate-300 dark:text-slate-600 whitespace-nowrap">•</span>}
                           <span className="text-slate-400 whitespace-nowrap">
                             {mov.fecha?.toDate ? mov.fecha.toDate().toLocaleDateString('es-CO', {day:'2-digit', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit'}) : (mov.fecha instanceof Date ? mov.fecha.toLocaleDateString('es-CO', {day:'2-digit', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit'}) : '')}
                           </span>
@@ -586,29 +578,25 @@ Quedamos pendientes para revisar detalles o responder cualquier duda.
                       {mov.detalles && mov.detalles.length > 0 ? (
                         <div className="space-y-1 md:space-y-2 pt-1 border-t border-slate-200 dark:border-slate-700 md:border-none">
                           {mov.detalles.map((d: any, idx: number) => (
-                            <div key={idx} className="flex justify-between items-center text-xs md:text-sm">
-                              <span className="text-slate-600 dark:text-slate-300 font-medium">
+                            <div key={idx} className="flex justify-between items-center text-xs md:text-sm min-w-0 gap-2">
+                              <span className="text-slate-600 dark:text-slate-300 font-medium truncate flex-1 min-w-0">
                                 {d.cantidad > 1 && <strong className={`${mov.tipo === 'venta' ? 'text-emerald-500' : (mov.tipo === 'abono' ? 'text-blue-500' : 'text-rose-500')} font-black mr-1 md:mr-1.5`}>{d.cantidad}x</strong>}
                                 {d.descripcion}
                               </span>
-                              <span className="font-bold text-slate-900 dark:text-slate-100">${d.valor.toLocaleString('es-CO')}</span>
+                              <span className="font-bold text-slate-900 dark:text-slate-100 shrink-0">${d.valor.toLocaleString('es-CO')}</span>
                             </div>
                           ))}
                         </div>
                       ) : (
-                        <p className="text-xs md:text-sm font-bold text-slate-800 dark:text-slate-200">{mov.descripcion}</p>
-                      )}
                       
                       <div className="flex justify-between items-center pt-2 mt-1 md:mt-0 md:pt-3 border-t border-slate-200 dark:border-slate-700 md:border-slate-100 dark:md:border-slate-800 font-black">
                         <span className="text-xs text-slate-400 uppercase tracking-wider">Total:</span>
                         <div className="flex items-center gap-2">
-                          <button
                             type="button"
                             onClick={() => abrirTicketDeMovimiento(mov)}
                             title="Imprimir Factura / Ticket"
                             className="p-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:text-blue-600 transition-colors"
                           >
-                            <Printer size={14} />
                           </button>
                           <span className={`text-base md:text-xl ${mov.tipo === 'fiado' ? 'text-rose-500' : (mov.tipo === 'venta' ? 'text-emerald-500' : 'text-blue-500')}`}>
                             {mov.tipo === 'fiado' ? '-' : '+'}${mov.monto.toLocaleString('es-CO')}

@@ -303,11 +303,11 @@ Quedamos pendientes para revisar detalles o responder cualquier duda.
             <h1 className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-white truncate tracking-tight">
               {getSaludo()}, <span className="text-blue-600 dark:text-blue-500">{datosSesion?.nombreUsuario?.split(' ')[0] || 'Usuario'}</span> 
             </h1>
-            <div className="flex items-center gap-2 mt-2">
-              <span className="bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-300 text-[10px] md:text-xs font-black uppercase tracking-wider px-2 py-1 rounded-md flex items-center gap-1.5">
-                <Store size={14}/> {nombreNegocio || 'Cargando...'}
+            <div className="flex flex-wrap items-center gap-2 mt-2">
+              <span className="bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-300 text-[10px] md:text-xs font-black uppercase tracking-wider px-2 py-1 rounded-md flex items-center gap-1.5 max-w-[180px] truncate">
+                <Store size={14} className="shrink-0"/> <span className="truncate">{nombreNegocio || 'Cargando...'}</span>
               </span>
-              <span className="bg-blue-100 dark:bg-blue-500/20 text-blue-700 dark:text-blue-400 text-[10px] md:text-xs font-black uppercase tracking-wider px-2 py-1 rounded-md">
+              <span className="bg-blue-100 dark:bg-blue-500/20 text-blue-700 dark:text-blue-400 text-[10px] md:text-xs font-black uppercase tracking-wider px-2 py-1 rounded-md shrink-0">
                 {datosSesion?.rol === 'cajero' ? 'Colaborador' : 'Administrador'}
               </span>
             </div>
@@ -433,9 +433,9 @@ Quedamos pendientes para revisar detalles o responder cualquier duda.
             ];
 
             const gridColsClass = botonesSecundarios.length === 3 
-              ? 'grid grid-cols-3 gap-3 sm:gap-4 lg:gap-5'
+              ? 'grid grid-cols-3 gap-2 sm:gap-4 lg:gap-5'
               : botonesSecundarios.length === 2
-                ? 'grid grid-cols-2 gap-4 sm:gap-5'
+                ? 'grid grid-cols-2 gap-3 sm:gap-5'
                 : 'grid grid-cols-1 gap-4 sm:gap-5';
 
             return (
@@ -446,10 +446,10 @@ Quedamos pendientes para revisar detalles o responder cualquier duda.
                     <button
                       key={btn.id}
                       onClick={() => router.push(btn.ruta)}
-                      className={`w-full bg-gradient-to-br ${btn.gradiente} text-white font-black text-lg sm:text-2xl lg:text-3xl py-5 sm:py-7 lg:py-8 rounded-2xl sm:rounded-3xl shadow-lg flex flex-col items-center justify-center transition-transform transform active:scale-95 border cursor-pointer`}
+                      className={`w-full bg-gradient-to-br ${btn.gradiente} text-white font-black text-sm xs:text-base sm:text-2xl lg:text-3xl py-4 sm:py-7 lg:py-8 rounded-2xl sm:rounded-3xl shadow-lg flex flex-col items-center justify-center transition-transform transform active:scale-95 border cursor-pointer`}
                     >
-                      <Icono className="mb-2 opacity-90 shrink-0 w-7 h-7 sm:w-10 sm:h-10 lg:w-12 lg:h-12" />
-                      {btn.nombre}
+                      <Icono className="mb-1.5 sm:mb-2 opacity-90 shrink-0 w-6 h-6 sm:w-10 sm:h-10 lg:w-12 lg:h-12" />
+                      <span className="truncate px-1 max-w-full">{btn.nombre}</span>
                     </button>
                   );
                 })}
@@ -622,10 +622,10 @@ Quedamos pendientes para revisar detalles o responder cualquier duda.
                 </div>
 
                 <div className="md:hidden px-6 py-5 bg-slate-50 dark:bg-[#020617] text-center shrink-0 flex flex-col items-center border-b border-slate-200 dark:border-slate-800">
-                  <div className="flex items-center justify-center gap-2 mb-1">
-                    <h2 className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-white">{clienteActivo.nombre}</h2>
+                  <div className="flex items-center justify-center gap-2 mb-1 max-w-full min-w-0 px-2">
+                    <h2 className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-white truncate">{clienteActivo.nombre}</h2>
                     {datosSesion?.rol !== 'cajero' && (
-                      <div className="flex items-center gap-1">
+                      <div className="flex items-center gap-1 shrink-0">
                         <button
                           type="button"
                           onClick={() => setModalGestionCliente({ visible: true, modo: 'editar', cliente: clienteActivo })}
@@ -729,11 +729,11 @@ Quedamos pendientes para revisar detalles o responder cualquier duda.
                                 onClick={() => router.push(`/dashboard/separes?tab=activos&busqueda=${encodeURIComponent(clienteActivo.nombre)}`)}
                                 className="p-3.5 bg-violet-50/50 dark:bg-violet-950/20 border border-violet-100 dark:border-violet-900/40 rounded-2xl cursor-pointer hover:border-violet-300 dark:hover:border-violet-700 transition-all space-y-2"
                               >
-                                <div className="flex justify-between items-center text-xs">
-                                  <span className="font-bold text-slate-800 dark:text-slate-200 truncate flex-1 mr-2">
+                                <div className="flex justify-between items-center text-xs min-w-0 gap-2">
+                                  <span className="font-bold text-slate-800 dark:text-slate-200 truncate flex-1 min-w-0">
                                     {sep.items?.map((it: any) => `${it.cantidad > 1 ? `${it.cantidad}x ` : ''}${it.descripcion}`).join(', ') || 'Productos separados'}
                                   </span>
-                                  <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded-full bg-violet-100 text-violet-700 dark:bg-violet-500/20 dark:text-violet-300">
+                                  <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded-full bg-violet-100 text-violet-700 dark:bg-violet-500/20 dark:text-violet-300 shrink-0">
                                     Activo
                                   </span>
                                 </div>
@@ -778,8 +778,8 @@ Quedamos pendientes para revisar detalles o responder cualquier duda.
                         }`}></div>
                         
                         <div className="pl-1 md:pl-2">
-                          <div className="flex justify-between items-center pb-1 md:pb-2 md:border-b md:border-slate-100 dark:border-slate-800/80">
-                            <span className={`text-[10px] md:text-xs font-black uppercase px-2.5 py-0.5 md:px-3 md:py-1 rounded-md md:rounded-lg ${
+                          <div className="flex flex-wrap sm:flex-nowrap justify-between items-center gap-1.5 pb-1 md:pb-2 md:border-b md:border-slate-100 dark:border-slate-800/80">
+                            <span className={`text-[10px] md:text-xs font-black uppercase px-2.5 py-0.5 md:px-3 md:py-1 rounded-md md:rounded-lg shrink-0 ${
                               esDevolucionSepare
                                 ? 'bg-amber-100 text-amber-800 dark:bg-amber-500/20 dark:text-amber-300'
                                 : (esEgreso
@@ -805,17 +805,17 @@ Quedamos pendientes para revisar detalles o responder cualquier duda.
                           {mov.detalles && mov.detalles.length > 0 ? (
                             <div className="space-y-1 md:space-y-2 pt-1 border-t border-slate-200 dark:border-slate-700 md:border-none">
                               {mov.detalles.map((d: any, idx: number) => (
-                                <div key={idx} className="flex justify-between items-center text-xs md:text-sm">
-                                  <span className="text-slate-600 dark:text-slate-300 font-medium">
+                                <div key={idx} className="flex justify-between items-center text-xs md:text-sm min-w-0 gap-2">
+                                  <span className="text-slate-600 dark:text-slate-300 font-medium truncate flex-1 min-w-0">
                                     {d.cantidad > 1 && <strong className={`${mov.tipo === 'venta' ? 'text-emerald-500' : (mov.tipo === 'abono' ? 'text-blue-500' : 'text-rose-500')} font-black mr-1 md:mr-1.5`}>{d.cantidad}x</strong>}
                                     {d.descripcion}
                                   </span>
-                                  <span className="font-bold text-slate-900 dark:text-slate-100">${d.valor.toLocaleString('es-CO')}</span>
+                                  <span className="font-bold text-slate-900 dark:text-slate-100 shrink-0">${d.valor.toLocaleString('es-CO')}</span>
                                 </div>
                               ))}
                             </div>
                           ) : (
-                            <p className="text-xs md:text-sm font-bold text-slate-800 dark:text-slate-200">{mov.descripcion || mov.concepto}</p>
+                            <p className="text-xs md:text-sm font-bold text-slate-800 dark:text-slate-200 truncate">{mov.descripcion || mov.concepto}</p>
                           )}
                           
                           <div className="flex justify-between items-center pt-2 mt-1 md:mt-0 md:pt-3 border-t border-slate-200 dark:border-slate-700 md:border-slate-100 dark:md:border-slate-800 font-black">

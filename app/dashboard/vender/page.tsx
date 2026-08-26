@@ -1265,7 +1265,7 @@ Estamos atentos para cualquier consulta.
         <div className="flex items-center gap-2 shrink-0">
           {/* Selector de Vendedor Responsable (Visible si es Terminal Multivendedor o Admin) */}
           {esTerminalMultivendedor ? (
-            <div className="flex items-center bg-white/15 backdrop-blur-sm rounded-xl px-2.5 py-1.5 border border-white/20">
+            <div className="flex items-center bg-white/15 backdrop-blur-sm rounded-xl px-2 py-1 sm:px-2.5 sm:py-1.5 border border-white/20 max-w-[120px] sm:max-w-none min-w-0">
               <User size={14} className="text-white/80 mr-1.5 shrink-0" />
               <select
                 value={vendedorActivo}
@@ -1276,7 +1276,7 @@ Estamos atentos para cualquier consulta.
                     cambiarVendedor(e.target.value);
                   }
                 }}
-                className="bg-transparent text-white font-bold text-xs outline-none cursor-pointer pr-1"
+                className="bg-transparent text-white font-bold text-xs outline-none cursor-pointer pr-1 truncate w-full"
               >
                 {listaVendedores.map((v) => (
                   <option key={v} value={v} className="bg-slate-900 text-white">
@@ -1470,12 +1470,12 @@ Estamos atentos para cualquier consulta.
                                 }`}
                               >
                                 <div className="min-w-0 pr-3">
-                                  <div className="flex items-center gap-2">
+                                  <div className="flex items-center gap-2 min-w-0">
                                     <span className={`font-bold block truncate ${estaAgotado ? 'text-slate-500 line-through' : 'text-slate-800 dark:text-slate-100'}`}>
                                       {p.nombre}
                                     </span>
                                     {p.sku && (
-                                      <span className="text-[9px] font-mono px-1.5 py-0.5 bg-slate-100 dark:bg-slate-800 text-slate-500 rounded">
+                                      <span className="text-[9px] font-mono px-1.5 py-0.5 bg-slate-100 dark:bg-slate-800 text-slate-500 rounded shrink-0">
                                         {p.sku}
                                       </span>
                                     )}
@@ -1696,8 +1696,8 @@ Estamos atentos para cualquier consulta.
                     <div className="absolute top-full left-0 right-0 mt-1 bg-white dark:bg-[#1e293b] border border-slate-200 dark:border-slate-700 rounded-xl shadow-xl z-50 overflow-hidden">
                       <div className="max-h-40 overflow-y-auto">
                         {clientesFiltradosRegistro.map(c => (
-                          <div key={c.id} onClick={() => { setClienteTransaccion(c); setBusquedaRegistro(""); setMostrarResultadosBuscador(false); }} className="p-2.5 border-b border-slate-100 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer flex justify-between text-xs">
-                            <span className="font-bold text-slate-800 dark:text-slate-200">{c.nombre}</span><ChevronRight size={14} className="text-slate-400"/>
+                          <div key={c.id} onClick={() => { setClienteTransaccion(c); setBusquedaRegistro(""); setMostrarResultadosBuscador(false); }} className="p-2.5 border-b border-slate-100 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer flex justify-between items-center text-xs min-w-0">
+                            <span className="font-bold text-slate-800 dark:text-slate-200 truncate mr-2 min-w-0">{c.nombre}</span><ChevronRight size={14} className="text-slate-400 shrink-0"/>
                           </div>
                         ))}
                         {!clientesFiltradosRegistro.some(c => c.nombre.toLowerCase() === busquedaRegistro.toLowerCase()) && (
@@ -2173,8 +2173,8 @@ Estamos atentos para cualquier consulta.
                         {busquedaRegistro.length > 0 && (
                           <div className="absolute bottom-full left-0 right-0 mb-2 bg-white dark:bg-[#1e293b] border dark:border-slate-700 rounded-2xl shadow-xl z-50 overflow-hidden max-h-48 overflow-y-auto">
                             {clientesFiltradosRegistro.map(c => (
-                              <div key={c.id} onClick={() => { setClienteTransaccion(c); setBusquedaRegistro(""); setMostrarResultadosBuscador(false); }} className="p-4 border-b dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer flex justify-between">
-                                <span className="font-bold text-slate-800 dark:text-slate-200">{c.nombre}</span><ChevronRight size={18} className="text-slate-400"/>
+                              <div key={c.id} onClick={() => { setClienteTransaccion(c); setBusquedaRegistro(""); setMostrarResultadosBuscador(false); }} className="p-4 border-b dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer flex justify-between items-center min-w-0">
+                                <span className="font-bold text-slate-800 dark:text-slate-200 truncate mr-2 min-w-0">{c.nombre}</span><ChevronRight size={18} className="text-slate-400 shrink-0"/>
                               </div>
                             ))}
                             {!clientesFiltradosRegistro.some(c => c.nombre.toLowerCase() === busquedaRegistro.toLowerCase()) && (

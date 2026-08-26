@@ -802,16 +802,16 @@ Gracias por contactarnos.`;
                 >
                   <div className="space-y-3">
                     {/* Encabezado: Cliente + Badges */}
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="flex items-center gap-3">
+                    <div className="flex items-start justify-between gap-2 min-w-0">
+                      <div className="flex items-center gap-2.5 sm:gap-3 min-w-0 flex-1">
                         <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-violet-600 to-purple-700 text-white font-black text-sm flex items-center justify-center shadow-sm shrink-0">
                           {sep.clienteNombre?.charAt(0).toUpperCase() || "C"}
                         </div>
-                        <div>
-                          <h3 className="font-black text-sm text-slate-900 dark:text-white leading-tight">
+                        <div className="min-w-0 flex-1">
+                          <h3 className="font-black text-sm text-slate-900 dark:text-white leading-tight truncate">
                             {sep.clienteNombre}
                           </h3>
-                          <p className="text-[11px] font-bold text-slate-400">
+                          <p className="text-[11px] font-bold text-slate-400 truncate">
                             {sep.clienteCelular || "Sin celular"}
                           </p>
                         </div>
@@ -846,8 +846,8 @@ Gracias por contactarnos.`;
                     <div className="bg-slate-50 dark:bg-slate-900/60 p-3 rounded-2xl space-y-2 border border-slate-100 dark:border-slate-800/60">
                       <div className="space-y-1.5">
                         {(sep.items || []).map((it: any, idx: number) => (
-                          <div key={idx} className="flex justify-between items-center text-xs">
-                            <span className="font-bold text-slate-700 dark:text-slate-300 truncate mr-2">
+                          <div key={idx} className="flex justify-between items-center text-xs min-w-0 gap-2">
+                            <span className="font-bold text-slate-700 dark:text-slate-300 truncate flex-1 min-w-0">
                               {it.cantidad > 1 && <strong className="text-violet-600 font-black mr-1">{it.cantidad}x</strong>}
                               {it.descripcion}
                             </span>
@@ -1232,18 +1232,18 @@ Gracias por contactarnos.`;
             </div>
 
             {/* Resumen */}
-            <div className="grid grid-cols-3 gap-2 p-3 bg-slate-50 dark:bg-slate-900 rounded-2xl text-center text-xs shrink-0">
-              <div>
-                <span className="text-[10px] text-slate-400 font-bold block">Total:</span>
-                <span className="font-black text-slate-800 dark:text-slate-200">${(separeSeleccionado.total || 0).toLocaleString('es-CO')}</span>
+            <div className="grid grid-cols-3 gap-1.5 sm:gap-2 p-2.5 sm:p-3 bg-slate-50 dark:bg-slate-900 rounded-2xl text-center text-xs shrink-0">
+              <div className="min-w-0">
+                <span className="text-[9px] sm:text-[10px] text-slate-400 font-bold block uppercase tracking-wider truncate">Total</span>
+                <span className="font-black text-slate-800 dark:text-slate-200 text-xs sm:text-sm tracking-tight block truncate">${(separeSeleccionado.total || 0).toLocaleString('es-CO')}</span>
               </div>
-              <div>
-                <span className="text-[10px] text-slate-400 font-bold block">Abonado:</span>
-                <span className="font-black text-emerald-600">${(separeSeleccionado.montoPagado || 0).toLocaleString('es-CO')}</span>
+              <div className="min-w-0">
+                <span className="text-[9px] sm:text-[10px] text-slate-400 font-bold block uppercase tracking-wider truncate">Abonado</span>
+                <span className="font-black text-emerald-600 text-xs sm:text-sm tracking-tight block truncate">${(separeSeleccionado.montoPagado || 0).toLocaleString('es-CO')}</span>
               </div>
-              <div>
-                <span className="text-[10px] text-slate-400 font-bold block">Saldo:</span>
-                <span className="font-black text-rose-500">${(separeSeleccionado.saldoPendiente || 0).toLocaleString('es-CO')}</span>
+              <div className="min-w-0">
+                <span className="text-[9px] sm:text-[10px] text-slate-400 font-bold block uppercase tracking-wider truncate">Saldo</span>
+                <span className="font-black text-rose-500 text-xs sm:text-sm tracking-tight block truncate">${(separeSeleccionado.saldoPendiente || 0).toLocaleString('es-CO')}</span>
               </div>
             </div>
 
