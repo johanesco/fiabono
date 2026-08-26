@@ -1,10 +1,33 @@
 import "./globals.css";
 import { Toaster } from "react-hot-toast";
 import { AuthProvider } from "../hooks/AuthContext";
+import ServiceWorkerRegistrar from "@/components/ServiceWorkerRegistrar";
+import InstallPrompt from "@/components/InstallPrompt";
 
 export const metadata = {
   title: "Fiabono",
   description: "Sistema de gestión y control de inventario y fiados",
+  manifest: "/manifest.json",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "default",
+    title: "Fiabono",
+  },
+  formatDetection: {
+    telephone: false,
+  },
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#10b981" },
+    { media: "(prefers-color-scheme: dark)", color: "#0f172a" },
+  ],
+};
+
+export const viewport = {
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
+  viewportFit: "cover",
 };
 
 export default function RootLayout({
@@ -14,10 +37,17 @@ export default function RootLayout({
 }) {
   return (
     <html lang="es">
+      <head>
+        {/* Ícono para Apple Touch */}
+        <link rel="apple-touch-icon" href="/icon-512.jpg" />
+        <link rel="apple-touch-icon" sizes="180x180" href="/icon-512.jpg" />
+      </head>
       <body className="font-sans antialiased bg-slate-100 dark:bg-slate-950">
+        <ServiceWorkerRegistrar />
         <AuthProvider>
           {children}
         </AuthProvider>
+        <InstallPrompt />
         <Toaster
           position="top-right"
           toastOptions={{
