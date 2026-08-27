@@ -303,8 +303,8 @@ Quedamos pendientes para revisar detalles o responder cualquier duda.
               {getSaludo()}, <span className="text-blue-600 dark:text-blue-500">{datosSesion?.nombreUsuario?.split(' ')[0] || 'Usuario'}</span> 
             </h1>
             <div className="flex flex-wrap items-center gap-2 mt-2">
-              <span className="bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-300 text-[10px] md:text-xs font-black uppercase tracking-wider px-2 py-1 rounded-md flex items-center gap-1.5 max-w-[180px] truncate">
-                <Store size={14} className="shrink-0"/> <span className="truncate">{nombreNegocio || 'Cargando...'}</span>
+              <span className="bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-200 text-[10px] md:text-xs font-black uppercase tracking-wider px-2.5 py-1 rounded-md flex items-center gap-1.5 max-w-full">
+                <Store size={14} className="shrink-0 text-blue-600 dark:text-blue-400"/> <span>{nombreNegocio || 'Mi Negocio'}</span>
               </span>
               <span className="bg-blue-100 dark:bg-blue-500/20 text-blue-700 dark:text-blue-400 text-[10px] md:text-xs font-black uppercase tracking-wider px-2 py-1 rounded-md shrink-0">
                 {datosSesion?.rol === 'cajero' ? 'Colaborador' : 'Administrador'}

@@ -1242,7 +1242,7 @@ Estamos atentos para cualquier consulta.
     <div className="flex flex-col w-full h-full bg-white dark:bg-[#0f172a] md:rounded-[2rem] overflow-hidden border border-slate-200 dark:border-slate-800 shadow-xl min-h-0 animate-in fade-in duration-300 relative">
       
       {/* CABECERA */}
-      <div className="bg-emerald-600 dark:bg-emerald-700 p-3 sm:p-4 text-white flex justify-between items-center shrink-0 z-30 shadow-sm gap-2">
+      <div className="bg-emerald-600 dark:bg-emerald-700 p-3.5 sm:p-4 text-white flex justify-between items-center shrink-0 z-30 shadow-sm gap-2">
         <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
           <button 
             type="button"
@@ -1256,7 +1256,7 @@ Estamos atentos para cualquier consulta.
             <ArrowLeft size={18} className="sm:w-5 sm:h-5" />
           </button>
           <h2 className="text-base sm:text-xl font-black uppercase tracking-wide flex items-center gap-2 truncate">
-            <ShoppingCart size={20} className="shrink-0 hidden xs:inline" /> 
+            <ShoppingCart size={20} className="shrink-0" /> 
             <span className="truncate">Vender</span>
           </h2>
         </div>
@@ -1940,7 +1940,7 @@ Estamos atentos para cualquier consulta.
       </div>
 
       {/* BARRA FLOTANTE MÓVIL SUSPENDIDA */}
-      <div className="lg:hidden fixed bottom-[68px] sm:bottom-[76px] left-3 right-3 sm:left-4 sm:right-4 max-w-lg mx-auto bg-white/95 dark:bg-[#0f172a]/95 backdrop-blur-xl border border-slate-200/90 dark:border-slate-800/90 p-2.5 sm:p-3 rounded-2xl sm:rounded-3xl shadow-[0_10px_25px_-5px_rgba(0,0,0,0.15)] dark:shadow-[0_10px_25px_-5px_rgba(0,0,0,0.6)] z-40 flex items-center justify-between gap-3">
+      <div className="lg:hidden fixed bottom-[76px] sm:bottom-[84px] left-3 right-3 sm:left-4 sm:right-4 max-w-lg mx-auto bg-white/95 dark:bg-[#0f172a]/95 backdrop-blur-xl border border-slate-200/90 dark:border-slate-800/90 p-2.5 sm:p-3 rounded-2xl sm:rounded-3xl shadow-[0_10px_25px_-5px_rgba(0,0,0,0.15)] dark:shadow-[0_10px_25px_-5px_rgba(0,0,0,0.6)] z-40 flex items-center justify-between gap-3">
         <div className="flex flex-col min-w-0 shrink pl-1">
           {montoDescuentoTotal > 0 && (
             <div className="text-[9px] text-slate-500 dark:text-slate-400 leading-tight space-y-0.5 mb-0.5">

@@ -1077,7 +1077,7 @@ Estamos atentos para cualquier consulta.
       />
 
       {/* ENCABEZADO VIOLETA ESPEJO EXACTO A FIAR / VENDER */}
-      <div className="bg-gradient-to-r from-violet-600 via-purple-700 to-indigo-800 p-3 sm:p-4 text-white flex justify-between items-center shrink-0 z-30 shadow-sm gap-2">
+      <div className="bg-gradient-to-r from-violet-600 via-purple-700 to-indigo-800 p-3.5 sm:p-4 text-white flex justify-between items-center shrink-0 z-30 shadow-sm gap-2">
         <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
           <button
             onClick={() => router.push('/dashboard/inicio')}
@@ -1087,15 +1087,13 @@ Estamos atentos para cualquier consulta.
             <ArrowLeft size={18} className="sm:w-5 sm:h-5" />
           </button>
           <div className="flex items-center gap-2 min-w-0">
-            <Bookmark size={20} className="shrink-0 hidden xs:inline text-violet-200" />
-            <div className="min-w-0">
-              <h2 className="text-base sm:text-xl font-black uppercase tracking-wide flex items-center gap-2 truncate">
-                <span>Plan Separe</span>
-              </h2>
-              <p className="text-[10px] sm:text-xs text-violet-200 font-medium hidden sm:block">Aparta artículos con abono inicial y cuotas flexibles</p>
-            </div>
+            <Bookmark size={20} className="shrink-0 text-violet-200" />
+            <h2 className="text-base sm:text-xl font-black uppercase tracking-wide truncate">
+              Plan Separe
+            </h2>
           </div>
         </div>
+        <p className="text-[10px] sm:text-xs text-violet-200 font-medium hidden sm:block">Aparta artículos con abono inicial y cuotas flexibles</p>
 
         <div className="flex items-center gap-2 shrink-0">
           {/* Selector de Vendedor Responsable (Visible si es Terminal Multivendedor o Admin) */}
@@ -1757,7 +1755,7 @@ Estamos atentos para cualquier consulta.
       </div>
 
       {/* BARRA FLOTANTE MÓVIL */}
-      <div className="lg:hidden fixed bottom-[68px] sm:bottom-[76px] left-3 right-3 sm:left-4 sm:right-4 max-w-lg mx-auto bg-white/95 dark:bg-[#0f172a]/95 backdrop-blur-xl border border-slate-200/90 dark:border-slate-800/90 p-2.5 rounded-2xl shadow-xl z-40 flex items-center justify-between gap-3">
+      <div className="lg:hidden fixed bottom-[76px] sm:bottom-[84px] left-3 right-3 sm:left-4 sm:right-4 max-w-lg mx-auto bg-white/95 dark:bg-[#0f172a]/95 backdrop-blur-xl border border-slate-200/90 dark:border-slate-800/90 p-2.5 rounded-2xl shadow-xl z-40 flex items-center justify-between gap-3">
         <div className="flex flex-col min-w-0 shrink pl-1">
           <span className="text-[9px] font-black uppercase text-slate-400 tracking-wider">Total Separe</span>
           <span className="text-base font-black text-violet-600 truncate">${totalSepare.toLocaleString('es-CO')}</span>

@@ -148,7 +148,7 @@ export default function ScrollIndicator() {
 
   return (
     <div
-      className={`fixed right-3.5 bottom-20 sm:bottom-20 md:bottom-8 md:right-8 z-50 transition-all duration-300 ${
+      className={`fixed right-3.5 bottom-[144px] sm:bottom-[152px] md:bottom-8 md:right-8 z-50 transition-all duration-300 ${
         activo
           ? "opacity-100 scale-100 pointer-events-auto"
           : "opacity-0 scale-90 pointer-events-none"

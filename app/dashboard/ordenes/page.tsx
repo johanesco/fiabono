@@ -1537,7 +1537,7 @@ ${detalleTexto}*TOTAL: $${orden.total.toLocaleString('es-CO')}*
       {/* MODAL DE EDICIÓN DE ORDEN INTEGRAL (IDÉNTICO A VENDER / FIAR / SEPARE ORIGINAL) */}
       {modalEdicion.visible && modalEdicion.orden && (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center p-0 md:p-4 z-[999] animate-in fade-in duration-200 overflow-y-auto">
-          <div className="bg-white dark:bg-[#0f172a] rounded-none md:rounded-[2.5rem] w-full max-w-7xl shadow-2xl border border-slate-100 dark:border-slate-800 my-auto animate-in zoom-in-95 duration-200 h-[100vh] md:h-[92vh] flex flex-col overflow-hidden">
+          <div className="bg-white dark:bg-[#0f172a] rounded-none md:rounded-[2.5rem] w-full max-w-7xl shadow-2xl border border-slate-100 dark:border-slate-800 my-auto animate-in zoom-in-95 duration-200 h-[100dvh] md:h-[92dvh] max-h-[100dvh] flex flex-col overflow-hidden">
             
             {/* CABECERA SUPERIOR CON SELECTOR DE MODALIDAD VENTA / FIADO / SEPARE */}
             <div className={`p-3.5 sm:p-4 text-white flex justify-between items-center shrink-0 z-30 shadow-sm gap-2 transition-colors ${
@@ -1985,7 +1985,7 @@ ${detalleTexto}*TOTAL: $${orden.total.toLocaleString('es-CO')}*
               </div>
 
               {/* COLUMNA DERECHA: CLIENTE + FORMA DE PAGO + TOTAL (ULTRA-COMPACTA SIN SCROLL) */}
-              <div className="w-full lg:w-[360px] xl:w-[390px] bg-slate-50 dark:bg-[#020617] lg:border-l border-slate-200 dark:border-slate-800 flex flex-col z-20 shrink-0 p-3 sm:p-3.5 space-y-2.5">
+              <div className="w-full lg:w-[360px] xl:w-[390px] bg-slate-50 dark:bg-[#020617] lg:border-l border-slate-200 dark:border-slate-800 flex flex-col z-20 shrink-0 p-3 sm:p-3.5 space-y-2.5 pb-32 sm:pb-3.5">
                 
                 {/* TARJETA CLIENTE (COMPACTA) */}
                 <div className="bg-white dark:bg-[#0f172a] p-2.5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col gap-1">

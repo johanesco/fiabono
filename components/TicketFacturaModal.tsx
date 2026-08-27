@@ -121,33 +121,33 @@ export default function TicketFacturaModal({ isOpen, onClose, datos }: TicketFac
       `}</style>
 
       {/* MODAL EN PANTALLA */}
-      <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-md flex items-center justify-center p-3 sm:p-4 z-[9999] animate-in fade-in duration-200">
-        <div className="bg-white dark:bg-[#0f172a] rounded-[2rem] w-full max-w-lg shadow-2xl border border-slate-100 dark:border-slate-800 flex flex-col max-h-[92vh] overflow-hidden">
+      <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-md flex items-center justify-center p-2.5 sm:p-4 z-[9999] animate-in fade-in duration-200">
+        <div className="bg-white dark:bg-[#0f172a] rounded-[2rem] w-full max-w-lg shadow-2xl border border-slate-100 dark:border-slate-800 flex flex-col h-[88dvh] sm:h-auto sm:max-h-[90dvh] overflow-hidden">
           
           {/* HEADER DEL MODAL */}
-          <div className="p-4 sm:p-5 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center bg-slate-50 dark:bg-slate-900/60 shrink-0">
+          <div className="p-3.5 sm:p-5 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center bg-slate-50 dark:bg-slate-900/60 shrink-0">
             <div className="flex items-center gap-2">
               <div className="p-2 bg-blue-100 dark:bg-blue-500/20 text-blue-600 dark:text-blue-400 rounded-xl">
                 <Receipt size={20} />
               </div>
-              <h3 className="font-black text-slate-900 dark:text-white text-lg">Vista Previa de Factura / Ticket</h3>
+              <h3 className="font-black text-slate-900 dark:text-white text-base sm:text-lg">Vista Previa de Factura / Ticket</h3>
             </div>
             <button
               onClick={onClose}
-              className="p-2 text-slate-400 hover:text-slate-700 dark:hover:text-white rounded-full bg-slate-100 dark:bg-slate-800 transition-colors"
+              className="p-2 text-slate-400 hover:text-slate-700 dark:hover:text-white rounded-full bg-slate-100 dark:bg-slate-800 transition-colors cursor-pointer"
             >
               <X size={18} />
             </button>
           </div>
 
           {/* CONTENIDO SCROLLEABLE - TICKET TÉRMICO */}
-          <div className="p-4 sm:p-6 overflow-y-auto flex-1 bg-slate-100/80 dark:bg-slate-950 flex flex-col items-center">
+          <div className="p-3 sm:p-6 overflow-y-auto flex-1 bg-slate-100/80 dark:bg-slate-950 flex flex-col items-center min-h-0">
             
             {/* CONTENEDOR DEL TICKET (Diseño tipo rollo térmico de 80mm) */}
             <div
               id="seccion-ticket-impresion"
               ref={ticketRef}
-              className="w-full max-w-[340px] h-fit bg-white text-slate-900 p-5 rounded-2xl shadow-lg border border-slate-200 font-mono text-xs flex flex-col shrink-0 my-auto"
+              className="w-full max-w-[340px] h-fit bg-white text-slate-900 p-4 sm:p-5 rounded-2xl shadow-lg border border-slate-200 font-mono text-xs flex flex-col shrink-0 mx-auto my-2"
             >
               {/* ENCABEZADO NEGOCIO */}
               <div className="text-center pb-3 border-b border-dashed border-slate-300">

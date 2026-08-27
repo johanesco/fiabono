@@ -407,13 +407,14 @@ Estamos atentos para cualquier consulta.
     <div className="flex flex-col w-full h-full bg-slate-50 dark:bg-[#020617] md:rounded-[2.5rem] overflow-hidden md:border md:border-slate-100 dark:md:border-slate-800/60 shadow-none md:shadow-2xl animate-in fade-in duration-300">
       
       {/* HEADER SUPERIOR */}
-      <div className="bg-blue-600 dark:bg-blue-800 p-4 md:p-6 text-white flex justify-between items-center shrink-0 z-30 shadow-sm">
-        <div className="flex items-center gap-3 md:gap-4">
-          <button onClick={() => router.push('/dashboard/inicio')} className="bg-white/20 hover:bg-white/30 p-2.5 rounded-full transition-colors backdrop-blur-sm">
-            <ArrowLeft size={22} />
+      {/* CABECERA */}
+      <div className="bg-blue-600 dark:bg-blue-800 p-3.5 sm:p-4 text-white flex justify-between items-center shrink-0 z-30 shadow-sm gap-2">
+        <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
+          <button onClick={() => router.push('/dashboard/inicio')} className="bg-white/20 hover:bg-white/30 p-2 sm:p-2.5 rounded-full transition-colors backdrop-blur-sm cursor-pointer active:scale-95 shrink-0">
+            <ArrowLeft size={18} className="sm:w-5 sm:h-5" />
           </button>
-          <h2 className="text-xl md:text-3xl font-black uppercase tracking-wide flex items-center gap-2">
-            <Banknote size={24}/> Registrar Abono
+          <h2 className="text-base sm:text-xl font-black uppercase tracking-wide flex items-center gap-2 truncate">
+            <Banknote size={20} className="shrink-0"/> <span className="truncate">Registrar Abono</span>
           </h2>
         </div>
       </div>
@@ -775,7 +776,7 @@ Estamos atentos para cualquier consulta.
       </div>
 
       {/* BARRA FLOTANTE MÓVIL SUSPENDIDA */}
-      <div className="lg:hidden fixed bottom-[68px] sm:bottom-[76px] left-3 right-3 sm:left-4 sm:right-4 max-w-lg mx-auto bg-white/95 dark:bg-[#0f172a]/95 backdrop-blur-xl border border-slate-200/90 dark:border-slate-800/90 p-3 sm:p-3.5 rounded-2xl sm:rounded-3xl shadow-[0_10px_25px_-5px_rgba(0,0,0,0.15)] dark:shadow-[0_10px_25px_-5px_rgba(0,0,0,0.6)] z-40 flex items-center justify-between gap-3">
+      <div className="lg:hidden fixed bottom-[76px] sm:bottom-[84px] left-3 right-3 sm:left-4 sm:right-4 max-w-lg mx-auto bg-white/95 dark:bg-[#0f172a]/95 backdrop-blur-xl border border-slate-200/90 dark:border-slate-800/90 p-3 sm:p-3.5 rounded-2xl sm:rounded-3xl shadow-[0_10px_25px_-5px_rgba(0,0,0,0.15)] dark:shadow-[0_10px_25px_-5px_rgba(0,0,0,0.6)] z-40 flex items-center justify-between gap-3">
         <div className="flex flex-col min-w-0 shrink pl-1">
           <span className="text-[9px] font-black uppercase text-slate-400 tracking-wider">Total a Abonar</span>
           <span className="text-xl sm:text-2xl font-black text-blue-600 dark:text-blue-400 truncate max-w-[140px] leading-none">${abonoNum.toLocaleString('es-CO')}</span>
