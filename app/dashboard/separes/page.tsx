@@ -845,42 +845,67 @@ Gracias por contactarnos.`;
                     {/* Lista de Artículos */}
                     <div className="bg-slate-50 dark:bg-slate-900/60 p-3 rounded-2xl space-y-2 border border-slate-100 dark:border-slate-800/60">
                       <div className="space-y-1.5">
-                        {(sep.items || []).map((it: any, idx: number) => (
-                          <div key={idx} className="flex justify-between items-center text-xs min-w-0 gap-2">
-                            <span className="font-bold text-slate-700 dark:text-slate-300 truncate flex-1 min-w-0">
-                              {it.cantidad > 1 && <strong className="text-violet-600 font-black mr-1">{it.cantidad}x</strong>}
-                              {it.descripcion}
-                            </span>
-                            <span className="font-bold text-slate-900 dark:text-slate-100 shrink-0">
-                              ${((Number(it.valor) || 0) * (it.cantidad || 1)).toLocaleString('es-CO')}
-                            </span>
-                          </div>
-                        ))}
+                        {(sep.items || []).map((it: any, idx: number) => {
+                          const fotoItem = it.fotoUrl || it.foto || it.imagen;
+                          return (
+                            <div key={idx} className="flex justify-between items-center text-xs min-w-0 gap-2">
+                              <div className="flex items-center gap-1.5 truncate flex-1 min-w-0">
+                                {it.cantidad > 1 && <strong className="text-violet-600 font-black mr-0.5">{it.cantidad}x</strong>}
+                                <span className="font-bold text-slate-700 dark:text-slate-300 truncate">
+                                  {it.descripcion}
+                                </span>
+                                {fotoItem && (
+                                  <button
+                                    type="button"
+                                    onClick={() => setFotoLightbox(fotoItem)}
+                                    className="shrink-0 p-1 bg-violet-100 dark:bg-violet-500/20 text-violet-600 dark:text-violet-300 rounded-lg hover:scale-110 transition-transform cursor-pointer"
+                                    title="Ver foto de este producto"
+                                  >
+                                    <Camera size={12} />
+                                  </button>
+                                )}
+                              </div>
+                              <span className="font-bold text-slate-900 dark:text-slate-100 shrink-0">
+                                ${((Number(it.valor) || 0) * (it.cantidad || 1)).toLocaleString('es-CO')}
+                              </span>
+                            </div>
+                          );
+                        })}
                       </div>
 
                       {/* Miniaturas de Fotos Si Existen */}
-                      {sep.fotos && sep.fotos.length > 0 && (
-                        <div className="flex items-center gap-2 pt-1.5 border-t border-slate-200/60 dark:border-slate-800">
-                          <span className="text-[10px] font-bold text-slate-400 flex items-center gap-1">
-                            <Camera size={12} /> Fotos:
-                          </span>
-                          <div className="flex items-center gap-1.5 overflow-x-auto">
-                            {sep.fotos.map((fUrl: string, fIdx: number) => (
-                              <img
-                                key={fIdx}
-                                src={fUrl}
-                                alt="Foto producto"
-                                onClick={() => setFotoLightbox(fUrl)}
-                                className="w-8 h-8 rounded-lg object-cover cursor-pointer border border-slate-200 dark:border-slate-700 hover:scale-105 transition-transform"
-                              />
-                            ))}
+                      {(() => {
+                        const fotosColeccion: string[] = [
+                          ...(Array.isArray(sep.fotos) ? sep.fotos : []),
+                          ...(Array.isArray(sep.items) ? sep.items.map((it: any) => it.fotoUrl || it.foto || it.imagen).filter(Boolean) : [])
+                        ].filter((url, i, arr) => arr.indexOf(url) === i);
+
+                        if (fotosColeccion.length === 0) return null;
+
+                        return (
+                          <div className="flex items-center gap-2 pt-2 border-t border-slate-200/60 dark:border-slate-800">
+                            <span className="text-[10px] font-black text-violet-600 dark:text-violet-400 flex items-center gap-1 shrink-0">
+                              <Camera size={13} /> Fotos ({fotosColeccion.length}):
+                            </span>
+                            <div className="flex items-center gap-1.5 overflow-x-auto py-0.5 no-scrollbar">
+                              {fotosColeccion.map((fUrl: string, fIdx: number) => (
+                                <img
+                                  key={fIdx}
+                                  src={fUrl}
+                                  alt={`Foto producto ${fIdx + 1}`}
+                                  onClick={() => setFotoLightbox(fUrl)}
+                                  className="w-9 h-9 rounded-xl object-cover cursor-pointer border-2 border-violet-300 dark:border-violet-700 hover:scale-110 shadow-sm transition-transform shrink-0"
+                                  title="Clic para ampliar foto"
+                                />
+                              ))}
+                            </div>
                           </div>
-                        </div>
-                      )}
+                        );
+                      })()}
 
                       {sep.notas && (
                         <p className="text-[11px] text-slate-500 italic pt-1 border-t border-slate-200/60 dark:border-slate-800">
-                          "{sep.notas}"
+                          &quot;{sep.notas}&quot;
                         </p>
                       )}
                     </div>

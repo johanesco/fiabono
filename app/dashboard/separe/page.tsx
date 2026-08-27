@@ -1343,21 +1343,24 @@ Estamos atentos para cualquier consulta.
                         {/* Botón de Cámara y Miniatura con Lightbox */}
                         <div className="shrink-0 h-[42px] sm:h-[46px] md:h-[50px] flex items-end">
                           {fila.fotoUrl ? (
-                            <div className="relative group w-10 h-10 rounded-xl overflow-hidden border border-violet-300 dark:border-violet-700 shadow-sm shrink-0">
+                            <div className="relative group w-10 h-10 rounded-xl overflow-hidden border border-violet-300 dark:border-violet-700 shadow-sm shrink-0 bg-slate-900">
                               <img
                                 src={fila.fotoUrl}
                                 alt="Foto"
                                 onClick={() => setFotoLightbox(fila.fotoUrl!)}
-                                className="w-full h-full object-cover cursor-pointer hover:scale-105 transition-transform"
+                                className="w-full h-full object-cover cursor-pointer hover:scale-110 transition-transform"
                                 title="Clic para ampliar y confirmar foto"
                               />
                               <button
                                 type="button"
-                                onClick={() => actualizarFila(index, 'fotoUrl', null)}
-                                className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 flex items-center justify-center text-white transition-opacity cursor-pointer"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  actualizarFila(index, 'fotoUrl', null);
+                                }}
+                                className="absolute top-0.5 right-0.5 w-4 h-4 bg-rose-600 hover:bg-rose-700 text-white rounded-full flex items-center justify-center shadow-md transition-transform hover:scale-110 z-10 cursor-pointer"
                                 title="Eliminar foto"
                               >
-                                <X size={13} />
+                                <X size={10} />
                               </button>
                             </div>
                           ) : (

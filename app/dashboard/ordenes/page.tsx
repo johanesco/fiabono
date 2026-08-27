@@ -1829,21 +1829,24 @@ ${detalleTexto}*TOTAL: $${orden.total.toLocaleString('es-CO')}*
                             {modalEdicion.tipo === 'separe' && (
                               <div className="shrink-0 h-[42px] sm:h-[46px] flex items-end">
                                 {item.fotoUrl ? (
-                                  <div className="relative group w-10 h-10 rounded-xl overflow-hidden border border-violet-300 dark:border-violet-700 shadow-sm shrink-0">
+                                  <div className="relative group w-10 h-10 rounded-xl overflow-hidden border border-violet-300 dark:border-violet-700 shadow-sm shrink-0 bg-slate-900">
                                     <img
                                       src={item.fotoUrl}
                                       alt="Foto"
                                       onClick={() => setFotoLightboxEdicion(item.fotoUrl!)}
-                                      className="w-full h-full object-cover cursor-pointer hover:scale-105 transition-transform"
-                                      title="Ver foto en grande"
+                                      className="w-full h-full object-cover cursor-pointer hover:scale-110 transition-transform"
+                                      title="Clic para ver foto en grande"
                                     />
                                     <button
                                       type="button"
-                                      onClick={() => actualizarItemEdicion(idx, 'fotoUrl', null)}
-                                      className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 flex items-center justify-center text-white transition-opacity cursor-pointer"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        actualizarItemEdicion(idx, 'fotoUrl', null);
+                                      }}
+                                      className="absolute top-0.5 right-0.5 w-4 h-4 bg-rose-600 hover:bg-rose-700 text-white rounded-full flex items-center justify-center shadow-md transition-transform hover:scale-110 z-10 cursor-pointer"
                                       title="Eliminar foto"
                                     >
-                                      <X size={13} />
+                                      <X size={10} />
                                     </button>
                                   </div>
                                 ) : (
@@ -1984,8 +1987,8 @@ ${detalleTexto}*TOTAL: $${orden.total.toLocaleString('es-CO')}*
                 </div>
               </div>
 
-              {/* COLUMNA DERECHA: CLIENTE + FORMA DE PAGO + TOTAL (ULTRA-COMPACTA SIN SCROLL) */}
-              <div className="w-full lg:w-[360px] xl:w-[390px] bg-slate-50 dark:bg-[#020617] lg:border-l border-slate-200 dark:border-slate-800 flex flex-col z-20 shrink-0 p-3 sm:p-3.5 space-y-2.5 pb-32 sm:pb-3.5">
+              {/* COLUMNA DERECHA: CLIENTE + FORMA DE PAGO + TOTAL (COMPACTA Y CON SCROLL DINÁMICO) */}
+              <div className="w-full lg:w-[360px] xl:w-[390px] bg-slate-50 dark:bg-[#020617] lg:border-l border-slate-200 dark:border-slate-800 flex flex-col z-20 shrink-0 p-3 sm:p-3.5 space-y-2 lg:overflow-y-auto min-h-0 pb-32 lg:pb-4">
                 
                 {/* TARJETA CLIENTE (COMPACTA) */}
                 <div className="bg-white dark:bg-[#0f172a] p-2.5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col gap-1">
@@ -2667,6 +2670,31 @@ ${detalleTexto}*TOTAL: $${orden.total.toLocaleString('es-CO')}*
         onClose={() => setModalTicketFactura({ visible: false, datos: null })}
         datos={modalTicketFactura.datos}
       />
+
+      {/* LIGHTBOX DE FOTO EN EDICIÓN */}
+      {fotoLightboxEdicion && (
+        <div
+          onClick={() => setFotoLightboxEdicion(null)}
+          className="fixed inset-0 bg-black/95 backdrop-blur-md flex items-center justify-center p-4 z-[2000] cursor-pointer animate-in fade-in duration-200"
+        >
+          <div className="relative max-w-2xl max-h-[85vh] w-auto flex flex-col items-center">
+            <button
+              onClick={() => setFotoLightboxEdicion(null)}
+              className="absolute -top-12 right-0 bg-white/20 hover:bg-white/30 text-white rounded-full p-2 transition-colors cursor-pointer"
+              title="Cerrar vista"
+            >
+              <X size={22} />
+            </button>
+            <img
+              src={fotoLightboxEdicion}
+              alt="Foto del producto"
+              className="max-w-full max-h-[75vh] rounded-2xl object-contain shadow-2xl border border-white/20"
+              onClick={(e) => e.stopPropagation()}
+            />
+            <p className="text-white/80 text-xs font-bold mt-3 text-center">Toca en cualquier parte para cerrar</p>
+          </div>
+        </div>
+      )}
 
     </div>
   );
