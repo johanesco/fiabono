@@ -362,8 +362,11 @@ ${detalleTexto}*TOTAL: $${orden.total.toLocaleString('es-CO')}*
     const pagoRaw = (modalEdicion.pagoCliente || '').replace(/\D/g, '');
     const pagoNum = pagoRaw === '' ? (modalEdicion.tipo === 'fiado' ? 0 : totalEdicion) : parseFloat(pagoRaw);
 
-    // Validar cliente obligatorio si es fiado total o parcial
-    if ((modalEdicion.tipo === 'fiado' || pagoNum < totalEdicion) && (!modalEdicion.clienteNombre || modalEdicion.clienteNombre === 'Mostrador')) {
+    // Validar cliente obligatorio según modalidad
+    if (modalEdicion.tipo === 'separe' && (!modalEdicion.clienteNombre || modalEdicion.clienteNombre === 'Mostrador' || modalEdicion.clienteNombre.trim() === '')) {
+      return toast.error("Para el Plan Separe es obligatorio seleccionar o ingresar un cliente.");
+    }
+    if (modalEdicion.tipo !== 'separe' && (modalEdicion.tipo === 'fiado' || pagoNum < totalEdicion) && (!modalEdicion.clienteNombre || modalEdicion.clienteNombre === 'Mostrador')) {
       return toast.error("Para fiar o registrar pago parcial se requiere seleccionar un cliente registrado.");
     }
 
@@ -372,14 +375,19 @@ ${detalleTexto}*TOTAL: $${orden.total.toLocaleString('es-CO')}*
     try {
       const ordenActualizada: Record<string, any> = {
         tipo: modalEdicion.tipo,
-        items: filasValidas,
+        items: filasValidas.map((it: any) => ({
+          descripcion: it.descripcion,
+          valor: String(it.valor),
+          cantidad: it.cantidad || 1,
+          fotoUrl: it.fotoUrl || null
+        })),
         totalBruto: subtotalEdicion,
         montoDescuento: montoDescuentoEdicion,
         total: totalEdicion,
         pagoCliente: pagoNum,
         metodoPago: modalEdicion.tipo === 'fiado' ? 'fiado' : (modalEdicion.metodoPago || 'efectivo'),
         clienteId: modalEdicion.clienteId || null,
-        clienteNombre: modalEdicion.clienteNombre || 'Mostrador',
+        clienteNombre: modalEdicion.clienteNombre || (modalEdicion.tipo === 'separe' ? 'Cliente' : 'Mostrador'),
         clienteCelular: modalEdicion.clienteCelular || '',
         descuentoTipo: modalEdicion.descuentoTipo || null,
         descuentoValor: modalEdicion.descuentoTipo && modalEdicion.descuentoValor ? Number(modalEdicion.descuentoValor.replace(/\D/g, '')) : null,
@@ -393,24 +401,25 @@ ${detalleTexto}*TOTAL: $${orden.total.toLocaleString('es-CO')}*
           id: `abono_${Date.now()}`,
           monto: pagoNum || 0,
           metodoPago: modalEdicion.metodoPago || 'efectivo',
+          subMetodoPago: modalEdicion.metodoPago !== 'efectivo' ? (modalEdicion.subMetodoPago || null) : null,
+          referenciaPago: modalEdicion.metodoPago !== 'efectivo' ? (modalEdicion.referenciaPago || null) : null,
           fecha: new Date(),
           registradoPor: modalEdicion.orden.nombreColaborador || 'Vendedor'
         };
-        if (modalEdicion.metodoPago !== 'efectivo' && modalEdicion.subMetodoPago?.trim()) abonoObj.subMetodoPago = modalEdicion.subMetodoPago.trim();
-        if (modalEdicion.metodoPago !== 'efectivo' && modalEdicion.referenciaPago?.trim()) abonoObj.referenciaPago = modalEdicion.referenciaPago.trim();
 
         ordenActualizada.payloadSepare = {
           ...(modalEdicion.orden.payloadSepare || {}),
           usuarioId: cuentaPrincipalId,
           creadoPor: modalEdicion.orden.nombreColaborador || 'Vendedor',
+          vendedor: modalEdicion.orden.nombreColaborador || 'Vendedor',
           estado: 'activo',
           clienteId: modalEdicion.clienteId || null,
           clienteNombre: modalEdicion.clienteNombre || 'Cliente',
           clienteCelular: modalEdicion.clienteCelular || '',
           items: filasValidas.map((it: any) => ({
             descripcion: it.descripcion,
-            valor: it.valor,
-            cantidad: it.cantidad,
+            valor: parseFloat(String(it.valor).replace(/\D/g, '')) || 0,
+            cantidad: it.cantidad || 1,
             fotoUrl: it.fotoUrl || null
           })),
           totalBruto: subtotalEdicion,
@@ -420,6 +429,9 @@ ${detalleTexto}*TOTAL: $${orden.total.toLocaleString('es-CO')}*
           total: totalEdicion,
           montoPagado: pagoNum || 0,
           saldoPendiente: Math.max(0, totalEdicion - (pagoNum || 0)),
+          metodoPago: modalEdicion.metodoPago || 'efectivo',
+          subMetodoPago: modalEdicion.metodoPago !== 'efectivo' ? (modalEdicion.subMetodoPago || null) : null,
+          referenciaPago: modalEdicion.metodoPago !== 'efectivo' ? (modalEdicion.referenciaPago || null) : null,
           abonos: (pagoNum && pagoNum > 0) ? [abonoObj] : [],
           fotos: filasValidas.map((it: any) => it.fotoUrl).filter(Boolean),
           fechaCreacion: modalEdicion.orden.fecha || new Date(),
@@ -934,38 +946,39 @@ ${detalleTexto}*TOTAL: $${orden.total.toLocaleString('es-CO')}*
       if ((orden as any).tipo === 'separe') {
         const payloadExistente = (orden as any).payloadSepare || {};
         const payloadSepare: any = {
-          ...payloadExistente,
           usuarioId: cuentaPrincipalId,
           creadoPor: orden.nombreColaborador || "Colaborador",
           vendedor: (orden as any).vendedor || orden.nombreColaborador || "Vendedor",
           estado: 'activo',
-          clienteId: orden.clienteId,
-          clienteNombre: orden.clienteNombre,
+          clienteId: orden.clienteId || null,
+          clienteNombre: orden.clienteNombre || 'Cliente',
           clienteCelular: orden.clienteCelular || "",
-          items: orden.items.map(it => ({
-            descripcion: it.descripcion,
-            valor: it.valor,
-            cantidad: it.cantidad,
+          items: (orden.items || []).map(it => ({
+            descripcion: it.descripcion || "Artículo",
+            valor: typeof it.valor === 'number' ? it.valor : (parseFloat(String(it.valor).replace(/\D/g, '')) || 0),
+            cantidad: it.cantidad || 1,
             fotoUrl: (it as any).fotoUrl || null
           })),
           totalBruto: orden.totalBruto || orden.total,
+          descuentoTipo: orden.descuentoTipo || null,
+          descuentoValor: orden.descuentoValor ?? null,
           montoDescuento: orden.montoDescuento || 0,
           total: orden.total,
           montoPagado: pagoNum || 0,
           saldoPendiente: Math.max(0, orden.total - (pagoNum || 0)),
           metodoPago: orden.metodoPago || 'efectivo',
-          subMetodoPago: orden.metodoPago === 'efectivo' ? null : (orden.subMetodoPago || null),
-          referenciaPago: orden.metodoPago === 'efectivo' ? null : (orden.referenciaPago || null),
+          subMetodoPago: (orden.metodoPago !== 'efectivo' && orden.subMetodoPago) ? orden.subMetodoPago : null,
+          referenciaPago: (orden.metodoPago !== 'efectivo' && orden.referenciaPago) ? orden.referenciaPago : null,
           abonos: (pagoNum && pagoNum > 0) ? [{
             id: `abono_${Date.now()}`,
             monto: pagoNum,
             metodoPago: orden.metodoPago || 'efectivo',
-            subMetodoPago: orden.metodoPago === 'efectivo' ? undefined : (orden.subMetodoPago || undefined),
-            referenciaPago: orden.metodoPago === 'efectivo' ? undefined : (orden.referenciaPago || undefined),
+            subMetodoPago: (orden.metodoPago !== 'efectivo' && orden.subMetodoPago) ? orden.subMetodoPago : null,
+            referenciaPago: (orden.metodoPago !== 'efectivo' && orden.referenciaPago) ? orden.referenciaPago : null,
             fecha: new Date(),
             registradoPor: orden.nombreColaborador || "Colaborador"
           }] : [],
-          fotos: orden.items.map(it => (it as any).fotoUrl).filter(Boolean),
+          fotos: (orden.items || []).map(it => (it as any).fotoUrl).filter(Boolean),
           fechaCreacion: orden.fecha || new Date(),
           fechaLimite: orden.fechaLimite || payloadExistente.fechaLimite || null,
           notas: orden.notas || payloadExistente.notas || ""
