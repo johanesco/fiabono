@@ -1,19 +1,27 @@
-﻿"use client";
+"use client";
 import { useEffect, useState, useRef } from "react";
+import { usePathname } from "next/navigation";
 import { ChevronDown, ChevronUp } from "lucide-react";
 
 export default function ScrollIndicator() {
+  const pathname = usePathname();
   const [montado, setMontado] = useState(false);
   const [modo, setModo] = useState<"bajar" | "subir">("bajar");
   const [visible, setVisible] = useState(false);
+  const [activo, setActivo] = useState(false);
+  const timerInactividadRef = useRef<NodeJS.Timeout | null>(null);
   const activeContainerRef = useRef<HTMLElement | Window | null>(null);
+
+  // 1. En Inicio, Ajustes/Perfil u otras páginas de configuración, NUNCA mostrar
+  const paginasExcluidas = ["/dashboard/inicio", "/dashboard", "/dashboard/perfil"];
+  const esExcluida = paginasExcluidas.includes(pathname || "");
 
   useEffect(() => {
     setMontado(true);
 
     const getScrollableElement = (): HTMLElement | null => {
       const dashContainer = document.getElementById("dashboard-scroll-container");
-      if (dashContainer && dashContainer.scrollHeight - dashContainer.clientHeight > 40) {
+      if (dashContainer && dashContainer.scrollHeight - dashContainer.clientHeight > 70) {
         return dashContainer;
       }
 
@@ -23,7 +31,7 @@ export default function ScrollIndicator() {
 
       for (let i = 0; i < scrollables.length; i++) {
         const el = scrollables[i];
-        if (el.scrollHeight - el.clientHeight > 40 && el.clientHeight > 100) {
+        if (el.scrollHeight - el.clientHeight > 70 && el.clientHeight > 100) {
           return el;
         }
       }
@@ -32,6 +40,12 @@ export default function ScrollIndicator() {
     };
 
     const updateScrollStatus = () => {
+      if (esExcluida) {
+        setVisible(false);
+        setActivo(false);
+        return;
+      }
+
       try {
         const scrollable = getScrollableElement();
         let top = 0;
@@ -50,31 +64,38 @@ export default function ScrollIndicator() {
           scrollHeight = document.documentElement.scrollHeight;
         }
 
-        const hayScrollTotal = scrollHeight - height > 40;
-        const canDown = scrollHeight - (top + height) > 40;
-        const estaArriba = top <= 40;
+        // Umbral inteligente: requiere al menos 85px de contenido real para considerar scroll
+        const scrollRestante = scrollHeight - (top + height);
+        const hayScrollTotal = scrollHeight - height > 85;
+        const canDown = scrollRestante > 80;
+        const estaArriba = top <= 45;
 
         if (!hayScrollTotal) {
           setVisible(false);
+          setActivo(false);
           return;
         }
 
         setVisible(true);
+        // Activar visibilidad por interacción
+        setActivo(true);
+
+        // Reiniciar timer de inactividad (desaparece tras 1.2 segundos sin scroll)
+        if (timerInactividadRef.current) {
+          clearTimeout(timerInactividadRef.current);
+        }
+        timerInactividadRef.current = setTimeout(() => {
+          setActivo(false);
+        }, 1200);
 
         setModo((prevModo) => {
-          // Si estamos en modo 'subir', solo volvemos a 'bajar' cuando lleguemos arriba del todo
           if (prevModo === "subir") {
-            if (estaArriba) {
-              return "bajar";
-            }
+            if (estaArriba) return "bajar";
             return "subir";
           }
-
-          // Si estamos en modo 'bajar', cambiamos a 'subir' cuando lleguemos al final del contenido
           if (!canDown) {
             return "subir";
           }
-
           return "bajar";
         });
       } catch (err) {}
@@ -84,16 +105,19 @@ export default function ScrollIndicator() {
     window.addEventListener("resize", updateScrollStatus, { passive: true });
 
     updateScrollStatus();
-    const interval = setInterval(updateScrollStatus, 500);
+    const interval = setInterval(updateScrollStatus, 600);
 
     return () => {
       window.removeEventListener("scroll", updateScrollStatus, { capture: true } as any);
       window.removeEventListener("resize", updateScrollStatus);
       clearInterval(interval);
+      if (timerInactividadRef.current) {
+        clearTimeout(timerInactividadRef.current);
+      }
     };
-  }, []);
+  }, [pathname, esExcluida]);
 
-  if (!montado || !visible) {
+  if (!montado || esExcluida || !visible) {
     return null;
   }
 
@@ -123,7 +147,13 @@ export default function ScrollIndicator() {
   };
 
   return (
-    <div className="fixed right-3.5 bottom-20 sm:bottom-20 md:bottom-8 md:right-8 z-50 animate-in fade-in zoom-in-95 duration-200 pointer-events-auto">
+    <div
+      className={`fixed right-3.5 bottom-20 sm:bottom-20 md:bottom-8 md:right-8 z-50 transition-all duration-300 ${
+        activo
+          ? "opacity-100 scale-100 pointer-events-auto"
+          : "opacity-0 scale-90 pointer-events-none"
+      }`}
+    >
       {modo === "bajar" ? (
         <button
           onClick={deslizarAbajo}

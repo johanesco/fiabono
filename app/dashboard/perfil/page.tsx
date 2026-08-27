@@ -4,7 +4,7 @@ import { collection, getDocs, query, doc, updateDoc, where, setDoc, deleteDoc } 
 import { signOut, updatePassword, EmailAuthProvider, reauthenticateWithCredential, getAuth, createUserWithEmailAndPassword } from "firebase/auth";
 import { getApps, initializeApp } from "firebase/app";
 import { db, auth } from "../../../firebase";
-import { UserCog, LogOut, Sun, Monitor, Moon, Edit2, Mail, ShieldAlert, CheckCircle2, AlertCircle, Star, Lock, UserPlus, ChevronUp, ChevronDown, Trash2, Info, X, Clock, Upload, Image as ImageIcon, Building2, MapPin, Receipt, PhoneCall, Camera, Smartphone } from 'lucide-react';
+import { UserCog, LogOut, Sun, Monitor, Moon, Edit2, Mail, ShieldAlert, CheckCircle2, AlertCircle, Star, Lock, UserPlus, ChevronUp, ChevronDown, Trash2, Info, X, Clock, Upload, Image as ImageIcon, Building2, MapPin, Receipt, PhoneCall, Camera, Smartphone, ArrowUpFromLine, MoreHorizontal, Download } from 'lucide-react';
 import ModalHorarios from '@/components/ModalHorarios';
 import { useAuth } from "../../../hooks/AuthContext";
 import ModalSuscripcion from "@/components/ModalSuscripcion";
@@ -86,6 +86,28 @@ export default function PerfilPage() {
   const [modalHorariosOpen, setModalHorariosOpen] = useState(false);
   const [colabParaHorarios, setColabParaHorarios] = useState<any | null>(null);
   const [modalSuscripcionOpen, setModalSuscripcionOpen] = useState(false);
+  const [appInstalada, setAppInstalada] = useState(false);
+  const [modalInstalarApp, setModalInstalarApp] = useState(false);
+
+  useEffect(() => {
+    const verificarInstalada = () => {
+      if (typeof window === "undefined") return;
+      try {
+        const instalada =
+          window.matchMedia("(display-mode: standalone)").matches ||
+          window.matchMedia("(display-mode: fullscreen)").matches ||
+          window.matchMedia("(display-mode: minimal-ui)").matches ||
+          (window.navigator as any).standalone === true ||
+          document.referrer.includes("android-app://") ||
+          localStorage.getItem("fiabono-app-installed") === "1";
+        setAppInstalada(instalada);
+      } catch (e) {}
+    };
+
+    verificarInstalada();
+    window.addEventListener("appinstalled", verificarInstalada);
+    return () => window.removeEventListener("appinstalled", verificarInstalada);
+  }, []);
 
   useEffect(() => {
     if (datosSesion) {
@@ -906,29 +928,116 @@ export default function PerfilPage() {
             )}
           </div>
 
-          {/* BOTÓN INSTALAR APP EN EL DISPOSITIVO */}
-          <div className="bg-gradient-to-r from-emerald-500/10 to-teal-500/10 border border-emerald-500/30 rounded-[2rem] p-6 shadow-sm mt-6 flex flex-col sm:flex-row items-center justify-between gap-4">
-            <div className="flex items-center gap-4 text-center sm:text-left">
-              <div className="w-12 h-12 rounded-2xl bg-emerald-500 text-white flex items-center justify-center shadow-md shrink-0 mx-auto sm:mx-0">
-                <Smartphone size={24} />
+          {/* TARJETA DE ESTADO O INSTALACIÓN DE LA APP */}
+          {appInstalada ? (
+            <div className="bg-emerald-50/80 dark:bg-emerald-500/10 border border-emerald-500/30 rounded-[2rem] p-5 sm:p-6 shadow-sm mt-6 flex items-center gap-4">
+              <div className="w-12 h-12 rounded-2xl bg-emerald-500 text-white flex items-center justify-center shadow-md shrink-0">
+                <CheckCircle2 size={24} />
               </div>
-              <div>
-                <h4 className="font-black text-slate-900 dark:text-white text-base">Instalar Fiabono en este celular</h4>
-                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Accede sin abrir el navegador y con pantalla completa</p>
+              <div className="min-w-0 flex-1">
+                <h4 className="font-black text-emerald-900 dark:text-emerald-300 text-base">Fiabono App Instalada</h4>
+                <p className="text-xs text-emerald-700/80 dark:text-emerald-400/80 mt-0.5 font-medium">Estás disfrutando de la experiencia nativa en pantalla completa.</p>
               </div>
             </div>
-            <button 
-              onClick={() => window.dispatchEvent(new CustomEvent('abrir-prompt-instalacion'))} 
-              className="w-full sm:w-auto px-5 py-3 bg-emerald-500 hover:bg-emerald-600 active:scale-95 text-white font-black text-sm rounded-xl shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer shrink-0"
-            >
-              <Smartphone size={16} /> Ver cómo instalar
-            </button>
-          </div>
+          ) : (
+            <div className="bg-gradient-to-r from-emerald-500/10 to-teal-500/10 border border-emerald-500/30 rounded-[2rem] p-6 shadow-sm mt-6 flex flex-col sm:flex-row items-center justify-between gap-4">
+              <div className="flex items-center gap-4 text-center sm:text-left">
+                <div className="w-12 h-12 rounded-2xl bg-emerald-500 text-white flex items-center justify-center shadow-md shrink-0 mx-auto sm:mx-0">
+                  <Smartphone size={24} />
+                </div>
+                <div>
+                  <h4 className="font-black text-slate-900 dark:text-white text-base">Instalar Fiabono en este celular</h4>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Accede sin abrir el navegador y con pantalla completa</p>
+                </div>
+              </div>
+              <button 
+                onClick={() => {
+                  window.dispatchEvent(new CustomEvent('abrir-prompt-instalacion'));
+                  setModalInstalarApp(true);
+                }} 
+                className="w-full sm:w-auto px-5 py-3 bg-emerald-500 hover:bg-emerald-600 active:scale-95 text-white font-black text-sm rounded-xl shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer shrink-0"
+              >
+                <Smartphone size={16} /> Ver cómo instalar
+              </button>
+            </div>
+          )}
 
           <button onClick={() => signOut(auth)} className="w-full bg-rose-50 dark:bg-rose-500/10 text-rose-600 dark:text-rose-400 font-bold py-6 rounded-[2rem] border border-rose-200 dark:border-rose-500/20 hover:bg-rose-100 dark:hover:bg-rose-500/30 transition-colors mb-4 flex justify-center items-center gap-2 text-lg mt-6">
             <LogOut size={24} className="shrink-0" /> Cerrar Sesión
           </button>
         </>
+      )}
+
+      {/* MODAL GUÍA DE INSTALACIÓN PASO A PASO */}
+      {modalInstalarApp && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 z-[350] animate-in zoom-in-95 duration-200">
+          <div className="bg-white dark:bg-[#0f172a] p-6 sm:p-8 rounded-[2.5rem] w-full max-w-md shadow-2xl border border-slate-100 dark:border-slate-800 relative">
+            <button 
+              onClick={() => setModalInstalarApp(false)} 
+              className="absolute top-4 right-4 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-500 rounded-full p-2 transition-colors cursor-pointer"
+            >
+              <X size={20}/>
+            </button>
+
+            <div className="w-14 h-14 bg-emerald-100 dark:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-inner">
+              <Smartphone size={28} />
+            </div>
+
+            <h3 className="text-xl font-black text-slate-900 dark:text-white text-center mb-1">
+              Instalar Fiabono App
+            </h3>
+            <p className="text-xs text-slate-500 text-center mb-6">
+              Sigue estos sencillos pasos para tener Fiabono en tu pantalla de inicio:
+            </p>
+
+            <div className="space-y-4">
+              {/* Sección iPhone / iOS */}
+              <div className="p-4 bg-slate-50 dark:bg-[#020617] rounded-2xl border border-slate-200/80 dark:border-slate-800 space-y-2.5">
+                <div className="flex items-center gap-2 text-xs font-black text-slate-900 dark:text-white">
+                  <span>🍎 En iPhone / iPad (Safari)</span>
+                </div>
+                <div className="text-xs text-slate-600 dark:text-slate-300 space-y-1.5 pl-1">
+                  <div className="flex items-start gap-2">
+                    <span className="w-4 h-4 rounded-full bg-emerald-500 text-white flex items-center justify-center text-[10px] font-black shrink-0 mt-0.5">1</span>
+                    <span>Toca el botón <ArrowUpFromLine size={13} className="inline text-blue-500 relative -top-0.5" /> <strong>Compartir</strong> en la barra de Safari.</span>
+                  </div>
+                  <div className="flex items-start gap-2">
+                    <span className="w-4 h-4 rounded-full bg-emerald-500 text-white flex items-center justify-center text-[10px] font-black shrink-0 mt-0.5">2</span>
+                    <span>Desliza hacia abajo y selecciona <strong>&quot;Añadir a pantalla de inicio&quot;</strong>.</span>
+                  </div>
+                  <div className="flex items-start gap-2">
+                    <span className="w-4 h-4 rounded-full bg-emerald-500 text-white flex items-center justify-center text-[10px] font-black shrink-0 mt-0.5">3</span>
+                    <span>Toca <strong>Añadir</strong> en la esquina superior derecha.</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Sección Android / Chrome */}
+              <div className="p-4 bg-slate-50 dark:bg-[#020617] rounded-2xl border border-slate-200/80 dark:border-slate-800 space-y-2.5">
+                <div className="flex items-center gap-2 text-xs font-black text-slate-900 dark:text-white">
+                  <span>🤖 En Android / Chrome</span>
+                </div>
+                <div className="text-xs text-slate-600 dark:text-slate-300 space-y-1.5 pl-1">
+                  <div className="flex items-start gap-2">
+                    <span className="w-4 h-4 rounded-full bg-emerald-500 text-white flex items-center justify-center text-[10px] font-black shrink-0 mt-0.5">1</span>
+                    <span>Toca los <strong>tres puntos (⋮)</strong> en la esquina superior de Chrome.</span>
+                  </div>
+                  <div className="flex items-start gap-2">
+                    <span className="w-4 h-4 rounded-full bg-emerald-500 text-white flex items-center justify-center text-[10px] font-black shrink-0 mt-0.5">2</span>
+                    <span>Selecciona <strong>&quot;Instalar aplicación&quot;</strong> o <strong>&quot;Añadir a pantalla principal&quot;</strong>.</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <button 
+              onClick={() => setModalInstalarApp(false)} 
+              className="w-full mt-6 py-3.5 bg-slate-900 dark:bg-slate-700 hover:bg-black text-white font-black text-sm rounded-2xl transition-all shadow-md active:scale-95 cursor-pointer"
+            >
+              Entendido
+            </button>
+          </div>
+        </div>
       )}
 
       {/* MODALES FLOTANTES */}

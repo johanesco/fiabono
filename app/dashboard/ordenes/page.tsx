@@ -1173,25 +1173,25 @@ ${detalleTexto}*TOTAL: $${orden.total.toLocaleString('es-CO')}*
       
       {/* HEADER SUPERIOR */}
       <div className="bg-white dark:bg-[#0f172a] border-b border-slate-200 dark:border-slate-800 p-4 md:p-6 flex justify-between items-center shrink-0 z-30">
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2.5 sm:gap-3 min-w-0 flex-1">
           <button 
             onClick={() => router.push('/dashboard/inicio')} 
-            className="p-2.5 rounded-2xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 transition-colors active:scale-95"
+            className="p-2 sm:p-2.5 rounded-2xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 transition-colors active:scale-95 shrink-0"
           >
-            <ArrowLeft size={20} />
+            <ArrowLeft size={18} className="sm:w-5 sm:h-5" />
           </button>
-          <div>
-            <div className="flex items-center gap-2">
-              <h2 className="text-xl md:text-2xl font-black text-slate-900 dark:text-white flex items-center gap-2">
-                <Receipt className="text-amber-500" size={24} /> Órdenes Pendientes
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
+              <h2 className="text-base sm:text-xl md:text-2xl font-black text-slate-900 dark:text-white flex items-center gap-1.5 sm:gap-2 truncate">
+                <Receipt className="text-amber-500 shrink-0" size={20} /> <span className="truncate">Órdenes Pendientes</span>
               </h2>
               {pendientesCount > 0 && (
-                <span className="bg-rose-500 text-white text-xs font-black px-2.5 py-0.5 rounded-full animate-pulse">
+                <span className="bg-rose-500 text-white text-[11px] sm:text-xs font-black px-2.5 py-0.5 rounded-full animate-pulse shrink-0 whitespace-nowrap inline-flex items-center shadow-sm">
                   {pendientesCount} nueva{pendientesCount > 1 ? 's' : ''}
                 </span>
               )}
             </div>
-            <p className="text-xs font-bold text-slate-400 mt-0.5">Revisa, aprueba o rechaza las ventas y fiados de tus colaboradores</p>
+            <p className="text-[11px] sm:text-xs font-bold text-slate-400 mt-0.5 truncate sm:whitespace-normal">Revisa, aprueba o rechaza las ventas y fiados de tus colaboradores</p>
           </div>
         </div>
 

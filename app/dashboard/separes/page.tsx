@@ -698,46 +698,46 @@ Gracias por contactarnos.`;
 
         {/* BARRA DE TABS Y BUSCADOR */}
         <div className="flex flex-col sm:flex-row gap-3 items-stretch sm:items-center justify-between">
-          {/* Tabs */}
-          <div className="flex bg-white dark:bg-[#0f172a] p-1 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm shrink-0">
+          {/* Tabs con distribución perfecta */}
+          <div className="grid grid-cols-3 sm:flex bg-white dark:bg-[#0f172a] p-1 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm w-full sm:w-auto shrink-0 gap-0.5">
             <button
               onClick={() => setTabActiva('activos')}
-              className={`px-3.5 py-2 rounded-xl text-xs font-black transition-all flex items-center gap-1.5 ${
+              className={`px-2 sm:px-3.5 py-2 rounded-xl text-[11px] sm:text-xs font-black transition-all flex items-center justify-center gap-1 sm:gap-1.5 cursor-pointer ${
                 tabActiva === 'activos'
                   ? 'bg-violet-600 text-white shadow-sm'
-                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
+                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
               }`}
             >
               <span>Activos</span>
-              <span className={`text-[10px] px-1.5 py-0.2 rounded-full ${tabActiva === 'activos' ? 'bg-white/20 text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-500'}`}>
+              <span className={`text-[10px] px-1.5 py-0.2 rounded-full shrink-0 font-bold ${tabActiva === 'activos' ? 'bg-white/20 text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-500'}`}>
                 {countActivos}
               </span>
             </button>
 
             <button
               onClick={() => setTabActiva('completados')}
-              className={`px-3.5 py-2 rounded-xl text-xs font-black transition-all flex items-center gap-1.5 ${
+              className={`px-2 sm:px-3.5 py-2 rounded-xl text-[11px] sm:text-xs font-black transition-all flex items-center justify-center gap-1 sm:gap-1.5 cursor-pointer ${
                 tabActiva === 'completados'
                   ? 'bg-emerald-600 text-white shadow-sm'
-                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
+                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
               }`}
             >
-              <span>Completados</span>
-              <span className={`text-[10px] px-1.5 py-0.2 rounded-full ${tabActiva === 'completados' ? 'bg-white/20 text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-500'}`}>
+              <span className="truncate">Completados</span>
+              <span className={`text-[10px] px-1.5 py-0.2 rounded-full shrink-0 font-bold ${tabActiva === 'completados' ? 'bg-white/20 text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-500'}`}>
                 {countCompletados}
               </span>
             </button>
 
             <button
               onClick={() => setTabActiva('cancelados')}
-              className={`px-3.5 py-2 rounded-xl text-xs font-black transition-all flex items-center gap-1.5 ${
+              className={`px-2 sm:px-3.5 py-2 rounded-xl text-[11px] sm:text-xs font-black transition-all flex items-center justify-center gap-1 sm:gap-1.5 cursor-pointer ${
                 tabActiva === 'cancelados'
                   ? 'bg-slate-700 text-white shadow-sm'
-                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
+                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
               }`}
             >
               <span>Cancelados</span>
-              <span className={`text-[10px] px-1.5 py-0.2 rounded-full ${tabActiva === 'cancelados' ? 'bg-white/20 text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-500'}`}>
+              <span className={`text-[10px] px-1.5 py-0.2 rounded-full shrink-0 font-bold ${tabActiva === 'cancelados' ? 'bg-white/20 text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-500'}`}>
                 {countCancelados}
               </span>
             </button>
