@@ -986,6 +986,7 @@ ${detalleTexto}*TOTAL: $${orden.total.toLocaleString('es-CO')}*
 
         const docSepare = await addDoc(collection(db, "separes"), payloadSepare);
         idTransaccionGenerada = docSepare.id;
+
       } else if (orden.tipo === 'fiado' || pagoNum === 0) {
         // 1. Fiado Total
         const resFiado = await API_DB.registrarMovimientoConTransaccion(
