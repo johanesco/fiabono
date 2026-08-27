@@ -4,7 +4,7 @@ import { collection, getDocs, query, doc, updateDoc, where, setDoc, deleteDoc } 
 import { signOut, updatePassword, EmailAuthProvider, reauthenticateWithCredential, getAuth, createUserWithEmailAndPassword } from "firebase/auth";
 import { getApps, initializeApp } from "firebase/app";
 import { db, auth } from "../../../firebase";
-import { UserCog, LogOut, Sun, Monitor, Moon, Edit2, Mail, ShieldAlert, CheckCircle2, AlertCircle, Star, Lock, UserPlus, ChevronUp, ChevronDown, Trash2, Info, X, Clock, Upload, Image as ImageIcon, Building2, MapPin, Receipt, PhoneCall, Camera } from 'lucide-react';
+import { UserCog, LogOut, Sun, Monitor, Moon, Edit2, Mail, ShieldAlert, CheckCircle2, AlertCircle, Star, Lock, UserPlus, ChevronUp, ChevronDown, Trash2, Info, X, Clock, Upload, Image as ImageIcon, Building2, MapPin, Receipt, PhoneCall, Camera, Smartphone } from 'lucide-react';
 import ModalHorarios from '@/components/ModalHorarios';
 import { useAuth } from "../../../hooks/AuthContext";
 import ModalSuscripcion from "@/components/ModalSuscripcion";
@@ -906,7 +906,26 @@ export default function PerfilPage() {
             )}
           </div>
 
-          <button onClick={() => signOut(auth)} className="w-full bg-rose-50 dark:bg-rose-500/10 text-rose-600 dark:text-rose-400 font-bold py-6 rounded-[2rem] border border-rose-200 dark:border-rose-500/20 hover:bg-rose-100 dark:hover:bg-rose-500/30 transition-colors mb-4 flex justify-center items-center gap-2 text-lg mt-8">
+          {/* BOTÓN INSTALAR APP EN EL DISPOSITIVO */}
+          <div className="bg-gradient-to-r from-emerald-500/10 to-teal-500/10 border border-emerald-500/30 rounded-[2rem] p-6 shadow-sm mt-6 flex flex-col sm:flex-row items-center justify-between gap-4">
+            <div className="flex items-center gap-4 text-center sm:text-left">
+              <div className="w-12 h-12 rounded-2xl bg-emerald-500 text-white flex items-center justify-center shadow-md shrink-0 mx-auto sm:mx-0">
+                <Smartphone size={24} />
+              </div>
+              <div>
+                <h4 className="font-black text-slate-900 dark:text-white text-base">Instalar Fiabono en este celular</h4>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Accede sin abrir el navegador y con pantalla completa</p>
+              </div>
+            </div>
+            <button 
+              onClick={() => window.dispatchEvent(new CustomEvent('abrir-prompt-instalacion'))} 
+              className="w-full sm:w-auto px-5 py-3 bg-emerald-500 hover:bg-emerald-600 active:scale-95 text-white font-black text-sm rounded-xl shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer shrink-0"
+            >
+              <Smartphone size={16} /> Ver cómo instalar
+            </button>
+          </div>
+
+          <button onClick={() => signOut(auth)} className="w-full bg-rose-50 dark:bg-rose-500/10 text-rose-600 dark:text-rose-400 font-bold py-6 rounded-[2rem] border border-rose-200 dark:border-rose-500/20 hover:bg-rose-100 dark:hover:bg-rose-500/30 transition-colors mb-4 flex justify-center items-center gap-2 text-lg mt-6">
             <LogOut size={24} className="shrink-0" /> Cerrar Sesión
           </button>
         </>

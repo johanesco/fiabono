@@ -1300,10 +1300,11 @@ Estamos atentos para cualquier consulta.
           {/* Escanear QR */}
           <button 
             onClick={abrirEscanner} 
-            className="bg-white text-emerald-700 hover:bg-emerald-50 px-3 py-1.5 sm:py-2 rounded-xl font-black text-xs sm:text-sm flex items-center gap-1.5 shadow-md transition-transform active:scale-95 cursor-pointer shrink-0"
+            className="bg-white text-emerald-700 hover:bg-emerald-50 px-2.5 sm:px-3 py-1.5 sm:py-2 rounded-xl font-black text-xs sm:text-sm flex items-center gap-1.5 shadow-md transition-transform active:scale-95 cursor-pointer shrink-0"
+            title="Escanear Código QR"
           >
-            <QrCode size={15} /> 
-            <span className="hidden sm:inline">Escanear producto</span>
+            <QrCode size={15} className="shrink-0" /> 
+            <span>Escanear QR</span>
           </button>
         </div>
       </div>
@@ -1937,31 +1938,6 @@ Estamos atentos para cualquier consulta.
 
         </div>
       </div>
-
-      {/* INDICADOR FLOTANTE MINIMALISTA DE SCROLL EN MÓVIL */}
-      {puedeHacerScroll && (
-        <div className="lg:hidden fixed right-3.5 bottom-36 sm:bottom-40 z-50 animate-in fade-in zoom-in-95 duration-200 pointer-events-auto">
-          {posicionScroll === 'arriba' || posicionScroll === 'medio' ? (
-            <button
-              onClick={deslizarAbajo}
-              className="bg-emerald-600/95 hover:bg-emerald-600 text-white backdrop-blur-md px-3 py-1.5 rounded-full shadow-xl border border-white/20 flex items-center gap-1.5 text-[11px] font-black active:scale-90 transition-all"
-              title="Deslizar hacia abajo"
-            >
-              <span>Ver más</span>
-              <ChevronDown size={14} className="animate-bounce" />
-            </button>
-          ) : (
-            <button
-              onClick={deslizarArriba}
-              className="bg-slate-800/95 hover:bg-slate-800 text-white backdrop-blur-md px-3 py-1.5 rounded-full shadow-xl border border-slate-700 flex items-center gap-1.5 text-[11px] font-black active:scale-90 transition-all"
-              title="Subir al inicio"
-            >
-              <ChevronUp size={14} className="animate-bounce" />
-              <span>Subir</span>
-            </button>
-          )}
-        </div>
-      )}
 
       {/* BARRA FLOTANTE MÓVIL SUSPENDIDA */}
       <div className="lg:hidden fixed bottom-[68px] sm:bottom-[76px] left-3 right-3 sm:left-4 sm:right-4 max-w-lg mx-auto bg-white/95 dark:bg-[#0f172a]/95 backdrop-blur-xl border border-slate-200/90 dark:border-slate-800/90 p-2.5 sm:p-3 rounded-2xl sm:rounded-3xl shadow-[0_10px_25px_-5px_rgba(0,0,0,0.15)] dark:shadow-[0_10px_25px_-5px_rgba(0,0,0,0.6)] z-40 flex items-center justify-between gap-3">

@@ -288,8 +288,7 @@ Quedamos pendientes para revisar detalles o responder cualquier duda.
   return (
     <>
       {/* REDUCIMOS LOS GAPS PARA ESCRITORIO: md:gap-3 lg:gap-4 xl:gap-4. Móvil sigue intacto (gap-6 sm:gap-8) */}
-      <div className="flex flex-col gap-6 sm:gap-8 md:gap-3 lg:gap-4 xl:gap-4 animate-in fade-in slide-in-from-bottom-4 duration-500 px-4 sm:px-6 lg:px-8 pt-4 md:pt-2 h-full w-full max-w-[1600px] mx-auto">
-
+      <div className="flex flex-col gap-6 sm:gap-8 md:gap-3 lg:gap-4 xl:gap-4 px-4 sm:px-6 lg:px-8 pt-4 md:pt-2 h-full w-full max-w-[1600px] mx-auto">
         {/* ENCABEZADO DE BIENVENIDA */}
         <header className="flex flex-col gap-1 px-1 md:mb-1 lg:mb-2">
           {/* LOGO DE FIABONO (Solo visible en celular) */}
@@ -372,15 +371,15 @@ Quedamos pendientes para revisar detalles o responder cualquier duda.
         {esAdmin && ordenesPendientes.length > 0 && (
           <div 
             onClick={() => router.push('/dashboard/ordenes')}
-            className="bg-amber-500/10 hover:bg-amber-500/15 border border-amber-400/40 dark:border-amber-500/30 rounded-2xl p-2.5 sm:p-3 shadow-sm flex items-center justify-between gap-3 transition-all cursor-pointer group active:scale-[0.99]"
+            className="bg-amber-500/10 hover:bg-amber-500/15 border border-amber-400/40 dark:border-amber-500/30 rounded-2xl p-2.5 sm:p-3 shadow-sm flex items-center justify-between gap-2.5 transition-all cursor-pointer group active:scale-[0.99]"
           >
-            <div className="flex items-center gap-2.5 min-w-0">
+            <div className="flex items-center gap-2.5 min-w-0 flex-1">
               <div className="w-8 h-8 rounded-xl bg-amber-500 text-white flex items-center justify-center shrink-0 shadow-sm">
                 <Receipt size={16} />
               </div>
-              <div className="flex items-center gap-2 truncate min-w-0">
+              <div className="flex items-center gap-2 min-w-0 flex-1">
                 <span className="font-black text-xs sm:text-sm text-slate-900 dark:text-white truncate">
-                  {ordenesPendientes.length} órden{ordenesPendientes.length > 1 ? 'es' : ''} pendiente{ordenesPendientes.length > 1 ? 's' : ''} por aprobar
+                  {ordenesPendientes.length} {ordenesPendientes.length === 1 ? 'orden pendiente' : 'órdenes pendientes'}
                 </span>
                 <span className="bg-rose-500 text-white text-[9px] font-black px-1.5 py-0.5 rounded-full shrink-0">
                   Revisar

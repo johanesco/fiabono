@@ -6,6 +6,7 @@ import { collection, query, where, onSnapshot } from "firebase/firestore";
 import { db } from "../../firebase";
 import { useAuth } from "@/hooks/AuthContext";
 import BottomNav from "../../components/BottomNav";
+import ScrollIndicator from "../../components/ScrollIndicator";
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const auth = useAuth();
@@ -119,6 +120,17 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const rutaActiva = (ruta: string) => pathname === ruta;
 
   const puedeVerReportes = datosSesion?.rol !== 'cajero';
+
+  if (auth?.cargando) {
+    return (
+      <div className="flex h-screen w-screen items-center justify-center bg-slate-100 dark:bg-slate-950 font-sans">
+        <div className="flex flex-col items-center gap-3">
+          <div className="w-10 h-10 border-3 border-emerald-500 border-t-transparent rounded-full animate-spin"></div>
+          <span className="text-sm font-bold text-slate-500 dark:text-slate-400">Cargando Fiabono...</span>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex h-screen w-screen bg-slate-100 dark:bg-slate-950 overflow-hidden font-sans">
@@ -259,7 +271,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       {/* CONTENEDOR PRINCIPAL */}
       <main className="flex-1 flex flex-col h-full relative p-0 md:p-4 lg:p-6 pb-16 md:pb-0 overflow-hidden">
         {/* Desplazamiento fluido sin solapamiento con BottomNav */}
-        <div className="flex-1 h-full w-full overflow-y-auto flex flex-col min-h-0">
+        <div id="dashboard-scroll-container" className="flex-1 h-full w-full overflow-y-auto flex flex-col min-h-0">
           {children}
         </div>
 
@@ -274,6 +286,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             separesActivosCount={separesActivosCount}
           />
         </div>
+
+        {/* Indicador inteligente de desplazamiento arriba/abajo */}
+        <ScrollIndicator />
       </main>
 
     </div>

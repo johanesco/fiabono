@@ -299,9 +299,14 @@ Quedamos pendientes para revisar detalles o responder cualquier duda.
       <div className="bg-slate-50 dark:bg-[#0f172a] p-6 border-b border-slate-100 dark:border-slate-800/60 flex flex-col gap-5 sticky top-0 z-10 shrink-0">
         
         <div className="relative">
-          <Search className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-400" size={24} />
-          <input type="text" value={busquedaHistorial} onChange={(e) => setBusquedaHistorial(e.target.value)} placeholder="Buscar nombre o celular en historial..." 
-            className="w-full p-5 pl-14 bg-white dark:bg-[#020617] border border-slate-200 dark:border-slate-800/80 rounded-2xl outline-none focus:border-blue-500 text-lg transition-all shadow-sm dark:text-slate-200" />
+          <Search className="absolute left-4 sm:left-5 top-1/2 -translate-y-1/2 text-slate-400 w-5 h-5 sm:w-6 sm:h-6" />
+          <input 
+            type="text" 
+            value={busquedaHistorial} 
+            onChange={(e) => setBusquedaHistorial(e.target.value)} 
+            placeholder="Buscar por nombre o celular..." 
+            className="w-full p-4 sm:p-5 pl-12 sm:pl-14 bg-white dark:bg-[#020617] border border-slate-200 dark:border-slate-800/80 rounded-2xl outline-none focus:border-blue-500 text-base sm:text-lg transition-all shadow-sm dark:text-slate-200 placeholder:text-sm sm:placeholder:text-base placeholder:text-slate-400" 
+          />
         </div>
         
         <div className="flex flex-col gap-3">
@@ -357,7 +362,8 @@ Quedamos pendientes para revisar detalles o responder cualquier duda.
                     </span>
                   </div>
                 </div>
-                <div className="flex flex-col items-end gap-2 shrink-0">
+                <div className="flex flex-col items-end gap-1.5 shrink-0">
+                  <div className="flex items-center gap-2">
                     <button
                       type="button"
                       onClick={(e) => {
@@ -365,7 +371,7 @@ Quedamos pendientes para revisar detalles o responder cualquier duda.
                         abrirTicketDeMovimiento(mov);
                       }}
                       title="Imprimir Factura / Ticket"
-                      className="p-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-blue-50 dark:hover:bg-blue-500/20 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
+                      className="p-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-blue-50 dark:hover:bg-blue-500/20 hover:text-blue-600 dark:hover:text-blue-400 transition-colors cursor-pointer"
                     >
                       <Printer size={15} />
                     </button>
@@ -373,7 +379,7 @@ Quedamos pendientes para revisar detalles o responder cualquier duda.
                       {mov.tipo === 'fiado' ? '-' : '+'}${mov.monto.toLocaleString('es-CO')}
                     </p>
                   </div>
-                  <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded-md ${mov.tipo === 'fiado' ? 'bg-rose-100 text-rose-700' : (mov.tipo === 'venta' ? 'bg-emerald-100 text-emerald-700' : 'bg-blue-100 text-blue-700')}`}>{mov.tipo}</span>
+                  <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded-md ${mov.tipo === 'fiado' ? 'bg-rose-100 text-rose-700 dark:bg-rose-500/20 dark:text-rose-300' : (mov.tipo === 'venta' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300' : 'bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-300')}`}>{mov.tipo}</span>
                 </div>
               </div>
             </div>
@@ -513,21 +519,26 @@ Quedamos pendientes para revisar detalles o responder cualquier duda.
                 <div className="flex items-center justify-center gap-2 mb-1 max-w-full min-w-0 px-2">
                   <h2 className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-white truncate">{clienteActivo.nombre}</h2>
                   {datosSesion?.rol !== 'cajero' && (
+                    <div className="flex items-center gap-1 shrink-0">
+                      <button
                         type="button"
                         onClick={() => setModalGestionCliente({ visible: true, modo: 'editar', cliente: clienteActivo })}
-                        className="p-1.5 rounded-xl bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:text-blue-600 shadow-sm border border-slate-200 dark:border-slate-700"
+                        title="Modificar Cliente"
+                        className="p-1.5 rounded-xl bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:text-blue-600 shadow-sm border border-slate-200 dark:border-slate-700 cursor-pointer"
                       >
                         <Edit3 size={15} />
                       </button>
                       <button
+                        type="button"
                         onClick={() => setModalGestionCliente({ visible: true, modo: 'eliminar', cliente: clienteActivo })}
                         title="Eliminar Cliente"
-                        className="p-1.5 rounded-xl bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:text-rose-600 shadow-sm border border-slate-200 dark:border-slate-700"
+                        className="p-1.5 rounded-xl bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:text-rose-600 shadow-sm border border-slate-200 dark:border-slate-700 cursor-pointer"
                       >
                         <Trash2 size={15} />
                       </button>
                     </div>
                   )}
+                </div>
                 <p className="text-slate-500 font-medium text-base mb-4">{clienteActivo.celular || "Sin número registrado"}</p>
                 
                 <div className="flex flex-col items-center justify-center bg-white dark:bg-[#0f172a] w-full py-4 px-3 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm mb-4">
@@ -569,6 +580,8 @@ Quedamos pendientes para revisar detalles o responder cualquier duda.
                             <span className="text-slate-500 dark:text-slate-400 whitespace-nowrap">
                               👤 {mov.registradoPor}
                             </span>
+                          )}
+                          {mov.registradoPor && <span className="text-slate-300 dark:text-slate-600 whitespace-nowrap">•</span>}
                           <span className="text-slate-400 whitespace-nowrap">
                             {mov.fecha?.toDate ? mov.fecha.toDate().toLocaleDateString('es-CO', {day:'2-digit', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit'}) : (mov.fecha instanceof Date ? mov.fecha.toLocaleDateString('es-CO', {day:'2-digit', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit'}) : '')}
                           </span>
@@ -588,15 +601,19 @@ Quedamos pendientes para revisar detalles o responder cualquier duda.
                           ))}
                         </div>
                       ) : (
+                        <p className="text-xs md:text-sm font-bold text-slate-800 dark:text-slate-200 truncate">{mov.descripcion}</p>
+                      )}
                       
                       <div className="flex justify-between items-center pt-2 mt-1 md:mt-0 md:pt-3 border-t border-slate-200 dark:border-slate-700 md:border-slate-100 dark:md:border-slate-800 font-black">
                         <span className="text-xs text-slate-400 uppercase tracking-wider">Total:</span>
                         <div className="flex items-center gap-2">
+                          <button
                             type="button"
                             onClick={() => abrirTicketDeMovimiento(mov)}
                             title="Imprimir Factura / Ticket"
-                            className="p-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:text-blue-600 transition-colors"
+                            className="p-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:text-blue-600 transition-colors cursor-pointer"
                           >
+                            <Printer size={15} />
                           </button>
                           <span className={`text-base md:text-xl ${mov.tipo === 'fiado' ? 'text-rose-500' : (mov.tipo === 'venta' ? 'text-emerald-500' : 'text-blue-500')}`}>
                             {mov.tipo === 'fiado' ? '-' : '+'}${mov.monto.toLocaleString('es-CO')}

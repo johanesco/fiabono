@@ -19,8 +19,6 @@ self.addEventListener('activate', (event) => {
   );
 });
 
-self.addEventListener('fetch', (event) => {
-  // Dejar que el navegador maneje todo normalmente sin interferir en la red
-  // Solo se reserva para soporte PWA estándar
-});
+// Service Worker activo sin interferir en fetch requests
+
 

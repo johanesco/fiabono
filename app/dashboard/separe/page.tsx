@@ -1136,11 +1136,11 @@ Estamos atentos para cualquier consulta.
           <button
             type="button"
             onClick={() => setModalEscanner(true)}
-            className="bg-white text-violet-700 hover:bg-violet-50 px-3 py-1.5 sm:py-2 rounded-xl font-black text-xs sm:text-sm flex items-center gap-1.5 shadow-md transition-transform active:scale-95 cursor-pointer shrink-0"
+            className="bg-white text-violet-700 hover:bg-violet-50 px-2.5 sm:px-3 py-1.5 sm:py-2 rounded-xl font-black text-xs sm:text-sm flex items-center gap-1.5 shadow-md transition-transform active:scale-95 cursor-pointer shrink-0"
             title="Escanear producto con código de barras o QR"
           >
-            <QrCode size={15} />
-            <span className="hidden sm:inline">Escanear producto</span>
+            <QrCode size={15} className="shrink-0" />
+            <span>Escanear QR</span>
           </button>
 
           {puedeGestionarSepares && (

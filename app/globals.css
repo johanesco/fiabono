@@ -123,19 +123,3 @@ html, body {
 .pr-safe {
   padding-right: env(safe-area-inset-right, 0px);
 }
-
-/* Animaciones de entrada suaves */
-@keyframes slide-in-from-bottom-4 {
-  from {
-    transform: translateY(16px);
-    opacity: 0;
-  }
-  to {
-    transform: translateY(0);
-    opacity: 1;
-  }
-}
-
-.animate-in.slide-in-from-bottom-4 {
-  animation: slide-in-from-bottom-4 0.3s ease-out forwards;
-}

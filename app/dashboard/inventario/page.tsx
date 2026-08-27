@@ -28,7 +28,11 @@ import {
   PackageX,
   PackageCheck,
   RefreshCw,
-  X
+  X,
+  ChevronDown,
+  ShoppingCart,
+  Banknote,
+  Bookmark
 } from 'lucide-react';
 import { useAuth } from "@/hooks/AuthContext";
 import toast from "react-hot-toast";
@@ -50,6 +54,8 @@ export default function InventarioPage() {
   const [vistaActual, setVistaActual] = useState<'lista' | 'qr'>('lista');
   const [modalProducto, setModalProducto] = useState(false);
   const [editandoId, setEditandoId] = useState<string | null>(null);
+  const [mostrarMetricas, setMostrarMetricas] = useState(false);
+  const [productosSeleccionados, setProductosSeleccionados] = useState<string[]>([]);
 
   // Estados de Ordenamiento y Filtrado con Multi-Selección
   const [columnaOrden, setColumnaOrden] = useState<ColumnaOrden>('nombre');
@@ -246,6 +252,58 @@ export default function InventarioPage() {
 
     return resultado;
   }, [inventario, busqueda, filtrosCategoria, filtrosStock, columnaOrden, direccionOrden]);
+
+  const tieneStockDisponible = (prod: any) => {
+    if (prod.tipoProducto === 'servicio' || prod.inventariable === false) return true;
+    return Number(prod.stock || 0) > 0;
+  };
+
+  const toggleSeleccionarProducto = (prod: any) => {
+    if (!tieneStockDisponible(prod)) {
+      toast.error(`"${prod.nombre}" no tiene stock disponible.`);
+      return;
+    }
+    setProductosSeleccionados(prev => 
+      prev.includes(prod.id) ? prev.filter(item => item !== prod.id) : [...prev, prod.id]
+    );
+  };
+
+  const toggleSeleccionarTodos = () => {
+    const disponibles = inventarioProcesado.filter(p => tieneStockDisponible(p));
+    if (productosSeleccionados.length === disponibles.length && disponibles.length > 0) {
+      setProductosSeleccionados([]);
+    } else {
+      setProductosSeleccionados(disponibles.map(p => p.id));
+    }
+  };
+
+  const despacharA = (modulo: 'vender' | 'fiar' | 'separe') => {
+    if (productosSeleccionados.length === 0) return;
+    const prods = inventario
+      .filter(p => productosSeleccionados.includes(p.id))
+      .filter(p => tieneStockDisponible(p));
+
+    if (prods.length === 0) {
+      toast.error("Ninguno de los productos seleccionados tiene stock disponible.");
+      setProductosSeleccionados([]);
+      return;
+    }
+
+    const payload = prods.map(p => ({
+      descripcion: p.nombre,
+      valor: (p.precioVenta || 0).toString(),
+      cantidad: 1,
+      productoId: p.id,
+      sku: p.sku || ''
+    }));
+
+    try {
+      sessionStorage.setItem('fiabono_productos_precargados', JSON.stringify(payload));
+      sessionStorage.setItem('fiabono_origen_despacho', '/dashboard/inventario');
+    } catch (e) {}
+
+    router.push(`/dashboard/${modulo}`);
+  };
 
   const agregarProductoALaCarga = () => {
     const erroresNuevos = {
@@ -697,17 +755,17 @@ export default function InventarioPage() {
   };
 
   return (
-    <div className="flex flex-col w-full h-full pb-24 md:pb-0 bg-slate-50 dark:bg-[#020617] md:rounded-[2.5rem] overflow-hidden md:border md:border-slate-100 dark:md:border-slate-800/60 shadow-none md:shadow-2xl animate-in fade-in duration-300">
+    <div className="flex flex-col w-full min-h-full pb-32 md:pb-8 bg-slate-50 dark:bg-[#020617] md:rounded-[2.5rem] md:border md:border-slate-100 dark:md:border-slate-800/60 shadow-none md:shadow-2xl animate-in fade-in duration-300">
       
       {/* HEADER */}
       <div className="bg-emerald-600 dark:bg-emerald-700 p-4 md:p-6 text-white flex justify-between items-center shrink-0 z-30 shadow-sm gap-2">
-        <div className="flex items-center gap-2.5 sm:gap-3 md:gap-4 min-w-0">
+        <div className="flex items-center gap-2 sm:gap-3 md:gap-4 min-w-0 flex-1">
           <button onClick={() => router.push('/dashboard/inicio')} className="bg-white/20 hover:bg-white/30 p-2 sm:p-2.5 rounded-full transition-colors backdrop-blur-sm shrink-0">
-            <ArrowLeft size={20} className="sm:w-[22px] sm:h-[22px]" />
+            <ArrowLeft size={18} className="sm:w-[22px] sm:h-[22px]" />
           </button>
           <div className="min-w-0">
-            <h2 className="text-lg sm:text-xl md:text-3xl font-black uppercase tracking-wide flex items-center gap-1.5 sm:gap-2 truncate">
-              <Package size={22} className="sm:w-[26px] sm:h-[26px] shrink-0" /> <span className="truncate">Inventario General</span>
+            <h2 className="text-base sm:text-xl md:text-3xl font-black uppercase tracking-wide flex items-center gap-1.5 sm:gap-2 truncate">
+              <Package size={20} className="sm:w-[26px] sm:h-[26px] shrink-0" /> <span className="truncate">Inventario General</span>
             </h2>
             <p className="text-xs text-white/80 font-medium hidden sm:block">Control de stock, precios y catálogo de productos</p>
           </div>
@@ -715,13 +773,14 @@ export default function InventarioPage() {
         <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
           <button 
             onClick={() => setModalExportarQR(true)} 
-            className="bg-white/20 hover:bg-white/30 px-2.5 sm:px-4 py-2 sm:py-2.5 rounded-xl font-bold text-xs sm:text-sm flex items-center gap-1.5 sm:gap-2 transition-colors backdrop-blur-sm shadow-sm"
+            className="bg-white/20 hover:bg-white/30 p-2 sm:px-3.5 sm:py-2 rounded-xl font-bold text-xs sm:text-sm flex items-center gap-1.5 transition-colors backdrop-blur-sm shadow-sm shrink-0"
+            title="Exportar QRs"
           >
             <FileText size={16} className="sm:w-[18px] sm:h-[18px]" /> <span className="hidden sm:inline">Exportar QRs</span>
           </button>
           <button 
             onClick={() => { limpiarFormulario(); setModalProducto(true); }} 
-            className="bg-white text-emerald-700 hover:bg-emerald-50 px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl font-black text-xs sm:text-sm flex items-center gap-1.5 sm:gap-2 shadow-md transition-transform active:scale-95 shrink-0"
+            className="bg-white text-emerald-700 hover:bg-emerald-50 px-2.5 sm:px-4 py-2 sm:py-2.5 rounded-xl font-black text-xs sm:text-sm flex items-center gap-1 sm:gap-2 shadow-md transition-transform active:scale-95 shrink-0"
           >
             <Plus size={16} className="sm:w-[18px] sm:h-[18px]" /> <span className="hidden sm:inline">Nuevo Producto</span><span className="sm:hidden">Nuevo</span>
           </button>
@@ -729,90 +788,106 @@ export default function InventarioPage() {
       </div>
 
       {/* CONTENIDO PRINCIPAL */}
-      <div className="flex-1 p-4 sm:p-6 lg:p-8 overflow-y-auto">
-        <div className="max-w-6xl mx-auto space-y-6">
+      <div className="flex-1 p-3 sm:p-6 lg:p-8 pb-4">
+        <div className="max-w-6xl mx-auto space-y-4 sm:space-y-6">
           
-          {/* TARJETAS DE MÉTRICAS */}
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4">
-            
-            {/* Tarjeta 1: Total Referencias */}
-            <div 
-              onClick={limpiarTodosLosFiltros}
-              className={`p-4 md:p-5 rounded-2xl md:rounded-3xl border transition-all cursor-pointer shadow-sm ${
-                filtrosStock.length === 0 && filtrosCategoria.length === 0 && !busqueda
-                  ? 'bg-emerald-500/10 border-emerald-500/40 dark:bg-emerald-500/20'
-                  : 'bg-white dark:bg-[#0f172a] border-slate-200 dark:border-slate-800 hover:border-emerald-300'
-              }`}
+          {/* CONTROL DE DESPLIEGUE DEL PANEL DE MÉTRICAS */}
+          <div className="flex items-center justify-between px-1">
+            <span className="text-xs font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">
+              Resumen de Inventario
+            </span>
+            <button
+              onClick={() => setMostrarMetricas(!mostrarMetricas)}
+              className="flex items-center gap-1.5 text-xs font-black text-emerald-700 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-500/10 px-3 py-1.5 rounded-xl transition-colors cursor-pointer border border-emerald-200/60 dark:border-emerald-500/20 shadow-xs active:scale-95"
             >
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-[11px] md:text-xs font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">Total Referencias</span>
-                <div className="p-2 bg-emerald-100 dark:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 rounded-xl">
-                  <Boxes size={18} />
-                </div>
-              </div>
-              <p className="text-2xl md:text-3xl font-black text-slate-900 dark:text-white tracking-tight">
-                {metricas.totalReferencias}
-              </p>
-              <p className="text-[10px] md:text-xs text-slate-400 mt-1 font-medium">En catálogo (Clic para ver todo)</p>
-            </div>
-
-            {/* Tarjeta 2: Valor del Inventario */}
-            <div className="p-4 md:p-5 rounded-2xl md:rounded-3xl bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-800 shadow-sm">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-[11px] md:text-xs font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">Valor Inventario</span>
-                <div className="p-2 bg-blue-100 dark:bg-blue-500/20 text-blue-600 dark:text-blue-400 rounded-xl">
-                  <DollarSign size={18} />
-                </div>
-              </div>
-              <p className="text-2xl md:text-3xl font-black text-slate-900 dark:text-white tracking-tight truncate">
-                ${metricas.valorTotal.toLocaleString('es-CO')}
-              </p>
-              <p className="text-[10px] md:text-xs text-slate-400 mt-1 font-medium">En mercancía activa</p>
-            </div>
-
-            {/* Tarjeta 3: Stock Bajo */}
-            <div 
-              onClick={() => toggleFiltroStock('stock_bajo')}
-              className={`p-4 md:p-5 rounded-2xl md:rounded-3xl border transition-all cursor-pointer shadow-sm ${
-                filtrosStock.includes('stock_bajo')
-                  ? 'bg-amber-500/15 border-amber-500 dark:bg-amber-500/25 ring-2 ring-amber-500/20'
-                  : 'bg-white dark:bg-[#0f172a] border-slate-200 dark:border-slate-800 hover:border-amber-400'
-              }`}
-            >
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-[11px] md:text-xs font-black uppercase tracking-wider text-amber-600 dark:text-amber-400">Stock Bajo (1-5)</span>
-                <div className="p-2 bg-amber-100 dark:bg-amber-500/20 text-amber-600 dark:text-amber-400 rounded-xl">
-                  <AlertTriangle size={18} />
-                </div>
-              </div>
-              <p className="text-2xl md:text-3xl font-black text-amber-600 dark:text-amber-400 tracking-tight">
-                {metricas.stockBajo}
-              </p>
-              <p className="text-[10px] md:text-xs text-slate-400 mt-1 font-medium">Por agotarse</p>
-            </div>
-
-            {/* Tarjeta 4: Sin Stock / Agotados */}
-            <div 
-              onClick={() => toggleFiltroStock('sin_stock')}
-              className={`p-4 md:p-5 rounded-2xl md:rounded-3xl border transition-all cursor-pointer shadow-sm ${
-                filtrosStock.includes('sin_stock')
-                  ? 'bg-rose-500/15 border-rose-500 dark:bg-rose-500/25 ring-2 ring-rose-500/20'
-                  : 'bg-white dark:bg-[#0f172a] border-slate-200 dark:border-slate-800 hover:border-rose-400'
-              }`}
-            >
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-[11px] md:text-xs font-black uppercase tracking-wider text-rose-600 dark:text-rose-400">Sin Stock (0)</span>
-                <div className="p-2 bg-rose-100 dark:bg-rose-500/20 text-rose-600 dark:text-rose-400 rounded-xl">
-                  <XCircle size={18} />
-                </div>
-              </div>
-              <p className="text-2xl md:text-3xl font-black text-rose-600 dark:text-rose-400 tracking-tight">
-                {metricas.sinStock}
-              </p>
-              <p className="text-[10px] md:text-xs text-slate-400 mt-1 font-medium">Agotados</p>
-            </div>
-
+              <span>{mostrarMetricas ? "Recoger panel" : "Desplegar panel"}</span>
+              <ChevronDown size={14} className={`transition-transform duration-200 ${mostrarMetricas ? "rotate-180" : ""}`} />
+            </button>
           </div>
+
+          {/* TARJETAS DE MÉTRICAS (COLAPSABLES) */}
+          {mostrarMetricas && (
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4 animate-in fade-in duration-200">
+              
+              {/* Tarjeta 1: Total Referencias */}
+              <div 
+                onClick={limpiarTodosLosFiltros}
+                className={`p-4 md:p-5 rounded-2xl md:rounded-3xl border transition-all cursor-pointer shadow-sm ${
+                  filtrosStock.length === 0 && filtrosCategoria.length === 0 && !busqueda
+                    ? 'bg-emerald-500/10 border-emerald-500/40 dark:bg-emerald-500/20'
+                    : 'bg-white dark:bg-[#0f172a] border-slate-200 dark:border-slate-800 hover:border-emerald-300'
+                }`}
+              >
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-[11px] md:text-xs font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">Total Referencias</span>
+                  <div className="p-2 bg-emerald-100 dark:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 rounded-xl">
+                    <Boxes size={18} />
+                  </div>
+                </div>
+                <p className="text-2xl md:text-3xl font-black text-slate-900 dark:text-white tracking-tight">
+                  {metricas.totalReferencias}
+                </p>
+                <p className="text-[10px] md:text-xs text-slate-400 mt-1 font-medium">En catálogo (Clic para ver todo)</p>
+              </div>
+
+              {/* Tarjeta 2: Valor del Inventario */}
+              <div className="p-4 md:p-5 rounded-2xl md:rounded-3xl bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-800 shadow-sm">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-[11px] md:text-xs font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">Valor Inventario</span>
+                  <div className="p-2 bg-blue-100 dark:bg-blue-500/20 text-blue-600 dark:text-blue-400 rounded-xl">
+                    <DollarSign size={18} />
+                  </div>
+                </div>
+                <p className="text-lg xs:text-xl sm:text-2xl md:text-3xl font-black text-slate-900 dark:text-white tracking-tight leading-tight">
+                  ${metricas.valorTotal.toLocaleString('es-CO')}
+                </p>
+                <p className="text-[10px] md:text-xs text-slate-400 mt-1 font-medium">En mercancía activa</p>
+              </div>
+
+              {/* Tarjeta 3: Stock Bajo */}
+              <div 
+                onClick={() => toggleFiltroStock('stock_bajo')}
+                className={`p-4 md:p-5 rounded-2xl md:rounded-3xl border transition-all cursor-pointer shadow-sm ${
+                  filtrosStock.includes('stock_bajo')
+                    ? 'bg-amber-500/15 border-amber-500 dark:bg-amber-500/25 ring-2 ring-amber-500/20'
+                    : 'bg-white dark:bg-[#0f172a] border-slate-200 dark:border-slate-800 hover:border-amber-400'
+                }`}
+              >
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-[11px] md:text-xs font-black uppercase tracking-wider text-amber-600 dark:text-amber-400">Stock Bajo (1-5)</span>
+                  <div className="p-2 bg-amber-100 dark:bg-amber-500/20 text-amber-600 dark:text-amber-400 rounded-xl">
+                    <AlertTriangle size={18} />
+                  </div>
+                </div>
+                <p className="text-2xl md:text-3xl font-black text-amber-600 dark:text-amber-400 tracking-tight">
+                  {metricas.stockBajo}
+                </p>
+                <p className="text-[10px] md:text-xs text-slate-400 mt-1 font-medium">Por agotarse</p>
+              </div>
+
+              {/* Tarjeta 4: Sin Stock / Agotados */}
+              <div 
+                onClick={() => toggleFiltroStock('sin_stock')}
+                className={`p-4 md:p-5 rounded-2xl md:rounded-3xl border transition-all cursor-pointer shadow-sm ${
+                  filtrosStock.includes('sin_stock')
+                    ? 'bg-rose-500/15 border-rose-500 dark:bg-rose-500/25 ring-2 ring-rose-500/20'
+                    : 'bg-white dark:bg-[#0f172a] border-slate-200 dark:border-slate-800 hover:border-rose-400'
+                }`}
+              >
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-[11px] md:text-xs font-black uppercase tracking-wider text-rose-600 dark:text-rose-400">Sin Stock (0)</span>
+                  <div className="p-2 bg-rose-100 dark:bg-rose-500/20 text-rose-600 dark:text-rose-400 rounded-xl">
+                    <XCircle size={18} />
+                  </div>
+                </div>
+                <p className="text-2xl md:text-3xl font-black text-rose-600 dark:text-rose-400 tracking-tight">
+                  {metricas.sinStock}
+                </p>
+                <p className="text-[10px] md:text-xs text-slate-400 mt-1 font-medium">Agotados</p>
+              </div>
+
+            </div>
+          )}
 
           {/* BARRA DE BÚSQUEDA Y SELECTOR DE VISTA */}
           <div className="flex flex-col sm:flex-row justify-between items-center gap-3">
@@ -853,7 +928,7 @@ export default function InventarioPage() {
           </div>
 
           {/* FILTROS POR ESTADO DE STOCK (PILLS MULTI-SELECCIÓN) */}
-          <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
+          <div className="flex items-center gap-1.5 sm:gap-2 overflow-x-auto pb-1 scrollbar-none no-scrollbar -mx-2 px-2 sm:mx-0 sm:px-0">
             <span className="text-xs font-black uppercase tracking-wider text-slate-400 shrink-0 flex items-center gap-1 mr-1">
               <Layers size={14} /> Stock:
             </span>
@@ -965,14 +1040,178 @@ export default function InventarioPage() {
             ))}
           </div>
 
-          {/* VISTA 1: TABLA ORDENADA Y FILTRADA */}
+          {/* VISTA 1: LISTA RESPONSIVA (MÓVIL CERO SCROLL HORIZONTAL + TABLA EN PC) */}
           {vistaActual === 'lista' && (
             <div className="bg-white dark:bg-[#0f172a] rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
-              <div className="overflow-x-auto">
+              
+              {/* =========================================================
+                  VISTA MÓVIL (PANTALLAS < 768px): CERO SCROLL HORIZONTAL
+                  ========================================================= */}
+              <div className="md:hidden divide-y divide-slate-100 dark:divide-slate-800/80">
+                {/* Cabecera Móvil de Selección y Orden Rápido */}
+                <div className="p-3 bg-slate-50 dark:bg-[#020617] flex items-center justify-between text-xs font-black text-slate-500 dark:text-slate-400">
+                  <label className="flex items-center gap-2 cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      checked={
+                        inventarioProcesado.length > 0 && 
+                        productosSeleccionados.length === inventarioProcesado.filter(p => tieneStockDisponible(p)).length
+                      }
+                      onChange={toggleSeleccionarTodos}
+                      className="w-4 h-4 accent-emerald-600 rounded cursor-pointer"
+                    />
+                    <span className="text-[11px] uppercase tracking-wider">Todos</span>
+                  </label>
+
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      onClick={() => handleSort('nombre')}
+                      className={`px-2.5 py-1 rounded-lg flex items-center gap-1 text-[11px] font-black transition-colors ${
+                        columnaOrden === 'nombre' 
+                          ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-500/20 dark:text-emerald-300' 
+                          : 'text-slate-500 dark:text-slate-400 hover:bg-slate-200/60 dark:hover:bg-slate-800'
+                      }`}
+                    >
+                      <span>Nombre</span>
+                      {columnaOrden === 'nombre' && renderSortIndicator('nombre')}
+                    </button>
+                    <button
+                      onClick={() => handleSort('precioVenta')}
+                      className={`px-2.5 py-1 rounded-lg flex items-center gap-1 text-[11px] font-black transition-colors ${
+                        columnaOrden === 'precioVenta' 
+                          ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-500/20 dark:text-emerald-300' 
+                          : 'text-slate-500 dark:text-slate-400 hover:bg-slate-200/60 dark:hover:bg-slate-800'
+                      }`}
+                    >
+                      <span>Precio</span>
+                      {columnaOrden === 'precioVenta' && renderSortIndicator('precioVenta')}
+                    </button>
+                    <button
+                      onClick={() => handleSort('stock')}
+                      className={`px-2.5 py-1 rounded-lg flex items-center gap-1 text-[11px] font-black transition-colors ${
+                        columnaOrden === 'stock' 
+                          ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-500/20 dark:text-emerald-300' 
+                          : 'text-slate-500 dark:text-slate-400 hover:bg-slate-200/60 dark:hover:bg-slate-800'
+                      }`}
+                    >
+                      <span>Stock</span>
+                      {columnaOrden === 'stock' && renderSortIndicator('stock')}
+                    </button>
+                  </div>
+                </div>
+
+                {/* Filas de Producto para Móvil */}
+                {inventarioProcesado.map(prod => (
+                  <div
+                    key={prod.id}
+                    className={`p-3.5 flex items-start gap-3 transition-colors ${
+                      productosSeleccionados.includes(prod.id)
+                        ? 'bg-emerald-500/10 dark:bg-emerald-500/15'
+                        : 'hover:bg-slate-50 dark:hover:bg-slate-800/40'
+                    }`}
+                  >
+                    {/* Checkbox de Selección */}
+                    <div className="pt-1 shrink-0">
+                      <input
+                        type="checkbox"
+                        disabled={!tieneStockDisponible(prod)}
+                        checked={productosSeleccionados.includes(prod.id)}
+                        onChange={() => toggleSeleccionarProducto(prod)}
+                        title={!tieneStockDisponible(prod) ? "Producto sin stock disponible" : "Seleccionar producto"}
+                        className={`w-4 h-4 rounded ${
+                          !tieneStockDisponible(prod)
+                            ? 'opacity-20 cursor-not-allowed accent-slate-400'
+                            : 'accent-emerald-600 cursor-pointer'
+                        }`}
+                      />
+                    </div>
+
+                    {/* Bloque Central: Nombre, Categoría, SKU */}
+                    <div className="flex-1 min-w-0 pr-1">
+                      <span className="font-black text-slate-900 dark:text-white text-sm sm:text-base block truncate leading-tight">
+                        {prod.nombre}
+                      </span>
+                      
+                      <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
+                        <span className="inline-flex rounded-md bg-blue-50 text-blue-700 dark:bg-blue-500/10 dark:text-blue-300 px-1.5 py-0.5 text-[10px] font-bold border border-blue-100 dark:border-blue-900/50">
+                          {normalizarCategoria(prod.categoria)}
+                        </span>
+
+                        {prod.sku && (
+                          <span className="font-mono text-[10px] text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded">
+                            {prod.sku}
+                          </span>
+                        )}
+
+                        {prod.tipoProducto === 'servicio' && (
+                          <span className="text-[9px] text-indigo-500 font-black uppercase tracking-wider">
+                            Servicio
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Bloque Derecho: Precio, Stock y Acciones */}
+                    <div className="flex flex-col items-end gap-1 shrink-0 text-right">
+                      <span className="font-black text-base text-emerald-600 dark:text-emerald-400 leading-tight">
+                        ${(prod.precioVenta || 0).toLocaleString('es-CO')}
+                      </span>
+
+                      <div className="scale-95 origin-right">
+                        {renderStockBadge(prod)}
+                      </div>
+
+                      {/* Botones de acción compactos */}
+                      <div className="flex items-center gap-1 mt-0.5">
+                        <button
+                          onClick={() => abrirEdicion(prod)}
+                          className="p-1 hover:bg-blue-50 dark:hover:bg-blue-500/10 text-slate-400 hover:text-blue-600 rounded-lg transition-colors"
+                          title="Editar producto"
+                        >
+                          <Edit3 size={14} />
+                        </button>
+                        <button
+                          onClick={() => eliminarProducto(prod.id)}
+                          className="p-1 hover:bg-rose-50 dark:hover:bg-rose-500/10 text-slate-400 hover:text-rose-600 rounded-lg transition-colors"
+                          title="Eliminar producto"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+
+                {inventarioProcesado.length === 0 && (
+                  <div className="py-12 text-center text-slate-400 p-4">
+                    <Package className="w-10 h-10 mx-auto mb-2 opacity-30" />
+                    <p className="font-bold text-sm">No se encontraron productos con estos filtros.</p>
+                  </div>
+                )}
+              </div>
+
+              {/* =========================================================
+                  VISTA ESCRITORIO / TABLETS (md:block): TABLA COMPLETA
+                  ========================================================= */}
+              <div className="hidden md:block overflow-x-auto">
                 <table className="w-full text-left border-collapse">
                   <thead>
                     <tr className="border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-[#020617] text-slate-500 dark:text-slate-400 text-xs font-black uppercase tracking-wider select-none">
                       
+                      {/* Casilla Seleccionar Todos */}
+                      <th className="p-4 w-10 text-center">
+                        <input
+                          type="checkbox"
+                          checked={
+                            inventarioProcesado.length > 0 && 
+                            productosSeleccionados.length === inventarioProcesado.filter(p => tieneStockDisponible(p)).length
+                          }
+                          onChange={toggleSeleccionarTodos}
+                          className="w-4 h-4 accent-emerald-600 rounded cursor-pointer"
+                          title="Seleccionar / Deseleccionar todos"
+                        />
+                      </th>
+
                       {/* Columna Categoría */}
                       <th 
                         onClick={() => handleSort('categoria')}
@@ -995,14 +1234,14 @@ export default function InventarioPage() {
                         </div>
                       </th>
 
-                      {/* Columna SKU / Código */}
+                      {/* Columna Precio */}
                       <th 
-                        onClick={() => handleSort('sku')}
+                        onClick={() => handleSort('precioVenta')}
                         className="p-4 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800/80 transition-colors"
                       >
                         <div className="flex items-center gap-1.5">
-                          <span>SKU / Código</span>
-                          {renderSortIndicator('sku')}
+                          <span>Precio Venta</span>
+                          {renderSortIndicator('precioVenta')}
                         </div>
                       </th>
 
@@ -1017,14 +1256,14 @@ export default function InventarioPage() {
                         </div>
                       </th>
 
-                      {/* Columna Precio */}
+                      {/* Columna SKU / Código */}
                       <th 
-                        onClick={() => handleSort('precioVenta')}
+                        onClick={() => handleSort('sku')}
                         className="p-4 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800/80 transition-colors"
                       >
                         <div className="flex items-center gap-1.5">
-                          <span>Precio Venta</span>
-                          {renderSortIndicator('precioVenta')}
+                          <span>SKU / Código</span>
+                          {renderSortIndicator('sku')}
                         </div>
                       </th>
 
@@ -1033,8 +1272,30 @@ export default function InventarioPage() {
                   </thead>
                   <tbody className="divide-y divide-slate-100 dark:divide-slate-800/80 text-sm font-medium">
                     {inventarioProcesado.map(prod => (
-                      <tr key={prod.id} className="hover:bg-slate-50/80 dark:hover:bg-slate-800/50 transition-colors">
-                        
+                      <tr 
+                        key={prod.id} 
+                        className={`transition-colors ${
+                          productosSeleccionados.includes(prod.id)
+                            ? 'bg-emerald-500/10 dark:bg-emerald-500/15'
+                            : 'hover:bg-slate-50/80 dark:hover:bg-slate-800/50'
+                        }`}
+                      >
+                        {/* Checkbox Producto */}
+                        <td className="p-4 text-center">
+                          <input
+                            type="checkbox"
+                            disabled={!tieneStockDisponible(prod)}
+                            checked={productosSeleccionados.includes(prod.id)}
+                            onChange={() => toggleSeleccionarProducto(prod)}
+                            title={!tieneStockDisponible(prod) ? "Producto sin stock disponible" : "Seleccionar producto"}
+                            className={`w-4 h-4 rounded ${
+                              !tieneStockDisponible(prod)
+                                ? 'opacity-20 cursor-not-allowed accent-slate-400'
+                                : 'accent-emerald-600 cursor-pointer'
+                            }`}
+                          />
+                        </td>
+
                         {/* Categoría */}
                         <td className="p-4">
                           <span className="inline-flex rounded-full bg-blue-50 text-blue-700 dark:bg-blue-500/10 dark:text-blue-300 px-3 py-1 text-[11px] font-bold border border-blue-100 dark:border-blue-900/50">
@@ -1050,11 +1311,9 @@ export default function InventarioPage() {
                           )}
                         </td>
 
-                        {/* SKU */}
-                        <td className="p-4">
-                          <span className="font-mono text-xs text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 px-2 py-1 rounded-md">
-                            {prod.sku || 'SIN SKU'}
-                          </span>
+                        {/* Precio */}
+                        <td className="p-4 whitespace-nowrap font-black text-base text-emerald-600 dark:text-emerald-400">
+                          ${(prod.precioVenta || 0).toLocaleString('es-CO')}
                         </td>
 
                         {/* Stock con Badge Inteligente */}
@@ -1062,9 +1321,11 @@ export default function InventarioPage() {
                           {renderStockBadge(prod)}
                         </td>
 
-                        {/* Precio */}
-                        <td className="p-4 whitespace-nowrap font-black text-base text-emerald-600 dark:text-emerald-400">
-                          ${(prod.precioVenta || 0).toLocaleString('es-CO')}
+                        {/* SKU */}
+                        <td className="p-4">
+                          <span className="font-mono text-xs text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 px-2 py-1 rounded-md">
+                            {prod.sku || 'SIN SKU'}
+                          </span>
                         </td>
 
                         {/* Acciones */}
@@ -1092,7 +1353,7 @@ export default function InventarioPage() {
 
                     {inventarioProcesado.length === 0 && (
                       <tr>
-                        <td colSpan={6} className="py-14 text-center text-slate-400">
+                        <td colSpan={7} className="py-14 text-center text-slate-400">
                           <Package className="w-12 h-12 mx-auto mb-2 opacity-30" />
                           <p className="font-bold text-base">No se encontraron productos con estos filtros.</p>
                           {(busqueda || filtrosCategoria.length > 0 || filtrosStock.length > 0) && (
@@ -1116,8 +1377,28 @@ export default function InventarioPage() {
           {vistaActual === 'qr' && (
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
               {inventarioProcesado.map(prod => (
-                <div key={prod.id} className="bg-white dark:bg-[#0f172a] p-5 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col items-center text-center relative group hover:shadow-md transition-shadow">
+                <div key={prod.id} className={`bg-white dark:bg-[#0f172a] p-5 rounded-3xl border shadow-sm flex flex-col items-center text-center relative group hover:shadow-md transition-shadow ${
+                  productosSeleccionados.includes(prod.id) 
+                    ? 'border-emerald-500 ring-2 ring-emerald-500/20 bg-emerald-50/20 dark:bg-emerald-500/5' 
+                    : 'border-slate-200 dark:border-slate-800'
+                }`}>
                   
+                  {/* Checkbox de selección */}
+                  <div className="absolute top-3.5 left-3.5 z-10">
+                    <input
+                      type="checkbox"
+                      disabled={!tieneStockDisponible(prod)}
+                      checked={productosSeleccionados.includes(prod.id)}
+                      onChange={() => toggleSeleccionarProducto(prod)}
+                      title={!tieneStockDisponible(prod) ? "Producto sin stock disponible" : "Seleccionar producto"}
+                      className={`w-4 h-4 rounded ${
+                        !tieneStockDisponible(prod)
+                          ? 'opacity-20 cursor-not-allowed accent-slate-400'
+                          : 'accent-emerald-600 cursor-pointer'
+                      }`}
+                    />
+                  </div>
+
                   <div className="absolute top-3 right-3 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                     <button onClick={() => abrirEdicion(prod)} className="p-2 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg"><Edit3 size={14}/></button>
                     <button onClick={() => eliminarProducto(prod.id)} className="p-2 bg-rose-50 hover:bg-rose-100 text-rose-600 rounded-lg"><Trash2 size={14}/></button>
@@ -1519,6 +1800,56 @@ export default function InventarioPage() {
                 <button onClick={guardarProducto} disabled={guardando} className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-4 rounded-2xl shadow-lg flex justify-center items-center gap-2 text-base">Guardar <CheckCircle2 size={18}/></button>
               </div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* BARRA FLOTANTE DE ACCIONES RÁPIDAS (VENDER / FIAR / SEPARAR) */}
+      {productosSeleccionados.length > 0 && (
+        <div className="fixed bottom-[72px] sm:bottom-6 left-3 right-3 sm:left-auto sm:right-6 max-w-lg bg-slate-950/95 text-white backdrop-blur-xl border border-white/20 p-3 sm:p-3.5 rounded-2xl sm:rounded-3xl shadow-[0_15px_40px_rgba(0,0,0,0.5)] z-[90] flex items-center justify-between gap-2.5 animate-in slide-in-from-bottom-4 duration-200 pointer-events-auto">
+          <div className="flex items-center gap-2 min-w-0">
+            <span className="bg-emerald-500 text-white font-black text-xs px-2.5 py-1 rounded-full shrink-0 shadow-sm">
+              {productosSeleccionados.length}
+            </span>
+            <span className="text-xs font-bold text-slate-200 truncate">
+              {productosSeleccionados.length === 1 ? 'seleccionado' : 'seleccionados'}
+            </span>
+            <button
+              onClick={() => setProductosSeleccionados([])}
+              className="text-[11px] text-slate-400 hover:text-white underline ml-1 cursor-pointer shrink-0"
+              title="Deseleccionar todos"
+            >
+              Limpiar
+            </button>
+          </div>
+
+          <div className="flex items-center gap-1.5 shrink-0">
+            <button
+              onClick={() => despacharA('vender')}
+              className="bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white px-3 py-1.5 sm:px-3.5 sm:py-2 rounded-xl font-black text-xs flex items-center gap-1.5 shadow-md transition-transform active:scale-95 cursor-pointer"
+              title="Cargar productos seleccionados en una nueva Venta"
+            >
+              <ShoppingCart size={13} className="shrink-0" />
+              <span>Vender</span>
+            </button>
+
+            <button
+              onClick={() => despacharA('fiar')}
+              className="bg-rose-600 hover:bg-rose-700 active:bg-rose-800 text-white px-3 py-1.5 sm:px-3.5 sm:py-2 rounded-xl font-black text-xs flex items-center gap-1.5 shadow-md transition-transform active:scale-95 cursor-pointer"
+              title="Cargar productos seleccionados en un nuevo Fiado"
+            >
+              <Banknote size={13} className="shrink-0" />
+              <span>Fiar</span>
+            </button>
+
+            <button
+              onClick={() => despacharA('separe')}
+              className="bg-violet-600 hover:bg-violet-700 active:bg-violet-800 text-white px-3 py-1.5 sm:px-3.5 sm:py-2 rounded-xl font-black text-xs flex items-center gap-1.5 shadow-md transition-transform active:scale-95 cursor-pointer"
+              title="Cargar productos seleccionados en un nuevo Plan Separe"
+            >
+              <Bookmark size={13} className="shrink-0" />
+              <span>Separar</span>
+            </button>
           </div>
         </div>
       )}
