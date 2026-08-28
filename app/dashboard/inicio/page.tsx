@@ -121,7 +121,11 @@ export default function InicioPage() {
       const snapM = await getDocs(qM);
       const listaM: any[] = [];
       snapM.forEach((doc) => listaM.push({ id: doc.id, ...doc.data() }));
-      listaM.sort((a, b) => b.fecha.toMillis() - a.fecha.toMillis());
+      listaM.sort((a, b) => {
+        const tA = a.fecha?.toMillis ? a.fecha.toMillis() : (a.fecha ? new Date(a.fecha).getTime() : 0);
+        const tB = b.fecha?.toMillis ? b.fecha.toMillis() : (b.fecha ? new Date(b.fecha).getTime() : 0);
+        return tB - tA;
+      });
       setTodosMovimientos(listaM);
     } catch (error) { console.error(error); }
   };

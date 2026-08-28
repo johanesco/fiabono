@@ -153,8 +153,8 @@ export default function HistorialPage() {
     if (cliente) {
       setClienteActivo(cliente);
       const movs = todosMovimientos.filter(m => m.clienteId === clienteId).sort((a, b) => {
-        const tA = a.fecha?.toMillis() || 0;
-        const tB = b.fecha?.toMillis() || 0;
+        const tA = a.fecha?.toMillis ? a.fecha.toMillis() : (a.fecha ? new Date(a.fecha).getTime() : 0);
+        const tB = b.fecha?.toMillis ? b.fecha.toMillis() : (b.fecha ? new Date(b.fecha).getTime() : 0);
         return tB - tA;
       });
       setMovimientosCliente(movs);
