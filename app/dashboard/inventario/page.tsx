@@ -266,6 +266,15 @@ export default function InventarioPage() {
   };
 
   const despacharASepare = (productos: any[]) => {
+    if (!datosSesion?.esPro) {
+      setModalUpsell({
+        visible: true,
+        titulo: "Plan Separe Exclusivo PRO Almacén",
+        mensaje: "Aparta mercancía de tus clientes, recibe abonos parciales y gestiona fechas límite con el Plan PRO Almacén.",
+        plan: 'pro'
+      });
+      return;
+    }
     const productosValidos = (productos || []).filter(tieneStockDisponible);
     if (productosValidos.length === 0) {
       toast.error("Los productos seleccionados no tienen stock disponible.");
@@ -707,6 +716,15 @@ export default function InventarioPage() {
   };
 
   const abrirEdicion = (prod: any) => {
+    if (datosSesion?.esGratis && inventario.length > 30) {
+      setModalUpsell({
+        visible: true,
+        titulo: "Catálogo Excedido (Modo Solo Venta)",
+        mensaje: `Tienes ${inventario.length} productos registrados (el límite del Plan Gratuito es 30). Puedes seguir vendiendo y cobrando normalmente, pero para editar o reciclar referencias necesitas estar dentro del límite o pasarte al Plan Comercio.`,
+        plan: 'comercio'
+      });
+      return;
+    }
     setEditandoId(prod.id);
     setNombre(prod.nombre);
     setSku(prod.sku || "");
@@ -3011,9 +3029,10 @@ export default function InventarioPage() {
                 </button>
                 <button
                   onClick={() => despacharASepare(productosSeleccionadosObj)}
-                  className="flex-1 sm:flex-none inline-flex items-center justify-center gap-1 bg-violet-600 hover:bg-violet-500 text-white font-black px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl text-xs uppercase tracking-wider transition-all shadow-md active:scale-95"
+                  className="flex-1 sm:flex-none inline-flex items-center justify-center gap-1 bg-violet-600 hover:bg-violet-500 text-white font-black px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl text-xs uppercase tracking-wider transition-all shadow-md active:scale-95 cursor-pointer"
                 >
                   <Bookmark size={14} /> <span>Separar ({productosSeleccionados.length})</span>
+                  {!datosSesion?.esPro && <Crown size={12} className="text-amber-300 ml-0.5" />}
                 </button>
                 <button
                   onClick={() => setProductosSeleccionados([])}
