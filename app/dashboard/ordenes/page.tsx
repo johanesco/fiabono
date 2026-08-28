@@ -1272,7 +1272,6 @@ ${detalleTexto}*TOTAL: $${orden.total.toLocaleString('es-CO')}*
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {/* Paso 1 */}
             <div className="p-5 rounded-3xl bg-slate-50 dark:bg-[#020617] border border-slate-200/80 dark:border-slate-800 space-y-2.5">
               <div className="w-10 h-10 rounded-2xl bg-blue-100 dark:bg-blue-500/20 text-blue-600 dark:text-blue-400 font-black flex items-center justify-center text-base">
                 1
@@ -1285,7 +1284,6 @@ ${detalleTexto}*TOTAL: $${orden.total.toLocaleString('es-CO')}*
               </p>
             </div>
 
-            {/* Paso 2 */}
             <div className="p-5 rounded-3xl bg-slate-50 dark:bg-[#020617] border border-slate-200/80 dark:border-slate-800 space-y-2.5">
               <div className="w-10 h-10 rounded-2xl bg-amber-100 dark:bg-amber-500/20 text-amber-600 dark:text-amber-400 font-black flex items-center justify-center text-base">
                 2
@@ -1298,7 +1296,6 @@ ${detalleTexto}*TOTAL: $${orden.total.toLocaleString('es-CO')}*
               </p>
             </div>
 
-            {/* Paso 3 */}
             <div className="p-5 rounded-3xl bg-slate-50 dark:bg-[#020617] border border-slate-200/80 dark:border-slate-800 space-y-2.5">
               <div className="w-10 h-10 rounded-2xl bg-emerald-100 dark:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 font-black flex items-center justify-center text-base">
                 3
@@ -1309,59 +1306,6 @@ ${detalleTexto}*TOTAL: $${orden.total.toLocaleString('es-CO')}*
               <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
                 Verificas el dinero y apruebas con 1 clic. El inventario se descuenta y se emite la factura térmica o WhatsApp.
               </p>
-            </div>
-          </div>
-
-          {/* Tarjeta de Ejemplo Visual Interactivo */}
-          <div className="p-5 sm:p-6 bg-gradient-to-r from-amber-50/70 via-orange-50/50 to-white dark:from-amber-950/20 dark:via-orange-950/10 dark:to-[#0f172a] rounded-3xl border border-amber-200 dark:border-amber-900/40 space-y-4">
-            <div className="flex flex-wrap items-center justify-between gap-2 border-b border-amber-200/60 dark:border-amber-900/40 pb-3">
-              <div className="flex items-center gap-2">
-                <span className="text-xs font-black uppercase tracking-wider text-amber-700 dark:text-amber-400">
-                  Ejemplo de Orden Pendiente
-                </span>
-                <span className="text-[10px] bg-rose-500 text-white font-black px-2 py-0.5 rounded-full animate-pulse">
-                  Esperando tu aprobación
-                </span>
-              </div>
-              <span className="text-xs text-slate-400 font-medium">Hace 2 minutos • Registrado por: Carlos (Vendedor 1)</span>
-            </div>
-
-            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-              <div className="space-y-1">
-                <p className="font-black text-base text-slate-900 dark:text-white">
-                  Cliente: Carolina Mendoza (+57 312 456 7890)
-                </p>
-                <p className="text-xs text-slate-600 dark:text-slate-300">
-                  • 1x Vestido Casual Estampado Talla M ($65.000) • 1x Sandalias Cuero #37 ($45.000)
-                </p>
-                <div className="flex items-center gap-2 text-xs font-bold text-slate-500 dark:text-slate-400 pt-1">
-                  <span>Pago: Transferencia Nequi</span>
-                  <span>•</span>
-                  <span>Ref: #849204</span>
-                </div>
-              </div>
-
-              <div className="text-left sm:text-right shrink-0">
-                <span className="text-[10px] uppercase font-bold text-slate-400 block">Total a Recibir</span>
-                <span className="text-2xl font-black text-slate-900 dark:text-white block">$110.000</span>
-              </div>
-            </div>
-
-            <div className="flex flex-wrap gap-2 pt-2 border-t border-amber-200/60 dark:border-amber-900/40">
-              <button
-                type="button"
-                onClick={() => setModalSuscripcionOpen(true)}
-                className="bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs px-4 py-2.5 rounded-xl shadow-sm flex items-center gap-1.5 cursor-pointer active:scale-95"
-              >
-                <CheckCircle2 size={15} /> Aprobar y Registrar en Caja (Demo)
-              </button>
-              <button
-                type="button"
-                onClick={() => setModalSuscripcionOpen(true)}
-                className="bg-rose-50 hover:bg-rose-100 text-rose-600 dark:bg-rose-500/10 dark:text-rose-400 font-bold text-xs px-3.5 py-2.5 rounded-xl border border-rose-200 dark:border-rose-500/20 cursor-pointer"
-              >
-                Rechazar
-              </button>
             </div>
           </div>
         </div>
