@@ -882,6 +882,7 @@ Quedamos pendientes para revisar detalles o responder cualquier duda.
       {/* --- MODALES PEQUEÑOS (NUEVO CLIENTE / SUSCRIPCIÓN) --- */}
       {modalNuevoCliente && (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 z-[600]">
+          <div className="bg-white dark:bg-[#0f172a] p-8 rounded-[2.5rem] w-full max-w-md shadow-2xl border border-slate-100 dark:border-slate-800/60 animate-in zoom-in-95 duration-200">
             <h3 className="text-3xl font-black text-slate-900 dark:text-white mb-6 flex items-center gap-2"><UserCog size={28} /> Registrar Cliente</h3>
             <div className="flex flex-col gap-4 mb-8">
               <input type="text" value={nombreNuevo} onChange={(e) => setNombreNuevo(e.target.value)} placeholder="Nombre completo" className="w-full p-5 bg-slate-50 dark:bg-[#020617] border rounded-2xl font-bold text-lg" />
