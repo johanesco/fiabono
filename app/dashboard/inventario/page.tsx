@@ -504,6 +504,16 @@ export default function InventarioPage() {
   };
 
   const agregarProductoALaCarga = () => {
+    if (datosSesion?.esGratis && (inventario.length + productosEnCarga.length) >= 30) {
+      setModalUpsell({
+        visible: true,
+        titulo: "Límite de 30 Productos Alcanzado",
+        mensaje: "El Plan Gratuito te permite registrar hasta 30 productos en catálogo. Pásate al Plan Comercio para tener inventario ILIMITADO.",
+        plan: 'comercio'
+      });
+      return;
+    }
+
     const erroresNuevos = {
       nombre: '',
       categoria: '',
@@ -617,6 +627,20 @@ export default function InventarioPage() {
           setErrores(erroresNuevos);
           return;
         }
+      }
+    }
+
+    // Validación de límite para Plan Gratuito (máximo 30 productos)
+    if (!editandoId && datosSesion?.esGratis) {
+      const productosNuevosTotales = productosEnCarga.length + (nombre.trim() && precioVenta ? 1 : 0);
+      if ((inventario.length + productosNuevosTotales) > 30) {
+        setModalUpsell({
+          visible: true,
+          titulo: "Límite de 30 Productos Alcanzado",
+          mensaje: `Tienes ${inventario.length} productos y estás intentando agregar ${productosNuevosTotales} más. El Plan Gratuito permite hasta 30 productos en catálogo. Pásate al Plan Comercio para tener inventario ILIMITADO.`,
+          plan: 'comercio'
+        });
+        return;
       }
     }
 
