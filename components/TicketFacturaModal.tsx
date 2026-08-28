@@ -21,7 +21,7 @@ export interface DatosFacturaProps {
   celularCliente?: string;
   registradoPor?: string;
   fecha?: any;
-  tipo: 'venta' | 'fiado' | 'abono' | 'separe' | 'abono_separe';
+  tipo: 'venta' | 'fiado' | 'abono' | 'separe' | 'abono_separe' | 'egreso' | 'entrega_separe';
   detalles?: DetalleFacturaItem[];
   descripcionGeneral?: string;
   montoTotal: number;
@@ -30,7 +30,7 @@ export interface DatosFacturaProps {
   saldoAnterior?: number;
   saldoNuevo?: number;
   idTransaccion?: string;
-  metodoPago?: 'efectivo' | 'transferencia' | 'datafono' | 'credito_externo' | 'fiado';
+  metodoPago?: 'efectivo' | 'transferencia' | 'datafono' | 'credito_externo' | 'fiado' | string;
   referenciaPago?: string;
   subtotal?: number;
   valorIva?: number;
@@ -84,6 +84,8 @@ export default function TicketFacturaModal({ isOpen, onClose, datos }: TicketFac
     if (datos.tipo === 'abono') return 'COMPROBANTE DE ABONO';
     if (datos.tipo === 'separe') return 'COMPROBANTE DE PLAN SEPARE';
     if (datos.tipo === 'abono_separe') return 'ABONO A PLAN SEPARE';
+    if (datos.tipo === 'entrega_separe') return 'ENTREGA DE PLAN SEPARE';
+    if (datos.tipo === 'egreso') return 'COMPROBANTE DE EGRESO / DEVOLUCIÓN';
     return 'COMPROBANTE DE CAJA';
   };
 

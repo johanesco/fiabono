@@ -1048,13 +1048,11 @@ function SepareContenido() {
       if (esInventariable && totalEnCarrito >= (prod.stock || 0)) {
         reproducirSonidoNoEncontrado();
         setMensajeScaneo({ texto: `⚠️ Sin stock disponible (${prod.stock || 0} máx) de "${prod.nombre}"`, tipo: 'error' });
-        setTimeout(() => setMensajeScaneo(null), 2500);
         return;
       }
 
       reproducirSonidoScan();
       setFlashExito(true);
-      setTimeout(() => setFlashExito(false), 300);
 
       const precioUnit = prod.precioVenta !== undefined ? prod.precioVenta : (prod.precio || 0);
 
@@ -1101,7 +1099,6 @@ function SepareContenido() {
     } else {
       reproducirSonidoNoEncontrado();
       setMensajeScaneo({ texto: `Código no reconocido: "${codigoTexto}"`, tipo: 'error' });
-      setTimeout(() => setMensajeScaneo(null), 2500);
     }
 
     setModalEscanner(false);
@@ -1290,6 +1287,28 @@ function SepareContenido() {
       if (puedeVentaDirecta) {
         const docRef = await addDoc(collection(db, "separes"), payloadSepare);
         separeIdFinal = docRef.id;
+
+        // Si hubo abono inicial, registrar el ingreso en la caja contable (colección movimientos)
+        if (abonoInicialNum > 0) {
+          const payloadMovAbono: any = {
+            clienteId: clienteSeleccionado.id,
+            clienteNombre: clienteSeleccionado.nombre,
+            usuarioId: cuentaPrincipalId,
+            tipo: 'abono',
+            subtipo: 'abono_inicial_separe',
+            monto: abonoInicialNum,
+            descripcion: `Abono inicial Plan Separe - ${clienteSeleccionado.nombre}`,
+            detalles: itemsGuardar,
+            fecha: new Date(),
+            registradoPor: vendedorActivo || nombreUsuario || "Vendedor",
+            metodoPago: metodoPago,
+            idSepareOrigen: separeIdFinal
+          };
+          if (metodoPago !== 'efectivo' && subMetodoPago.trim()) payloadMovAbono.subMetodoPago = subMetodoPago.trim();
+          if (metodoPago !== 'efectivo' && referenciaPago.trim()) payloadMovAbono.referenciaPago = referenciaPago.trim();
+
+          await addDoc(collection(db, "movimientos"), payloadMovAbono);
+        }
 
         // Descontar inventario físico de forma atómica y precisa
         const cantidadesPorProducto: Record<string, number> = {};

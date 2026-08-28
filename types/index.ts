@@ -135,15 +135,20 @@ export type TipoMetodoPago = 'efectivo' | 'transferencia' | 'datafono' | 'credit
 export interface Movimiento {
   id: string;
   clienteId: string;
+  clienteNombre?: string;
   usuarioId: string;
-  tipo: 'fiado' | 'abono' | 'venta';
+  tipo: 'fiado' | 'abono' | 'venta' | 'egreso' | 'entrega_separe';
+  subtipo?: string;
+  origen?: string;
   monto: number;
+  valorMercancia?: number;
   descripcion: string;
   detalles?: DetalleMovimiento[];
   saldoResultante?: number;
   fecha: any;
   registradoPor?: string;
-  metodoPago?: TipoMetodoPago;
+  metodoPago?: TipoMetodoPago | string;
+  subMetodoPago?: string;
   referenciaPago?: string;
   subtotal?: number;
   valorIva?: number;
@@ -152,6 +157,7 @@ export interface Movimiento {
   descuentoValor?: number;
   montoDescuento?: number;
   separeId?: string;
+  idSepareOrigen?: string;
 }
 
 export interface DatosSesionContext {

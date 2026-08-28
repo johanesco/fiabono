@@ -432,12 +432,15 @@ Estamos atentos para cualquier consulta.
     try {
       const separeRef = doc(db, "separes", separeSeleccionado.id);
       
-      // 1. Crear movimiento de venta en historial
+      // 1. Crear movimiento de entrega en historial (sin duplicar caja porque el dinero ya ingresó en los abonos)
       const docMov = await addDoc(collection(db, "movimientos"), {
         clienteId: separeSeleccionado.clienteId,
+        clienteNombre: separeSeleccionado.clienteNombre,
         usuarioId: cuentaPrincipalId,
-        tipo: 'venta',
-        monto: separeSeleccionado.total || 0,
+        tipo: 'entrega_separe',
+        origen: 'separe',
+        monto: 0,
+        valorMercancia: separeSeleccionado.total || 0,
         descripcion: `Plan Separe entregado - ${separeSeleccionado.clienteNombre}`,
         detalles: (separeSeleccionado.items || []).map((it: any) => ({
           descripcion: it.descripcion,
@@ -447,7 +450,7 @@ Estamos atentos para cualquier consulta.
         })),
         fecha: new Date(),
         registradoPor: nombreUsuario,
-        metodoPago: 'efectivo',
+        metodoPago: 'separe_liquidado',
         idSepareOrigen: separeSeleccionado.id
       });
 
@@ -460,7 +463,7 @@ Estamos atentos para cualquier consulta.
       });
 
       reproducirSonidoCelebracion();
-      toast.success("¡Plan Separe completado y venta registrada con éxito! 🛍️");
+      toast.success("¡Plan Separe entregado con éxito! 🛍️");
       setModalCompletar(false);
 
       const ticketEntregaDatos: DatosFacturaProps = {

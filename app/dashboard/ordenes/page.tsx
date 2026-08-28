@@ -987,6 +987,28 @@ ${detalleTexto}*TOTAL: $${orden.total.toLocaleString('es-CO')}*
         const docSepare = await addDoc(collection(db, "separes"), payloadSepare);
         idTransaccionGenerada = docSepare.id;
 
+        // Si hubo abono inicial al aprobar la orden, registrarlo en movimientos para que ingrese a caja
+        if (pagoNum && pagoNum > 0) {
+          const payloadMovAbono: any = {
+            clienteId: orden.clienteId || null,
+            clienteNombre: orden.clienteNombre || 'Cliente',
+            usuarioId: cuentaPrincipalId,
+            tipo: 'abono',
+            subtipo: 'abono_inicial_separe',
+            monto: pagoNum,
+            descripcion: `Abono inicial Plan Separe (Aprobado de ${orden.nombreColaborador || 'Colaborador'}) - ${orden.clienteNombre || 'Cliente'}`,
+            detalles: payloadSepare.items,
+            fecha: new Date(),
+            registradoPor: orden.nombreColaborador || "Colaborador",
+            metodoPago: orden.metodoPago || 'efectivo',
+            idSepareOrigen: docSepare.id
+          };
+          if (orden.metodoPago !== 'efectivo' && orden.subMetodoPago) payloadMovAbono.subMetodoPago = orden.subMetodoPago;
+          if (orden.metodoPago !== 'efectivo' && orden.referenciaPago) payloadMovAbono.referenciaPago = orden.referenciaPago;
+
+          await addDoc(collection(db, "movimientos"), payloadMovAbono);
+        }
+
       } else if (orden.tipo === 'fiado' || pagoNum === 0) {
         // 1. Fiado Total
         const resFiado = await API_DB.registrarMovimientoConTransaccion(

@@ -58,9 +58,19 @@ export default function ReportesPage() {
   const diaActualNum = hoyDate.getDay() === 0 ? 6 : hoyDate.getDay() - 1;
   const inicioSemanaDate = new Date(hoyDate.getFullYear(), hoyDate.getMonth(), hoyDate.getDate() - diaActualNum);
 
+  // Helper seguro para obtener un objeto Date sin fallar por tipos de Firestore / JSON
+  const obtenerFechaJS = (fecha: any): Date => {
+    if (!fecha) return new Date();
+    if (typeof fecha.toDate === 'function') return fecha.toDate();
+    if (fecha instanceof Date) return fecha;
+    if (fecha?.seconds) return new Date(fecha.seconds * 1000);
+    return new Date(fecha);
+  };
+
   const filtrarPorTiempo = (movs: Movimiento[], tipoFiltro: 'hoy' | 'semana' | 'mes' | 'ano' | 'todos') => {
     return movs.filter(mov => {
-      const ms = mov.fecha?.toMillis ? mov.fecha.toMillis() : (mov.fecha instanceof Date ? mov.fecha.getTime() : 0);
+      const fJS = obtenerFechaJS(mov.fecha);
+      const ms = fJS.getTime();
       const inicioHoy = new Date(hoyDate.getFullYear(), hoyDate.getMonth(), hoyDate.getDate()).getTime();
       const inicioSemana = inicioSemanaDate.getTime();
       const inicioMes = new Date(hoyDate.getFullYear(), hoyDate.getMonth(), 1).getTime();
@@ -103,17 +113,22 @@ export default function ReportesPage() {
   const movsVentas = movimientosGenerales.filter(m => m.tipo === 'venta');
   const movsFiados = movimientosGenerales.filter(m => m.tipo === 'fiado');
   const movsAbonos = movimientosGenerales.filter(m => m.tipo === 'abono');
+  const movsEgresos = movimientosGenerales.filter(m => m.tipo === 'egreso');
 
-  const totalVentas = movsVentas.reduce((acc, m) => acc + m.monto, 0);
+  const totalVentas = movsVentas.reduce((acc, m) => acc + (m.monto || 0), 0);
   const countVentas = movsVentas.length;
 
-  const totalFiados = movsFiados.reduce((acc, m) => acc + m.monto, 0);
+  const totalFiados = movsFiados.reduce((acc, m) => acc + (m.monto || 0), 0);
   const countFiados = movsFiados.length;
 
-  const totalAbonos = movsAbonos.reduce((acc, m) => acc + m.monto, 0);
+  const totalAbonos = movsAbonos.reduce((acc, m) => acc + (m.monto || 0), 0);
   const countAbonos = movsAbonos.length;
 
-  const ingresosCaja = totalVentas + totalAbonos;
+  const totalEgresos = movsEgresos.reduce((acc, m) => acc + (m.monto || 0), 0);
+  const countEgresos = movsEgresos.length;
+
+  // Dinero Neto en Caja: (Ventas Directas + Abonos) - Egresos/Devoluciones
+  const ingresosCaja = Math.max(0, (totalVentas + totalAbonos) - totalEgresos);
   const countIngresos = countVentas + countAbonos;
 
   const obtenerDatosGrafica = () => {
@@ -126,13 +141,13 @@ export default function ReportesPage() {
       const datos = dias.map(d => ({ label: d, ventas: 0, fiados: 0, abonos: 0 }));
       movsGrafica.forEach(mov => {
         if (mov.fecha) {
-          const d = mov.fecha.toDate();
+          const d = obtenerFechaJS(mov.fecha);
           let jsDay = d.getDay();
           let idx = jsDay === 0 ? 6 : jsDay - 1;
           if (datos[idx]) {
-            if (mov.tipo === 'venta') datos[idx].ventas += mov.monto;
-            if (mov.tipo === 'fiado') datos[idx].fiados += mov.monto;
-            if (mov.tipo === 'abono') datos[idx].abonos += mov.monto;
+            if (mov.tipo === 'venta') datos[idx].ventas += (mov.monto || 0);
+            if (mov.tipo === 'fiado') datos[idx].fiados += (mov.monto || 0);
+            if (mov.tipo === 'abono') datos[idx].abonos += (mov.monto || 0);
           }
         }
       });
@@ -142,13 +157,13 @@ export default function ReportesPage() {
       const datos = semanas.map(s => ({ label: s, ventas: 0, fiados: 0, abonos: 0 }));
       movsGrafica.forEach(mov => {
         if (mov.fecha) {
-          const d = mov.fecha.toDate();
+          const d = obtenerFechaJS(mov.fecha);
           const diaMes = d.getDate();
           let idx = Math.min(Math.floor((diaMes - 1) / 7), 3);
           if (datos[idx]) {
-            if (mov.tipo === 'venta') datos[idx].ventas += mov.monto;
-            if (mov.tipo === 'fiado') datos[idx].fiados += mov.monto;
-            if (mov.tipo === 'abono') datos[idx].abonos += mov.monto;
+            if (mov.tipo === 'venta') datos[idx].ventas += (mov.monto || 0);
+            if (mov.tipo === 'fiado') datos[idx].fiados += (mov.monto || 0);
+            if (mov.tipo === 'abono') datos[idx].abonos += (mov.monto || 0);
           }
         }
       });
@@ -158,12 +173,12 @@ export default function ReportesPage() {
       const datos = meses.map(m => ({ label: m, ventas: 0, fiados: 0, abonos: 0 }));
       movsGrafica.forEach(mov => {
         if (mov.fecha) {
-          const d = mov.fecha.toDate();
+          const d = obtenerFechaJS(mov.fecha);
           let idx = d.getMonth();
           if (datos[idx]) {
-            if (mov.tipo === 'venta') datos[idx].ventas += mov.monto;
-            if (mov.tipo === 'fiado') datos[idx].fiados += mov.monto;
-            if (mov.tipo === 'abono') datos[idx].abonos += mov.monto;
+            if (mov.tipo === 'venta') datos[idx].ventas += (mov.monto || 0);
+            if (mov.tipo === 'fiado') datos[idx].fiados += (mov.monto || 0);
+            if (mov.tipo === 'abono') datos[idx].abonos += (mov.monto || 0);
           }
         }
       });
@@ -472,10 +487,17 @@ export default function ReportesPage() {
         <div className="bg-gradient-to-br from-slate-800 to-slate-900 p-6 rounded-[2rem] shadow-lg flex flex-col justify-between text-white border border-slate-700">
           <div className="flex justify-between items-start mb-2">
             <div className="flex flex-col gap-1.5">
-              <span className="text-[11px] font-black uppercase tracking-widest text-slate-300 opacity-90">Ingresos (V+A)</span>
-              <span className="inline-block bg-white/15 backdrop-blur-md px-2.5 py-0.5 rounded-lg text-[10px] font-bold w-max shadow-sm border border-white/5 text-slate-300">
-                {countIngresos} {countIngresos === 1 ? 'movimiento en caja' : 'movimientos en caja'}
-              </span>
+              <span className="text-[11px] font-black uppercase tracking-widest text-slate-300 opacity-90">Dinero Neto en Caja</span>
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <span className="inline-block bg-white/15 backdrop-blur-md px-2.5 py-0.5 rounded-lg text-[10px] font-bold w-max shadow-sm border border-white/5 text-slate-300">
+                  {countIngresos} {countIngresos === 1 ? 'ingreso' : 'ingresos'}
+                </span>
+                {totalEgresos > 0 && (
+                  <span className="inline-block bg-rose-500/25 text-rose-300 border border-rose-500/30 px-2 py-0.5 rounded-lg text-[10px] font-bold">
+                    -${totalEgresos.toLocaleString('es-CO')} devoluciones
+                  </span>
+                )}
+              </div>
             </div>
             <div className="p-3 bg-white/10 backdrop-blur-sm rounded-2xl shrink-0"><TrendingUp size={20}/></div>
           </div>
