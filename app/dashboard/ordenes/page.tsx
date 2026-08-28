@@ -39,8 +39,13 @@ import {
   Bookmark,
   Camera,
   RotateCcw,
-  Upload
+  Upload,
+  Crown,
+  Sparkles,
+  ShieldCheck,
+  Users
 } from "lucide-react";
+import ModalSuscripcion from "@/components/ModalSuscripcion";
 
 export default function OrdenesPage() {
   const { datosSesion } = useAuth();
@@ -53,6 +58,10 @@ export default function OrdenesPage() {
   const puedeAplicarDescuentos = esAdmin;
   const nombreNegocio = datosSesion?.nombreNegocio || "Mi Negocio";
   const nombreUsuario = datosSesion?.nombreUsuario || "Vendedor";
+
+  // Estados de Suscripción / Paywall
+  const [modalSuscripcionOpen, setModalSuscripcionOpen] = useState(false);
+  const [planInicialSuscripcion, setPlanInicialSuscripcion] = useState<'comercio' | 'pro'>('comercio');
 
   // Estados de Órdenes
   const [ordenes, setOrdenes] = useState<OrdenPendiente[]>([]);
@@ -1202,6 +1211,229 @@ ${detalleTexto}*TOTAL: $${orden.total.toLocaleString('es-CO')}*
       minute: '2-digit'
     });
   };
+
+  // =========================================================================
+  // SI ES PLAN GRATIS: MUESTRA LA PANTALLA PERSUASIVA DEL MÓDULO DE ÓRDENES
+  // =========================================================================
+  if (datosSesion?.esGratis && !datosSesion?.esPro && !datosSesion?.esComercio) {
+    return (
+      <div className="flex flex-col gap-6 animate-in fade-in duration-500 max-w-6xl mx-auto w-full pb-16">
+        {/* Cabecera Principal con Badge */}
+        <div className="bg-gradient-to-br from-amber-500 via-orange-600 to-slate-900 text-white p-6 sm:p-10 rounded-[2.5rem] shadow-2xl border border-white/10 relative overflow-hidden">
+          <div className="absolute right-0 top-0 -mt-10 -mr-10 w-60 h-60 bg-white/10 rounded-full blur-3xl pointer-events-none" />
+          
+          <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-6 relative z-10">
+            <div className="space-y-2 max-w-2xl">
+              <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-white/20 backdrop-blur-md text-amber-200 text-xs font-black uppercase tracking-wider border border-white/20">
+                <Store size={14} /> Módulo para Colaboradores y Control de Caja
+              </div>
+              <h1 className="text-2xl sm:text-4xl font-black tracking-tight leading-tight">
+                Supervisa a tus vendedores y evita descuadres de dinero
+              </h1>
+              <p className="text-amber-100 text-xs sm:text-base leading-relaxed">
+                El Módulo de Órdenes te permite delegar la atención en empleados mientras mantienes el control total de cada peso que entra a tu caja.
+              </p>
+            </div>
+
+            <div className="flex flex-col gap-2.5 w-full md:w-auto shrink-0">
+              <button
+                type="button"
+                onClick={() => {
+                  setPlanInicialSuscripcion('comercio');
+                  setModalSuscripcionOpen(true);
+                }}
+                className="w-full md:w-auto bg-white text-slate-900 hover:bg-amber-50 font-black text-sm sm:text-base py-4 px-8 rounded-2xl shadow-xl transition-all transform active:scale-95 flex items-center justify-center gap-2 cursor-pointer"
+              >
+                <Zap size={18} className="text-amber-500 fill-current" /> Activar Plan Comercio ($19.900/mes)
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setPlanInicialSuscripcion('pro');
+                  setModalSuscripcionOpen(true);
+                }}
+                className="w-full md:w-auto bg-amber-400/20 hover:bg-amber-400/30 text-white font-bold text-xs py-2.5 px-4 rounded-xl border border-white/20 transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
+              >
+                <Crown size={14} className="text-amber-300" /> Ver Plan PRO Almacén ($44.900/mes)
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* ¿Cómo funciona? - Paso a Paso con Ejemplo Real */}
+        <div className="bg-white dark:bg-[#0f172a] p-6 sm:p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-800 shadow-sm space-y-6">
+          <div>
+            <span className="text-[11px] font-black uppercase tracking-wider text-amber-600 dark:text-amber-400 block mb-1">
+              Flujo de Trabajo Seguro
+            </span>
+            <h3 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white">
+              ¿Cómo funciona el Módulo de Órdenes en la práctica?
+            </h3>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {/* Paso 1 */}
+            <div className="p-5 rounded-3xl bg-slate-50 dark:bg-[#020617] border border-slate-200/80 dark:border-slate-800 space-y-2.5">
+              <div className="w-10 h-10 rounded-2xl bg-blue-100 dark:bg-blue-500/20 text-blue-600 dark:text-blue-400 font-black flex items-center justify-center text-base">
+                1
+              </div>
+              <h4 className="font-black text-sm sm:text-base text-slate-900 dark:text-white">
+                El colaborador atiende al cliente
+              </h4>
+              <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
+                Tu empleado (cajero o vendedor) ingresa desde su celular o terminal y digita la venta, fiado o plan separe.
+              </p>
+            </div>
+
+            {/* Paso 2 */}
+            <div className="p-5 rounded-3xl bg-slate-50 dark:bg-[#020617] border border-slate-200/80 dark:border-slate-800 space-y-2.5">
+              <div className="w-10 h-10 rounded-2xl bg-amber-100 dark:bg-amber-500/20 text-amber-600 dark:text-amber-400 font-black flex items-center justify-center text-base">
+                2
+              </div>
+              <h4 className="font-black text-sm sm:text-base text-slate-900 dark:text-white">
+                La orden llega a tu panel en espera
+              </h4>
+              <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
+                Tú ves la orden en tiempo real con los productos, el valor exacto y el método de pago (Efectivo, Nequi, etc.).
+              </p>
+            </div>
+
+            {/* Paso 3 */}
+            <div className="p-5 rounded-3xl bg-slate-50 dark:bg-[#020617] border border-slate-200/80 dark:border-slate-800 space-y-2.5">
+              <div className="w-10 h-10 rounded-2xl bg-emerald-100 dark:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 font-black flex items-center justify-center text-base">
+                3
+              </div>
+              <h4 className="font-black text-sm sm:text-base text-slate-900 dark:text-white">
+                Tú apruebas y se registra en caja
+              </h4>
+              <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
+                Verificas el dinero y apruebas con 1 clic. El inventario se descuenta y se emite la factura térmica o WhatsApp.
+              </p>
+            </div>
+          </div>
+
+          {/* Tarjeta de Ejemplo Visual Interactivo */}
+          <div className="p-5 sm:p-6 bg-gradient-to-r from-amber-50/70 via-orange-50/50 to-white dark:from-amber-950/20 dark:via-orange-950/10 dark:to-[#0f172a] rounded-3xl border border-amber-200 dark:border-amber-900/40 space-y-4">
+            <div className="flex flex-wrap items-center justify-between gap-2 border-b border-amber-200/60 dark:border-amber-900/40 pb-3">
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-black uppercase tracking-wider text-amber-700 dark:text-amber-400">
+                  Ejemplo de Orden Pendiente
+                </span>
+                <span className="text-[10px] bg-rose-500 text-white font-black px-2 py-0.5 rounded-full animate-pulse">
+                  Esperando tu aprobación
+                </span>
+              </div>
+              <span className="text-xs text-slate-400 font-medium">Hace 2 minutos • Registrado por: Carlos (Vendedor 1)</span>
+            </div>
+
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+              <div className="space-y-1">
+                <p className="font-black text-base text-slate-900 dark:text-white">
+                  Cliente: Carolina Mendoza (+57 312 456 7890)
+                </p>
+                <p className="text-xs text-slate-600 dark:text-slate-300">
+                  • 1x Vestido Casual Estampado Talla M ($65.000) • 1x Sandalias Cuero #37 ($45.000)
+                </p>
+                <div className="flex items-center gap-2 text-xs font-bold text-slate-500 dark:text-slate-400 pt-1">
+                  <span>Pago: Transferencia Nequi</span>
+                  <span>•</span>
+                  <span>Ref: #849204</span>
+                </div>
+              </div>
+
+              <div className="text-left sm:text-right shrink-0">
+                <span className="text-[10px] uppercase font-bold text-slate-400 block">Total a Recibir</span>
+                <span className="text-2xl font-black text-slate-900 dark:text-white block">$110.000</span>
+              </div>
+            </div>
+
+            <div className="flex flex-wrap gap-2 pt-2 border-t border-amber-200/60 dark:border-amber-900/40">
+              <button
+                type="button"
+                onClick={() => setModalSuscripcionOpen(true)}
+                className="bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs px-4 py-2.5 rounded-xl shadow-sm flex items-center gap-1.5 cursor-pointer active:scale-95"
+              >
+                <CheckCircle2 size={15} /> Aprobar y Registrar en Caja (Demo)
+              </button>
+              <button
+                type="button"
+                onClick={() => setModalSuscripcionOpen(true)}
+                className="bg-rose-50 hover:bg-rose-100 text-rose-600 dark:bg-rose-500/10 dark:text-rose-400 font-bold text-xs px-3.5 py-2.5 rounded-xl border border-rose-200 dark:border-rose-500/20 cursor-pointer"
+              >
+                Rechazar
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* Comparativa de Planes para este Módulo */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="p-6 bg-white dark:bg-[#0f172a] rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-3">
+            <div className="flex items-center justify-between">
+              <h4 className="font-black text-lg text-slate-900 dark:text-white flex items-center gap-2">
+                <Store className="text-blue-500" size={20} /> Plan Comercio
+              </h4>
+              <span className="text-sm font-black text-blue-600 dark:text-blue-400">$19.900/mes</span>
+            </div>
+            <p className="text-xs text-slate-500 dark:text-slate-400">
+              Ideal para tiendas de barrio y minimarkets con 1 cajero o empleado adicional.
+            </p>
+            <ul className="text-xs space-y-1.5 text-slate-600 dark:text-slate-300 font-medium">
+              <li className="flex items-center gap-2">✓ <strong>1 Colaborador</strong> con usuario y contraseña propios</li>
+              <li className="flex items-center gap-2">✓ <strong>Módulo de Órdenes</strong> con aprobación del dueño</li>
+              <li className="flex items-center gap-2">✓ Clientes e Inventario <strong>100% Ilimitados</strong></li>
+              <li className="flex items-center gap-2">✓ Factura térmica con logo y comprobantes por WhatsApp</li>
+            </ul>
+            <button
+              type="button"
+              onClick={() => {
+                setPlanInicialSuscripcion('comercio');
+                setModalSuscripcionOpen(true);
+              }}
+              className="w-full mt-2 bg-blue-600 hover:bg-blue-700 text-white font-black text-xs py-3 rounded-xl shadow-md transition-all active:scale-95 cursor-pointer"
+            >
+              Elegir Plan Comercio
+            </button>
+          </div>
+
+          <div className="p-6 bg-gradient-to-br from-purple-50 via-indigo-50/50 to-white dark:from-purple-950/20 dark:via-indigo-950/10 dark:to-[#0f172a] rounded-3xl border border-purple-200 dark:border-purple-800/60 shadow-sm space-y-3">
+            <div className="flex items-center justify-between">
+              <h4 className="font-black text-lg text-slate-900 dark:text-white flex items-center gap-2">
+                <Crown className="text-amber-500 fill-current" size={20} /> Plan PRO Almacén
+              </h4>
+              <span className="text-sm font-black text-purple-600 dark:text-purple-400">$44.900/mes</span>
+            </div>
+            <p className="text-xs text-slate-500 dark:text-slate-400">
+              Para almacenes de ropa, calzado, tecnología y boutiques con múltiples vendedores.
+            </p>
+            <ul className="text-xs space-y-1.5 text-slate-600 dark:text-slate-300 font-medium">
+              <li className="flex items-center gap-2">✓ <strong>Hasta 4 Colaboradores</strong> independientes</li>
+              <li className="flex items-center gap-2">✓ Modo Terminal Multivendedor con reportes por vendedor</li>
+              <li className="flex items-center gap-2">✓ <strong>Plan Separe completo</strong> con fechas límite y fotos</li>
+              <li className="flex items-center gap-2">✓ Generador e impresor de <strong>Etiquetas QR Adhesivas</strong></li>
+            </ul>
+            <button
+              type="button"
+              onClick={() => {
+                setPlanInicialSuscripcion('pro');
+                setModalSuscripcionOpen(true);
+              }}
+              className="w-full mt-2 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 text-white font-black text-xs py-3 rounded-xl shadow-md transition-all active:scale-95 cursor-pointer"
+            >
+              Elegir Plan PRO Almacén
+            </button>
+          </div>
+        </div>
+
+        <ModalSuscripcion
+          isOpen={modalSuscripcionOpen}
+          onClose={() => setModalSuscripcionOpen(false)}
+          cuentaPrincipalId={cuentaPrincipalId || ""}
+          planInicial={planInicialSuscripcion}
+        />
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col w-full h-full bg-slate-50 dark:bg-[#020617] md:rounded-[2.5rem] overflow-hidden md:border md:border-slate-100 dark:md:border-slate-800/60 shadow-none md:shadow-2xl animate-in fade-in duration-300">
