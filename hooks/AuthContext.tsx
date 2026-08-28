@@ -38,10 +38,33 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         if (data.rol === 'cajero') {
           idParaConsultar = data.adminId;
           const adminDoc = await getDoc(doc(db, "usuarios", idParaConsultar));
-          if (adminDoc.exists()) adminData = adminDoc.data();
+          if (adminDoc.exists()) {
+            adminData = adminDoc.data();
+          } else {
+            throw new Error("NegocioNoExiste");
+          }
+
+          // Validar si el negocio está en plan gratuito (no permite colaboradores)
+          let planAdmin = (adminData.plan || 'gratis').toLowerCase();
+          if (planAdmin === 'basico') planAdmin = 'gratis';
+
+          if ((planAdmin === 'pro' || planAdmin === 'comercio') && adminData.planVence) {
+            const timeVence = adminData.planVence.toDate ? adminData.planVence.toDate().getTime() : new Date(adminData.planVence).getTime();
+            const timeRemaining = timeVence - new Date().getTime();
+            const daysLeft = Math.ceil(timeRemaining / (1000 * 3600 * 24));
+            if (daysLeft <= 0) {
+              planAdmin = 'gratis';
+              await updateDoc(doc(db, "usuarios", idParaConsultar), { plan: 'gratis' });
+            }
+          }
+
+          // REGLA CRÍTICA DE NEGOCIO: Si el negocio está en Plan Gratis, el colaborador no puede acceder
+          if (planAdmin === 'gratis') {
+            throw new Error("PlanGratisSinColaboradores");
+          }
         }
 
-        // Validar expiración plan
+        // Validar expiración plan de la cuenta principal
         let planRaw = (adminData.plan || 'gratis').toLowerCase();
         if (planRaw === 'basico') planRaw = 'gratis';
         let planActual = planRaw; // 'gratis' | 'comercio' | 'pro'

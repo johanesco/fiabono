@@ -87,6 +87,7 @@ export default function PerfilPage() {
   const [modalHorariosOpen, setModalHorariosOpen] = useState(false);
   const [colabParaHorarios, setColabParaHorarios] = useState<any | null>(null);
   const [modalSuscripcionOpen, setModalSuscripcionOpen] = useState(false);
+  const [planInicialSuscripcion, setPlanInicialSuscripcion] = useState<'comercio' | 'pro'>('comercio');
   const [appInstalada, setAppInstalada] = useState(false);
   const [modalInstalarApp, setModalInstalarApp] = useState(false);
 
@@ -280,56 +281,101 @@ export default function PerfilPage() {
     const estaActivo = colaborador.activo === true || colaborador.activo === undefined;
     const nuevoEstado = !estaActivo;
     
-    if (nuevoEstado === true && planActual === 'basico') {
-        const activos = colaboradoresRegistrados.filter(c => c.activo === true || c.activo === undefined).length;
-        if (activos >= 1) {
-            abrirUpsell("Límite de Colaboradores", "En el plan básico solo puedes tener 1 colaborador ACTIVO a la vez. Apaga al actual para encender a otro, o pásate a PRO.");
-            return;
-        }
+    // Si intenta ACTIVAR / HABILITAR al colaborador:
+    if (nuevoEstado === true) {
+      const esGratis = planActual === 'gratis' || planActual === 'basico';
+      const esComercio = planActual === 'comercio';
+      const esPro = planActual === 'pro';
+
+      if (esGratis) {
+        setPlanInicialSuscripcion('comercio');
+        setModalSuscripcionOpen(true);
+        toast.error("El Plan Gratuito no permite colaboradores activos. Mejora al Plan Comercio para habilitar a tu colaborador.");
+        return;
+      }
+
+      const activos = colaboradoresRegistrados.filter(c => c.id !== colaborador.id && (c.activo === true || c.activo === undefined)).length;
+
+      if (esComercio && activos >= 1) {
+        setPlanInicialSuscripcion('pro');
+        setModalSuscripcionOpen(true);
+        toast.error("Tu Plan Comercio solo permite 1 colaborador activo a la vez. Apaga al colaborador actual o mejora al Plan PRO Almacén para tener hasta 4.");
+        return;
+      }
+
+      if (esPro && activos >= 4) {
+        setModalAvisoColaborador({
+          visible: true,
+          titulo: "Límite Alcanzado",
+          mensaje: "Tu Plan PRO Almacén permite un máximo de 4 colaboradores activos simultáneamente. Apaga a uno de los activos si deseas habilitar a este usuario.",
+          icono: 'error'
+        });
+        return;
+      }
     }
     
     setColaboradoresRegistrados(prev => prev.map(c => c.id === colaborador.id ? { ...c, activo: nuevoEstado } : c));
-    try { await updateDoc(doc(db, "usuarios", colaborador.id), { activo: nuevoEstado }); } 
-    catch (error) { cargarListaColaboradores(adminId); }
+    try { 
+      await updateDoc(doc(db, "usuarios", colaborador.id), { activo: nuevoEstado }); 
+      toast.success(nuevoEstado ? "Colaborador habilitado correctamente" : "Colaborador deshabilitado");
+    } 
+    catch (error) { 
+      cargarListaColaboradores(adminId); 
+    }
   };
 
   const guardarColaborador = async () => {
     setErrorFormColaborador({ usuarioAcceso: "", general: "" });
     if(!formColaborador.nombre.trim()) return setErrorFormColaborador(p => ({...p, general: "El nombre es obligatorio."}));
     
+    const esGratis = planActual === 'gratis' || planActual === 'basico';
+    const esComercio = planActual === 'comercio';
+    const esPro = planActual === 'pro';
+
     if (!colaboradorEnEdicion) {
       if(!formColaborador.usuarioAcceso.trim() || !formColaborador.password.trim() || !formColaborador.confirmPassword.trim()) {
         return setErrorFormColaborador(p => ({...p, general: "Llena todos los campos."}));
       }
       if(formColaborador.password.length < 6) return setErrorFormColaborador(p => ({...p, general: "La contraseña debe tener mínimo 6 caracteres."}));
       if(formColaborador.password !== formColaborador.confirmPassword) return setErrorFormColaborador(p => ({...p, general: "Las contraseñas no coinciden."}));
-      
-      const esGratis = planActual === 'gratis' || planActual === 'basico';
-      const esComercio = planActual === 'comercio';
 
-      if (esGratis && colaboradoresRegistrados.length >= 0) {
+      if (esGratis) {
         setModoCrearColaborador(false);
+        setPlanInicialSuscripcion('comercio');
         setModalSuscripcionOpen(true);
-        toast.error("El plan Gratis no incluye usuarios colaboradores. Mejora al Plan Comercio para agregar tu primer colaborador.");
+        toast.error("El Plan Gratis no incluye colaboradores. Mejora al Plan Comercio para agregar a tu primer colaborador.");
         return;
       }
       if (esComercio && colaboradoresRegistrados.length >= 1) {
         setModoCrearColaborador(false);
+        setPlanInicialSuscripcion('pro');
         setModalSuscripcionOpen(true);
         toast.error("Tu Plan Comercio permite 1 colaborador. Mejora al Plan PRO Almacén para tener hasta 4 colaboradores.");
         return;
       }
-      if (planActual === 'pro' && colaboradoresRegistrados.length >= 4) {
-        return setModalAvisoColaborador({ visible: true, titulo: "Límite Alcanzado", mensaje: "Tu plan PRO permite un máximo de 4 colaboradores simultáneos para tu negocio.", icono: 'error' });
+      if (esPro && colaboradoresRegistrados.length >= 4) {
+        return setModalAvisoColaborador({ 
+          visible: true, 
+          titulo: "Límite Alcanzado", 
+          mensaje: "Tu Plan PRO Almacén permite un máximo de 4 colaboradores simultáneos para tu negocio.", 
+          icono: 'error' 
+        });
       }
     }
+
+    // Asegurar que si no es PRO, los permisos exclusivos no queden guardados
+    const permisosSanitizados: PermisosColaborador = {
+      ...formColaborador.permisos,
+      terminalMultivendedor: esPro ? formColaborador.permisos.terminalMultivendedor : false,
+      planSepare: esPro ? (formColaborador.permisos.planSepare ?? false) : false
+    };
 
     setCreandoColaborador(true);
     try {
       if (colaboradorEnEdicion) {
         await updateDoc(doc(db, "usuarios", colaboradorEnEdicion.id), {
           nombreUsuario: formColaborador.nombre.trim(),
-          permisos: formColaborador.permisos
+          permisos: permisosSanitizados
         });
         setModalAvisoColaborador({ visible: true, titulo: "Colaborador Actualizado", mensaje: `Los datos de ${formColaborador.nombre} se han actualizado correctamente.`, icono: 'exito' });
       } else {
@@ -341,12 +387,12 @@ export default function PerfilPage() {
         
         await setDoc(doc(db, "usuarios", cred.user.uid), { 
           nombreUsuario: formColaborador.nombre.trim(), email: correoGenerado, rol: "cajero",
-          adminId: adminId, permisos: formColaborador.permisos, activo: true
+          adminId: adminId, permisos: permisosSanitizados, activo: true
         });
         await secondaryAuthObj.signOut();
         setModalAvisoColaborador({ visible: true, titulo: "¡Acceso Creado!", mensaje: `El colaborador fue creado exitosamente.\n\nUsuario para entrar: \n${correoGenerado}`, icono: 'exito' });
       }
-      setFormColaborador({ nombre:"", usuarioAcceso:"", password:"", confirmPassword: "", permisos: { verCelulares: false, verDirectorio: false, verReportes: false, ventaDirecta: false, abonar: false, editarInventario: false, terminalMultivendedor: false } });
+      setFormColaborador({ nombre:"", usuarioAcceso:"", password:"", confirmPassword: "", permisos: { verCelulares: false, verDirectorio: false, verReportes: false, ventaDirecta: false, abonar: false, editarInventario: false, terminalMultivendedor: false, modificarPrecios: false, aplicarDescuentos: false, planSepare: false } });
       setModoCrearColaborador(false); setColaboradorEnEdicion(null);
       cargarListaColaboradores(adminId);
     } catch (error: any) {
@@ -497,102 +543,210 @@ export default function PerfilPage() {
             </div>
           </div>
 
-          <ModalSuscripcion isOpen={modalSuscripcionOpen} onClose={() => setModalSuscripcionOpen(false)} cuentaPrincipalId={usuarioAuth ? usuarioAuth.uid : (adminId || "")} />
+          <ModalSuscripcion 
+            isOpen={modalSuscripcionOpen} 
+            onClose={() => setModalSuscripcionOpen(false)} 
+            cuentaPrincipalId={usuarioAuth ? usuarioAuth.uid : (adminId || "")} 
+            planInicial={planInicialSuscripcion}
+          />
 
           {/* COLABORADORES */}
           <div className="bg-white dark:bg-[#0f172a] p-6 sm:p-8 rounded-[2rem] shadow-sm border border-slate-100 dark:border-slate-800/60">
             <div className="flex justify-between items-center mb-6 border-b border-slate-100 dark:border-slate-800/60 pb-4">
-              <h3 className="font-black text-lg text-slate-800 dark:text-slate-100 flex items-center gap-2"><UserPlus size={20} className="text-blue-500 shrink-0"/> Colaboradores</h3>
+              <div className="flex items-center gap-2.5">
+                <div className="p-2.5 bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400 rounded-xl">
+                  <UserPlus size={20} className="shrink-0"/>
+                </div>
+                <div>
+                  <h3 className="font-black text-lg text-slate-800 dark:text-slate-100 flex items-center gap-2">
+                    Colaboradores y Empleados
+                  </h3>
+                  <p className="text-xs text-slate-400 font-medium">
+                    {planActual === 'pro' 
+                      ? `Plan PRO Almacén: ${colaboradoresRegistrados.filter(c => c.activo !== false).length} de 4 activos` 
+                      : (planActual === 'comercio' 
+                        ? `Plan Comercio: ${colaboradoresRegistrados.filter(c => c.activo !== false).length} de 1 activo` 
+                        : 'Plan Gratuito: 0 colaboradores incluidos')}
+                  </p>
+                </div>
+              </div>
               {colaboradoresRegistrados.length > 0 && (
-                <button onClick={() => setMostrarColaboradores(!mostrarColaboradores)} className="text-sm font-bold text-blue-600 hover:text-blue-700 flex items-center gap-1 transition-colors bg-blue-50 dark:bg-blue-500/10 px-3 py-1.5 rounded-lg shrink-0">
+                <button onClick={() => setMostrarColaboradores(!mostrarColaboradores)} className="text-sm font-bold text-blue-600 hover:text-blue-700 flex items-center gap-1 transition-colors bg-blue-50 dark:bg-blue-500/10 px-3 py-1.5 rounded-lg shrink-0 cursor-pointer">
                   {mostrarColaboradores ? 'Ocultar' : 'Ver todos'} {mostrarColaboradores ? <ChevronUp size={16}/> : <ChevronDown size={16}/>}
                 </button>
               )}
             </div>
             
+            {/* ALERTA DE DOWNGRADE: SI ESTÁ EN PLAN GRATIS Y TIENE COLABORADORES */}
+            {(planActual === 'gratis' || planActual === 'basico' || !planActual) && colaboradoresRegistrados.length > 0 && (
+              <div className="mb-4 p-4 bg-amber-50 dark:bg-amber-500/10 border border-amber-300 dark:border-amber-500/30 rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-amber-900 dark:text-amber-300 shadow-xs animate-in fade-in">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-amber-200 dark:bg-amber-500/20 text-amber-700 dark:text-amber-300 rounded-xl shrink-0">
+                    <ShieldAlert size={20} />
+                  </div>
+                  <p className="text-xs font-bold leading-relaxed">
+                    Tienes <strong>{colaboradoresRegistrados.length} colaborador{colaboradoresRegistrados.length > 1 ? 'es' : ''}</strong> registrado{colaboradoresRegistrados.length > 1 ? 's' : ''}, pero tu negocio está en el <strong>Plan Gratuito</strong>. Sus accesos están bloqueados hasta que actives el Plan Comercio o PRO.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setPlanInicialSuscripcion('comercio');
+                    setModalSuscripcionOpen(true);
+                  }}
+                  className="px-3.5 py-2 bg-amber-600 hover:bg-amber-700 text-white font-black text-xs rounded-xl shrink-0 transition-transform active:scale-95 cursor-pointer shadow-sm flex items-center gap-1.5"
+                >
+                  <Sparkles size={13} /> Reactivar Colaboradores
+                </button>
+              </div>
+            )}
+
             {!modoCrearColaborador ? (
               <div className="flex flex-col gap-4">
                 {colaboradoresRegistrados.length === 0 ? (
-                  <p className="text-sm text-slate-500 dark:text-slate-400 text-center py-4 bg-slate-50 dark:bg-[#020617] rounded-xl border border-slate-100 dark:border-slate-800/60">No tienes colaboradores registrados.</p>
+                  <p className="text-sm text-slate-500 dark:text-slate-400 text-center py-6 bg-slate-50 dark:bg-[#020617] rounded-2xl border border-slate-100 dark:border-slate-800/60">No tienes colaboradores registrados.</p>
                 ) : (
-                  mostrarColaboradores && colaboradoresRegistrados.map((c: any, i: number) => (
-                    <div key={i} className="flex flex-col p-5 bg-slate-50 dark:bg-[#020617] rounded-xl border border-slate-100 dark:border-slate-800/60 gap-3 animate-in fade-in slide-in-from-top-2">
-                      <div className="flex justify-between items-start gap-2">
-                        <div className="min-w-0 flex-1">
-                          <p className="font-bold text-slate-800 dark:text-slate-200 text-lg truncate">{c.nombreUsuario}</p>
-                          <p className="text-sm text-slate-500 truncate">{c.email}</p>
-                        </div>
-                        <div className="flex gap-2 shrink-0">
-                          <button onClick={() => { 
-                            setColaboradorEnEdicion(c); 
-                            setFormColaborador({
-                              nombre: c.nombreUsuario, 
-                              usuarioAcceso: c.email.split('@')[0], 
-                              password: '', 
-                              confirmPassword: '', 
-                              permisos: {
-                                verCelulares: c.permisos?.verCelulares || false, 
-                                verDirectorio: c.permisos?.verDirectorio || false, 
-                                verReportes: c.permisos?.verReportes || false,
-                                ventaDirecta: c.permisos?.ventaDirecta || false,
-                                abonar: c.permisos?.abonar || false,
-                                editarInventario: c.permisos?.editarInventario || false,
-                                terminalMultivendedor: c.permisos?.terminalMultivendedor || false,
-                                modificarPrecios: c.permisos?.modificarPrecios || false,
-                                aplicarDescuentos: c.permisos?.aplicarDescuentos || false
-                              }
-                            }); 
-                            setModoCrearColaborador(true); 
-                          }} className="bg-white dark:bg-[#0f172a] p-2.5 rounded-lg border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors shadow-sm">
-                            <Edit2 size={20} className="text-slate-500 shrink-0" />
-                          </button>
-                          <button onClick={() => { setColabParaHorarios(c); setModalHorariosOpen(true); }} title="Horarios" className="bg-white dark:bg-[#0f172a] p-2.5 rounded-lg border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors shadow-sm">
-                            <Clock size={18} className="text-slate-600" />
-                          </button>
-                          <button onClick={() => { setColaboradorAEliminar(c); setModalSeguridad({visible: true, accion: 'eliminar_colaborador'}); }} className="bg-white dark:bg-[#0f172a] p-2.5 rounded-lg border border-rose-200 dark:border-rose-900 hover:bg-rose-50 dark:hover:bg-rose-900/30 transition-colors shadow-sm">
-                            <Trash2 size={20} className="text-rose-500 shrink-0" />
-                          </button>
-                        </div>
-                      </div>
-                      
-                      <div className="flex items-center gap-3 mt-2 pt-3 border-t border-slate-200 dark:border-slate-800">
-                        <label className="relative inline-flex items-center cursor-pointer">
-                          <input type="checkbox" checked={c.activo === true || c.activo === undefined} onChange={() => toggleEstadoColaborador(c)} className="sr-only peer" />
-                          <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer dark:bg-slate-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-slate-600 peer-checked:bg-blue-600"></div>
-                        </label>
-                        <span className={`text-sm font-bold ${c.activo === true || c.activo === undefined ? 'text-blue-600 dark:text-blue-400' : 'text-slate-400'}`}>
-                          {c.activo === true || c.activo === undefined ? 'Acceso Permitido' : 'Acceso Bloqueado'}
-                        </span>
-                      </div>
+                  mostrarColaboradores && colaboradoresRegistrados.map((c: any, i: number) => {
+                    const estaActivo = c.activo === true || c.activo === undefined;
+                    const esGratis = planActual === 'gratis' || planActual === 'basico' || !planActual;
 
-                      <div className="flex flex-wrap gap-1.5 mt-1 border-t border-slate-200 dark:border-slate-800 pt-3">
-                        {c.permisos?.ventaDirecta ? <span className="text-[10px] bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-400 font-bold px-2 py-1 rounded-md">Venta directa</span> : <span className="text-[10px] bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-400 font-bold px-2 py-1 rounded-md">Solo Órdenes</span>}
-                        {c.permisos?.terminalMultivendedor ? <span className="text-[10px] bg-indigo-100 text-indigo-700 dark:bg-indigo-500/20 dark:text-indigo-400 font-bold px-2 py-1 rounded-md">Terminal Multi</span> : null}
-                        {c.permisos?.modificarPrecios ? <span className="text-[10px] bg-cyan-100 text-cyan-700 dark:bg-cyan-500/20 dark:text-cyan-400 font-bold px-2 py-1 rounded-md">Editar Precios</span> : null}
-                        {c.permisos?.aplicarDescuentos ? <span className="text-[10px] bg-rose-100 text-rose-700 dark:bg-rose-500/20 dark:text-rose-400 font-bold px-2 py-1 rounded-md">Descuentos</span> : null}
-                        {c.permisos?.abonar ? <span className="text-[10px] bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-400 font-bold px-2 py-1 rounded-md">Abonar</span> : null}
-                        {c.permisos?.editarInventario ? <span className="text-[10px] bg-teal-100 text-teal-700 dark:bg-teal-500/20 dark:text-teal-400 font-bold px-2 py-1 rounded-md">Editar Inv.</span> : null}
-                        {c.permisos?.verCelulares ? <span className="text-[10px] bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-400 font-bold px-2 py-1 rounded-md">Celulares</span> : null}
-                        {c.permisos?.verDirectorio ? <span className="text-[10px] bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-400 font-bold px-2 py-1 rounded-md">Directorio</span> : null}
-                        {c.permisos?.verReportes ? <span className="text-[10px] bg-purple-100 text-purple-700 dark:bg-purple-500/20 dark:text-purple-400 font-bold px-2 py-1 rounded-md">Reportes</span> : null}
+                    return (
+                      <div key={i} className={`flex flex-col p-5 rounded-2xl border gap-3 animate-in fade-in slide-in-from-top-2 transition-all ${
+                        esGratis 
+                          ? 'bg-slate-50/70 dark:bg-[#020617]/50 border-slate-200/60 dark:border-slate-800/60 opacity-75' 
+                          : estaActivo 
+                            ? 'bg-slate-50 dark:bg-[#020617] border-slate-200 dark:border-slate-800' 
+                            : 'bg-slate-100/50 dark:bg-slate-900/30 border-slate-200/50 dark:border-slate-800/50 opacity-70'
+                      }`}>
+                        <div className="flex justify-between items-start gap-2">
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <p className="font-bold text-slate-800 dark:text-slate-200 text-lg truncate">{c.nombreUsuario}</p>
+                              <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded-full ${
+                                esGratis 
+                                  ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400' 
+                                  : estaActivo 
+                                    ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-400' 
+                                    : 'bg-slate-200 text-slate-600 dark:bg-slate-800 dark:text-slate-400'
+                              }`}>
+                                {esGratis ? 'Bloqueado (Plan Gratis)' : (estaActivo ? 'Activo' : 'Inactivo')}
+                              </span>
+                            </div>
+                            <p className="text-sm text-slate-500 truncate mt-0.5">{c.email}</p>
+                          </div>
+                          <div className="flex gap-2 shrink-0">
+                            <button onClick={() => { 
+                              setColaboradorEnEdicion(c); 
+                              setFormColaborador({
+                                nombre: c.nombreUsuario, 
+                                usuarioAcceso: c.email.split('@')[0], 
+                                password: '', 
+                                confirmPassword: '', 
+                                permisos: {
+                                  verCelulares: c.permisos?.verCelulares || false, 
+                                  verDirectorio: c.permisos?.verDirectorio || false, 
+                                  verReportes: c.permisos?.verReportes || false,
+                                  ventaDirecta: c.permisos?.ventaDirecta || false,
+                                  abonar: c.permisos?.abonar || false,
+                                  editarInventario: c.permisos?.editarInventario || false,
+                                  terminalMultivendedor: c.permisos?.terminalMultivendedor || false,
+                                  modificarPrecios: c.permisos?.modificarPrecios || false,
+                                  aplicarDescuentos: c.permisos?.aplicarDescuentos || false,
+                                  planSepare: c.permisos?.planSepare ?? false
+                                }
+                              }); 
+                              setModoCrearColaborador(true); 
+                            }} className="bg-white dark:bg-[#0f172a] p-2.5 rounded-xl border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors shadow-xs cursor-pointer">
+                              <Edit2 size={18} className="text-slate-500 shrink-0" />
+                            </button>
+                            <button onClick={() => { setColabParaHorarios(c); setModalHorariosOpen(true); }} title="Horarios" className="bg-white dark:bg-[#0f172a] p-2.5 rounded-xl border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors shadow-xs cursor-pointer">
+                              <Clock size={18} className="text-slate-600" />
+                            </button>
+                            <button onClick={() => { setColaboradorAEliminar(c); setModalSeguridad({visible: true, accion: 'eliminar_colaborador'}); }} className="bg-white dark:bg-[#0f172a] p-2.5 rounded-xl border border-rose-200 dark:border-rose-900 hover:bg-rose-50 dark:hover:bg-rose-900/30 transition-colors shadow-xs cursor-pointer">
+                              <Trash2 size={18} className="text-rose-500 shrink-0" />
+                            </button>
+                          </div>
+                        </div>
+                        
+                        <div className="flex items-center gap-3 mt-2 pt-3 border-t border-slate-200 dark:border-slate-800">
+                          <label className="relative inline-flex items-center cursor-pointer">
+                            <input 
+                              type="checkbox" 
+                              checked={!esGratis && estaActivo} 
+                              onChange={() => toggleEstadoColaborador(c)} 
+                              className="sr-only peer" 
+                            />
+                            <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer dark:bg-slate-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-slate-600 peer-checked:bg-blue-600"></div>
+                          </label>
+                          <span className={`text-sm font-bold ${!esGratis && estaActivo ? 'text-blue-600 dark:text-blue-400' : 'text-slate-400'}`}>
+                            {!esGratis && estaActivo ? 'Acceso Habilitado' : 'Acceso Inactivo / Bloqueado'}
+                          </span>
+                        </div>
+
+                        <div className="flex flex-wrap gap-1.5 mt-1 border-t border-slate-200 dark:border-slate-800 pt-3">
+                          {c.permisos?.ventaDirecta ? <span className="text-[10px] bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-400 font-bold px-2 py-0.5 rounded-md">Venta directa</span> : <span className="text-[10px] bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-400 font-bold px-2 py-0.5 rounded-md">Solo Órdenes</span>}
+                          {c.permisos?.terminalMultivendedor ? <span className="text-[10px] bg-indigo-100 text-indigo-700 dark:bg-indigo-500/20 dark:text-indigo-400 font-bold px-2 py-0.5 rounded-md">Terminal Multi</span> : null}
+                          {c.permisos?.modificarPrecios ? <span className="text-[10px] bg-cyan-100 text-cyan-700 dark:bg-cyan-500/20 dark:text-cyan-400 font-bold px-2 py-0.5 rounded-md">Editar Precios</span> : null}
+                          {c.permisos?.aplicarDescuentos ? <span className="text-[10px] bg-rose-100 text-rose-700 dark:bg-rose-500/20 dark:text-rose-400 font-bold px-2 py-0.5 rounded-md">Descuentos</span> : null}
+                          {c.permisos?.abonar ? <span className="text-[10px] bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-400 font-bold px-2 py-0.5 rounded-md">Abonar</span> : null}
+                          {c.permisos?.editarInventario ? <span className="text-[10px] bg-teal-100 text-teal-700 dark:bg-teal-500/20 dark:text-teal-400 font-bold px-2 py-0.5 rounded-md">Editar Inv.</span> : null}
+                          {c.permisos?.planSepare ? <span className="text-[10px] bg-purple-100 text-purple-700 dark:bg-purple-500/20 dark:text-purple-400 font-bold px-2 py-0.5 rounded-md">Separes</span> : null}
+                        </div>
                       </div>
-                    </div>
-                  ))
+                    );
+                  })
                 )}
 
-                <button onClick={() => { 
-                  if (planActual === 'basico' && colaboradoresRegistrados.length >= 1) {
-                    abrirUpsell("Colaboradores Ilimitados", "El plan básico te permite tener 1 colaborador de prueba. Pásate a PRO para añadir colaboradores ilimitados y controlar todos sus permisos.");
-                    return;
-                  }
-                  if (planActual === 'pro' && colaboradoresRegistrados.length >= 4) {
-                    setModalAvisoColaborador({ visible: true, titulo: "Límite Alcanzado", mensaje: "Tu plan PRO permite un máximo de 4 colaboradores simultáneos para tu negocio.", icono: 'error' });
-                    return;
-                  }
-                  setFormColaborador({nombre:"", usuarioAcceso:"", password:"", confirmPassword: "", permisos: {verCelulares: false, verDirectorio: false, verReportes: false, ventaDirecta: false, abonar: false, editarInventario: false, terminalMultivendedor: false, modificarPrecios: false, aplicarDescuentos: false}}); 
-                  setColaboradorEnEdicion(null); 
-                  setModoCrearColaborador(true); 
-                }} className="w-full bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400 font-bold py-5 rounded-2xl border border-blue-200 dark:border-blue-500/20 hover:bg-blue-100 dark:hover:bg-blue-500/20 transition-colors flex justify-center items-center gap-2 text-lg">
+                <button 
+                  onClick={() => { 
+                    const esGratis = planActual === 'gratis' || planActual === 'basico' || !planActual;
+                    const esComercio = planActual === 'comercio';
+                    const esPro = planActual === 'pro';
+
+                    if (esGratis) {
+                      setPlanInicialSuscripcion('comercio');
+                      setModalSuscripcionOpen(true);
+                      toast.error("El Plan Gratis no incluye colaboradores. Mejora al Plan Comercio para agregar a tu primer colaborador.");
+                      return;
+                    }
+                    if (esComercio && colaboradoresRegistrados.length >= 1) {
+                      setPlanInicialSuscripcion('pro');
+                      setModalSuscripcionOpen(true);
+                      toast.error("Tu Plan Comercio permite 1 colaborador. Mejora al Plan PRO Almacén para tener hasta 4 colaboradores.");
+                      return;
+                    }
+                    if (esPro && colaboradoresRegistrados.length >= 4) {
+                      setModalAvisoColaborador({ 
+                        visible: true, 
+                        titulo: "Límite Alcanzado", 
+                        mensaje: "Tu Plan PRO Almacén permite un máximo de 4 colaboradores simultáneos para tu negocio.", 
+                        icono: 'error' 
+                      });
+                      return;
+                    }
+                    setFormColaborador({
+                      nombre: "", 
+                      usuarioAcceso: "", 
+                      password: "", 
+                      confirmPassword: "", 
+                      permisos: {
+                        verCelulares: false, 
+                        verDirectorio: false, 
+                        verReportes: false, 
+                        ventaDirecta: false, 
+                        abonar: false, 
+                        editarInventario: false, 
+                        terminalMultivendedor: false, 
+                        modificarPrecios: false, 
+                        aplicarDescuentos: false, 
+                        planSepare: false
+                      }
+                    }); 
+                    setColaboradorEnEdicion(null); 
+                    setModoCrearColaborador(true); 
+                  }} 
+                  className="w-full bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400 font-bold py-5 rounded-2xl border border-blue-200 dark:border-blue-500/20 hover:bg-blue-100 dark:hover:bg-blue-500/20 transition-colors flex justify-center items-center gap-2 text-lg cursor-pointer"
+                >
                   <UserPlus size={22} className="shrink-0"/> Agregar Colaborador
                 </button>
               </div>
@@ -623,7 +777,7 @@ export default function PerfilPage() {
                     <p className="text-sm font-bold text-slate-500 dark:text-slate-400 mb-1">Usuario de acceso:</p>
                     <p className="text-lg font-black text-slate-800 dark:text-slate-200 mb-4 break-all">{formColaborador.usuarioAcceso}@fiabono.caja</p>
                     
-                    <button onClick={() => setModalAvisoColaborador({ visible: true, titulo: "Cambio de Contraseña", mensaje: "Por restricciones de seguridad sin un servidor centralizado, no es posible cambiar la contraseña de otro usuario directamente.\n\nPara asignar una nueva clave, por favor cancela esta edición, elimina este colaborador y vuelve a crearlo con la contraseña nueva.", icono: 'info' })} className="text-sm font-bold text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-500/10 px-4 py-2 rounded-lg border border-blue-200 dark:border-blue-500/20 w-full mb-2">
+                    <button onClick={() => setModalAvisoColaborador({ visible: true, titulo: "Cambio de Contraseña", mensaje: "Por restricciones de seguridad sin un servidor centralizado, no es posible cambiar la contraseña de otro usuario directamente.\n\nPara asignar una nueva clave, por favor cancela esta edición, elimina este colaborador y vuelve a crearlo con la contraseña nueva.", icono: 'info' })} className="text-sm font-bold text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-500/10 px-4 py-2 rounded-lg border border-blue-200 dark:border-blue-500/20 w-full mb-2 cursor-pointer">
                       ¿Olvidó su contraseña?
                     </button>
                     <p className="text-[10px] text-slate-400 text-center leading-tight">Por seguridad, el usuario y contraseña no pueden modificarse aquí.</p>
@@ -712,28 +866,90 @@ export default function PerfilPage() {
                      </div>
                    </label>
 
-                   {/* Terminal Multivendedor (Caja Compartida) */}
-                   <label className="flex items-start gap-3 text-sm font-medium text-slate-600 dark:text-slate-300 cursor-pointer">
-                     <input type="checkbox" className="w-5 h-5 mt-0.5 accent-blue-600 shrink-0" checked={formColaborador.permisos.terminalMultivendedor} onChange={e => setFormColaborador({...formColaborador, permisos: {...formColaborador.permisos, terminalMultivendedor: e.target.checked}})}/> 
-                     <div>
-                       <span className="font-bold text-slate-800 dark:text-slate-200 block">Terminal Multivendedor (Caja Compartida)</span>
-                       <span className="text-xs text-slate-400">Permite a este usuario seleccionar diferentes vendedores y alternar turnos en el mostrador.</span>
-                     </div>
-                   </label>
+                   {/* Terminal Multivendedor (Caja Compartida) - EXCLUSIVO PRO */}
+                   <div 
+                     className={`p-3 rounded-xl border transition-all ${
+                       planActual !== 'pro' 
+                         ? 'bg-slate-100/70 dark:bg-slate-900/50 border-slate-200 dark:border-slate-800 cursor-pointer' 
+                         : 'bg-transparent border-transparent p-0'
+                     }`}
+                     onClick={() => {
+                       if (planActual !== 'pro') {
+                         setPlanInicialSuscripcion('pro');
+                         setModalSuscripcionOpen(true);
+                         toast.error("La Terminal Multivendedor es exclusiva del Plan PRO Almacén.");
+                       }
+                     }}
+                   >
+                     <label className="flex items-start gap-3 text-sm font-medium text-slate-600 dark:text-slate-300 cursor-pointer">
+                       <input 
+                         type="checkbox" 
+                         disabled={planActual !== 'pro'}
+                         className="w-5 h-5 mt-0.5 accent-blue-600 shrink-0" 
+                         checked={planActual === 'pro' && formColaborador.permisos.terminalMultivendedor} 
+                         onChange={e => {
+                           if (planActual !== 'pro') return;
+                           setFormColaborador({...formColaborador, permisos: {...formColaborador.permisos, terminalMultivendedor: e.target.checked}});
+                         }}
+                       /> 
+                       <div className="flex-1">
+                         <div className="flex items-center gap-1.5 flex-wrap">
+                           <span className="font-bold text-slate-800 dark:text-slate-200 block">Terminal Multivendedor (Caja Compartida)</span>
+                           {planActual !== 'pro' && (
+                             <span className="bg-amber-500/20 text-amber-600 dark:text-amber-400 text-[10px] font-black px-2 py-0.5 rounded-full border border-amber-500/30 inline-flex items-center gap-1">
+                               <Crown size={11} className="fill-current" /> Solo PRO
+                             </span>
+                           )}
+                         </div>
+                         <span className="text-xs text-slate-400">Permite a este usuario seleccionar diferentes vendedores y alternar turnos en el mostrador.</span>
+                       </div>
+                     </label>
+                   </div>
 
-                   {/* Plan Separe */}
-                   <label className="flex items-start gap-3 text-sm font-medium text-slate-600 dark:text-slate-300 cursor-pointer">
-                     <input type="checkbox" className="w-5 h-5 mt-0.5 accent-violet-600 shrink-0" checked={formColaborador.permisos.planSepare ?? false} onChange={e => setFormColaborador({...formColaborador, permisos: {...formColaborador.permisos, planSepare: e.target.checked}})}/> 
-                     <div>
-                       <span className="font-bold text-slate-800 dark:text-slate-200 block">Plan Separe (Pago en Cuotas)</span>
-                       <span className="text-xs text-slate-400">Permite registrar y gestionar planes de pago en abonos para productos separados por clientes.</span>
-                     </div>
-                   </label>
+                   {/* Plan Separe - EXCLUSIVO PRO */}
+                   <div 
+                     className={`p-3 rounded-xl border transition-all ${
+                       planActual !== 'pro' 
+                         ? 'bg-slate-100/70 dark:bg-slate-900/50 border-slate-200 dark:border-slate-800 cursor-pointer' 
+                         : 'bg-transparent border-transparent p-0'
+                     }`}
+                     onClick={() => {
+                       if (planActual !== 'pro') {
+                         setPlanInicialSuscripcion('pro');
+                         setModalSuscripcionOpen(true);
+                         toast.error("El Plan Separe es exclusivo del Plan PRO Almacén.");
+                       }
+                     }}
+                   >
+                     <label className="flex items-start gap-3 text-sm font-medium text-slate-600 dark:text-slate-300 cursor-pointer">
+                       <input 
+                         type="checkbox" 
+                         disabled={planActual !== 'pro'}
+                         className="w-5 h-5 mt-0.5 accent-violet-600 shrink-0" 
+                         checked={planActual === 'pro' && (formColaborador.permisos.planSepare ?? false)} 
+                         onChange={e => {
+                           if (planActual !== 'pro') return;
+                           setFormColaborador({...formColaborador, permisos: {...formColaborador.permisos, planSepare: e.target.checked}});
+                         }}
+                       /> 
+                       <div className="flex-1">
+                         <div className="flex items-center gap-1.5 flex-wrap">
+                           <span className="font-bold text-slate-800 dark:text-slate-200 block">Plan Separe (Pago en Cuotas)</span>
+                           {planActual !== 'pro' && (
+                             <span className="bg-purple-500/20 text-purple-600 dark:text-purple-400 text-[10px] font-black px-2 py-0.5 rounded-full border border-purple-500/30 inline-flex items-center gap-1">
+                               <Crown size={11} className="fill-current" /> Solo PRO
+                             </span>
+                           )}
+                         </div>
+                         <span className="text-xs text-slate-400">Permite registrar y gestionar planes de pago en abonos para productos separados por clientes.</span>
+                       </div>
+                     </label>
+                   </div>
                 </div>
 
                 <div className="grid grid-cols-2 gap-3 mt-2">
-                  <button onClick={() => { setModoCrearColaborador(false); setColaboradorEnEdicion(null); setErrorFormColaborador({usuarioAcceso:"", general:""}); }} className="bg-slate-100 dark:bg-[#020617] text-slate-700 dark:text-slate-300 font-bold py-4 rounded-xl text-lg">Cancelar</button>
-                  <button onClick={guardarColaborador} disabled={creandoColaborador} className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 rounded-xl shadow-md transition-transform active:scale-95 text-lg truncate">{creandoColaborador ? '...' : (colaboradorEnEdicion ? 'Actualizar' : 'Guardar')}</button>
+                  <button onClick={() => { setModoCrearColaborador(false); setColaboradorEnEdicion(null); setErrorFormColaborador({usuarioAcceso:"", general:""}); }} className="bg-slate-100 dark:bg-[#020617] text-slate-700 dark:text-slate-300 font-bold py-4 rounded-xl text-lg cursor-pointer">Cancelar</button>
+                  <button onClick={guardarColaborador} disabled={creandoColaborador} className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 rounded-xl shadow-md transition-transform active:scale-95 text-lg truncate cursor-pointer">{creandoColaborador ? '...' : (colaboradorEnEdicion ? 'Actualizar' : 'Guardar')}</button>
                 </div>
               </div>
             )}
