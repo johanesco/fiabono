@@ -51,13 +51,14 @@ export default function ReportesPage() {
 
   // Filtros principales
   const [filtroGeneral, setFiltroGeneral] = useState<'hoy' | 'semana' | 'mes' | 'ano' | 'todos'>('hoy');
-  const [filtroGrafica, setFiltroGrafica] = useState<'semana' | 'mes' | 'ano' | 'historico_mes' | 'historico_ano'>('semana');
+  const [filtroGrafica, setFiltroGrafica] = useState<'semana' | 'mes' | 'ano' | 'historico'>('semana');
+  const [tipoHistorico, setTipoHistorico] = useState<'mes' | 'ano'>('mes');
   const [filtroColab, setFiltroColab] = useState<'hoy' | 'semana' | 'mes' | 'ano' | 'todos'>('hoy');
   const [criterioColaborador, setCriterioColaborador] = useState<'monto' | 'cantidad'>('monto');
 
   // Selectores históricos (Exclusivos Plan PRO)
   const hoyDate = new Date();
-  const [anoHistorico, setAnoHistorico] = useState<number>(hoyDate.getFullYear());
+  const [anoHistorico, setAnoHistorico] = useState<number>(hoyDate.getFullYear() - 1);
   const [mesHistorico, setMesHistorico] = useState<number>(hoyDate.getMonth());
 
   const [cargando, setCargando] = useState(true);
@@ -323,73 +324,76 @@ export default function ReportesPage() {
         }
       });
       return datos;
-    } else if (filtroGrafica === 'historico_mes') {
-      // DÍAS DEL MES HISTÓRICO SELECCIONADO
-      const numDiasMes = new Date(anoHistorico, mesHistorico + 1, 0).getDate();
-      const mesNombreCorto = NOMBRES_MESES_CORTO[mesHistorico];
-      const datos = Array.from({ length: numDiasMes }, (_, i) => {
-        const diaNum = i + 1;
-        const fechaObj = new Date(anoHistorico, mesHistorico, diaNum);
-        const nombreDiaSemana = fechaObj.toLocaleDateString('es-CO', { weekday: 'short' });
-        return {
-          id: `hist-mes-dia-${diaNum}`,
-          label: `${nombreDiaSemana} ${diaNum} de ${NOMBRES_MESES[mesHistorico]} ${anoHistorico}`,
-          shortLabel: `${diaNum}`,
-          diaNum,
-          nombreDiaSemana,
-          ventas: 0,
-          fiados: 0,
-          abonos: 0,
-          countVentas: 0
-        };
-      });
+    } else if (filtroGrafica === 'historico') {
+      if (tipoHistorico === 'mes') {
+        // DÍAS DEL MES HISTÓRICO SELECCIONADO
+        const numDiasMes = new Date(anoHistorico, mesHistorico + 1, 0).getDate();
+        const mesNombreCorto = NOMBRES_MESES_CORTO[mesHistorico];
+        const datos = Array.from({ length: numDiasMes }, (_, i) => {
+          const diaNum = i + 1;
+          const fechaObj = new Date(anoHistorico, mesHistorico, diaNum);
+          const nombreDiaSemana = fechaObj.toLocaleDateString('es-CO', { weekday: 'short' });
+          return {
+            id: `hist-mes-dia-${diaNum}`,
+            label: `${nombreDiaSemana} ${diaNum} de ${NOMBRES_MESES[mesHistorico]} ${anoHistorico}`,
+            shortLabel: `${diaNum}`,
+            diaNum,
+            nombreDiaSemana,
+            ventas: 0,
+            fiados: 0,
+            abonos: 0,
+            countVentas: 0
+          };
+        });
 
-      todosMovimientos.forEach(mov => {
-        if (mov.fecha) {
-          const d = obtenerFechaJS(mov.fecha);
-          if (d.getFullYear() === anoHistorico && d.getMonth() === mesHistorico) {
-            const idx = d.getDate() - 1;
-            if (datos[idx]) {
-              if (mov.tipo === 'venta') {
-                datos[idx].ventas += (mov.monto || 0);
-                datos[idx].countVentas += 1;
+        todosMovimientos.forEach(mov => {
+          if (mov.fecha) {
+            const d = obtenerFechaJS(mov.fecha);
+            if (d.getFullYear() === anoHistorico && d.getMonth() === mesHistorico) {
+              const idx = d.getDate() - 1;
+              if (datos[idx]) {
+                if (mov.tipo === 'venta') {
+                  datos[idx].ventas += (mov.monto || 0);
+                  datos[idx].countVentas += 1;
+                }
+                if (mov.tipo === 'fiado') datos[idx].fiados += (mov.monto || 0);
+                if (mov.tipo === 'abono') datos[idx].abonos += (mov.monto || 0);
               }
-              if (mov.tipo === 'fiado') datos[idx].fiados += (mov.monto || 0);
-              if (mov.tipo === 'abono') datos[idx].abonos += (mov.monto || 0);
             }
           }
-        }
-      });
-      return datos;
-    } else {
-      // AÑO HISTÓRICO (12 MESES)
-      const datos = NOMBRES_MESES_CORTO.map((m, idx) => ({ 
-        id: `hist-ano-mes-${idx}`,
-        label: `${NOMBRES_MESES[idx]} ${anoHistorico}`, 
-        shortLabel: m,
-        ventas: 0, 
-        fiados: 0, 
-        abonos: 0, 
-        countVentas: 0 
-      }));
-      todosMovimientos.forEach(mov => {
-        if (mov.fecha) {
-          const d = obtenerFechaJS(mov.fecha);
-          if (d.getFullYear() === anoHistorico) {
-            let idx = d.getMonth();
-            if (datos[idx]) {
-              if (mov.tipo === 'venta') {
-                datos[idx].ventas += (mov.monto || 0);
-                datos[idx].countVentas += 1;
+        });
+        return datos;
+      } else {
+        // AÑO HISTÓRICO (12 MESES)
+        const datos = NOMBRES_MESES_CORTO.map((m, idx) => ({ 
+          id: `hist-ano-mes-${idx}`,
+          label: `${NOMBRES_MESES[idx]} ${anoHistorico}`, 
+          shortLabel: m,
+          ventas: 0, 
+          fiados: 0, 
+          abonos: 0, 
+          countVentas: 0 
+        }));
+        todosMovimientos.forEach(mov => {
+          if (mov.fecha) {
+            const d = obtenerFechaJS(mov.fecha);
+            if (d.getFullYear() === anoHistorico) {
+              let idx = d.getMonth();
+              if (datos[idx]) {
+                if (mov.tipo === 'venta') {
+                  datos[idx].ventas += (mov.monto || 0);
+                  datos[idx].countVentas += 1;
+                }
+                if (mov.tipo === 'fiado') datos[idx].fiados += (mov.monto || 0);
+                if (mov.tipo === 'abono') datos[idx].abonos += (mov.monto || 0);
               }
-              if (mov.tipo === 'fiado') datos[idx].fiados += (mov.monto || 0);
-              if (mov.tipo === 'abono') datos[idx].abonos += (mov.monto || 0);
             }
           }
-        }
-      });
-      return datos;
+        });
+        return datos;
+      }
     }
+    return [];
   };
 
   const datosGrafica = obtenerDatosGrafica();
@@ -566,17 +570,17 @@ export default function ReportesPage() {
     <div className="flex flex-col gap-6 sm:gap-8 animate-in fade-in duration-500 h-full max-w-7xl mx-auto w-full p-3 sm:p-6 lg:p-8 pt-2 sm:pt-4 pb-28">
       
       {/* CABECERA PRINCIPAL CON SELECTOR DE PERIODO */}
-      <div className="bg-gradient-to-br from-slate-800 via-slate-900 to-indigo-950 p-6 sm:p-8 rounded-[2rem] sm:rounded-[2.5rem] shadow-2xl text-white flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6 relative overflow-hidden mt-1">
-        <div className="space-y-2 z-10">
-          <div className="flex items-center gap-2.5 flex-wrap pt-0.5">
-            <span className="bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 px-3.5 py-1.5 rounded-full text-xs font-black uppercase tracking-wider inline-flex items-center gap-1.5 shadow-sm">
+      <div className="bg-gradient-to-br from-slate-800 via-slate-900 to-indigo-950 p-6 sm:p-8 md:p-10 rounded-[2rem] sm:rounded-[2.5rem] shadow-2xl text-white flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6 relative">
+        <div className="space-y-3 z-10">
+          <div className="flex items-center gap-2.5 flex-wrap">
+            <span className="bg-emerald-500/25 text-emerald-300 border border-emerald-500/40 px-3.5 py-1 rounded-full text-xs font-black uppercase tracking-wider inline-flex items-center gap-1.5 shadow-sm">
               <Sparkles size={14} className="text-emerald-400" /> {esPro ? 'Plan PRO Almacén' : 'Plan Comercio'}
             </span>
-            <span className="text-slate-200 text-xs font-bold flex items-center gap-1.5 bg-white/10 px-3.5 py-1.5 rounded-full backdrop-blur-md border border-white/10 shadow-sm">
+            <span className="text-slate-200 text-xs font-bold flex items-center gap-1.5 bg-white/15 px-3.5 py-1 rounded-full backdrop-blur-md border border-white/15 shadow-sm">
               <Calendar size={14} className="text-blue-300" /> {metaPeriodo.rangoDescriptivo}
             </span>
           </div>
-          <h1 className="text-2xl sm:text-4xl font-black tracking-tight pt-1">Reportes y Analíticas</h1>
+          <h1 className="text-2xl sm:text-4xl font-black tracking-tight">Reportes y Analíticas</h1>
           <p className="text-slate-300 text-xs sm:text-sm font-medium">Supervisa el flujo de caja, estado de cartera y rendimiento del negocio en tiempo real.</p>
         </div>
 
@@ -769,8 +773,12 @@ export default function ReportesPage() {
               </h3>
             </div>
             <p className="text-slate-500 dark:text-slate-400 text-xs mt-1">
-              {filtroGrafica === 'mes' || filtroGrafica === 'historico_mes'
-                ? 'Desglose detallado día a día de todo el mes.' 
+              {filtroGrafica === 'mes'
+                ? 'Desglose detallado día a día de este mes.' 
+                : filtroGrafica === 'historico' && tipoHistorico === 'mes'
+                ? `Desglose día a día de ${NOMBRES_MESES[mesHistorico]} ${anoHistorico}.`
+                : filtroGrafica === 'historico' && tipoHistorico === 'ano'
+                ? `Desglose mes a mes del año ${anoHistorico}.`
                 : 'Evolución comparativa entre Ventas de Contado, Créditos Fiados y Abonos Recaudados.'}
             </p>
           </div>
@@ -782,8 +790,7 @@ export default function ReportesPage() {
                 { id: 'semana', label: 'Esta Semana' },
                 { id: 'mes', label: 'Este Mes (Día a Día)' },
                 { id: 'ano', label: 'Este Año' },
-                { id: 'historico_mes', label: '📅 Mes Histórico', esProOnly: true },
-                { id: 'historico_ano', label: '🗓️ Año Histórico', esProOnly: true }
+                { id: 'historico', label: '🗓️ Histórico', esProOnly: true }
               ].map(f => (
                 <button 
                   key={f.id}
@@ -795,49 +802,59 @@ export default function ReportesPage() {
                     }
                     setFiltroGrafica(f.id as any);
                   }}
-                  className={`px-3 py-1.5 text-xs font-black rounded-xl transition-all whitespace-nowrap flex items-center gap-1 cursor-pointer ${
+                  className={`px-3.5 py-1.5 text-xs font-black rounded-xl transition-all whitespace-nowrap flex items-center gap-1.5 cursor-pointer ${
                     filtroGrafica === f.id 
                       ? 'bg-white dark:bg-[#1e293b] text-slate-900 dark:text-white shadow-sm' 
                       : 'text-slate-500 hover:text-slate-900 dark:hover:text-slate-300'
                   }`}
                 >
                   <span>{f.label}</span>
-                  {f.esProOnly && !esPro && <Crown size={11} className="text-amber-500 ml-0.5" />}
+                  {f.esProOnly && !esPro && <Crown size={12} className="text-amber-500 fill-current ml-0.5" />}
                 </button>
               ))}
             </div>
 
-            {/* Selectores de Mes y Año si se activa el modo histórico PRO */}
-            {filtroGrafica === 'historico_mes' && esPro && (
-              <div className="flex items-center gap-1.5 bg-slate-100 dark:bg-[#020617] p-1.5 rounded-2xl animate-in fade-in">
-                <select
-                  value={mesHistorico}
-                  onChange={(e) => setMesHistorico(Number(e.target.value))}
-                  className="bg-white dark:bg-[#1e293b] text-slate-900 dark:text-white font-bold text-xs px-2.5 py-1.5 rounded-xl border-none outline-none cursor-pointer"
-                >
-                  {NOMBRES_MESES.map((nombre, idx) => (
-                    <option key={nombre} value={idx}>{nombre}</option>
-                  ))}
-                </select>
+            {/* Selectores cuando se activa el modo HISTÓRICO PRO */}
+            {filtroGrafica === 'historico' && esPro && (
+              <div className="flex items-center gap-2 bg-slate-100 dark:bg-[#020617] p-1.5 rounded-2xl animate-in fade-in flex-wrap">
+                {/* Switch Mes Pasado / Año Pasado */}
+                <div className="flex bg-white dark:bg-[#1e293b] p-1 rounded-xl shadow-xs">
+                  <button
+                    type="button"
+                    onClick={() => setTipoHistorico('mes')}
+                    className={`px-2.5 py-1 text-[11px] font-bold rounded-lg transition-all cursor-pointer ${
+                      tipoHistorico === 'mes' ? 'bg-indigo-600 text-white shadow-xs' : 'text-slate-500'
+                    }`}
+                  >
+                    Por Mes (Día a Día)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setTipoHistorico('ano')}
+                    className={`px-2.5 py-1 text-[11px] font-bold rounded-lg transition-all cursor-pointer ${
+                      tipoHistorico === 'ano' ? 'bg-indigo-600 text-white shadow-xs' : 'text-slate-500'
+                    }`}
+                  >
+                    Por Año (Mes a Mes)
+                  </button>
+                </div>
+
+                {tipoHistorico === 'mes' && (
+                  <select
+                    value={mesHistorico}
+                    onChange={(e) => setMesHistorico(Number(e.target.value))}
+                    className="bg-white dark:bg-[#1e293b] text-slate-900 dark:text-white font-bold text-xs px-2.5 py-1.5 rounded-xl border-none outline-none cursor-pointer shadow-xs"
+                  >
+                    {NOMBRES_MESES.map((nombre, idx) => (
+                      <option key={nombre} value={idx}>{nombre}</option>
+                    ))}
+                  </select>
+                )}
 
                 <select
                   value={anoHistorico}
                   onChange={(e) => setAnoHistorico(Number(e.target.value))}
-                  className="bg-white dark:bg-[#1e293b] text-slate-900 dark:text-white font-bold text-xs px-2.5 py-1.5 rounded-xl border-none outline-none cursor-pointer"
-                >
-                  {anosDisponibles.map((a) => (
-                    <option key={a} value={a}>{a}</option>
-                  ))}
-                </select>
-              </div>
-            )}
-
-            {filtroGrafica === 'historico_ano' && esPro && (
-              <div className="flex items-center gap-1.5 bg-slate-100 dark:bg-[#020617] p-1.5 rounded-2xl animate-in fade-in">
-                <select
-                  value={anoHistorico}
-                  onChange={(e) => setAnoHistorico(Number(e.target.value))}
-                  className="bg-white dark:bg-[#1e293b] text-slate-900 dark:text-white font-bold text-xs px-3 py-1.5 rounded-xl border-none outline-none cursor-pointer"
+                  className="bg-white dark:bg-[#1e293b] text-slate-900 dark:text-white font-bold text-xs px-2.5 py-1.5 rounded-xl border-none outline-none cursor-pointer shadow-xs"
                 >
                   {anosDisponibles.map((a) => (
                     <option key={a} value={a}>Año {a}</option>
@@ -907,8 +924,8 @@ export default function ReportesPage() {
         </div>
 
         {/* Visualización de Barras Responsive */}
-        <div className="w-full overflow-x-auto pb-2 scrollbar-thin scrollbar-thumb-slate-200 dark:scrollbar-thumb-slate-800">
-          <div className="grid grid-flow-col auto-cols-fr gap-2 sm:gap-3 items-end h-64 sm:h-72 pt-10 pb-2 border-b border-slate-100 dark:border-slate-800 min-w-[500px]">
+        <div className="w-full overflow-x-auto pb-4 scrollbar-thin scrollbar-thumb-slate-200 dark:scrollbar-thumb-slate-800">
+          <div className="grid grid-flow-col auto-cols-fr gap-2.5 sm:gap-3.5 items-end h-64 sm:h-72 pt-12 pb-2 border-b border-slate-100 dark:border-slate-800 min-w-[500px]">
             {datosGrafica.map((item) => {
               const hVentas = Math.max((item.ventas / maxBarra) * 100, 3);
               const hFiados = Math.max((item.fiados / maxBarra) * 100, 3);
@@ -920,13 +937,13 @@ export default function ReportesPage() {
                   
                   {/* Corona de Mejor Día */}
                   {esElMejorDia && (
-                    <div className="absolute -top-7 text-amber-500 animate-bounce flex items-center justify-center">
-                      <Crown size={15} className="fill-current drop-shadow-sm" />
+                    <div className="absolute -top-7 text-amber-500 animate-bounce flex items-center justify-center pointer-events-none">
+                      <Crown size={16} className="fill-current drop-shadow-md text-amber-500" />
                     </div>
                   )}
 
                   {/* Tooltip flotante enriquecido */}
-                  <div className="absolute -top-22 bg-slate-900/95 dark:bg-slate-800/95 text-white text-[11px] p-2.5 rounded-2xl opacity-0 group-hover:opacity-100 transition-all pointer-events-none z-30 whitespace-nowrap shadow-2xl backdrop-blur-md border border-white/10">
+                  <div className="absolute bottom-[105%] mb-2 bg-slate-900/95 dark:bg-slate-800/95 text-white text-[11px] p-2.5 rounded-2xl opacity-0 group-hover:opacity-100 transition-all pointer-events-none z-50 whitespace-nowrap shadow-2xl backdrop-blur-md border border-white/10">
                     <p className="font-black border-b border-white/10 pb-1 mb-1 text-center flex items-center justify-center gap-1">
                       {esElMejorDia && <Crown size={12} className="text-amber-400 fill-current" />}
                       {item.label}
