@@ -154,50 +154,382 @@ function SepareContenido() {
     idProducto?: string | null;
   }
 
+  // Estructura de Pestañas Multi-Separe en Vivo
+  interface PestanaSepare {
+    id: string;
+    nombre: string;
+    vendedor: string;
+    filas: FilaProductoSepare[];
+    cliente: any | null;
+    descuentoTipo: 'porcentaje' | 'fijo' | null;
+    descuentoValor: string;
+    fechaLimite: string;
+    notas: string;
+    abonoInicial: string;
+    metodoPago: 'efectivo' | 'transferencia' | 'datafono' | 'credito_externo';
+    subMetodoPago: string;
+    referenciaPago: string;
+  }
+
+  const [pestanas, setPestanas] = useState<PestanaSepare[]>([
+    {
+      id: '1',
+      nombre: 'Separe #1',
+      vendedor: nombreUsuario || 'Vendedor',
+      filas: [{ id: "1", descripcion: "", valor: "", cantidad: 1, fotoUrl: null, esDeInventario: false }],
+      cliente: null,
+      descuentoTipo: null,
+      descuentoValor: "",
+      fechaLimite: "",
+      notas: "",
+      abonoInicial: "",
+      metodoPago: 'efectivo',
+      subMetodoPago: "",
+      referenciaPago: ""
+    }
+  ]);
+  const [pestanaActivaId, setPestanaActivaId] = useState<string>('1');
+
+  // Estados del Formulario Activo
   const [filas, setFilas] = useState<FilaProductoSepare[]>([
     { id: "1", descripcion: "", valor: "", cantidad: 1, fotoUrl: null, esDeInventario: false }
   ]);
-
-  // Precarga automática de productos despachados desde Inventario
-  useEffect(() => {
-    try {
-      const precarga = sessionStorage.getItem('fiabono_productos_precargados');
-      if (precarga) {
-        const items = JSON.parse(precarga);
-        if (Array.isArray(items) && items.length > 0) {
-          const nuevasFilas = items.map((it: any, idx: number) => ({
-            id: String(Date.now() + idx),
-            descripcion: it.descripcion || "",
-            valor: it.valor ? String(it.valor).replace(/\D/g, "") : "",
-            cantidad: Number(it.cantidad) || 1,
-            fotoUrl: null,
-            esDeInventario: true,
-            idProducto: it.idProducto || null
-          }));
-          setFilas(nuevasFilas);
-          toast.success(`Se cargaron ${nuevasFilas.length} producto(s) desde el inventario.`);
-        }
-        sessionStorage.removeItem('fiabono_productos_precargados');
-      }
-    } catch (e) {
-      console.error("Error al cargar productos precargados en Separe:", e);
-    }
-  }, []);
-
-  // Descuento Comercial
   const [descuentoTipo, setDescuentoTipo] = useState<'porcentaje' | 'fijo' | null>(null);
   const [descuentoValor, setDescuentoValor] = useState<string>("");
   const [mostrarModalDescuento, setMostrarModalDescuento] = useState(false);
-
-  // Fecha límite y notas
   const [fechaLimite, setFechaLimite] = useState<string>("");
   const [notas, setNotas] = useState<string>("");
-
-  // Abono inicial
   const [abonoInicial, setAbonoInicial] = useState<string>("");
   const [metodoPago, setMetodoPago] = useState<'efectivo' | 'transferencia' | 'datafono' | 'credito_externo'>('efectivo');
   const [subMetodoPago, setSubMetodoPago] = useState("");
   const [referenciaPago, setReferenciaPago] = useState("");
+
+  // Clave de almacenamiento dinámico por usuario/vendedor para separes
+  const getStorageKey = (vendedor: string) => {
+    const vLimpio = (vendedor || nombreUsuario || "vendedor").toLowerCase().replace(/\s+/g, '_');
+    return `fiabono_draft_separes_${cuentaPrincipalId || 'local'}_${vLimpio}`;
+  };
+
+  const persistirPestanas = (nuevasPestanas: PestanaSepare[], vendedor: string = vendedorActivo) => {
+    try {
+      const key = getStorageKey(vendedor);
+      localStorage.setItem(key, JSON.stringify(nuevasPestanas));
+    } catch (e) {}
+  };
+
+  // Cargar pestañas iniciales desde LocalStorage para el vendedor activo
+  useEffect(() => {
+    if (!vendedorActivo) return;
+    try {
+      // 1. Revisar si hay productos precargados desde inventario
+      const precarga = sessionStorage.getItem('fiabono_productos_precargados');
+      let itemsPrecargados: any[] | null = null;
+      if (precarga) {
+        try {
+          const parsedPrecarga = JSON.parse(precarga);
+          if (Array.isArray(parsedPrecarga) && parsedPrecarga.length > 0) {
+            itemsPrecargados = parsedPrecarga;
+          }
+        } catch (e) {}
+        sessionStorage.removeItem('fiabono_productos_precargados');
+      }
+
+      const key = getStorageKey(vendedorActivo);
+      const dataGuardada = localStorage.getItem(key);
+      let listaPestanas: PestanaSepare[] = [];
+
+      if (dataGuardada) {
+        try {
+          const parsed = JSON.parse(dataGuardada);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            listaPestanas = parsed;
+          }
+        } catch (e) {}
+      }
+
+      if (listaPestanas.length === 0) {
+        listaPestanas = [{
+          id: '1',
+          nombre: 'Separe #1',
+          vendedor: vendedorActivo,
+          filas: [{ id: "1", descripcion: "", valor: "", cantidad: 1, fotoUrl: null, esDeInventario: false }],
+          cliente: null,
+          descuentoTipo: null,
+          descuentoValor: "",
+          fechaLimite: "",
+          notas: "",
+          abonoInicial: "",
+          metodoPago: 'efectivo',
+          subMetodoPago: "",
+          referenciaPago: ""
+        }];
+      }
+
+      if (itemsPrecargados && itemsPrecargados.length > 0) {
+        const nuevasFilasPrecarga: FilaProductoSepare[] = itemsPrecargados.map((it: any, idx: number) => ({
+          id: String(Date.now() + idx),
+          descripcion: it.descripcion || "",
+          valor: it.valor ? String(it.valor).replace(/\D/g, "") : "",
+          cantidad: Number(it.cantidad) || 1,
+          fotoUrl: null,
+          esDeInventario: true,
+          idProducto: it.idProducto || null
+        }));
+
+        const pestanaInicial: PestanaSepare = {
+          ...listaPestanas[0],
+          filas: nuevasFilasPrecarga
+        };
+        const actualizadas = [pestanaInicial, ...listaPestanas.slice(1)];
+        setPestanas(actualizadas);
+        setPestanaActivaId(pestanaInicial.id);
+        cargarDatosDePestana(pestanaInicial);
+        persistirPestanas(actualizadas, vendedorActivo);
+        toast.success(`Se cargaron ${nuevasFilasPrecarga.length} producto(s) desde el inventario.`);
+      } else {
+        setPestanas(listaPestanas);
+        setPestanaActivaId(listaPestanas[0].id);
+        cargarDatosDePestana(listaPestanas[0]);
+      }
+    } catch (e) {
+      console.error("Error al cargar borrador de separes:", e);
+    }
+  }, [vendedorActivo, cuentaPrincipalId]);
+
+  // Sincronizar en tiempo real cada cambio del formulario al estado de pestañas y localStorage
+  useEffect(() => {
+    setPestanas(prev => {
+      const actualizadas = prev.map(p => {
+        if (p.id === pestanaActivaId) {
+          return {
+            ...p,
+            vendedor: vendedorActivo,
+            filas: filas,
+            cliente: clienteSeleccionado,
+            descuentoTipo: descuentoTipo,
+            descuentoValor: descuentoValor,
+            fechaLimite: fechaLimite,
+            notas: notas,
+            abonoInicial: abonoInicial,
+            metodoPago: metodoPago,
+            subMetodoPago: subMetodoPago,
+            referenciaPago: referenciaPago,
+            nombre: p.nombre.startsWith('Separe #') && clienteSeleccionado?.nombre ? clienteSeleccionado.nombre : p.nombre
+          };
+        }
+        return p;
+      });
+      persistirPestanas(actualizadas, vendedorActivo);
+      return actualizadas;
+    });
+  }, [
+    filas,
+    clienteSeleccionado,
+    descuentoTipo,
+    descuentoValor,
+    fechaLimite,
+    notas,
+    abonoInicial,
+    metodoPago,
+    subMetodoPago,
+    referenciaPago,
+    vendedorActivo,
+    pestanaActivaId
+  ]);
+
+  // Sincronizar estado actual a la pestaña activa antes de cambiar
+  const guardarEstadoEnPestanaActiva = (idActual: string = pestanaActivaId) => {
+    setPestanas(prev => {
+      const actualizadas = prev.map(p => {
+        if (p.id === idActual) {
+          return {
+            ...p,
+            vendedor: vendedorActivo,
+            filas: filas,
+            cliente: clienteSeleccionado,
+            descuentoTipo: descuentoTipo,
+            descuentoValor: descuentoValor,
+            fechaLimite: fechaLimite,
+            notas: notas,
+            abonoInicial: abonoInicial,
+            metodoPago: metodoPago,
+            subMetodoPago: subMetodoPago,
+            referenciaPago: referenciaPago,
+            nombre: p.nombre.startsWith('Separe #') && clienteSeleccionado?.nombre ? clienteSeleccionado.nombre : p.nombre
+          };
+        }
+        return p;
+      });
+      persistirPestanas(actualizadas, vendedorActivo);
+      return actualizadas;
+    });
+  };
+
+  // Cargar datos de una pestaña en el formulario
+  const cargarDatosDePestana = (p: PestanaSepare) => {
+    setVendedorActivo(p.vendedor || nombreUsuario || "Vendedor");
+    setFilas(p.filas?.length > 0 ? p.filas : [{ id: "1", descripcion: "", valor: "", cantidad: 1, fotoUrl: null, esDeInventario: false }]);
+    setClienteSeleccionado(p.cliente || null);
+    setDescuentoTipo(p.descuentoTipo || null);
+    setDescuentoValor(p.descuentoValor || "");
+    setFechaLimite(p.fechaLimite || "");
+    setNotas(p.notas || "");
+    setAbonoInicial(p.abonoInicial || "");
+    setMetodoPago(p.metodoPago || 'efectivo');
+    setSubMetodoPago(p.subMetodoPago || "");
+    setReferenciaPago(p.referenciaPago || "");
+  };
+
+  // Cambiar de pestaña
+  const cambiarPestana = (idDestino: string) => {
+    if (idDestino === pestanaActivaId) return;
+    guardarEstadoEnPestanaActiva(pestanaActivaId);
+    const destino = pestanas.find(p => p.id === idDestino);
+    if (destino) {
+      cargarDatosDePestana(destino);
+      setPestanaActivaId(idDestino);
+    }
+  };
+
+  // Cambiar vendedor con aislamiento de pestañas
+  const cambiarVendedor = (nuevoVendedor: string) => {
+    if (nuevoVendedor === vendedorActivo) return;
+
+    // 1. Guardar estado actual del vendedor que sale
+    const pestanasActualizadas = pestanas.map(p => {
+      if (p.id === pestanaActivaId) {
+        return {
+          ...p,
+          vendedor: vendedorActivo,
+          filas: filas,
+          cliente: clienteSeleccionado,
+          descuentoTipo: descuentoTipo,
+          descuentoValor: descuentoValor,
+          fechaLimite: fechaLimite,
+          notas: notas,
+          abonoInicial: abonoInicial,
+          metodoPago: metodoPago,
+          subMetodoPago: subMetodoPago,
+          referenciaPago: referenciaPago,
+          nombre: p.nombre.startsWith('Separe #') && clienteSeleccionado?.nombre ? clienteSeleccionado.nombre : p.nombre
+        };
+      }
+      return p;
+    });
+    persistirPestanas(pestanasActualizadas, vendedorActivo);
+
+    // 2. Cambiar a nuevo vendedor
+    setVendedorActivo(nuevoVendedor);
+
+    // 3. Cargar datos del nuevo vendedor
+    try {
+      const key = getStorageKey(nuevoVendedor);
+      const data = localStorage.getItem(key);
+      if (data) {
+        const parsed = JSON.parse(data);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          setPestanas(parsed);
+          setPestanaActivaId(parsed[0].id);
+          cargarDatosDePestana(parsed[0]);
+          return;
+        }
+      }
+    } catch (e) {}
+
+    // Si no tiene datos previos, inicializar 1 pestaña
+    const inicial: PestanaSepare = {
+      id: '1',
+      nombre: 'Separe #1',
+      vendedor: nuevoVendedor,
+      filas: [{ id: "1", descripcion: "", valor: "", cantidad: 1, fotoUrl: null, esDeInventario: false }],
+      cliente: null,
+      descuentoTipo: null,
+      descuentoValor: "",
+      fechaLimite: "",
+      notas: "",
+      abonoInicial: "",
+      metodoPago: 'efectivo',
+      subMetodoPago: "",
+      referenciaPago: ""
+    };
+    setPestanas([inicial]);
+    setPestanaActivaId('1');
+    cargarDatosDePestana(inicial);
+    persistirPestanas([inicial], nuevoVendedor);
+  };
+
+  // Crear nueva pestaña
+  const crearNuevaPestana = (nombreOpcional?: string) => {
+    guardarEstadoEnPestanaActiva(pestanaActivaId);
+    const nuevoId = Date.now().toString();
+    const nueva: PestanaSepare = {
+      id: nuevoId,
+      nombre: nombreOpcional || `Separe #${pestanas.length + 1}`,
+      vendedor: vendedorActivo || nombreUsuario || "Vendedor",
+      filas: [{ id: "1", descripcion: "", valor: "", cantidad: 1, fotoUrl: null, esDeInventario: false }],
+      cliente: null,
+      descuentoTipo: null,
+      descuentoValor: "",
+      fechaLimite: "",
+      notas: "",
+      abonoInicial: "",
+      metodoPago: 'efectivo',
+      subMetodoPago: "",
+      referenciaPago: ""
+    };
+    const nuevas = [...pestanas, nueva];
+    setPestanas(nuevas);
+    persistirPestanas(nuevas, vendedorActivo);
+    cargarDatosDePestana(nueva);
+    setPestanaActivaId(nuevoId);
+  };
+
+  // Cerrar pestaña
+  const cerrarPestana = (idACerrar: string, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    if (pestanas.length <= 1) {
+      // Si es la única pestaña, resetearla limpia
+      const reseteada: PestanaSepare = {
+        id: '1',
+        nombre: 'Separe #1',
+        vendedor: vendedorActivo,
+        filas: [{ id: "1", descripcion: "", valor: "", cantidad: 1, fotoUrl: null, esDeInventario: false }],
+        cliente: null,
+        descuentoTipo: null,
+        descuentoValor: "",
+        fechaLimite: "",
+        notas: "",
+        abonoInicial: "",
+        metodoPago: 'efectivo',
+        subMetodoPago: "",
+        referenciaPago: ""
+      };
+      setPestanas([reseteada]);
+      setPestanaActivaId('1');
+      cargarDatosDePestana(reseteada);
+      persistirPestanas([reseteada], vendedorActivo);
+      return;
+    }
+
+    const restantes = pestanas.filter(p => p.id !== idACerrar);
+    setPestanas(restantes);
+    persistirPestanas(restantes, vendedorActivo);
+
+    if (pestanaActivaId === idACerrar) {
+      const nuevaActiva = restantes[restantes.length - 1];
+      setPestanaActivaId(nuevaActiva.id);
+      cargarDatosDePestana(nuevaActiva);
+    }
+  };
+
+  // Renombrar pestaña
+  const renombrarPestana = (id: string, nuevoNombre: string) => {
+    setPestanas(prev => {
+      const actualizadas = prev.map(p => p.id === id ? { ...p, nombre: nuevoNombre.trim() || p.nombre } : p);
+      persistirPestanas(actualizadas, vendedorActivo);
+      return actualizadas;
+    });
+  };
 
   // Lightbox de Fotos
   const [fotoLightbox, setFotoLightbox] = useState<string | null>(null);
@@ -1180,6 +1512,59 @@ Estamos atentos para cualquier consulta.
         </div>
       </div>
 
+      {/* BARRA DE PESTAÑAS MULTI-SEPARE POS */}
+      <div className="bg-gradient-to-r from-violet-700 via-purple-800 to-indigo-900 dark:bg-slate-900 px-3 py-2 border-b border-violet-800/40 dark:border-slate-800 flex items-center gap-2 overflow-x-auto no-scrollbar shrink-0 z-20">
+        {pestanas.map((p) => {
+          const activa = p.id === pestanaActivaId;
+          const subtotalPestana = (activa ? filas : p.filas).reduce((acc, f) => acc + ((parseFloat(f.valor) || 0) * f.cantidad), 0);
+
+          return (
+            <div
+              key={p.id}
+              onClick={() => cambiarPestana(p.id)}
+              className={`flex items-center gap-2 px-3 py-1.5 rounded-xl cursor-pointer transition-all shrink-0 text-xs font-bold select-none ${
+                activa
+                  ? 'bg-white text-slate-900 shadow-md font-black'
+                  : 'bg-violet-900/60 hover:bg-violet-900 text-white/90 border border-white/10'
+              }`}
+            >
+              <Bookmark size={13} className={activa ? 'text-violet-600' : 'text-white/70'} />
+              <span className="truncate max-w-[120px]">
+                {p.nombre}
+              </span>
+
+              {subtotalPestana > 0 && (
+                <span className={`text-[10px] px-1.5 py-0.5 rounded-md font-black ${activa ? 'bg-violet-100 text-violet-800' : 'bg-white/20 text-white'}`}>
+                  ${subtotalPestana.toLocaleString('es-CO')}
+                </span>
+              )}
+
+              {pestanas.length > 1 && (
+                <button
+                  type="button"
+                  onClick={(e) => cerrarPestana(p.id, e)}
+                  className={`p-0.5 rounded-full hover:bg-black/10 transition-colors ${activa ? 'text-slate-500 hover:text-slate-900' : 'text-white/60 hover:text-white'}`}
+                  title="Cerrar este separe"
+                >
+                  <X size={13} />
+                </button>
+              )}
+            </div>
+          );
+        })}
+
+        {/* Botón para agregar nueva pestaña */}
+        <button
+          type="button"
+          onClick={() => crearNuevaPestana()}
+          className="flex items-center gap-1 bg-white/15 hover:bg-white/25 text-white px-2.5 py-1.5 rounded-xl text-xs font-bold transition-all shrink-0 cursor-pointer active:scale-95 border border-white/10"
+          title="Abrir otro separe en paralelo"
+        >
+          <Plus size={14} />
+          <span className="hidden sm:inline">Nuevo Separe</span>
+        </button>
+      </div>
+
       {/* CONTENEDOR PRINCIPAL: ESTRUCTURA 2 COLUMNAS SIN SCROLL GENERAL */}
       <div className="flex flex-col lg:flex-row flex-1 min-h-0 relative overflow-y-auto lg:overflow-hidden pb-40 lg:pb-0">
         
@@ -2099,6 +2484,18 @@ Estamos atentos para cualquier consulta.
                   Ir a Lista de Separes
                 </button>
               )}
+
+              <button
+                type="button"
+                onClick={() => {
+                  setModalExito(null);
+                  cerrarPestana(pestanaActivaId);
+                }}
+                className="w-full bg-slate-900 dark:bg-white text-white dark:text-slate-900 font-black py-3 rounded-xl transition-all text-xs cursor-pointer shadow-md flex items-center justify-center gap-1.5 hover:opacity-90"
+              >
+                <Plus size={15} />
+                <span>Nuevo Separe</span>
+              </button>
             </div>
           </div>
         </div>
