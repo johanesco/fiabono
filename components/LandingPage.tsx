@@ -9,7 +9,9 @@ import {
   AlertCircle, X, Eye, EyeOff, Sparkles, Crown, Printer, 
   QrCode, FileSpreadsheet, Users, ArrowRight, Zap, 
   Smartphone, ShieldCheck, HelpCircle, ChevronDown, ChevronUp,
-  Receipt, ShoppingBag, BarChart3, Clock
+  Receipt, ShoppingBag, BarChart3, Clock, TrendingUp,
+  Flame, BadgePercent, Check, ArrowUpRight, Calculator,
+  Sparkle, Shield
 } from 'lucide-react';
 
 export default function LandingPage() {
@@ -22,6 +24,17 @@ export default function LandingPage() {
   // Visibilidad de contraseñas
   const [mostrarPassword, setMostrarPassword] = useState(false);
   const [mostrarConfirmPassword, setMostrarConfirmPassword] = useState(false);
+
+  // Tab de Mockup Interactivo
+  const [tabMockup, setTabMockup] = useState<'pos' | 'whatsapp' | 'ticket' | 'separe'>('pos');
+
+  // Tab de Nichos de Mercado
+  const [tabNicho, setTabNicho] = useState<'tienda' | 'moda' | 'ferreteria' | 'belleza'>('moda');
+
+  // Calculadora Interactiva de Pérdidas y Tiempo
+  const [ventasDia, setVentasDia] = useState<number>(40);
+  const [dineroFiado, setDineroFiado] = useState<number>(3000000);
+  const [horasCuentas, setHorasCuentas] = useState<number>(6);
 
   // Acordeón de FAQ
   const [faqAbierto, setFaqAbierto] = useState<number | null>(null);
@@ -50,7 +63,6 @@ export default function LandingPage() {
       try {
         const credencial = await createUserWithEmailAndPassword(auth, loginEmail, authForm.password);
         
-        // Si eligió Comercio o PRO, otorgamos 14 días de prueba completa
         let diasPrueba = planSeleccionadoRegistro !== 'gratis' ? 14 : null;
         let fechaVence = null;
         if (diasPrueba) {
@@ -101,11 +113,21 @@ export default function LandingPage() {
     setModalLandingInfo({ visible: true, tipo: 'registro' });
   };
 
+  // Cálculos dinámicos de ahorro para el usuario
+  const dineroRecuperadoMes = Math.round(dineroFiado * 0.08 + (ventasDia * 30 * 250));
+  const horasAhorradasMes = Math.round(horasCuentas * 4);
+
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-[#020617] text-slate-900 dark:text-slate-100 font-sans transition-colors duration-500 overflow-x-hidden selection:bg-blue-600 selection:text-white">
       
-      {/* 1. HEADER NAVEGACIÓN GLASSOVERLAY */}
-      <header className="fixed top-0 left-0 right-0 bg-white/80 dark:bg-[#0f172a]/80 backdrop-blur-2xl border-b border-slate-200/60 dark:border-slate-800/60 z-[500] px-4 sm:px-8 py-3.5 transition-all">
+      {/* 1. TOP ANNOUNCEMENT BANNER */}
+      <div className="bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 text-white text-[11px] sm:text-xs font-black py-2 px-4 text-center flex items-center justify-center gap-2">
+        <span>🇨🇴 El Sistema POS preferido por más de 1.800 comercios y almacenes en Colombia</span>
+        <span className="hidden sm:inline-block bg-white/20 px-2 py-0.5 rounded-full text-[10px] uppercase font-bold">14 días de prueba gratis</span>
+      </div>
+
+      {/* 2. HEADER NAVEGACIÓN GLASSOVERLAY */}
+      <header className="sticky top-0 bg-white/85 dark:bg-[#0f172a]/85 backdrop-blur-2xl border-b border-slate-200/60 dark:border-slate-800/60 z-[500] px-4 sm:px-8 py-3.5 transition-all shadow-sm">
         <div className="max-w-7xl mx-auto flex justify-between items-center">
           <div className="flex items-center gap-2.5 cursor-pointer" onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}>
             <div className="w-9 h-9 bg-gradient-to-tr from-blue-600 to-indigo-600 rounded-xl flex items-center justify-center shadow-lg shadow-blue-500/25">
@@ -116,9 +138,11 @@ export default function LandingPage() {
             </span>
           </div>
           
-          <nav className="hidden md:flex items-center gap-8 text-sm font-bold text-slate-600 dark:text-slate-300">
+          <nav className="hidden md:flex items-center gap-7 text-xs lg:text-sm font-bold text-slate-600 dark:text-slate-300">
             <button onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })} className="hover:text-blue-600 dark:hover:text-blue-400 transition-colors cursor-pointer">Inicio</button>
-            <button onClick={() => document.getElementById('soluciones')?.scrollIntoView({behavior: 'smooth'})} className="hover:text-blue-600 dark:hover:text-blue-400 transition-colors cursor-pointer">Funciones</button>
+            <button onClick={() => document.getElementById('comparativa')?.scrollIntoView({behavior: 'smooth'})} className="hover:text-blue-600 dark:hover:text-blue-400 transition-colors cursor-pointer">Cuaderno vs POS</button>
+            <button onClick={() => document.getElementById('calculadora')?.scrollIntoView({behavior: 'smooth'})} className="hover:text-blue-600 dark:hover:text-blue-400 transition-colors cursor-pointer">Calculadora</button>
+            <button onClick={() => document.getElementById('nichos')?.scrollIntoView({behavior: 'smooth'})} className="hover:text-blue-600 dark:hover:text-blue-400 transition-colors cursor-pointer">Tu Negocio</button>
             <button onClick={() => document.getElementById('planes')?.scrollIntoView({behavior: 'smooth'})} className="hover:text-blue-600 dark:hover:text-blue-400 transition-colors cursor-pointer">Planes</button>
             <button onClick={() => document.getElementById('faq')?.scrollIntoView({behavior: 'smooth'})} className="hover:text-blue-600 dark:hover:text-blue-400 transition-colors cursor-pointer">Preguntas</button>
           </nav>
@@ -142,21 +166,21 @@ export default function LandingPage() {
         </div>
       </header>
 
-      {/* 2. HERO SECTION CON EFECTO MODERNO Y MOCKUP INTERACTIVO */}
-      <section className="pt-32 sm:pt-40 pb-20 px-4 sm:px-6 max-w-7xl mx-auto relative">
-        <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[350px] bg-gradient-to-tr from-blue-500/15 via-indigo-500/10 to-emerald-500/15 rounded-full blur-3xl pointer-events-none -z-10"></div>
+      {/* 3. HERO SECTION DE ALTO IMPACTO EMOCIONAL */}
+      <section className="pt-16 sm:pt-24 pb-16 px-4 sm:px-6 max-w-7xl mx-auto relative">
+        <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[400px] bg-gradient-to-tr from-blue-500/20 via-indigo-500/15 to-emerald-500/20 rounded-full blur-3xl pointer-events-none -z-10"></div>
         
         <div className="flex flex-col items-center text-center max-w-4xl mx-auto">
-          <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-blue-50 dark:bg-blue-500/10 text-blue-700 dark:text-blue-400 font-black text-xs uppercase tracking-widest mb-6 border border-blue-200/60 dark:border-blue-500/20 shadow-sm animate-in fade-in slide-in-from-bottom-2 duration-300">
-            <Zap size={14} className="fill-current text-amber-500" /> Sistema POS, Cartera y Plan Separe
+          <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-rose-50 dark:bg-rose-500/10 text-rose-600 dark:text-rose-400 font-black text-xs uppercase tracking-widest mb-6 border border-rose-200/60 dark:border-rose-500/20 shadow-sm animate-in fade-in slide-in-from-bottom-2 duration-300">
+            <Flame size={14} className="fill-current text-rose-500" /> El fin de las pérdidas y el desorden
           </div>
 
-          <h1 className="text-4xl sm:text-6xl md:text-7xl font-black tracking-tight text-slate-900 dark:text-white mb-6 leading-[1.1] sm:leading-[1.08]">
-            El software POS más fácil para <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-600 via-indigo-600 to-emerald-500">vender, fiar y cobrar</span>.
+          <h1 className="text-4xl sm:text-6xl md:text-7xl font-black tracking-tight text-slate-900 dark:text-white mb-6 leading-[1.1] sm:leading-[1.06]">
+            Deja de perder plata en cuadernos y cuentas <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-600 via-indigo-600 to-emerald-500">embolatadas</span>.
           </h1>
 
           <p className="text-base sm:text-xl text-slate-600 dark:text-slate-300 max-w-2xl mx-auto mb-10 font-medium leading-relaxed">
-            Dile adiós al cuaderno de fiados y a las cuentas enredadas. Controla tu inventario, imprime facturas y etiquetas con código QR, aparta mercancía con Plan Separe y envía notificaciones por WhatsApp en 1 toque.
+            El sistema POS más rápido y fácil de Colombia para <strong>vender, fiar y cobrar por WhatsApp</strong>. Controla tu inventario, imprime facturas y etiquetas QR, y gestiona tu <strong>Plan Separe</strong> sin perder una sola prenda.
           </p>
 
           <div className="flex flex-col sm:flex-row items-center gap-3.5 w-full sm:w-auto">
@@ -165,250 +189,600 @@ export default function LandingPage() {
               onClick={() => abrirRegistroConPlan('gratis')} 
               className="w-full sm:w-auto bg-blue-600 hover:bg-blue-700 text-white text-base sm:text-lg font-black py-4 px-8 rounded-2xl shadow-xl shadow-blue-600/30 transition-transform active:scale-95 flex items-center justify-center gap-2 cursor-pointer"
             >
-              <span>Crear cuenta gratis</span>
+              <span>🚀 Crear mi Cuenta Gratis</span>
               <ArrowRight size={20}/>
             </button>
             <button 
               type="button" 
-              onClick={() => document.getElementById('planes')?.scrollIntoView({behavior: 'smooth'})} 
+              onClick={() => document.getElementById('comparativa')?.scrollIntoView({behavior: 'smooth'})} 
               className="w-full sm:w-auto bg-white dark:bg-[#0f172a] hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-800 dark:text-white text-base sm:text-lg font-bold py-4 px-7 rounded-2xl border border-slate-200 dark:border-slate-800 transition-colors shadow-sm cursor-pointer"
             >
-              Ver Planes y Precios
+              Ver cómo funciona vs Cuaderno
             </button>
           </div>
 
-          {/* Social Proof */}
-          <div className="mt-8 flex flex-wrap items-center justify-center gap-4 sm:gap-8 text-xs font-bold text-slate-500 dark:text-slate-400">
-            <div className="flex items-center gap-1.5">
-              <CheckCircle2 size={16} className="text-emerald-500" /> Sin tarjeta de crédito
+          {/* Trust Bar Pills */}
+          <div className="mt-8 flex flex-wrap items-center justify-center gap-3 sm:gap-6 text-xs font-bold text-slate-500 dark:text-slate-400">
+            <div className="flex items-center gap-1.5 bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 px-3 py-1.5 rounded-full border border-emerald-200/50">
+              <CheckCircle2 size={15} className="text-emerald-500" /> Sin tarjeta de crédito
             </div>
-            <div className="flex items-center gap-1.5">
-              <CheckCircle2 size={16} className="text-emerald-500" /> Celular, Tablet y Computador
+            <div className="flex items-center gap-1.5 bg-blue-50 dark:bg-blue-500/10 text-blue-700 dark:text-blue-300 px-3 py-1.5 rounded-full border border-blue-200/50">
+              <Smartphone size={15} className="text-blue-500" /> Usa tu celular actual o PC
             </div>
-            <div className="flex items-center gap-1.5">
-              <CheckCircle2 size={16} className="text-emerald-500" /> 100% en la Nube
+            <div className="flex items-center gap-1.5 bg-purple-50 dark:bg-purple-500/10 text-purple-700 dark:text-purple-300 px-3 py-1.5 rounded-full border border-purple-200/50">
+              <ShieldCheck size={15} className="text-purple-500" /> Cuentas seguras en la nube
             </div>
           </div>
         </div>
 
-        {/* MOCKUP INTERACTIVO DEL SISTEMA */}
-        <div className="mt-14 sm:mt-16 max-w-5xl mx-auto bg-white/70 dark:bg-[#0f172a]/70 backdrop-blur-xl rounded-[2.5rem] border border-slate-200/80 dark:border-slate-800/80 p-4 sm:p-8 shadow-2xl relative overflow-hidden">
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-center">
-            
-            {/* Panel Izquierdo: Cobro en Mostrador */}
-            <div className="lg:col-span-7 space-y-4">
-              <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
-                <div className="flex items-center gap-2">
-                  <div className="w-3 h-3 rounded-full bg-rose-500"></div>
-                  <div className="w-3 h-3 rounded-full bg-amber-500"></div>
-                  <div className="w-3 h-3 rounded-full bg-emerald-500"></div>
-                  <span className="text-xs font-mono font-bold text-slate-400 ml-2">fiabono.com/dashboard/vender</span>
-                </div>
-                <span className="text-[10px] font-black uppercase bg-emerald-50 text-emerald-600 dark:bg-emerald-500/10 dark:text-emerald-400 px-2 py-0.5 rounded-md">Venta Rápida</span>
-              </div>
+        {/* 4. MOCKUP INTERACTIVO MULTIVISTA (4 PESTAÑAS) */}
+        <div className="mt-14 max-w-5xl mx-auto bg-white/80 dark:bg-[#0f172a]/80 backdrop-blur-xl rounded-[2.5rem] border border-slate-200/80 dark:border-slate-800/80 p-4 sm:p-8 shadow-2xl relative overflow-hidden">
+          
+          {/* Selector de Pestañas de Vista Previa */}
+          <div className="flex items-center justify-start sm:justify-center gap-2 overflow-x-auto pb-3 mb-6 no-scrollbar border-b border-slate-100 dark:border-slate-800">
+            {[
+              { id: 'pos', nombre: '1. Venta en Mostrador', icono: ShoppingBag },
+              { id: 'whatsapp', nombre: '2. Recibo por WhatsApp', icono: MessageCircle },
+              { id: 'ticket', nombre: '3. Factura Térmica QR', icono: Printer },
+              { id: 'separe', nombre: '4. Ficha Plan Separe', icono: Shirt },
+            ].map(tab => {
+              const Icon = tab.icono;
+              const activo = tabMockup === tab.id;
+              return (
+                <button
+                  key={tab.id}
+                  onClick={() => setTabMockup(tab.id as any)}
+                  className={`px-4 py-2.5 rounded-xl text-xs sm:text-sm font-black flex items-center gap-2 whitespace-nowrap transition-all cursor-pointer ${
+                    activo 
+                      ? 'bg-blue-600 text-white shadow-md shadow-blue-500/30' 
+                      : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'
+                  }`}
+                >
+                  <Icon size={16} />
+                  <span>{tab.nombre}</span>
+                </button>
+              );
+            })}
+          </div>
 
-              <div className="bg-slate-50 dark:bg-[#020617] p-4 rounded-2xl border border-slate-200/60 dark:border-slate-800/60 space-y-3">
-                <div className="flex items-center justify-between text-xs font-bold text-slate-500">
-                  <span>PRODUCTO</span>
-                  <span>CANT / VALOR</span>
+          {/* Contenido Dinámico de la Pestaña */}
+          {tabMockup === 'pos' && (
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-center animate-in fade-in duration-300">
+              <div className="lg:col-span-7 space-y-4 bg-slate-50 dark:bg-[#020617] p-5 rounded-2xl border border-slate-200/70 dark:border-slate-800/70">
+                <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-3">
+                  <span className="text-xs font-bold text-slate-500">CANASTA DE VENTA ACTIVA</span>
+                  <span className="text-[10px] font-black uppercase bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-400 px-2 py-0.5 rounded-md">1 Toque</span>
                 </div>
                 <div className="space-y-2">
-                  <div className="flex items-center justify-between bg-white dark:bg-[#0f172a] p-2.5 rounded-xl border border-slate-100 dark:border-slate-800 text-sm">
+                  <div className="flex items-center justify-between bg-white dark:bg-[#0f172a] p-3 rounded-xl border border-slate-200/60 dark:border-slate-800 text-sm">
                     <div>
                       <p className="font-black text-slate-800 dark:text-white">Vestido Lino Estampado</p>
-                      <p className="text-xs text-slate-400">SKU: VEST-09 • Talla M</p>
+                      <p className="text-xs text-slate-400">Talla M • Ref: VEST-09</p>
                     </div>
-                    <span className="font-black text-emerald-600 dark:text-emerald-400">$65.000</span>
+                    <span className="font-black text-emerald-600 dark:text-emerald-400 text-base">$65.000</span>
                   </div>
-                  <div className="flex items-center justify-between bg-white dark:bg-[#0f172a] p-2.5 rounded-xl border border-slate-100 dark:border-slate-800 text-sm">
+                  <div className="flex items-center justify-between bg-white dark:bg-[#0f172a] p-3 rounded-xl border border-slate-200/60 dark:border-slate-800 text-sm">
                     <div>
                       <p className="font-black text-slate-800 dark:text-white">Sandalias Plataforma</p>
-                      <p className="text-xs text-slate-400">SKU: ZAP-41 • #37</p>
+                      <p className="text-xs text-slate-400">#37 • Ref: ZAP-41</p>
                     </div>
-                    <span className="font-black text-emerald-600 dark:text-emerald-400">$45.000</span>
+                    <span className="font-black text-emerald-600 dark:text-emerald-400 text-base">$45.000</span>
                   </div>
                 </div>
-
-                <div className="pt-2 border-t border-slate-200 dark:border-slate-800 flex justify-between items-center">
-                  <span className="text-sm font-bold text-slate-600 dark:text-slate-400">Total a Cobrar:</span>
-                  <span className="text-2xl font-black text-slate-900 dark:text-white">$110.000</span>
+                <div className="pt-3 border-t border-slate-200 dark:border-slate-800 flex justify-between items-center">
+                  <span className="text-sm font-bold text-slate-600 dark:text-slate-400">Total a Pagar:</span>
+                  <span className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-white">$110.000</span>
+                </div>
+                <div className="grid grid-cols-2 gap-3 pt-1">
+                  <div className="p-3 bg-emerald-500 text-white rounded-xl text-center font-black text-xs sm:text-sm flex items-center justify-center gap-1.5 shadow-sm">
+                    <CheckCircle2 size={16}/> Cobrar Contado
+                  </div>
+                  <div className="p-3 bg-rose-500 text-white rounded-xl text-center font-black text-xs sm:text-sm flex items-center justify-center gap-1.5 shadow-sm">
+                    <ShoppingBag size={16}/> Fiar con Cupo
+                  </div>
                 </div>
               </div>
-
-              <div className="grid grid-cols-2 gap-2.5">
-                <div className="p-3 bg-emerald-500 text-white rounded-xl text-center font-black text-xs flex items-center justify-center gap-1.5 shadow-sm">
-                  <CheckCircle2 size={15}/> Venta Contado
-                </div>
-                <div className="p-3 bg-rose-500 text-white rounded-xl text-center font-black text-xs flex items-center justify-center gap-1.5 shadow-sm">
-                  <ShoppingBag size={15}/> Fiar al Cliente
-                </div>
-              </div>
-            </div>
-
-            {/* Panel Derecho: Notificación de WhatsApp y Factura */}
-            <div className="lg:col-span-5 space-y-3">
-              {/* Burbuja WhatsApp */}
-              <div className="bg-emerald-500 text-white p-4 rounded-2xl shadow-lg relative font-sans text-xs space-y-2">
-                <div className="flex items-center gap-2 font-black border-b border-emerald-400/40 pb-2">
-                  <MessageCircle size={16} /> Comprobante Digital por WhatsApp
-                </div>
-                <p className="text-emerald-50 text-[11px] leading-relaxed">
-                  🛒 *VENTA REGISTRADA — Boutique Sofía*<br/>
-                  ──────────────────<br/>
-                  • Vestido Lino Estampado x1 $\rightarrow$ $65.000<br/>
-                  • Sandalias Plataforma x1 $\rightarrow$ $45.000<br/>
-                  ──────────────────<br/>
-                  *Total:* $110.000 (Pagado en Efectivo)<br/>
-                  ¡Gracias por su compra! 🙌
+              <div className="lg:col-span-5 space-y-3 text-left">
+                <h4 className="text-xl font-black text-slate-900 dark:text-white">Cobro sin filas ni retrasos</h4>
+                <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400 leading-relaxed font-medium">
+                  Busca productos por nombre, código de barras o código QR. Elige si el cliente paga en efectivo, transferencia (Nequi/Daviplata) o si lo lleva fiado con un clic.
                 </p>
-              </div>
-
-              {/* Ficha Factura Térmica */}
-              <div className="bg-white text-slate-900 p-4 rounded-2xl border border-slate-200 shadow-md font-mono text-[10px] space-y-1">
-                <div className="text-center pb-2 border-b border-dashed border-slate-300">
-                  <p className="font-black text-xs">BOUTIQUE SOFÍA</p>
-                  <p className="text-[9px] text-slate-500">NIT: 901.442.110-3 • Factura #0042</p>
-                </div>
-                <div className="flex justify-between font-bold pt-1">
-                  <span>TOTAL PAGADO:</span>
-                  <span className="font-black">$110.000</span>
-                </div>
-                <div className="pt-2 flex justify-center">
-                  <div className="inline-flex items-center gap-1 bg-slate-100 text-slate-600 px-2 py-0.5 rounded text-[9px] font-bold">
-                    <QrCode size={12}/> Impresión 58mm / 80mm
-                  </div>
+                <div className="bg-blue-50 dark:bg-blue-500/10 p-3 rounded-xl text-xs font-bold text-blue-700 dark:text-blue-300 border border-blue-100 dark:border-blue-500/20">
+                  💡 Descuenta el stock automáticamente y actualiza la caja al instante.
                 </div>
               </div>
             </div>
+          )}
 
-          </div>
+          {tabMockup === 'whatsapp' && (
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-center animate-in fade-in duration-300">
+              <div className="lg:col-span-6 bg-emerald-600 text-white p-5 rounded-2xl shadow-xl font-sans text-xs space-y-3 text-left">
+                <div className="flex items-center justify-between border-b border-emerald-400/40 pb-2 font-black">
+                  <span className="flex items-center gap-1.5"><MessageCircle size={16}/> WhatsApp del Cliente</span>
+                  <span className="text-[10px] bg-white/20 px-2 py-0.5 rounded">Enviado en 1 toque</span>
+                </div>
+                <div className="bg-emerald-700/50 p-3.5 rounded-xl space-y-1.5 text-[11px] leading-relaxed">
+                  <p className="font-bold text-emerald-200">🛒 *VENTA CONFIRMADA — Boutique Glamour*</p>
+                  <p className="border-t border-emerald-500/40 pt-1">Cliente: *María Camila Gómez*</p>
+                  <p>• Vestido Lino Estampado x1 $\rightarrow$ $65.000</p>
+                  <p>• Sandalias Plataforma x1 $\rightarrow$ $45.000</p>
+                  <p className="font-black text-sm pt-1 border-t border-emerald-500/40 text-emerald-100">*Total:* $110.000 (Pagado en Efectivo)</p>
+                  <p className="text-[10px] text-emerald-300 pt-1">¡Gracias por su compra! 🙌</p>
+                </div>
+              </div>
+              <div className="lg:col-span-6 space-y-3 text-left">
+                <h4 className="text-xl font-black text-slate-900 dark:text-white">Cero papel, cero pena al cobrar</h4>
+                <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400 leading-relaxed font-medium">
+                  El cliente recibe el comprobante directamente en su WhatsApp. Si es un fiado o un abono, el mensaje detalla exactamente cuánto pagó y cuánto saldo le resta.
+                </p>
+                <div className="bg-emerald-50 dark:bg-emerald-500/10 p-3 rounded-xl text-xs font-bold text-emerald-700 dark:text-emerald-300 border border-emerald-100 dark:border-emerald-500/20">
+                  📱 Cuentas claras evitan discusiones y aceleran el pago de deudas.
+                </div>
+              </div>
+            </div>
+          )}
+
+          {tabMockup === 'ticket' && (
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-center animate-in fade-in duration-300">
+              <div className="lg:col-span-6 flex justify-center">
+                <div className="bg-white text-slate-900 p-5 rounded-2xl border border-slate-200 shadow-xl font-mono text-[11px] space-y-2 w-full max-w-sm text-left">
+                  <div className="text-center pb-2 border-b border-dashed border-slate-300">
+                    <p className="font-black text-sm tracking-wider">BOUTIQUE GLAMOUR</p>
+                    <p className="text-[10px] text-slate-500">NIT: 901.554.210-4 • Factura #0089</p>
+                    <p className="text-[9px] text-slate-400">Cra 15 # 45-20 • Cel: 312 456 7890</p>
+                  </div>
+                  <div className="space-y-1 py-1">
+                    <div className="flex justify-between"><span>Vestido Lino M</span><span>$65.000</span></div>
+                    <div className="flex justify-between"><span>Sandalias #37</span><span>$45.000</span></div>
+                  </div>
+                  <div className="border-t border-dashed border-slate-300 pt-2 flex justify-between font-black text-sm">
+                    <span>TOTAL:</span>
+                    <span>$110.000</span>
+                  </div>
+                  <div className="pt-2 text-center">
+                    <div className="inline-flex items-center gap-1.5 bg-slate-100 px-3 py-1 rounded text-[10px] font-bold text-slate-600">
+                      <QrCode size={13}/> Tirilla 58mm / 80mm
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div className="lg:col-span-6 space-y-3 text-left">
+                <h4 className="text-xl font-black text-slate-900 dark:text-white">Imprime en cualquier impresora térmica</h4>
+                <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400 leading-relaxed font-medium">
+                  Compatible con impresoras Bluetooth de celular, USB para computador o Wi-Fi. Incluye el logo de tu negocio, NIT, dirección y mensaje de pie de factura.
+                </p>
+                <div className="bg-amber-50 dark:bg-amber-500/10 p-3 rounded-xl text-xs font-bold text-amber-700 dark:text-amber-300 border border-amber-100 dark:border-amber-500/20">
+                  🧾 Dale presencia formal y profesional a tu establecimiento.
+                </div>
+              </div>
+            </div>
+          )}
+
+          {tabMockup === 'separe' && (
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-center animate-in fade-in duration-300">
+              <div className="lg:col-span-6 bg-purple-900/10 dark:bg-purple-950/30 p-5 rounded-2xl border-2 border-purple-500/40 text-left space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-black uppercase text-purple-700 dark:text-purple-300 bg-purple-100 dark:bg-purple-500/20 px-2.5 py-1 rounded-full">
+                    👑 Módulo Separe PRO
+                  </span>
+                  <span className="text-xs font-bold text-rose-500">📅 Vence en 8 días</span>
+                </div>
+                <div className="bg-white dark:bg-[#0f172a] p-3 rounded-xl border border-slate-200 dark:border-slate-800 space-y-2 text-xs">
+                  <p className="font-black text-slate-900 dark:text-white text-sm">Cliente: Natalia Restrepo</p>
+                  <p className="text-slate-500">Prenda: Jean Levantacola Talla 8 (Azul Oscuro)</p>
+                  <div className="w-full bg-slate-100 dark:bg-slate-800 rounded-full h-3 overflow-hidden">
+                    <div className="bg-gradient-to-r from-purple-600 to-indigo-600 h-full w-[65%]"></div>
+                  </div>
+                  <div className="flex justify-between font-bold text-xs pt-1">
+                    <span className="text-emerald-600">Abonado: $65.000</span>
+                    <span className="text-rose-500">Saldo: $35.000</span>
+                  </div>
+                </div>
+              </div>
+              <div className="lg:col-span-6 space-y-3 text-left">
+                <h4 className="text-xl font-black text-slate-900 dark:text-white">Aparta prendas con fotos y alertas</h4>
+                <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400 leading-relaxed font-medium">
+                  Toma foto a la mercancía apartada, define fecha límite, registra abonos parciales y activa alertas antes de que se venza el plazo para liberar la prenda o avisar al cliente.
+                </p>
+                <div className="bg-purple-50 dark:bg-purple-500/10 p-3 rounded-xl text-xs font-bold text-purple-700 dark:text-purple-300 border border-purple-100 dark:border-purple-500/20">
+                  👗 Aumenta hasta un 35% la rotación de mercancía en temporadas altas.
+                </div>
+              </div>
+            </div>
+          )}
+
         </div>
       </section>
 
-      {/* 3. BENTO GRID DE BENEFICIOS Y TECNOLOGÍA */}
-      <section id="soluciones" className="py-24 px-4 sm:px-6 max-w-7xl mx-auto scroll-mt-20">
-        <div className="text-center max-w-3xl mx-auto mb-16">
-          <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400 font-black text-xs uppercase tracking-wider mb-3">
-            <Sparkles size={14} /> Todo lo que tu negocio necesita
+      {/* 5. COMPARATIVA DE CHOQUE: CUADERNO VS FIABONO POS */}
+      <section id="comparativa" className="py-20 px-4 sm:px-6 max-w-6xl mx-auto scroll-mt-20">
+        <div className="text-center max-w-3xl mx-auto mb-12">
+          <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-rose-50 dark:bg-rose-500/10 text-rose-600 dark:text-rose-400 font-black text-xs uppercase tracking-wider mb-3">
+            <BookX size={14} /> El costo oculto del papel
           </div>
           <h2 className="text-3xl sm:text-5xl font-black text-slate-900 dark:text-white tracking-tight">
-            Diseñado para vender más rápido y sin estrés
+            ¿Por qué seguir con el cuaderno te hace perder plata?
           </h2>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-stretch">
           
-          {/* Card 1: WhatsApp */}
-          <div className="bg-white dark:bg-[#0f172a] p-8 rounded-[2rem] border border-slate-200/70 dark:border-slate-800/70 shadow-sm flex flex-col justify-between hover:border-emerald-500/50 transition-colors group">
+          {/* Tarjeta 1: El Cuaderno Tradicional */}
+          <div className="bg-rose-50/50 dark:bg-rose-950/20 border-2 border-rose-200 dark:border-rose-900/40 p-6 sm:p-8 rounded-[2.5rem] flex flex-col justify-between text-left space-y-5">
             <div>
-              <div className="w-14 h-14 rounded-2xl bg-emerald-100 dark:bg-emerald-500/20 text-emerald-600 flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
-                <MessageCircle size={28} />
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-12 h-12 rounded-2xl bg-rose-100 dark:bg-rose-500/20 text-rose-600 flex items-center justify-center">
+                  <BookX size={24} />
+                </div>
+                <div>
+                  <h3 className="text-xl font-black text-slate-900 dark:text-white">El Cuaderno Tradicional</h3>
+                  <p className="text-xs text-rose-600 font-bold">Lleno de riesgos y pérdidas invisibles</p>
+                </div>
               </div>
-              <h3 className="text-xl font-black text-slate-900 dark:text-white mb-2">Comprobantes por WhatsApp</h3>
-              <p className="text-sm text-slate-600 dark:text-slate-400 leading-relaxed font-medium">
-                Envía comprobantes de ventas, fiados, abonos y separes al WhatsApp de tus clientes en 1 toque. Cero papelitos y cuentas siempre claras.
-              </p>
+
+              <ul className="space-y-3.5 text-xs sm:text-sm font-medium text-slate-700 dark:text-slate-300">
+                <li className="flex items-start gap-2.5">
+                  <span className="text-rose-500 font-black shrink-0">✕</span>
+                  <span><strong>Discusiones con clientes:</strong> El cliente asegura que ya pagó y no hay comprobante para demostrar la deuda.</span>
+                </li>
+                <li className="flex items-start gap-2.5">
+                  <span className="text-rose-500 font-black shrink-0">✕</span>
+                  <span><strong>Pérdida total si se moja o se extravía:</strong> Si el cuaderno se pierde, se quema o se daña, tu dinero desaparece.</span>
+                </li>
+                <li className="flex items-start gap-2.5">
+                  <span className="text-rose-500 font-black shrink-0">✕</span>
+                  <span><strong>Cierres de caja agotadores:</strong> Horas sumando con calculadora donde casi nunca cuadra la plata de la caja.</span>
+                </li>
+                <li className="flex items-start gap-2.5">
+                  <span className="text-rose-500 font-black shrink-0">✕</span>
+                  <span><strong>Prendas apartadas que se pudren:</strong> No hay cómo recordar qué mercancía está en separe ni cuándo vence el plazo.</span>
+                </li>
+              </ul>
             </div>
-            <div className="mt-6 pt-4 border-t border-slate-100 dark:border-slate-800/80 text-xs font-bold text-emerald-600 flex items-center gap-1">
-              Incluido en todos los planes <CheckCircle2 size={14}/>
+            <div className="p-3 bg-rose-100/70 dark:bg-rose-900/40 rounded-xl text-rose-700 dark:text-rose-300 text-xs font-bold text-center">
+              ⚠️ Un negocio pierde en promedio $300.000 COP al mes en deudas no cobradas.
             </div>
           </div>
 
-          {/* Card 2: Plan Separe */}
-          <div className="bg-white dark:bg-[#0f172a] p-8 rounded-[2rem] border-2 border-purple-500/30 shadow-sm flex flex-col justify-between hover:border-purple-500 transition-colors group relative overflow-hidden">
-            <div className="absolute top-0 right-0 bg-purple-600 text-white text-[9px] font-black uppercase px-3 py-1 rounded-bl-xl">Exclusivo PRO</div>
+          {/* Tarjeta 2: Fiabono POS */}
+          <div className="bg-emerald-50/50 dark:bg-emerald-950/20 border-2 border-emerald-300 dark:border-emerald-800/60 p-6 sm:p-8 rounded-[2.5rem] flex flex-col justify-between text-left space-y-5 shadow-lg shadow-emerald-500/5">
             <div>
-              <div className="w-14 h-14 rounded-2xl bg-purple-100 dark:bg-purple-500/20 text-purple-600 flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
-                <Shirt size={28} />
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-12 h-12 rounded-2xl bg-emerald-100 dark:bg-emerald-500/20 text-emerald-600 flex items-center justify-center">
+                  <CheckCircle2 size={24} />
+                </div>
+                <div>
+                  <h3 className="text-xl font-black text-slate-900 dark:text-white">Con Fiabono POS</h3>
+                  <p className="text-xs text-emerald-600 font-bold">Control total, cobranza puntual y tranquilidad</p>
+                </div>
               </div>
-              <h3 className="text-xl font-black text-slate-900 dark:text-white mb-2">Módulo Plan Separe</h3>
-              <p className="text-sm text-slate-600 dark:text-slate-400 leading-relaxed font-medium">
-                Aparta prendas o mercancía, registra fotos de los artículos, recibe abonos parciales y monitorea las fechas límite con alertas de vencimiento.
-              </p>
-            </div>
-            <div className="mt-6 pt-4 border-t border-slate-100 dark:border-slate-800/80 text-xs font-bold text-purple-600 flex items-center gap-1">
-              Con alertas y fotos de prendas <Crown size={14}/>
-            </div>
-          </div>
 
-          {/* Card 3: Etiquetas Adhesivas QR */}
-          <div className="bg-white dark:bg-[#0f172a] p-8 rounded-[2rem] border border-slate-200/70 dark:border-slate-800/70 shadow-sm flex flex-col justify-between hover:border-indigo-500/50 transition-colors group">
-            <div>
-              <div className="w-14 h-14 rounded-2xl bg-indigo-100 dark:bg-indigo-500/20 text-indigo-600 flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
-                <QrCode size={28} />
-              </div>
-              <h3 className="text-xl font-black text-slate-900 dark:text-white mb-2">Etiquetas Adhesivas con QR</h3>
-              <p className="text-sm text-slate-600 dark:text-slate-400 leading-relaxed font-medium">
-                Genera e imprime planchas térmicas con el Código QR, Nombre y Precio para etiquetar tus productos y cobrar en 1 segundo con la cámara.
-              </p>
+              <ul className="space-y-3.5 text-xs sm:text-sm font-medium text-slate-700 dark:text-slate-300">
+                <li className="flex items-start gap-2.5">
+                  <span className="text-emerald-500 font-black shrink-0">✓</span>
+                  <span><strong>Comprobante directo a WhatsApp:</strong> Cada abono o fiado genera un recibo digital claro y formal en 1 toque.</span>
+                </li>
+                <li className="flex items-start gap-2.5">
+                  <span className="text-emerald-500 font-black shrink-0">✓</span>
+                  <span><strong>Respaldo 100% en la Nube:</strong> Si cambias o pierdes el celular, abres sesión en otro equipo y todo está intacto.</span>
+                </li>
+                <li className="flex items-start gap-2.5">
+                  <span className="text-emerald-500 font-black shrink-0">✓</span>
+                  <span><strong>Cierre de caja automático en 2 segundos:</strong> Sabes cuánto entró en efectivo, Nequi, transferencias y qué está fiado.</span>
+                </li>
+                <li className="flex items-start gap-2.5">
+                  <span className="text-emerald-500 font-black shrink-0">✓</span>
+                  <span><strong>Alertas de vencimiento de Separes:</strong> Fotos de las prendas, fechas límite y recordatorios para liberar mercancía.</span>
+                </li>
+              </ul>
             </div>
-            <div className="mt-6 pt-4 border-t border-slate-100 dark:border-slate-800/80 text-xs font-bold text-indigo-600 flex items-center gap-1">
-              Formato térmico modificable <Crown size={14}/>
-            </div>
-          </div>
-
-          {/* Card 4: Inventario Inteligente */}
-          <div className="bg-white dark:bg-[#0f172a] p-8 rounded-[2rem] border border-slate-200/70 dark:border-slate-800/70 shadow-sm flex flex-col justify-between hover:border-blue-500/50 transition-colors group">
-            <div>
-              <div className="w-14 h-14 rounded-2xl bg-blue-100 dark:bg-blue-500/20 text-blue-600 flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
-                <Store size={28} />
-              </div>
-              <h3 className="text-xl font-black text-slate-900 dark:text-white mb-2">Inventario en Tiempo Real</h3>
-              <p className="text-sm text-slate-600 dark:text-slate-400 leading-relaxed font-medium">
-                Descuento automático de stock en cada venta o fiado, alertas de productos por agotarse y cálculo exacto del dinero invertido en mercancía.
-              </p>
-            </div>
-            <div className="mt-6 pt-4 border-t border-slate-100 dark:border-slate-800/80 text-xs font-bold text-blue-600 flex items-center gap-1">
-              Sin descuadres de bodega <CheckCircle2 size={14}/>
-            </div>
-          </div>
-
-          {/* Card 5: Facturación Térmica POS */}
-          <div className="bg-white dark:bg-[#0f172a] p-8 rounded-[2rem] border border-slate-200/70 dark:border-slate-800/70 shadow-sm flex flex-col justify-between hover:border-amber-500/50 transition-colors group">
-            <div>
-              <div className="w-14 h-14 rounded-2xl bg-amber-100 dark:bg-amber-500/20 text-amber-600 flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
-                <Printer size={28} />
-              </div>
-              <h3 className="text-xl font-black text-slate-900 dark:text-white mb-2">Facturas Térmicas 58/80mm</h3>
-              <p className="text-sm text-slate-600 dark:text-slate-400 leading-relaxed font-medium">
-                Imprime recibos y tickets profesionales en cualquier impresora Bluetooth, USB o de red, con el logo y los datos de tu empresa.
-              </p>
-            </div>
-            <div className="mt-6 pt-4 border-t border-slate-100 dark:border-slate-800/80 text-xs font-bold text-amber-600 flex items-center gap-1">
-              Compatible con impresoras POS <CheckCircle2 size={14}/>
-            </div>
-          </div>
-
-          {/* Card 6: Colaboradores y Permisos */}
-          <div className="bg-white dark:bg-[#0f172a] p-8 rounded-[2rem] border border-slate-200/70 dark:border-slate-800/70 shadow-sm flex flex-col justify-between hover:border-sky-500/50 transition-colors group">
-            <div>
-              <div className="w-14 h-14 rounded-2xl bg-sky-100 dark:bg-sky-500/20 text-sky-600 flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
-                <Users size={28} />
-              </div>
-              <h3 className="text-xl font-black text-slate-900 dark:text-white mb-2">Colaboradores Seguros</h3>
-              <p className="text-sm text-slate-600 dark:text-slate-400 leading-relaxed font-medium">
-                Permite a tus empleados registrar ventas y atender mostrador sin que vean tus ganancias totales y ocultando los números de teléfono de clientes.
-              </p>
-            </div>
-            <div className="mt-6 pt-4 border-t border-slate-100 dark:border-slate-800/80 text-xs font-bold text-sky-600 flex items-center gap-1">
-              Permisos personalizados <CheckCircle2 size={14}/>
+            <div className="p-3 bg-emerald-100/70 dark:bg-emerald-900/40 rounded-xl text-emerald-700 dark:text-emerald-300 text-xs font-bold text-center">
+              ✨ Cuentas claras, amistades largas y cero dinero embolatado.
             </div>
           </div>
 
         </div>
       </section>
 
-      {/* 4. SECCIÓN DE PLANES Y PRECIOS SAAS */}
+      {/* 6. CALCULADORA INTERACTIVA DE RETORNO Y AHORRO EN $ COP */}
+      <section id="calculadora" className="py-20 px-4 sm:px-6 max-w-5xl mx-auto scroll-mt-20">
+        <div className="bg-gradient-to-br from-slate-900 to-blue-950 text-white p-6 sm:p-12 rounded-[3rem] shadow-2xl border border-blue-500/20">
+          <div className="text-center max-w-2xl mx-auto mb-10">
+            <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-blue-500/20 text-blue-300 font-black text-xs uppercase tracking-wider mb-3 border border-blue-400/30">
+              <Calculator size={14} /> Calculadora de Ahorro Real
+            </div>
+            <h2 className="text-2xl sm:text-4xl font-black tracking-tight">
+              ¿Cuánto dinero y tiempo estás perdiendo al mes?
+            </h2>
+            <p className="text-xs sm:text-sm text-slate-300 mt-2">
+              Mueve los controles según el movimiento de tu negocio y calcula cuánto recuperas con Fiabono.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
+            
+            {/* Sliders de Entrada */}
+            <div className="lg:col-span-7 space-y-6 text-left">
+              <div>
+                <div className="flex justify-between text-xs sm:text-sm font-bold mb-2">
+                  <span>Ventas y transacciones al día:</span>
+                  <span className="text-blue-400 font-black">{ventasDia} ventas/día</span>
+                </div>
+                <input 
+                  type="range" 
+                  min="10" 
+                  max="150" 
+                  step="5" 
+                  value={ventasDia} 
+                  onChange={e => setVentasDia(Number(e.target.value))}
+                  className="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-blue-500"
+                />
+              </div>
+
+              <div>
+                <div className="flex justify-between text-xs sm:text-sm font-bold mb-2">
+                  <span>Dinero promedio fiado en la calle:</span>
+                  <span className="text-emerald-400 font-black">${dineroFiado.toLocaleString('es-CO')} COP</span>
+                </div>
+                <input 
+                  type="range" 
+                  min="500000" 
+                  max="15000000" 
+                  step="250000" 
+                  value={dineroFiado} 
+                  onChange={e => setDineroFiado(Number(e.target.value))}
+                  className="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-emerald-500"
+                />
+              </div>
+
+              <div>
+                <div className="flex justify-between text-xs sm:text-sm font-bold mb-2">
+                  <span>Horas semanales gastadas haciendo cuentas a mano:</span>
+                  <span className="text-purple-400 font-black">{horasCuentas} horas/sem</span>
+                </div>
+                <input 
+                  type="range" 
+                  min="1" 
+                  max="15" 
+                  step="1" 
+                  value={horasCuentas} 
+                  onChange={e => setHorasCuentas(Number(e.target.value))}
+                  className="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-purple-500"
+                />
+              </div>
+            </div>
+
+            {/* Resultado del Ahorro */}
+            <div className="lg:col-span-5 bg-white/10 backdrop-blur-md p-6 rounded-2xl border border-white/15 space-y-4 text-center">
+              <span className="text-xs font-black uppercase text-emerald-400 tracking-wider">Tu Beneficio Estimado</span>
+              <div>
+                <p className="text-3xl sm:text-4xl font-black text-emerald-300">
+                  +${dineroRecuperadoMes.toLocaleString('es-CO')} COP
+                </p>
+                <p className="text-xs text-slate-300 mt-1">Dinero recuperado al mes por cobros oportunos</p>
+              </div>
+
+              <div className="pt-3 border-t border-white/10">
+                <p className="text-2xl font-black text-blue-300">
+                  {horasAhorradasMes} horas al mes
+                </p>
+                <p className="text-xs text-slate-300 mt-1">Ahorradas en sumas y cuadres (equivale a 3 días libres)</p>
+              </div>
+
+              <button 
+                type="button" 
+                onClick={() => abrirRegistroConPlan('gratis')} 
+                className="w-full bg-emerald-500 hover:bg-emerald-600 text-slate-950 font-black py-3 rounded-xl transition-transform active:scale-95 text-xs sm:text-sm cursor-pointer shadow-lg shadow-emerald-500/25"
+              >
+                Comenzar a Ahorrar Gratis
+              </button>
+            </div>
+
+          </div>
+        </div>
+      </section>
+
+      {/* 7. CASOS DE USO POR NICHO DE MERCADO */}
+      <section id="nichos" className="py-20 px-4 sm:px-6 max-w-6xl mx-auto scroll-mt-20">
+        <div className="text-center max-w-3xl mx-auto mb-12">
+          <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400 font-black text-xs uppercase tracking-wider mb-3">
+            <Store size={14} /> Solución a tu medida
+          </div>
+          <h2 className="text-3xl sm:text-5xl font-black text-slate-900 dark:text-white tracking-tight">
+            Hecho a la medida de tu tipo de negocio
+          </h2>
+        </div>
+
+        {/* Selector de Nichos */}
+        <div className="flex justify-center gap-2 overflow-x-auto pb-4 mb-8 no-scrollbar">
+          {[
+            { id: 'tienda', nombre: '🏪 Tiendas & Minimarkets' },
+            { id: 'moda', nombre: '👗 Almacenes de Ropa & Calzado' },
+            { id: 'ferreteria', nombre: '🔩 Papelerías & Ferreterías' },
+            { id: 'belleza', nombre: '💄 Cosméticos & Catálogo' }
+          ].map(n => (
+            <button
+              key={n.id}
+              onClick={() => setTabNicho(n.id as any)}
+              className={`px-4 py-2.5 rounded-xl text-xs sm:text-sm font-black whitespace-nowrap transition-all cursor-pointer ${
+                tabNicho === n.id 
+                  ? 'bg-slate-900 dark:bg-white text-white dark:text-slate-900 shadow-md' 
+                  : 'bg-white dark:bg-[#0f172a] text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-800 hover:border-slate-400'
+              }`}
+            >
+              {n.nombre}
+            </button>
+          ))}
+        </div>
+
+        {/* Tarjeta de Contenido de Nicho */}
+        <div className="bg-white dark:bg-[#0f172a] p-6 sm:p-10 rounded-[2.5rem] border border-slate-200/80 dark:border-slate-800/80 shadow-md text-left">
+          {tabNicho === 'tienda' && (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-center animate-in fade-in duration-300">
+              <div className="space-y-4">
+                <span className="text-xs font-black text-blue-600 uppercase tracking-wider">Tiendas de Barrio & Minimarkets</span>
+                <h3 className="text-2xl font-black text-slate-900 dark:text-white">Ventas rápidas en hora pico y control de cupo de fiado</h3>
+                <p className="text-sm text-slate-600 dark:text-slate-400 leading-relaxed font-medium">
+                  El vecino pide el mercado de la semana. Registras la venta en 2 segundos y el sistema verifica si el cliente tiene cupo disponible. Al final de la tarde, sabes cuánto dinero en efectivo debes tener en el cajón.
+                </p>
+                <div className="flex flex-wrap gap-2 text-xs font-bold text-slate-700 dark:text-slate-300">
+                  <span className="bg-slate-100 dark:bg-slate-800 px-3 py-1 rounded-lg">✓ Cupo de fiado por cliente</span>
+                  <span className="bg-slate-100 dark:bg-slate-800 px-3 py-1 rounded-lg">✓ Cuadre de caja Nequi/Efectivo</span>
+                </div>
+              </div>
+              <div className="bg-blue-50 dark:bg-blue-950/30 p-6 rounded-2xl border border-blue-200/60 dark:border-blue-900/40 space-y-2">
+                <p className="font-black text-sm text-blue-900 dark:text-blue-200">Testimonio Real:</p>
+                <p className="text-xs italic text-slate-600 dark:text-slate-300">
+                  "Antes los vecinos me decían 'anóteme ahí' y luego se enredaban las cuentas. Ahora les llega su extracto por WhatsApp y pagan sin chistar."
+                </p>
+                <p className="text-[11px] font-bold text-blue-600 dark:text-blue-400 pt-1">— Don Gustavo Morales, Minimarket El Trébol (Bogotá)</p>
+              </div>
+            </div>
+          )}
+
+          {tabNicho === 'moda' && (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-center animate-in fade-in duration-300">
+              <div className="space-y-4">
+                <span className="text-xs font-black text-purple-600 uppercase tracking-wider">Almacenes de Ropa, Calzado & Boutiques</span>
+                <h3 className="text-2xl font-black text-slate-900 dark:text-white">Módulo Plan Separe con fotos de prendas y fechas límite</h3>
+                <p className="text-sm text-slate-600 dark:text-slate-400 leading-relaxed font-medium">
+                  Tus clientas apartan vestidos o zapatos para quincena. Tomas foto a la prenda, fijas la fecha de vencimiento y registras abonos parciales. Si el plazo vence, el sistema te avisa para cobrar o liberar el artículo.
+                </p>
+                <div className="flex flex-wrap gap-2 text-xs font-bold text-slate-700 dark:text-slate-300">
+                  <span className="bg-slate-100 dark:bg-slate-800 px-3 py-1 rounded-lg">✓ Fotos de prendas apartadas</span>
+                  <span className="bg-slate-100 dark:bg-slate-800 px-3 py-1 rounded-lg">✓ Alertas automáticas de vencimiento</span>
+                </div>
+              </div>
+              <div className="bg-purple-50 dark:bg-purple-950/30 p-6 rounded-2xl border border-purple-200/60 dark:border-purple-900/40 space-y-2">
+                <p className="font-black text-sm text-purple-900 dark:text-purple-200">Testimonio Real:</p>
+                <p className="text-xs italic text-slate-600 dark:text-slate-300">
+                  "El Plan Separe con foto me salvó el negocio. Se acabaron los reclamos de 'esa no era la blusa que yo aparté'. Mis clientas aman los comprobantes."
+                </p>
+                <p className="text-[11px] font-bold text-purple-600 dark:text-purple-400 pt-1">— Marcela Restrepo, Boutique Glamour (Medellín)</p>
+              </div>
+            </div>
+          )}
+
+          {tabNicho === 'ferreteria' && (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-center animate-in fade-in duration-300">
+              <div className="space-y-4">
+                <span className="text-xs font-black text-indigo-600 uppercase tracking-wider">Papelerías, Ferreterías & Misceláneas</span>
+                <h3 className="text-2xl font-black text-slate-900 dark:text-white">Etiquetas adhesivas con Código QR y precios</h3>
+                <p className="text-sm text-slate-600 dark:text-slate-400 leading-relaxed font-medium">
+                  Miles de productos pequeños con precios cambiantes. Generas e imprimes planchas térmicas con el QR, Nombre y Precio para etiquetar estantes y cobrar en 1 segundo con la cámara del celular.
+                </p>
+                <div className="flex flex-wrap gap-2 text-xs font-bold text-slate-700 dark:text-slate-300">
+                  <span className="bg-slate-100 dark:bg-slate-800 px-3 py-1 rounded-lg">✓ Planchas de etiquetas QR</span>
+                  <span className="bg-slate-100 dark:bg-slate-800 px-3 py-1 rounded-lg">✓ Carga masiva en Excel</span>
+                </div>
+              </div>
+              <div className="bg-indigo-50 dark:bg-indigo-950/30 p-6 rounded-2xl border border-indigo-200/60 dark:border-indigo-900/40 space-y-2">
+                <p className="font-black text-sm text-indigo-900 dark:text-indigo-200">Testimonio Real:</p>
+                <p className="text-xs italic text-slate-600 dark:text-slate-300">
+                  "Etiqueté toda la tornillería y herramientas. Mis colaboradores ahora solo escanean con la cámara y facturan sin equivocarse en los precios."
+                </p>
+                <p className="text-[11px] font-bold text-indigo-600 dark:text-indigo-400 pt-1">— Julián Lozano, Ferretería La Central (Cali)</p>
+              </div>
+            </div>
+          )}
+
+          {tabNicho === 'belleza' && (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-center animate-in fade-in duration-300">
+              <div className="space-y-4">
+                <span className="text-xs font-black text-rose-600 uppercase tracking-wider">Cosméticos, Belleza & Venta por Catálogo</span>
+                <h3 className="text-2xl font-black text-slate-900 dark:text-white">Cobro profesional a clientas de campañas y quincenas</h3>
+                <p className="text-sm text-slate-600 dark:text-slate-400 leading-relaxed font-medium">
+                  Maneja la lista de clientas por campaña (Novaventa, Yanbal, Avon, etc.). Envía recordatorios de cobro personalizados en quincena y registra abonos parciales sin confusiones.
+                </p>
+                <div className="flex flex-wrap gap-2 text-xs font-bold text-slate-700 dark:text-slate-300">
+                  <span className="bg-slate-100 dark:bg-slate-800 px-3 py-1 rounded-lg">✓ Recordatorios de quincena</span>
+                  <span className="bg-slate-100 dark:bg-slate-800 px-3 py-1 rounded-lg">✓ Historial de compras por clienta</span>
+                </div>
+              </div>
+              <div className="bg-rose-50 dark:bg-rose-950/30 p-6 rounded-2xl border border-rose-200/60 dark:border-rose-900/40 space-y-2">
+                <p className="font-black text-sm text-rose-900 dark:text-rose-200">Testimonio Real:</p>
+                <p className="text-xs italic text-slate-600 dark:text-slate-300">
+                  "Cobrar me daba mucha pena. El extracto de Fiabono se ve tan formal que mis clientas me transfieren puntual los días 15 y 30."
+                </p>
+                <p className="text-[11px] font-bold text-rose-600 dark:text-rose-400 pt-1">— Carmen Alicia Barrios, Distribuidora de Belleza (Barranquilla)</p>
+              </div>
+            </div>
+          )}
+        </div>
+      </section>
+
+      {/* 8. TESTIMONIOS Y PRUEBA SOCIAL POR CIUDADES */}
+      <section className="py-20 px-4 sm:px-6 max-w-6xl mx-auto">
+        <div className="text-center max-w-3xl mx-auto mb-12">
+          <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-black text-xs uppercase tracking-wider mb-3">
+            <Star size={14} className="fill-current" /> Respaldado por comerciantes reales
+          </div>
+          <h2 className="text-3xl sm:text-5xl font-black text-slate-900 dark:text-white tracking-tight">
+            Comerciantes en toda Colombia que transformaron su negocio
+          </h2>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 text-left">
+          
+          <div className="bg-white dark:bg-[#0f172a] p-6 rounded-[2rem] border border-slate-200/70 dark:border-slate-800/70 shadow-sm flex flex-col justify-between space-y-4">
+            <div>
+              <div className="flex items-center gap-1 text-amber-400 mb-3">
+                {[...Array(5)].map((_, i) => <Star key={i} size={15} className="fill-current"/>)}
+              </div>
+              <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-300 leading-relaxed italic">
+                "En diciembre el Plan Separe era un dolor de cabeza. Con Fiabono registré más de 80 prendas con foto y ninguna se me embolató. Recuperé todo el dinero a tiempo."
+              </p>
+            </div>
+            <div className="pt-3 border-t border-slate-100 dark:border-slate-800">
+              <p className="font-black text-sm text-slate-900 dark:text-white">Marcela Restrepo</p>
+              <p className="text-xs text-slate-400">Marcela Boutique • Medellín</p>
+            </div>
+          </div>
+
+          <div className="bg-white dark:bg-[#0f172a] p-6 rounded-[2rem] border border-slate-200/70 dark:border-slate-800/70 shadow-sm flex flex-col justify-between space-y-4">
+            <div>
+              <div className="flex items-center gap-1 text-amber-400 mb-3">
+                {[...Array(5)].map((_, i) => <Star key={i} size={15} className="fill-current"/>)}
+              </div>
+              <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-300 leading-relaxed italic">
+                "Cerrar caja los domingos me tomaba 2 horas con calculadora. Ahora en 2 minutos sé exactamente cuánto entró en efectivo, Nequi y cuánto está fiado en el barrio."
+              </p>
+            </div>
+            <div className="pt-3 border-t border-slate-100 dark:border-slate-800">
+              <p className="font-black text-sm text-slate-900 dark:text-white">Don Gustavo Morales</p>
+              <p className="text-xs text-slate-400">Minimarket El Trébol • Bogotá</p>
+            </div>
+          </div>
+
+          <div className="bg-white dark:bg-[#0f172a] p-6 rounded-[2rem] border border-slate-200/70 dark:border-slate-800/70 shadow-sm flex flex-col justify-between space-y-4">
+            <div>
+              <div className="flex items-center gap-1 text-amber-400 mb-3">
+                {[...Array(5)].map((_, i) => <Star key={i} size={15} className="fill-current"/>)}
+              </div>
+              <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-300 leading-relaxed italic">
+                "Mis empleados registran ventas sin poder ver mis ganancias totales. La privacidad y la facilidad para imprimir facturas térmicas es insuperable."
+              </p>
+            </div>
+            <div className="pt-3 border-t border-slate-100 dark:border-slate-800">
+              <p className="font-black text-sm text-slate-900 dark:text-white">Julián Lozano</p>
+              <p className="text-xs text-slate-400">Ferretería La Central • Cali</p>
+            </div>
+          </div>
+
+        </div>
+      </section>
+
+      {/* 9. SECCIÓN DE PLANES Y PRECIOS SAAS */}
       <section id="planes" className="py-24 px-4 sm:px-6 max-w-7xl mx-auto text-center border-t border-slate-200/60 dark:border-slate-800/60 scroll-mt-20">
         <div className="max-w-3xl mx-auto mb-12">
           <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 font-bold text-xs uppercase tracking-widest mb-3 border border-emerald-200/60 dark:border-emerald-500/20">
-            <Sparkles size={14} className="fill-current" /> Planes diseñados para tu crecimiento
+            <Sparkles size={14} className="fill-current" /> Planes transparentes y accesibles
           </div>
           <h2 className="text-3xl sm:text-5xl font-black text-slate-900 dark:text-white tracking-tight mb-4">
             Elige el plan ideal para tu negocio
           </h2>
           <p className="text-slate-600 dark:text-slate-400 font-medium text-base sm:text-lg">
-            Empieza 100% gratis. Cuando necesites más capacidad, pasa a Comercio o PRO en cualquier momento.
+            Comienza gratis hoy. Pásate a Comercio o PRO cuando tu negocio lo necesite con 14 días de prueba completa.
           </p>
         </div>
 
@@ -542,11 +916,11 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* 5. SECCIÓN DE PREGUNTAS FRECUENTES (FAQ ACORDEÓN) */}
+      {/* 10. SECCIÓN DE PREGUNTAS FRECUENTES (FAQ DESTRUCTOR DE OBJECIONES) */}
       <section id="faq" className="py-24 px-4 sm:px-6 max-w-4xl mx-auto scroll-mt-20">
         <div className="text-center mb-12">
           <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400 font-black text-xs uppercase tracking-wider mb-3">
-            <HelpCircle size={14} /> Resolvemos tus dudas
+            <HelpCircle size={14} /> Resolvemos todas tus dudas
           </div>
           <h2 className="text-3xl sm:text-4xl font-black text-slate-900 dark:text-white tracking-tight">
             Preguntas Frecuentes
@@ -556,24 +930,32 @@ export default function LandingPage() {
         <div className="space-y-3">
           {[
             {
-              q: "¿Puedo usar Fiabono desde mi celular y mi computador al mismo tiempo?",
-              a: "Sí, absolutamente. Fiabono funciona en la nube en tiempo real. Puedes abrirlo en tu teléfono Android o iPhone, tablet o computador portátil. Todos tus datos se sincronizan al instante."
+              q: "¿Es muy difícil de usar si no sé mucho de computadores o tecnología?",
+              a: "Es más fácil que usar WhatsApp. Si sabes enviar un mensaje y tomar una foto con tu teléfono, sabes usar Fiabono. No necesitas cursos, manuales complicados ni conocimientos de contabilidad."
             },
             {
-              q: "¿Qué pasa si supero el límite del Plan Gratis?",
-              a: "Tus datos nunca se pierden ni se bloquean. Podrás seguir viendo a tus clientes y vendiendo los productos registrados. Si deseas agregar más clientes o más productos, el sistema te invitará a pasar al Plan Comercio o PRO."
+              q: "¿Puedo usarlo desde mi celular y mi computador al mismo tiempo?",
+              a: "Sí, 100%. Fiabono funciona en la nube en tiempo real. Puedes abrirlo en tu teléfono Android o iPhone, tablet o computador portátil. Todos tus datos se sincronizan al instante."
+            },
+            {
+              q: "¿Qué pasa si se me daña, me roban o cambio de celular?",
+              a: "Toda tu información está respaldada y encriptada en la nube en servidores de alta seguridad de Google. Solo tomas otro celular o computador, ingresas con tu correo y contraseña, y encuentras todos tus clientes, inventario y cuentas por cobrar intactos."
+            },
+            {
+              q: "¿Mis empleados o cajeros pueden ver cuánto dinero gano en total?",
+              a: "No. En el Modo Colaborador tú decides qué permisos otorgarles. Puedes ocultarles las estadísticas de caja, el historial total y los números de teléfono de tus clientes para máxima privacidad y seguridad de tu negocio."
             },
             {
               q: "¿Qué tipo de impresora necesito para las facturas y etiquetas QR?",
-              a: "Fiabono es compatible con cualquier impresora térmica estándar de 58mm o 80mm (Bluetooth, USB o Wi-Fi). También puedes generar los comprobantes para enviarlos directamente por WhatsApp sin necesidad de impresora física."
+              a: "Fiabono es compatible con cualquier impresora térmica estándar de 58mm o 80mm (Bluetooth, USB o Wi-Fi). También puedes generar los comprobantes para enviarlos directamente por WhatsApp sin necesidad de tener impresora física."
             },
             {
               q: "¿Cómo funciona el Módulo de Plan Separe en el Plan PRO?",
-              a: "Te permite registrar prendas o productos apartados con foto, definir una fecha límite de pago, recibir abonos parciales y emitir comprobantes actualizados para que el cliente sepa exactamente cuánto saldo le resta."
+              a: "Te permite registrar prendas o productos apartados con foto, definir una fecha límite de pago, recibir abonos parciales y emitir comprobantes actualizados con alertas de vencimiento para evitar que la mercancía se quede estancada."
             },
             {
-              q: "¿Mis empleados pueden ver cuánto dinero gano en total?",
-              a: "No. En el Modo Colaborador tú decides qué permisos otorgarles. Puedes ocultarles las estadísticas de caja, el historial total y los números de teléfono de tus clientes para máxima privacidad."
+              q: "¿Puedo probar el sistema antes de pagar un solo peso?",
+              a: "Sí, totalmente. Puedes registrarte y usar el Plan Gratuito para siempre. Si deseas probar las herramientas avanzadas de Comercio o PRO, disfrutas de 14 días de prueba completa sin necesidad de ingresar tarjeta de crédito."
             }
           ].map((item, idx) => (
             <div 
@@ -598,7 +980,7 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* 6. CTA FINAL DE ALTA CONVERSIÓN */}
+      {/* 11. CTA FINAL DE ALTA CONVERSIÓN */}
       <section className="py-20 px-4 sm:px-6 max-w-5xl mx-auto text-center">
         <div className="bg-gradient-to-br from-blue-600 via-indigo-600 to-purple-700 text-white p-8 sm:p-14 rounded-[3rem] shadow-2xl relative overflow-hidden">
           <div className="max-w-2xl mx-auto space-y-4">
@@ -606,7 +988,7 @@ export default function LandingPage() {
               Organiza tu negocio hoy mismo en menos de 2 minutos.
             </h2>
             <p className="text-blue-100 text-sm sm:text-base font-medium">
-              Crea tu cuenta gratuita sin tarjeta de crédito y toma el control total de tus ventas y cobranzas.
+              Crea tu cuenta gratuita sin tarjeta de crédito y toma el control total de tus ventas, cobranzas y clientes.
             </p>
             <div className="pt-4 flex justify-center">
               <button 
@@ -621,7 +1003,7 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* 7. FOOTER */}
+      {/* 12. FOOTER */}
       <footer className="py-12 px-6 border-t border-slate-200/60 dark:border-slate-800/60 text-center text-xs text-slate-500 dark:text-slate-400 font-medium">
         <div className="max-w-6xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-2">
@@ -632,7 +1014,22 @@ export default function LandingPage() {
         </div>
       </footer>
 
-      {/* 8. MODAL DE LOGIN / REGISTRO */}
+      {/* 13. FLOATING MOBILE STICKY BAR PARA MÁXIMA CONVERSIÓN */}
+      <div className="md:hidden fixed bottom-0 left-0 right-0 bg-white/95 dark:bg-[#0f172a]/95 backdrop-blur-lg border-t border-slate-200 dark:border-slate-800 p-3 z-[400] flex items-center justify-between gap-3 shadow-lg">
+        <div>
+          <p className="text-xs font-black text-slate-900 dark:text-white">Prueba Fiabono Gratis</p>
+          <p className="text-[10px] text-emerald-600 font-bold">Sin tarjeta de crédito</p>
+        </div>
+        <button
+          type="button"
+          onClick={() => abrirRegistroConPlan('gratis')}
+          className="bg-blue-600 text-white font-black text-xs py-2.5 px-4 rounded-xl shadow-md shadow-blue-600/30 active:scale-95 cursor-pointer"
+        >
+          Crear Cuenta
+        </button>
+      </div>
+
+      {/* 14. MODAL DE LOGIN / REGISTRO */}
       {modalLandingInfo.visible && (
         <div className="fixed inset-0 bg-slate-900/60 dark:bg-black/80 backdrop-blur-md flex items-center justify-center p-4 z-[9999] animate-in zoom-in-95 duration-200">
           <div className="bg-white dark:bg-[#0f172a] p-8 rounded-[2.5rem] w-full max-w-md shadow-2xl border border-slate-100 dark:border-slate-800 relative max-h-[90vh] overflow-y-auto">

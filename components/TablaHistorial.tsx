@@ -49,19 +49,25 @@ export default function TablaHistorial({ movimientos, getNombreCliente, onRowCli
               </td>
               <td className="p-6">
                 <span className={`px-3 py-1 rounded-lg text-xs font-bold uppercase ${
+                  mov.tipo === 'egreso' ? 'bg-amber-100 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300' :
+                  mov.tipo === 'entrega_separe' ? 'bg-purple-100 text-purple-700 dark:bg-purple-950/40 dark:text-purple-300' :
                   mov.separeId || mov.descripcion?.toLowerCase().includes('separe') ? 'bg-violet-100 text-violet-700 dark:bg-violet-950/40 dark:text-violet-300' :
                   mov.tipo === 'fiado' ? 'bg-rose-100 text-rose-600' : 
                   mov.tipo === 'venta' ? 'bg-emerald-100 text-emerald-600' : 'bg-blue-100 text-blue-600'
                 }`}>
-                  {mov.separeId || mov.descripcion?.toLowerCase().includes('separe') ? '✦ SEPARE' : mov.tipo}
+                  {mov.tipo === 'egreso' ? 'EGRESO' :
+                   mov.tipo === 'entrega_separe' ? 'ENTREGA SEPARE' :
+                   (mov.separeId || mov.descripcion?.toLowerCase().includes('separe') ? '✦ SEPARE' : mov.tipo)}
                 </span>
               </td>
               <td className={`p-6 font-black text-right text-lg ${
+                mov.tipo === 'egreso' ? 'text-amber-600 dark:text-amber-400' :
                 mov.tipo === 'fiado' ? 'text-rose-500' : 
+                mov.tipo === 'entrega_separe' ? 'text-purple-600 dark:text-purple-400' :
                 mov.separeId || mov.descripcion?.toLowerCase().includes('separe') ? 'text-violet-600 dark:text-violet-400' :
                 mov.tipo === 'venta' ? 'text-emerald-500' : 'text-blue-500'
               }`}>
-                {mov.tipo === 'fiado' ? '-' : '+'}${mov.monto.toLocaleString('es-CO')}
+                {mov.tipo === 'fiado' || mov.tipo === 'egreso' ? '-' : '+'}${mov.monto.toLocaleString('es-CO')}
               </td>
               <td className="p-6 text-center" onClick={(e) => e.stopPropagation()}>
                 {onImprimir && (

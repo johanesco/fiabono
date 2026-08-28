@@ -56,7 +56,7 @@ export default function ReportesPage() {
 
   const hoyDate = new Date();
   const diaActualNum = hoyDate.getDay() === 0 ? 6 : hoyDate.getDay() - 1;
-  const inicioSemanaDate = new Date(hoyDate.getFullYear(), hoyDate.getMonth(), hoyDate.getDate() - diaActualNum);
+  const inicioSemanaDate = new Date(hoyDate.getFullYear(), hoyDate.getMonth(), hoyDate.getDate() - diaActualNum, 0, 0, 0, 0);
 
   // Helper seguro para obtener un objeto Date sin fallar por tipos de Firestore / JSON
   const obtenerFechaJS = (fecha: any): Date => {
@@ -71,10 +71,10 @@ export default function ReportesPage() {
     return movs.filter(mov => {
       const fJS = obtenerFechaJS(mov.fecha);
       const ms = fJS.getTime();
-      const inicioHoy = new Date(hoyDate.getFullYear(), hoyDate.getMonth(), hoyDate.getDate()).getTime();
+      const inicioHoy = new Date(hoyDate.getFullYear(), hoyDate.getMonth(), hoyDate.getDate(), 0, 0, 0, 0).getTime();
       const inicioSemana = inicioSemanaDate.getTime();
-      const inicioMes = new Date(hoyDate.getFullYear(), hoyDate.getMonth(), 1).getTime();
-      const inicioAno = new Date(hoyDate.getFullYear(), 0, 1).getTime();
+      const inicioMes = new Date(hoyDate.getFullYear(), hoyDate.getMonth(), 1, 0, 0, 0, 0).getTime();
+      const inicioAno = new Date(hoyDate.getFullYear(), 0, 1, 0, 0, 0, 0).getTime();
 
       if (tipoFiltro === 'hoy' && ms < inicioHoy) return false;
       if (tipoFiltro === 'semana' && ms < inicioSemana) return false;
