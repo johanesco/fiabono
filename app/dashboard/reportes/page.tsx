@@ -234,7 +234,15 @@ export default function ReportesPage() {
   const obtenerDatosGrafica = () => {
     if (filtroGrafica === 'semana') {
       const dias = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'];
-      const datos = dias.map(d => ({ label: d, ventas: 0, fiados: 0, abonos: 0 }));
+      const datos = dias.map((d, idx) => ({ 
+        id: `dia-${idx}`,
+        label: d, 
+        shortLabel: d.substring(0, 3),
+        ventas: 0, 
+        fiados: 0, 
+        abonos: 0, 
+        countVentas: 0 
+      }));
       const movsSemana = filtrarPorTiempo(todosMovimientos, 'semana');
       movsSemana.forEach(mov => {
         if (mov.fecha) {
@@ -242,7 +250,10 @@ export default function ReportesPage() {
           let jsDay = d.getDay();
           let idx = jsDay === 0 ? 6 : jsDay - 1;
           if (datos[idx]) {
-            if (mov.tipo === 'venta') datos[idx].ventas += (mov.monto || 0);
+            if (mov.tipo === 'venta') {
+              datos[idx].ventas += (mov.monto || 0);
+              datos[idx].countVentas += 1;
+            }
             if (mov.tipo === 'fiado') datos[idx].fiados += (mov.monto || 0);
             if (mov.tipo === 'abono') datos[idx].abonos += (mov.monto || 0);
           }
@@ -250,16 +261,36 @@ export default function ReportesPage() {
       });
       return datos;
     } else if (filtroGrafica === 'mes') {
-      const semanas = ['Semana 1', 'Semana 2', 'Semana 3', 'Semana 4'];
-      const datos = semanas.map(s => ({ label: s, ventas: 0, fiados: 0, abonos: 0 }));
+      // DÍAS DEL MES EN CURSO (1 al 28/30/31)
+      const numDiasMes = new Date(hoyDate.getFullYear(), hoyDate.getMonth() + 1, 0).getDate();
+      const mesNombreCorto = NOMBRES_MESES_CORTO[hoyDate.getMonth()];
+      const datos = Array.from({ length: numDiasMes }, (_, i) => {
+        const diaNum = i + 1;
+        const fechaObj = new Date(hoyDate.getFullYear(), hoyDate.getMonth(), diaNum);
+        const nombreDiaSemana = fechaObj.toLocaleDateString('es-CO', { weekday: 'short' });
+        return {
+          id: `mes-dia-${diaNum}`,
+          label: `${nombreDiaSemana} ${diaNum} de ${NOMBRES_MESES[hoyDate.getMonth()]}`,
+          shortLabel: `${diaNum}`,
+          diaNum,
+          nombreDiaSemana,
+          ventas: 0,
+          fiados: 0,
+          abonos: 0,
+          countVentas: 0
+        };
+      });
+
       const movsMes = filtrarPorTiempo(todosMovimientos, 'mes');
       movsMes.forEach(mov => {
         if (mov.fecha) {
           const d = obtenerFechaJS(mov.fecha);
-          const diaMes = d.getDate();
-          let idx = Math.min(Math.floor((diaMes - 1) / 7), 3);
+          const idx = d.getDate() - 1;
           if (datos[idx]) {
-            if (mov.tipo === 'venta') datos[idx].ventas += (mov.monto || 0);
+            if (mov.tipo === 'venta') {
+              datos[idx].ventas += (mov.monto || 0);
+              datos[idx].countVentas += 1;
+            }
             if (mov.tipo === 'fiado') datos[idx].fiados += (mov.monto || 0);
             if (mov.tipo === 'abono') datos[idx].abonos += (mov.monto || 0);
           }
@@ -267,14 +298,25 @@ export default function ReportesPage() {
       });
       return datos;
     } else if (filtroGrafica === 'ano') {
-      const datos = NOMBRES_MESES_CORTO.map(m => ({ label: m, ventas: 0, fiados: 0, abonos: 0 }));
+      const datos = NOMBRES_MESES_CORTO.map((m, idx) => ({ 
+        id: `ano-mes-${idx}`,
+        label: NOMBRES_MESES[idx], 
+        shortLabel: m,
+        ventas: 0, 
+        fiados: 0, 
+        abonos: 0, 
+        countVentas: 0 
+      }));
       const movsAno = filtrarPorTiempo(todosMovimientos, 'ano');
       movsAno.forEach(mov => {
         if (mov.fecha) {
           const d = obtenerFechaJS(mov.fecha);
           let idx = d.getMonth();
           if (datos[idx]) {
-            if (mov.tipo === 'venta') datos[idx].ventas += (mov.monto || 0);
+            if (mov.tipo === 'venta') {
+              datos[idx].ventas += (mov.monto || 0);
+              datos[idx].countVentas += 1;
+            }
             if (mov.tipo === 'fiado') datos[idx].fiados += (mov.monto || 0);
             if (mov.tipo === 'abono') datos[idx].abonos += (mov.monto || 0);
           }
@@ -282,16 +324,36 @@ export default function ReportesPage() {
       });
       return datos;
     } else if (filtroGrafica === 'historico_mes') {
-      const semanas = ['Sem 1 (1-7)', 'Sem 2 (8-14)', 'Sem 3 (15-21)', 'Sem 4 (22+)'];
-      const datos = semanas.map(s => ({ label: s, ventas: 0, fiados: 0, abonos: 0 }));
+      // DÍAS DEL MES HISTÓRICO SELECCIONADO
+      const numDiasMes = new Date(anoHistorico, mesHistorico + 1, 0).getDate();
+      const mesNombreCorto = NOMBRES_MESES_CORTO[mesHistorico];
+      const datos = Array.from({ length: numDiasMes }, (_, i) => {
+        const diaNum = i + 1;
+        const fechaObj = new Date(anoHistorico, mesHistorico, diaNum);
+        const nombreDiaSemana = fechaObj.toLocaleDateString('es-CO', { weekday: 'short' });
+        return {
+          id: `hist-mes-dia-${diaNum}`,
+          label: `${nombreDiaSemana} ${diaNum} de ${NOMBRES_MESES[mesHistorico]} ${anoHistorico}`,
+          shortLabel: `${diaNum}`,
+          diaNum,
+          nombreDiaSemana,
+          ventas: 0,
+          fiados: 0,
+          abonos: 0,
+          countVentas: 0
+        };
+      });
+
       todosMovimientos.forEach(mov => {
         if (mov.fecha) {
           const d = obtenerFechaJS(mov.fecha);
           if (d.getFullYear() === anoHistorico && d.getMonth() === mesHistorico) {
-            const diaMes = d.getDate();
-            let idx = Math.min(Math.floor((diaMes - 1) / 7), 3);
+            const idx = d.getDate() - 1;
             if (datos[idx]) {
-              if (mov.tipo === 'venta') datos[idx].ventas += (mov.monto || 0);
+              if (mov.tipo === 'venta') {
+                datos[idx].ventas += (mov.monto || 0);
+                datos[idx].countVentas += 1;
+              }
               if (mov.tipo === 'fiado') datos[idx].fiados += (mov.monto || 0);
               if (mov.tipo === 'abono') datos[idx].abonos += (mov.monto || 0);
             }
@@ -300,14 +362,26 @@ export default function ReportesPage() {
       });
       return datos;
     } else {
-      const datos = NOMBRES_MESES_CORTO.map(m => ({ label: m, ventas: 0, fiados: 0, abonos: 0 }));
+      // AÑO HISTÓRICO (12 MESES)
+      const datos = NOMBRES_MESES_CORTO.map((m, idx) => ({ 
+        id: `hist-ano-mes-${idx}`,
+        label: `${NOMBRES_MESES[idx]} ${anoHistorico}`, 
+        shortLabel: m,
+        ventas: 0, 
+        fiados: 0, 
+        abonos: 0, 
+        countVentas: 0 
+      }));
       todosMovimientos.forEach(mov => {
         if (mov.fecha) {
           const d = obtenerFechaJS(mov.fecha);
           if (d.getFullYear() === anoHistorico) {
             let idx = d.getMonth();
             if (datos[idx]) {
-              if (mov.tipo === 'venta') datos[idx].ventas += (mov.monto || 0);
+              if (mov.tipo === 'venta') {
+                datos[idx].ventas += (mov.monto || 0);
+                datos[idx].countVentas += 1;
+              }
               if (mov.tipo === 'fiado') datos[idx].fiados += (mov.monto || 0);
               if (mov.tipo === 'abono') datos[idx].abonos += (mov.monto || 0);
             }
@@ -323,6 +397,18 @@ export default function ReportesPage() {
   const totalGraficaVentas = datosGrafica.reduce((a, d) => a + d.ventas, 0);
   const totalGraficaFiados = datosGrafica.reduce((a, d) => a + d.fiados, 0);
   const totalGraficaAbonos = datosGrafica.reduce((a, d) => a + d.abonos, 0);
+
+  // Mejor Día del Periodo (Peak Sales Day)
+  const mejorDiaPeriodo = (() => {
+    if (datosGrafica.length === 0) return null;
+    let mejor = datosGrafica[0];
+    for (const d of datosGrafica) {
+      if (d.ventas > mejor.ventas) {
+        mejor = d;
+      }
+    }
+    return mejor.ventas > 0 ? mejor : null;
+  })();
 
   const movimientosColab = filtrarPorTiempo(todosMovimientos, filtroColab);
   const colaboradoresMap: { [key: string]: { nombre: string; monto: number; cantidad: number } } = {};
@@ -477,25 +563,25 @@ export default function ReportesPage() {
   // VISTA DESBLOQUEADA (COMERCIO Y PRO)
   // =========================================================================
   return (
-    <div className="flex flex-col gap-6 sm:gap-8 animate-in fade-in duration-500 h-full max-w-7xl mx-auto w-full pb-16">
+    <div className="flex flex-col gap-6 sm:gap-8 animate-in fade-in duration-500 h-full max-w-7xl mx-auto w-full p-3 sm:p-6 lg:p-8 pt-2 sm:pt-4 pb-28">
       
       {/* CABECERA PRINCIPAL CON SELECTOR DE PERIODO */}
-      <div className="bg-gradient-to-br from-slate-800 via-slate-900 to-indigo-950 p-6 sm:p-8 rounded-[2.5rem] shadow-2xl text-white flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6 relative overflow-hidden">
-        <div className="space-y-1.5 z-10">
-          <div className="flex items-center gap-2.5 flex-wrap">
-            <span className="bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 px-3 py-1 rounded-full text-xs font-black uppercase tracking-wider inline-flex items-center gap-1.5">
-              <Sparkles size={13} /> {esPro ? 'Plan PRO Almacén' : 'Plan Comercio'}
+      <div className="bg-gradient-to-br from-slate-800 via-slate-900 to-indigo-950 p-6 sm:p-8 rounded-[2rem] sm:rounded-[2.5rem] shadow-2xl text-white flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6 relative overflow-hidden mt-1">
+        <div className="space-y-2 z-10">
+          <div className="flex items-center gap-2.5 flex-wrap pt-0.5">
+            <span className="bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 px-3.5 py-1.5 rounded-full text-xs font-black uppercase tracking-wider inline-flex items-center gap-1.5 shadow-sm">
+              <Sparkles size={14} className="text-emerald-400" /> {esPro ? 'Plan PRO Almacén' : 'Plan Comercio'}
             </span>
-            <span className="text-slate-300 text-xs font-bold flex items-center gap-1.5 bg-white/10 px-3 py-1 rounded-full backdrop-blur-md">
-              <Calendar size={13} /> {metaPeriodo.rangoDescriptivo}
+            <span className="text-slate-200 text-xs font-bold flex items-center gap-1.5 bg-white/10 px-3.5 py-1.5 rounded-full backdrop-blur-md border border-white/10 shadow-sm">
+              <Calendar size={14} className="text-blue-300" /> {metaPeriodo.rangoDescriptivo}
             </span>
           </div>
-          <h1 className="text-2xl sm:text-4xl font-black tracking-tight">Reportes y Analíticas</h1>
+          <h1 className="text-2xl sm:text-4xl font-black tracking-tight pt-1">Reportes y Analíticas</h1>
           <p className="text-slate-300 text-xs sm:text-sm font-medium">Supervisa el flujo de caja, estado de cartera y rendimiento del negocio en tiempo real.</p>
         </div>
 
         {/* SELECTOR DE PERIODO GENERAL (HOY / SEMANA / MES / AÑO / TODOS) */}
-        <div className="flex bg-black/40 backdrop-blur-md p-1.5 rounded-2xl w-full lg:w-auto border border-white/10 overflow-x-auto shrink-0 z-10">
+        <div className="flex bg-black/50 backdrop-blur-md p-1.5 rounded-2xl w-full lg:w-auto border border-white/15 overflow-x-auto shrink-0 z-10">
           {[
             { id: 'hoy', label: 'Hoy' },
             { id: 'semana', label: 'Semana' },
@@ -506,10 +592,10 @@ export default function ReportesPage() {
             <button 
               key={f.id} 
               onClick={() => setFiltroGeneral(f.id as any)}
-              className={`flex-1 lg:flex-initial px-3.5 sm:px-4 text-xs sm:text-sm font-black py-2 rounded-xl transition-all whitespace-nowrap cursor-pointer ${
+              className={`flex-1 lg:flex-initial px-4 sm:px-5 text-xs sm:text-sm font-black py-2.5 rounded-xl transition-all whitespace-nowrap cursor-pointer ${
                 filtroGeneral === f.id 
-                  ? 'bg-white text-slate-900 shadow-md scale-105' 
-                  : 'text-white/70 hover:text-white hover:bg-white/5'
+                  ? 'bg-white text-slate-900 shadow-lg scale-105' 
+                  : 'text-white/75 hover:text-white hover:bg-white/10'
               }`}
             >
               {f.label}
@@ -521,7 +607,7 @@ export default function ReportesPage() {
       {/* BLOQUE 1: CARTERA EN LA CALLE & SALUD DE COBRO */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-6">
         {/* Tarjeta Cartera */}
-        <div className="bg-white dark:bg-[#0f172a] p-6 sm:p-7 rounded-[2.5rem] border border-slate-100 dark:border-slate-800/60 shadow-sm flex items-center justify-between relative overflow-hidden">
+        <div className="bg-white dark:bg-[#0f172a] p-6 sm:p-7 rounded-[2rem] sm:rounded-[2.5rem] border border-slate-100 dark:border-slate-800/60 shadow-sm flex items-center justify-between relative overflow-hidden">
           <div className="absolute right-0 top-0 bottom-0 w-2 bg-amber-500"></div>
           <div>
             <span className="text-xs font-extrabold text-slate-400 uppercase tracking-widest">Cartera en la Calle</span>
@@ -532,7 +618,7 @@ export default function ReportesPage() {
         </div>
 
         {/* Tarjeta Clientes */}
-        <div className="bg-white dark:bg-[#0f172a] p-6 sm:p-7 rounded-[2.5rem] border border-slate-100 dark:border-slate-800/60 shadow-sm flex items-center justify-between relative overflow-hidden">
+        <div className="bg-white dark:bg-[#0f172a] p-6 sm:p-7 rounded-[2rem] sm:rounded-[2.5rem] border border-slate-100 dark:border-slate-800/60 shadow-sm flex items-center justify-between relative overflow-hidden">
           <div className="absolute right-0 top-0 bottom-0 w-2 bg-slate-800 dark:bg-slate-500"></div>
           <div>
             <span className="text-xs font-extrabold text-slate-400 uppercase tracking-widest">Directorio de Clientes</span>
@@ -552,7 +638,7 @@ export default function ReportesPage() {
         </div>
 
         {/* Tarjeta Eficiencia de Cobro */}
-        <div className="bg-white dark:bg-[#0f172a] p-6 sm:p-7 rounded-[2.5rem] border border-slate-100 dark:border-slate-800/60 shadow-sm flex items-center justify-between relative overflow-hidden">
+        <div className="bg-white dark:bg-[#0f172a] p-6 sm:p-7 rounded-[2rem] sm:rounded-[2.5rem] border border-slate-100 dark:border-slate-800/60 shadow-sm flex items-center justify-between relative overflow-hidden">
           <div className="absolute right-0 top-0 bottom-0 w-2 bg-emerald-500"></div>
           <div>
             <span className="text-xs font-extrabold text-slate-400 uppercase tracking-widest">Salud de Cartera</span>
@@ -634,7 +720,7 @@ export default function ReportesPage() {
 
       {/* BLOQUE ADICIONAL EXCLUSIVO PRO: RESUMEN DE PLAN SEPARE */}
       {esPro && (
-        <div className="p-5 sm:p-6 bg-gradient-to-br from-purple-50 via-indigo-50/40 to-white dark:from-purple-950/20 dark:via-indigo-950/10 dark:to-[#0f172a] rounded-3xl border border-purple-200/80 dark:border-purple-800/60 shadow-sm flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4">
+        <div className="p-5 sm:p-6 bg-gradient-to-br from-purple-50 via-indigo-50/40 to-white dark:from-purple-950/20 dark:via-indigo-950/10 dark:to-[#0f172a] rounded-[2rem] sm:rounded-3xl border border-purple-200/80 dark:border-purple-800/60 shadow-sm flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4">
           <div className="flex items-center gap-3">
             <div className="w-12 h-12 rounded-2xl bg-purple-600 text-white flex items-center justify-center shrink-0 shadow-md">
               <Bookmark size={22} />
@@ -672,7 +758,7 @@ export default function ReportesPage() {
       )}
 
       {/* BLOQUE 3: COMPORTAMIENTO FINANCIERO & GRÁFICA INTERACTIVA CON HISTORIAL PRO */}
-      <div className="bg-white dark:bg-[#0f172a] p-6 sm:p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-800/60 shadow-sm flex flex-col gap-6">
+      <div className="bg-white dark:bg-[#0f172a] p-6 sm:p-8 rounded-[2rem] sm:rounded-[2.5rem] border border-slate-100 dark:border-slate-800/60 shadow-sm flex flex-col gap-6">
         
         {/* Cabecera del Gráfico con Filtros y Selectores Históricos */}
         <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-4">
@@ -683,7 +769,9 @@ export default function ReportesPage() {
               </h3>
             </div>
             <p className="text-slate-500 dark:text-slate-400 text-xs mt-1">
-              Evolución comparativa entre Ventas de Contado, Créditos Fiados y Abonos Recaudados.
+              {filtroGrafica === 'mes' || filtroGrafica === 'historico_mes'
+                ? 'Desglose detallado día a día de todo el mes.' 
+                : 'Evolución comparativa entre Ventas de Contado, Créditos Fiados y Abonos Recaudados.'}
             </p>
           </div>
 
@@ -692,7 +780,7 @@ export default function ReportesPage() {
             <div className="flex bg-slate-100 dark:bg-[#020617] p-1.5 rounded-2xl overflow-x-auto w-full sm:w-auto">
               {[
                 { id: 'semana', label: 'Esta Semana' },
-                { id: 'mes', label: 'Este Mes' },
+                { id: 'mes', label: 'Este Mes (Día a Día)' },
                 { id: 'ano', label: 'Este Año' },
                 { id: 'historico_mes', label: '📅 Mes Histórico', esProOnly: true },
                 { id: 'historico_ano', label: '🗓️ Año Histórico', esProOnly: true }
@@ -760,9 +848,45 @@ export default function ReportesPage() {
           </div>
         </div>
 
+        {/* TARJETA DESTACADA: MEJOR DÍA DEL MES (RÉCORD EN VENTAS) */}
+        {mejorDiaPeriodo && (
+          <div className="p-4 sm:p-5 bg-gradient-to-r from-amber-500/10 via-emerald-500/10 to-transparent dark:from-amber-500/15 dark:via-emerald-500/15 rounded-2xl border border-amber-400/40 dark:border-amber-400/30 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-xs">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-400 to-amber-600 text-white flex items-center justify-center shrink-0 shadow-md">
+                <Crown size={20} className="fill-current" />
+              </div>
+              <div>
+                <span className="text-[10px] font-black uppercase tracking-wider text-amber-600 dark:text-amber-400 block">
+                  🌟 Día con Mejor Facturación del Periodo
+                </span>
+                <p className="text-sm sm:text-base font-black text-slate-900 dark:text-white">
+                  {mejorDiaPeriodo.label}
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-4 shrink-0 pl-13 sm:pl-0">
+              <div>
+                <span className="text-[10px] uppercase font-bold text-slate-400 block">Ventas Récord</span>
+                <span className="text-base sm:text-lg font-black text-emerald-600 dark:text-emerald-400">
+                  ${mejorDiaPeriodo.ventas.toLocaleString('es-CO')}
+                </span>
+              </div>
+              {mejorDiaPeriodo.countVentas > 0 && (
+                <div className="border-l border-slate-200 dark:border-slate-700 pl-3">
+                  <span className="text-[10px] uppercase font-bold text-slate-400 block">Transacciones</span>
+                  <span className="text-sm font-black text-slate-700 dark:text-slate-300">
+                    {mejorDiaPeriodo.countVentas} {mejorDiaPeriodo.countVentas === 1 ? 'venta' : 'ventas'}
+                  </span>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
         {/* Leyenda y Totales del Gráfico */}
         <div className="flex flex-wrap items-center justify-between gap-3 text-xs font-bold pt-3 border-t border-slate-100 dark:border-slate-800">
-          <div className="flex items-center gap-5">
+          <div className="flex items-center gap-5 flex-wrap">
             <span className="flex items-center gap-2">
               <span className="w-3.5 h-3.5 rounded-md bg-emerald-500 shadow-xs"></span> 
               <span>Ventas: <strong>${totalGraficaVentas.toLocaleString('es-CO')}</strong></span>
@@ -778,47 +902,58 @@ export default function ReportesPage() {
           </div>
 
           <span className="text-[11px] text-slate-400 font-medium hidden sm:inline">
-            Pasa el cursor o toca cada barra para ver los detalles exactos
+            Desliza horizontalmente para ver todos los días y toca cada barra para detalles
           </span>
         </div>
 
         {/* Visualización de Barras Responsive */}
-        <div className="w-full overflow-x-auto pb-2">
-          <div className="grid grid-flow-col auto-cols-fr gap-2.5 sm:gap-4 items-end h-64 sm:h-72 pt-8 pb-2 border-b border-slate-100 dark:border-slate-800 min-w-[340px]">
+        <div className="w-full overflow-x-auto pb-2 scrollbar-thin scrollbar-thumb-slate-200 dark:scrollbar-thumb-slate-800">
+          <div className="grid grid-flow-col auto-cols-fr gap-2 sm:gap-3 items-end h-64 sm:h-72 pt-10 pb-2 border-b border-slate-100 dark:border-slate-800 min-w-[500px]">
             {datosGrafica.map((item) => {
               const hVentas = Math.max((item.ventas / maxBarra) * 100, 3);
               const hFiados = Math.max((item.fiados / maxBarra) * 100, 3);
               const hAbonos = Math.max((item.abonos / maxBarra) * 100, 3);
+              const esElMejorDia = mejorDiaPeriodo && item.ventas === mejorDiaPeriodo.ventas && item.ventas > 0;
 
               return (
-                <div key={item.label} className="flex flex-col items-center h-full justify-end group relative">
+                <div key={item.id || item.label} className="flex flex-col items-center h-full justify-end group relative min-w-[28px] sm:min-w-[36px]">
                   
+                  {/* Corona de Mejor Día */}
+                  {esElMejorDia && (
+                    <div className="absolute -top-7 text-amber-500 animate-bounce flex items-center justify-center">
+                      <Crown size={15} className="fill-current drop-shadow-sm" />
+                    </div>
+                  )}
+
                   {/* Tooltip flotante enriquecido */}
-                  <div className="absolute -top-20 bg-slate-900/95 dark:bg-slate-800/95 text-white text-[11px] p-2.5 rounded-2xl opacity-0 group-hover:opacity-100 transition-all pointer-events-none z-30 whitespace-nowrap shadow-2xl backdrop-blur-md border border-white/10">
-                    <p className="font-black border-b border-white/10 pb-1 mb-1 text-center">{item.label}</p>
+                  <div className="absolute -top-22 bg-slate-900/95 dark:bg-slate-800/95 text-white text-[11px] p-2.5 rounded-2xl opacity-0 group-hover:opacity-100 transition-all pointer-events-none z-30 whitespace-nowrap shadow-2xl backdrop-blur-md border border-white/10">
+                    <p className="font-black border-b border-white/10 pb-1 mb-1 text-center flex items-center justify-center gap-1">
+                      {esElMejorDia && <Crown size={12} className="text-amber-400 fill-current" />}
+                      {item.label}
+                    </p>
                     <p className="text-emerald-400 font-bold">Ventas: ${item.ventas.toLocaleString('es-CO')}</p>
                     <p className="text-rose-400 font-bold">Fiados: ${item.fiados.toLocaleString('es-CO')}</p>
                     <p className="text-blue-400 font-bold">Abonos: ${item.abonos.toLocaleString('es-CO')}</p>
                   </div>
 
                   {/* Barras de datos */}
-                  <div className="flex items-end justify-center gap-1 sm:gap-1.5 w-full h-full">
+                  <div className={`flex items-end justify-center gap-0.5 sm:gap-1 w-full h-full p-0.5 rounded-t-lg ${esElMejorDia ? 'bg-amber-400/15 ring-1 ring-amber-400/50' : ''}`}>
                     <div 
-                      className="w-2 sm:w-3.5 bg-gradient-to-t from-emerald-600 to-emerald-400 rounded-t-lg transition-all duration-500 shadow-xs" 
+                      className="w-1.5 sm:w-2.5 bg-gradient-to-t from-emerald-600 to-emerald-400 rounded-t-md transition-all duration-500 shadow-xs" 
                       style={{ height: `${hVentas}%` }}
                     ></div>
                     <div 
-                      className="w-2 sm:w-3.5 bg-gradient-to-t from-rose-600 to-rose-400 rounded-t-lg transition-all duration-500 shadow-xs" 
+                      className="w-1.5 sm:w-2.5 bg-gradient-to-t from-rose-600 to-rose-400 rounded-t-md transition-all duration-500 shadow-xs" 
                       style={{ height: `${hFiados}%` }}
                     ></div>
                     <div 
-                      className="w-2 sm:w-3.5 bg-gradient-to-t from-blue-600 to-blue-400 rounded-t-lg transition-all duration-500 shadow-xs" 
+                      className="w-1.5 sm:w-2.5 bg-gradient-to-t from-blue-600 to-blue-400 rounded-t-md transition-all duration-500 shadow-xs" 
                       style={{ height: `${hAbonos}%` }}
                     ></div>
                   </div>
                   
-                  <span className="text-[10px] sm:text-xs font-black text-slate-500 dark:text-slate-400 mt-2 truncate max-w-full text-center">
-                    {item.label}
+                  <span className={`text-[10px] sm:text-xs font-black mt-2 truncate max-w-full text-center ${esElMejorDia ? 'text-amber-500 font-black scale-110' : 'text-slate-500 dark:text-slate-400'}`}>
+                    {item.shortLabel || item.label}
                   </span>
                 </div>
               );
