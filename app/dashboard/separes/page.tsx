@@ -582,10 +582,16 @@ Gracias por tu compra y preferencia.
         );
         const snapInv = await getDocs(qInv);
         for (const item of separeSeleccionado.items) {
-          const prodDoc = snapInv.docs.find(d => {
-            const data = d.data();
-            return (data.nombre || '').toLowerCase() === (item.descripcion || '').toLowerCase();
-          });
+          let prodDoc = null;
+          if (item.idProducto) {
+            prodDoc = snapInv.docs.find(d => d.id === item.idProducto);
+          }
+          if (!prodDoc) {
+            prodDoc = snapInv.docs.find(d => {
+              const data = d.data();
+              return (data.nombre || '').trim().toLowerCase() === (item.descripcion || '').trim().toLowerCase();
+            });
+          }
           if (prodDoc) {
             const data = prodDoc.data();
             if (data.tipoProducto !== 'servicio' && data.inventariable !== false) {

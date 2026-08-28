@@ -1202,12 +1202,16 @@ function SepareContenido() {
 
     const itemsGuardar = filas
       .filter(f => f.descripcion.trim() !== "" && (parseFloat(f.valor) || 0) > 0)
-      .map(f => ({
-        descripcion: f.descripcion.trim(),
-        valor: (parseFloat(f.valor) || 0).toString(),
-        cantidad: f.cantidad,
-        fotoUrl: f.fotoUrl || null
-      }));
+      .map(f => {
+        const pInv = inventario.find(p => (p.nombre || "").trim().toLowerCase() === f.descripcion.trim().toLowerCase());
+        return {
+          descripcion: f.descripcion.trim(),
+          valor: (parseFloat(f.valor) || 0).toString(),
+          cantidad: f.cantidad,
+          fotoUrl: f.fotoUrl || null,
+          idProducto: f.idProducto || pInv?.id || null
+        };
+      });
 
     if (itemsGuardar.length === 0) {
       toast.error("Agrega al menos un artículo con descripción y precio válido");

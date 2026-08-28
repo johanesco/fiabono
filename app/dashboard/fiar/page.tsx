@@ -1855,15 +1855,40 @@ Estamos atentos para cualquier consulta.
 
             {modalNuevoCliente && (
                 <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 z-[950]">
-                    <div className="bg-white dark:bg-[#0f172a] p-8 rounded-[2.5rem] w-full max-w-md shadow-2xl border border-slate-100 animate-in zoom-in-95 duration-200">
-                        <h3 className="text-3xl font-black text-slate-900 mb-6 flex items-center gap-2"><UserCog size={28} /> Crear Cliente</h3>
+                    <div className="bg-white dark:bg-[#0f172a] p-8 rounded-[2.5rem] w-full max-w-md shadow-2xl border border-slate-100 dark:border-slate-800 animate-in zoom-in-95 duration-200">
+                        <h3 className="text-3xl font-black text-slate-900 dark:text-white mb-6 flex items-center gap-2">
+                            <UserCog size={28} className="text-rose-500" /> Crear Cliente
+                        </h3>
                         <div className="flex flex-col gap-4 mb-8">
-                            <input type="text" value={nombreNuevo} onChange={(e) => setNombreNuevo(e.target.value)} placeholder="Nombre completo" className="w-full p-5 bg-slate-50 border rounded-2xl outline-none focus:border-rose-500 font-bold text-lg" />
-                            <input type="tel" value={celularNuevo} onChange={(e) => setCelularNuevo(e.target.value)} placeholder="WhatsApp (Opcional)" className="w-full p-5 bg-slate-50 border rounded-2xl outline-none focus:border-rose-500 font-bold text-lg" />
+                            <input 
+                                type="text" 
+                                value={nombreNuevo} 
+                                onChange={(e) => setNombreNuevo(e.target.value)} 
+                                placeholder="Nombre completo" 
+                                className="w-full p-5 bg-slate-50 dark:bg-[#020617] border border-slate-200 dark:border-slate-700 rounded-2xl outline-none focus:border-rose-500 font-bold text-lg text-slate-900 dark:text-white" 
+                            />
+                            <input 
+                                type="tel" 
+                                value={celularNuevo} 
+                                onChange={(e) => setCelularNuevo(e.target.value)} 
+                                placeholder="WhatsApp (Opcional)" 
+                                className="w-full p-5 bg-slate-50 dark:bg-[#020617] border border-slate-200 dark:border-slate-700 rounded-2xl outline-none focus:border-rose-500 font-bold text-lg text-slate-900 dark:text-white" 
+                            />
                         </div>
                         <div className="grid grid-cols-2 gap-4">
-                            <button onClick={() => setModalNuevoCliente(false)} className="bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold py-4 rounded-2xl text-lg">Cancelar</button>
-                            <button onClick={guardarClienteNuevo} disabled={guardandoCliente} className="bg-rose-600 hover:bg-rose-700 text-white font-bold py-4 rounded-2xl shadow-lg flex justify-center items-center gap-2 text-lg">Guardar <CheckCircle2 size={20} /></button>
+                            <button 
+                                onClick={() => setModalNuevoCliente(false)} 
+                                className="bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold py-4 rounded-2xl text-lg transition-colors cursor-pointer"
+                            >
+                                Cancelar
+                            </button>
+                            <button 
+                                onClick={guardarClienteNuevo} 
+                                disabled={guardandoCliente} 
+                                className="bg-rose-600 hover:bg-rose-700 text-white font-bold py-4 rounded-2xl shadow-lg flex justify-center items-center gap-2 text-lg transition-transform active:scale-95 cursor-pointer"
+                            >
+                                Guardar <CheckCircle2 size={20} />
+                            </button>
                         </div>
                     </div>
                 </div>
@@ -1871,34 +1896,44 @@ Estamos atentos para cualquier consulta.
 
             {modalExito && modalExito.visible && (
                 <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 z-[950] animate-in zoom-in duration-300">
-                    <div className="bg-white p-8 rounded-[2.5rem] w-full max-w-sm shadow-2xl text-center border border-slate-100">
-                        <div className="w-24 h-24 bg-rose-100 text-rose-600 rounded-full flex items-center justify-center mx-auto mb-6 shadow-inner">
+                    <div className="bg-white dark:bg-[#0f172a] p-8 rounded-[2.5rem] w-full max-w-sm shadow-2xl text-center border border-slate-100 dark:border-slate-800">
+                        <div className="w-24 h-24 bg-rose-100 dark:bg-rose-500/20 text-rose-600 dark:text-rose-400 rounded-full flex items-center justify-center mx-auto mb-6 shadow-inner">
                             <CheckCircle2 size={50} />
                         </div>
-                        <h2 className="text-2xl font-black text-slate-900 mb-2">¡Fiado Registrado!</h2>
+                        <h2 className="text-2xl font-black text-slate-900 dark:text-white mb-2">¡Fiado Registrado!</h2>
 
-                        <div className="mb-8 text-slate-500 text-base flex flex-col gap-2">
-                            <p>Saldo cargado a: <strong className="text-slate-800">{modalExito.cliente.nombre}</strong></p>
-                            <p className="text-rose-600 font-bold bg-rose-50 p-3 rounded-xl mt-2 text-xl">Monto: ${modalExito.montoTotal.toLocaleString('es-CO')}</p>
-                            <p className="text-sm mt-2">Nueva deuda total: <strong>${modalExito.cliente.deudaTotal.toLocaleString('es-CO')}</strong></p>
+                        <div className="mb-8 text-slate-500 dark:text-slate-400 text-base flex flex-col gap-2">
+                            <p>Saldo cargado a: <strong className="text-slate-800 dark:text-slate-200">{modalExito.cliente.nombre}</strong></p>
+                            <p className="text-rose-600 dark:text-rose-400 font-bold bg-rose-50 dark:bg-rose-500/10 p-3 rounded-xl mt-2 text-xl border border-rose-100 dark:border-rose-500/20">
+                                Monto: ${modalExito.montoTotal.toLocaleString('es-CO')}
+                            </p>
+                            <p className="text-sm mt-2 text-slate-600 dark:text-slate-300">
+                                Nueva deuda total: <strong className="text-slate-900 dark:text-white">${modalExito.cliente.deudaTotal.toLocaleString('es-CO')}</strong>
+                            </p>
                         </div>
 
                         {modalExito.ticketDatos && (
                             <button
                                 onClick={() => setModalTicketFactura({ visible: true, datos: modalExito.ticketDatos })}
-                                className="w-full mb-3 bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 rounded-2xl shadow-lg flex justify-center items-center gap-2 text-lg transition-transform active:scale-95"
+                                className="w-full mb-3 bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 rounded-2xl shadow-lg flex justify-center items-center gap-2 text-lg transition-transform active:scale-95 cursor-pointer"
                             >
                                 <Printer size={22} /> Imprimir Factura / Ticket
                             </button>
                         )}
 
                         {modalExito.cliente.celular && modalExito.cliente.celular.trim() !== "" && datosSesion?.rol !== 'cajero' && (
-                            <button onClick={() => abrirWhatsApp(modalExito.cliente)} className="w-full mb-3 bg-[#25D366] hover:bg-[#1ebd5a] text-white font-bold py-4 rounded-2xl shadow-lg flex justify-center items-center gap-2 text-lg">
+                            <button 
+                                onClick={() => abrirWhatsApp(modalExito.cliente)} 
+                                className="w-full mb-3 bg-[#25D366] hover:bg-[#1ebd5a] text-white font-bold py-4 rounded-2xl shadow-lg flex justify-center items-center gap-2 text-lg transition-transform active:scale-95 cursor-pointer"
+                            >
                                 <MessageCircle size={24} /> Notificar por WhatsApp
                             </button>
                         )}
 
-                        <button onClick={() => { setModalExito(null); router.push('/dashboard/inicio'); }} className="w-full bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold py-4 rounded-2xl text-lg">
+                        <button 
+                            onClick={() => { setModalExito(null); router.push('/dashboard/inicio'); }} 
+                            className="w-full bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 font-bold py-4 rounded-2xl text-lg transition-colors cursor-pointer"
+                        >
                             Volver al inicio
                         </button>
                     </div>
