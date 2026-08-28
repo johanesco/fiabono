@@ -2,6 +2,8 @@
 import { useState, useEffect } from "react";
 import { PieChart, TrendingUp, ShieldAlert, ShoppingBag, ShoppingCart, Banknote, Users, Activity, Wallet, UserCheck, Award, BarChart3, Calendar } from 'lucide-react';
 import toast from "react-hot-toast";
+import { collection, query, where, onSnapshot } from "firebase/firestore";
+import { db } from "../../../firebase";
 
 import { useAuth } from "../../../hooks/AuthContext";
 import { API_DB } from "../../../servicios/db";
@@ -12,11 +14,14 @@ import ModalSuscripcion from "@/components/ModalSuscripcion";
 export default function ReportesPage() {
   const { datosSesion } = useAuth();
   const cuentaPrincipalId = datosSesion?.cuentaPrincipalId;
-  const planActual = datosSesion?.planActual;
+  const esPro = datosSesion?.esPro;
+  const esComercio = datosSesion?.esComercio;
+  const esGratis = datosSesion?.esGratis;
   const puedeVerReportes = datosSesion?.rol !== 'cajero' || datosSesion?.permisos?.verReportes === true;
 
   const [clientes, setClientes] = useState<Cliente[]>([]);
   const [todosMovimientos, setTodosMovimientos] = useState<Movimiento[]>([]);
+  const [separes, setSepares] = useState<any[]>([]);
 
   const [filtroGeneral, setFiltroGeneral] = useState<'hoy' | 'semana' | 'mes' | 'ano' | 'todos'>('hoy');
   const [filtroGrafica, setFiltroGrafica] = useState<'semana' | 'mes' | 'ano'>('semana');
@@ -24,35 +29,50 @@ export default function ReportesPage() {
   const [criterioColaborador, setCriterioColaborador] = useState<'monto' | 'cantidad'>('monto');
 
   const [cargando, setCargando] = useState(true);
-  const [modalSuscripcionVisible, setModalSuscripcionVisible] = useState(false);
   const [modalSuscripcionOpen, setModalSuscripcionOpen] = useState(false);
 
   useEffect(() => {
-    if (cuentaPrincipalId) {
-      cargarDatosReportes(cuentaPrincipalId, filtroGeneral);
-    }
-  }, [cuentaPrincipalId, filtroGeneral]);
+    if (!cuentaPrincipalId) return;
 
-  const cargarDatosReportes = async (uid: string, filtro: string = 'hoy') => {
-    try {
-      const listaC = await API_DB.obtenerClientes(uid);
-      setClientes(listaC);
+    // 1. Listener en tiempo real de clientes
+    const qC = query(collection(db, "clientes"), where("usuarioId", "==", cuentaPrincipalId));
+    const unsubClientes = onSnapshot(qC, (snap) => {
+      const lista: Cliente[] = [];
+      snap.forEach(d => lista.push({ id: d.id, ...d.data() } as Cliente));
+      setClientes(lista);
+    });
 
-      let listaM: Movimiento[] = [];
-      if (filtro === 'todos') {
-        listaM = await API_DB.obtenerMovimientos(uid);
-      } else {
-        // Consultar a partir del inicio del año actual para cubrir hoy, semana, mes y año de forma ligera
-        const inicioAno = new Date(new Date().getFullYear(), 0, 1);
-        listaM = await API_DB.obtenerMovimientosPorRango(uid, inicioAno);
-      }
-      setTodosMovimientos(listaM);
-    } catch (error) {
-      toast.error("Error al cargar los reportes.");
-    } finally {
+    // 2. Listener en tiempo real de todos los movimientos de la cuenta principal
+    const qM = query(collection(db, "movimientos"), where("usuarioId", "==", cuentaPrincipalId));
+    const unsubMovs = onSnapshot(qM, (snap) => {
+      const lista: Movimiento[] = [];
+      snap.forEach(d => lista.push({ id: d.id, ...d.data() } as Movimiento));
+      lista.sort((a, b) => {
+        const tA = (a.fecha as any)?.toMillis ? (a.fecha as any).toMillis() : (a.fecha ? new Date(a.fecha as any).getTime() : 0);
+        const tB = (b.fecha as any)?.toMillis ? (b.fecha as any).toMillis() : (b.fecha ? new Date(b.fecha as any).getTime() : 0);
+        return tB - tA;
+      });
+      setTodosMovimientos(lista);
       setCargando(false);
-    }
-  };
+    }, (error) => {
+      console.error("Error al escuchar movimientos en reportes:", error);
+      setCargando(false);
+    });
+
+    // 3. Listener en tiempo real de separes
+    const qS = query(collection(db, "separes"), where("usuarioId", "==", cuentaPrincipalId));
+    const unsubSepares = onSnapshot(qS, (snap) => {
+      const lista: any[] = [];
+      snap.forEach(d => lista.push({ id: d.id, ...d.data() }));
+      setSepares(lista);
+    });
+
+    return () => {
+      unsubClientes();
+      unsubMovs();
+      unsubSepares();
+    };
+  }, [cuentaPrincipalId]);
 
   const hoyDate = new Date();
   const diaActualNum = hoyDate.getDay() === 0 ? 6 : hoyDate.getDay() - 1;
@@ -207,9 +227,9 @@ export default function ReportesPage() {
   });
 
   // =========================================================================
-  // SI ES PLAN BÁSICO: MUESTRA EL DISEÑO ORIGINAL CON MONTOS DIFUMINADOS
+  // SI ES PLAN GRATIS O SIN PERMISOS: MUESTRA EL DISEÑO CON MONTOS DIFUMINADOS
   // =========================================================================
-  if (!puedeVerReportes || planActual === 'basico') {
+  if (!puedeVerReportes || (esGratis && !esPro && !esComercio)) {
     return (
       <div className="flex flex-col gap-8 animate-in fade-in duration-500 h-full max-w-7xl mx-auto w-full pb-16 relative">
 

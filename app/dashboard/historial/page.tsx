@@ -3,7 +3,7 @@ import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { collection, getDocs, query, where } from "firebase/firestore";
 import { db } from "../../../firebase";
-import { Search, X, Clock, MessageCircle, Star, Users, Store, Printer, Edit3, Trash2 } from 'lucide-react';
+import { Search, X, Clock, MessageCircle, Star, Users, Store, Printer, Edit3, Trash2, Bookmark, ChevronRight } from 'lucide-react';
 import toast from "react-hot-toast";
 
 import { useAuth } from "../../../hooks/AuthContext";
@@ -15,12 +15,13 @@ import ModalGestionCliente from "@/components/ModalGestionCliente";
 
 export default function HistorialPage() {
   const { datosSesion } = useAuth();
-  const router = useRouter(); // Agregado para la navegación
+  const router = useRouter();
   
   const cuentaPrincipalId = datosSesion?.cuentaPrincipalId;
   const planActual = datosSesion?.planActual;
   const nombreNegocio = datosSesion?.nombreNegocio;
   const puedeVerReportes = datosSesion?.rol !== 'cajero' || datosSesion?.permisos?.verReportes === true;
+  const puedeSepare = datosSesion?.puedeSepare;
 
   const [clientes, setClientes] = useState<Cliente[]>([]);
   const [todosMovimientos, setTodosMovimientos] = useState<Movimiento[]>([]);
@@ -43,6 +44,7 @@ export default function HistorialPage() {
       setClientes(prev => prev.filter(c => c.id !== clienteActivo?.id));
       setClienteActivo(null);
       setMovimientosCliente([]);
+      setSeparesCliente([]);
     } else if (clienteActualizado) {
       setClientes(prev => prev.map(c => c.id === clienteActualizado.id ? clienteActualizado : c).sort((a, b) => a.nombre.localeCompare(b.nombre)));
       setClienteActivo(clienteActualizado);
@@ -54,6 +56,7 @@ export default function HistorialPage() {
 
   const [clienteActivo, setClienteActivo] = useState<Cliente | null>(null);
   const [movimientosCliente, setMovimientosCliente] = useState<Movimiento[]>([]);
+  const [separesCliente, setSeparesCliente] = useState<any[]>([]);
   const [busquedaDirectorio, setBusquedaDirectorio] = useState("");
 
   const scrollHistorialRef = useRef<HTMLDivElement>(null);
@@ -144,7 +147,7 @@ export default function HistorialPage() {
     return clientes.find(c => c.id === id)?.nombre || "Cliente Eliminado";
   };
 
-  const abrirHistorialCliente = (clienteId: string) => {
+  const abrirHistorialCliente = async (clienteId: string) => {
     if (clienteId === 'mostrador') {
       setModalMostrador(true);
       return;
@@ -153,11 +156,23 @@ export default function HistorialPage() {
     if (cliente) {
       setClienteActivo(cliente);
       const movs = todosMovimientos.filter(m => m.clienteId === clienteId).sort((a, b) => {
-        const tA = a.fecha?.toMillis ? a.fecha.toMillis() : (a.fecha ? new Date(a.fecha).getTime() : 0);
-        const tB = b.fecha?.toMillis ? b.fecha.toMillis() : (b.fecha ? new Date(b.fecha).getTime() : 0);
+        const tA = (a.fecha as any)?.toMillis ? (a.fecha as any).toMillis() : (a.fecha ? new Date(a.fecha as any).getTime() : 0);
+        const tB = (b.fecha as any)?.toMillis ? (b.fecha as any).toMillis() : (b.fecha ? new Date(b.fecha as any).getTime() : 0);
         return tB - tA;
       });
       setMovimientosCliente(movs);
+
+      // Cargar separes asociados a este cliente
+      try {
+        const qS = query(collection(db, "separes"), where("clienteId", "==", clienteId));
+        const snapS = await getDocs(qS);
+        const listaS: any[] = [];
+        snapS.forEach(doc => listaS.push({ id: doc.id, ...doc.data() }));
+        listaS.sort((a, b) => ((b.fechaCreacion as any)?.toMillis ? (b.fechaCreacion as any).toMillis() : 0) - ((a.fechaCreacion as any)?.toMillis ? (a.fechaCreacion as any).toMillis() : 0));
+        setSeparesCliente(listaS);
+      } catch (e) {
+        console.error("Error cargando separes del cliente en historial:", e);
+      }
     } else {
       toast.error("El perfil del cliente ya no existe.");
     }
@@ -511,14 +526,23 @@ Quedamos pendientes para revisar detalles o responder cualquier duda.
                     </div>
                   )}
                 </div>
-                <div className="text-right">
-                  <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded mb-1 inline-block ${(clienteActivo.deudaTotal || 0) < 0 ? 'bg-emerald-500/20 text-emerald-300' : 'text-slate-400'}`}>
-                    {(clienteActivo.deudaTotal || 0) < 0 ? ' Saldo a favor' : 'Saldo Actual'}
-                  </span>
-                  <span className={`text-3xl font-black block ${clienteActivo.deudaTotal === 0 ? 'text-slate-300' : ((clienteActivo.deudaTotal || 0) < 0 ? 'text-emerald-400' : 'text-rose-400')}`}>
-                    ${Math.abs(clienteActivo.deudaTotal || 0).toLocaleString('es-CO')}
-                  </span>
-                </div>
+                {(() => {
+                  const saldoSeparesActivos = separesCliente
+                    .filter(s => s.estado === 'activo')
+                    .reduce((acc, s) => acc + (s.saldoPendiente || 0), 0);
+                  const totalCompromiso = (clienteActivo.deudaTotal || 0) + saldoSeparesActivos;
+
+                  return (
+                    <div className="text-right">
+                      <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded mb-1 inline-block ${(clienteActivo.deudaTotal || 0) < 0 ? 'bg-emerald-500/20 text-emerald-300' : 'text-slate-400'}`}>
+                        {(clienteActivo.deudaTotal || 0) < 0 ? ' Saldo a favor' : (totalCompromiso === 0 ? 'Cuenta al Día' : (saldoSeparesActivos > 0 ? 'Saldo Total Pendiente' : 'Saldo Actual'))}
+                      </span>
+                      <span className={`text-3xl font-black block ${totalCompromiso === 0 ? 'text-slate-300' : ((clienteActivo.deudaTotal || 0) < 0 ? 'text-emerald-400' : 'text-rose-400')}`}>
+                        ${Math.abs(totalCompromiso).toLocaleString('es-CO')}
+                      </span>
+                    </div>
+                  );
+                })()}
               </div>
 
               {/* HEADER MÓVIL */}
@@ -553,31 +577,122 @@ Quedamos pendientes para revisar detalles o responder cualquier duda.
                 </div>
                 <p className="text-slate-500 font-medium text-base mb-4">{clienteActivo.celular || "Sin número registrado"}</p>
                 
-                <div className="flex flex-col items-center justify-center bg-white dark:bg-[#0f172a] w-full py-4 px-3 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm mb-4">
-                  <p className={`text-xs font-bold uppercase tracking-widest mb-1 px-2 py-0.5 rounded ${(clienteActivo.deudaTotal || 0) < 0 ? 'bg-emerald-500/20 text-emerald-400' : 'text-slate-400'}`}>
-                    {(clienteActivo.deudaTotal || 0) < 0 ? ' Saldo a favor' : (clienteActivo.deudaTotal === 0 ? 'CUENTA AL DÍA' : 'SALDO PENDIENTE')}
-                  </p>
-                  <p className={`text-4xl sm:text-5xl font-black tracking-tighter ${clienteActivo.deudaTotal === 0 ? 'text-slate-300' : ((clienteActivo.deudaTotal || 0) < 0 ? 'text-emerald-500' : 'text-rose-500')}`}>${Math.abs(clienteActivo.deudaTotal || 0).toLocaleString('es-CO')}</p>
-                </div>
+                {(() => {
+                  const saldoSeparesActivos = separesCliente
+                    .filter(s => s.estado === 'activo')
+                    .reduce((acc, s) => acc + (s.saldoPendiente || 0), 0);
+                  const totalCompromiso = (clienteActivo.deudaTotal || 0) + saldoSeparesActivos;
+
+                  return (
+                    <div className="flex flex-col items-center justify-center bg-white dark:bg-[#0f172a] w-full py-4 px-3 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm mb-4">
+                      <p className={`text-xs font-bold uppercase tracking-widest mb-1 px-2 py-0.5 rounded ${(clienteActivo.deudaTotal || 0) < 0 ? 'bg-emerald-500/20 text-emerald-400' : 'text-slate-400'}`}>
+                        {(clienteActivo.deudaTotal || 0) < 0 ? ' Saldo a favor' : (totalCompromiso === 0 ? 'CUENTA AL DÍA' : (saldoSeparesActivos > 0 ? 'SALDO TOTAL PENDIENTE' : 'SALDO PENDIENTE'))}
+                      </p>
+                      <p className={`text-4xl sm:text-5xl font-black tracking-tighter ${totalCompromiso === 0 ? 'text-slate-300' : ((clienteActivo.deudaTotal || 0) < 0 ? 'text-emerald-500' : 'text-rose-500')}`}>
+                        ${Math.abs(totalCompromiso).toLocaleString('es-CO')}
+                      </p>
+
+                      {saldoSeparesActivos > 0 && (
+                        <div className="grid grid-cols-2 gap-2 w-full pt-2.5 mt-2 border-t border-slate-100 dark:border-slate-800/80 text-[11px] font-bold">
+                          <div className="bg-rose-50 dark:bg-rose-950/30 p-2 rounded-xl text-left border border-rose-100 dark:border-rose-900/40">
+                            <span className="text-rose-600 block text-[9px] uppercase font-black">Deuda Fiados:</span>
+                            <span className="text-rose-700 dark:text-rose-300 font-black">${(clienteActivo.deudaTotal || 0).toLocaleString('es-CO')}</span>
+                          </div>
+                          <div className="bg-violet-50 dark:bg-violet-950/30 p-2 rounded-xl text-left border border-violet-100 dark:border-violet-900/40">
+                            <span className="text-violet-600 block text-[9px] uppercase font-black">Saldo Separes:</span>
+                            <span className="text-violet-700 dark:text-violet-300 font-black">${saldoSeparesActivos.toLocaleString('es-CO')}</span>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()}
               </div>
 
               {/* BOTONES ACCIÓN CON ENRUTADOR CORRECTO */}
               <div className="p-4 md:p-6 bg-slate-50 dark:bg-[#020617] border-b border-slate-100 dark:border-slate-800 flex flex-col gap-3 shrink-0">
-                <div className="flex gap-3">
-                  <button onClick={() => router.push(`/dashboard/vender?clienteId=${clienteActivo.id}`)} className="flex-1 bg-emerald-500 hover:bg-emerald-600 text-white font-bold py-3 rounded-xl text-xs md:text-sm uppercase shadow-sm">Vender</button>
-                  <button onClick={() => router.push(`/dashboard/fiar?clienteId=${clienteActivo.id}`)} className="flex-1 bg-rose-500 hover:bg-rose-600 text-white font-bold py-3 rounded-xl text-xs md:text-sm uppercase shadow-sm">Fiar</button>
-                  <button onClick={() => router.push(`/dashboard/abonar?clienteId=${clienteActivo.id}`)} className="flex-1 bg-blue-500 hover:bg-blue-600 text-white font-bold py-3 rounded-xl text-xs md:text-sm uppercase shadow-sm">Abonar</button>
+                <div className="flex gap-2 sm:gap-3">
+                  <button onClick={() => router.push(`/dashboard/vender?clienteId=${clienteActivo.id}`)} className="flex-1 bg-emerald-500 hover:bg-emerald-600 text-white font-bold py-3 rounded-xl text-xs md:text-sm uppercase shadow-sm transition-all active:scale-95 cursor-pointer">Vender</button>
+                  <button onClick={() => router.push(`/dashboard/fiar?clienteId=${clienteActivo.id}`)} className="flex-1 bg-rose-500 hover:bg-rose-600 text-white font-bold py-3 rounded-xl text-xs md:text-sm uppercase shadow-sm transition-all active:scale-95 cursor-pointer">Fiar</button>
+                  <button onClick={() => router.push(`/dashboard/abonar?clienteId=${clienteActivo.id}`)} className="flex-1 bg-blue-500 hover:bg-blue-600 text-white font-bold py-3 rounded-xl text-xs md:text-sm uppercase shadow-sm transition-all active:scale-95 cursor-pointer">Abonar</button>
+                  {puedeSepare && (
+                    <button onClick={() => router.push(`/dashboard/separe?clienteId=${clienteActivo.id}`)} className="flex-1 bg-violet-600 hover:bg-violet-700 text-white font-bold py-3 rounded-xl text-xs md:text-sm uppercase shadow-sm transition-all active:scale-95 cursor-pointer">Separe</button>
+                  )}
                 </div>
 
                 {clienteActivo.celular && datosSesion?.rol !== 'cajero' && (
-                  <button onClick={() => abrirWhatsApp(generarTextoComprobante('estado', clienteActivo), clienteActivo.celular)} className="w-full bg-[#25D366]/10 hover:bg-[#25D366]/20 text-[#1ebd5a] dark:text-[#25D366] font-bold py-2.5 rounded-xl transition-colors flex justify-center items-center gap-2 text-sm border border-[#25D366]/20">
+                  <button onClick={() => abrirWhatsApp(generarTextoComprobante('estado', clienteActivo), clienteActivo.celular)} className="w-full bg-[#25D366]/10 hover:bg-[#25D366]/20 text-[#1ebd5a] dark:text-[#25D366] font-bold py-2.5 rounded-xl transition-colors flex justify-center items-center gap-2 text-sm border border-[#25D366]/20 cursor-pointer">
                     <MessageCircle size={18} /> Enviar estado por WhatsApp
                   </button>
                 )}
               </div>
 
               {/* HISTORIAL INTERNO DEL PERFIL */}
-              <div className="bg-white dark:bg-[#0f172a] p-6 pb-10 flex-1 overflow-y-auto space-y-3 md:space-y-4">
+              <div className="bg-white dark:bg-[#0f172a] p-4 md:p-6 pb-10 flex-1 overflow-y-auto space-y-4">
+                {/* SECCIÓN DE PLANES SEPARE DEL CLIENTE */}
+                {(() => {
+                  const separesActivosCliente = separesCliente.filter(s => s.estado === 'activo');
+                  if (separesActivosCliente.length === 0) return null;
+
+                  return (
+                    <div className="space-y-2.5 pb-2">
+                      <div className="flex items-center justify-between">
+                        <h4 className="font-bold text-violet-600 dark:text-violet-400 uppercase text-xs tracking-wider flex items-center gap-1.5">
+                          <Bookmark size={15} /> Planes Separe Activos ({separesActivosCliente.length})
+                        </h4>
+                        <button
+                          onClick={() => router.push(`/dashboard/separes?tab=activos&busqueda=${encodeURIComponent(clienteActivo.nombre)}`)}
+                          className="text-[11px] font-bold text-violet-600 dark:text-violet-400 hover:underline flex items-center gap-0.5 cursor-pointer"
+                        >
+                          Ver en separes <ChevronRight size={13} />
+                        </button>
+                      </div>
+
+                      <div className="space-y-2">
+                        {separesActivosCliente.map((sep) => {
+                          const porcentaje = sep.total > 0 ? Math.min(100, Math.round(((sep.montoPagado || 0) / sep.total) * 100)) : 0;
+
+                          return (
+                            <div 
+                              key={sep.id} 
+                              onClick={() => router.push(`/dashboard/separes?tab=activos&busqueda=${encodeURIComponent(clienteActivo.nombre)}`)}
+                              className="p-3.5 bg-violet-50/50 dark:bg-violet-950/20 border border-violet-100 dark:border-violet-900/40 rounded-2xl cursor-pointer hover:border-violet-300 dark:hover:border-violet-700 transition-all space-y-2"
+                            >
+                              <div className="flex justify-between items-center text-xs min-w-0 gap-2">
+                                <span className="font-bold text-slate-800 dark:text-slate-200 truncate flex-1 min-w-0">
+                                  {sep.items?.map((it: any) => `${it.cantidad > 1 ? `${it.cantidad}x ` : ''}${it.descripcion}`).join(', ') || 'Productos separados'}
+                                </span>
+                                <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded-full bg-violet-100 text-violet-700 dark:bg-violet-500/20 dark:text-violet-300 shrink-0">
+                                  Activo
+                                </span>
+                              </div>
+
+                              <div className="space-y-1">
+                                <div className="w-full bg-slate-200 dark:bg-slate-800 rounded-full h-2 overflow-hidden">
+                                  <div 
+                                    className={`h-full rounded-full transition-all duration-300 ${
+                                      porcentaje >= 100 
+                                        ? 'bg-emerald-500' 
+                                        : porcentaje >= 50 
+                                          ? 'bg-violet-600' 
+                                          : 'bg-amber-500'
+                                    }`} 
+                                    style={{ width: `${porcentaje}%` }} 
+                                  />
+                                </div>
+                                <div className="flex justify-between items-center text-[11px] font-bold text-slate-500 dark:text-slate-400">
+                                  <span>Pagado: ${(sep.montoPagado || 0).toLocaleString('es-CO')} ({porcentaje}%)</span>
+                                  <span className="text-violet-700 dark:text-violet-300 font-black">Saldo: ${(sep.saldoPendiente || 0).toLocaleString('es-CO')}</span>
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                })()}
+
                 <h4 className="font-bold text-slate-400 uppercase text-xs tracking-wider mb-3 flex items-center gap-2"><Clock size={16}/> Historial Completo</h4>
                 {movimientosCliente.map(mov => (
                   <div key={mov.id} className="p-4 md:p-5 bg-slate-50 dark:bg-[#020617] rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm relative overflow-hidden space-y-2 md:space-y-3">

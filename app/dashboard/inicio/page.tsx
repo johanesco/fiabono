@@ -430,10 +430,12 @@ Quedamos pendientes para revisar detalles o responder cualquier duda.
                 gradiente: 'from-blue-500 to-blue-700 dark:from-blue-600 dark:to-blue-800 hover:from-blue-600 hover:to-blue-700 border-blue-400/30 dark:border-blue-500/20'
               }] : []),
               {
+                id: 'separe',
                 nombre: 'SEPARE',
                 icono: Bookmark,
-                ruta: '/dashboard/separe',
+                ruta: '/dashboard/separes',
                 esProOnly: !datosSesion?.esPro,
+                gradiente: 'from-violet-600 to-purple-800 hover:from-violet-700 hover:to-purple-900 border-violet-400/30 dark:border-violet-500/20'
               }
             ];
             const gridColsClass = botonesSecundarios.length === 3 
