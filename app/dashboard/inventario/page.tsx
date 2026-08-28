@@ -41,7 +41,8 @@ import {
   Upload,
   ChevronLeft,
   ChevronRight,
-  MoreVertical
+  MoreVertical,
+  Bookmark
 } from 'lucide-react';
 import { useAuth } from "@/hooks/AuthContext";
 import toast from "react-hot-toast";
@@ -93,7 +94,7 @@ export default function InventarioPage() {
   const [direccionOrden, setDireccionOrden] = useState<DireccionOrden>('asc');
   const [filtrosCategoria, setFiltrosCategoria] = useState<string[]>([]);
   const [filtrosStock, setFiltrosStock] = useState<('en_stock' | 'stock_bajo' | 'sin_stock' | 'servicios')[]>([]);
-  const [mostrarMetricas, setMostrarMetricas] = useState(true);
+  const [mostrarMetricas, setMostrarMetricas] = useState(false);
   const [menuHerramientasMovil, setMenuHerramientasMovil] = useState(false);
 
   // Referencias para scroll horizontal con flechas en filtros de stock y categorías
@@ -220,7 +221,7 @@ export default function InventarioPage() {
     return Number(prod.stock || 0) > 0;
   };
 
-  // Despacho directo a Venta o Fiado
+  // Despacho directo a Venta, Fiado o Separe
   const despacharAVenta = (productos: any[]) => {
     const productosValidos = (productos || []).filter(tieneStockDisponible);
     if (productosValidos.length === 0) {
@@ -230,7 +231,8 @@ export default function InventarioPage() {
     const items = productosValidos.map(p => ({
       descripcion: p.nombre,
       valor: String(p.precioVenta || 0),
-      cantidad: 1
+      cantidad: 1,
+      idProducto: p.id
     }));
     sessionStorage.setItem('fiabono_productos_precargados', JSON.stringify(items));
     sessionStorage.setItem('fiabono_origen_despacho', '/dashboard/inventario');
@@ -246,16 +248,34 @@ export default function InventarioPage() {
     const items = productosValidos.map(p => ({
       descripcion: p.nombre,
       valor: String(p.precioVenta || 0),
-      cantidad: 1
+      cantidad: 1,
+      idProducto: p.id
     }));
     sessionStorage.setItem('fiabono_productos_precargados', JSON.stringify(items));
     sessionStorage.setItem('fiabono_origen_despacho', '/dashboard/inventario');
     router.push('/dashboard/fiar');
   };
 
+  const despacharASepare = (productos: any[]) => {
+    const productosValidos = (productos || []).filter(tieneStockDisponible);
+    if (productosValidos.length === 0) {
+      toast.error("Los productos seleccionados no tienen stock disponible.");
+      return;
+    }
+    const items = productosValidos.map(p => ({
+      descripcion: p.nombre,
+      valor: String(p.precioVenta || 0),
+      cantidad: 1,
+      idProducto: p.id
+    }));
+    sessionStorage.setItem('fiabono_productos_precargados', JSON.stringify(items));
+    sessionStorage.setItem('fiabono_origen_despacho', '/dashboard/inventario');
+    router.push('/dashboard/separe');
+  };
+
   const toggleSeleccionProducto = (prod: any) => {
     if (!tieneStockDisponible(prod)) {
-      toast.error(`"${prod.nombre}" está agotado y no se puede seleccionar para venta o fiado.`);
+      toast.error(`"${prod.nombre}" está agotado y no se puede seleccionar para venta, fiado o separe.`);
       return;
     }
     setProductosSeleccionados(prev => 
@@ -2212,24 +2232,6 @@ export default function InventarioPage() {
                 </button>
               )}
             </div>
-
-            {/* Selector de Pestañas (Solo Admin puede ver vista QR) */}
-            {esAdmin && (
-              <div className="flex bg-slate-200/80 dark:bg-slate-800 p-1 rounded-2xl shrink-0 w-full sm:w-auto justify-center">
-                <button 
-                  onClick={() => setVistaActual('lista')} 
-                  className={`flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl font-bold text-xs sm:text-sm transition-all ${vistaActual === 'lista' ? 'bg-white dark:bg-[#0f172a] text-slate-900 dark:text-white shadow-sm' : 'text-slate-500 hover:text-slate-900 dark:hover:text-white'}`}
-                >
-                  <LayoutList size={16} /> Tabla
-                </button>
-                <button 
-                  onClick={() => setVistaActual('qr')} 
-                  className={`flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl font-bold text-xs sm:text-sm transition-all ${vistaActual === 'qr' ? 'bg-white dark:bg-[#0f172a] text-slate-900 dark:text-white shadow-sm' : 'text-slate-500 hover:text-slate-900 dark:hover:text-white'}`}
-                >
-                  <QrCode size={16} /> Códigos QR
-                </button>
-              </div>
-            )}
           </div>
 
           {/* FILTROS POR ESTADO DE STOCK CON FLECHAS DE NAVEGACIÓN Y DESPLAZAMIENTO */}
@@ -2728,7 +2730,7 @@ export default function InventarioPage() {
                               ${(prod.precioVenta || 0).toLocaleString('es-CO')}
                             </td>
 
-                            {/* Acciones: Vender, Fiar, y si es Admin: Editar, Eliminar */}
+                            {/* Acciones: Vender, Fiar, Separe, y si es Admin: Editar, Eliminar */}
                             <td className="py-2.5 px-3 text-center">
                               <div className="flex items-center justify-center gap-1">
                                 <button 
@@ -2754,6 +2756,18 @@ export default function InventarioPage() {
                                   }`}
                                 >
                                   <Receipt size={12} /> <span>Fiar</span>
+                                </button>
+                                <button 
+                                  onClick={() => despacharASepare([prod])} 
+                                  disabled={!disponible}
+                                  title={disponible ? "Registrar Plan Separe con este producto" : "Producto agotado (Sin stock)"}
+                                  className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-black transition-all shadow-sm ${
+                                    !disponible 
+                                      ? 'bg-slate-100 text-slate-400 dark:bg-slate-800 dark:text-slate-600 cursor-not-allowed opacity-50' 
+                                      : 'bg-violet-50 hover:bg-violet-600 text-violet-700 hover:text-white dark:bg-violet-500/10 dark:text-violet-300 dark:hover:bg-violet-600 dark:hover:text-white active:scale-95'
+                                  }`}
+                                >
+                                  <Bookmark size={12} /> <span>Separe</span>
                                 </button>
 
                                 {esAdmin && (
@@ -2847,6 +2861,12 @@ export default function InventarioPage() {
                   <Receipt size={14} /> <span>Fiar ({productosSeleccionados.length})</span>
                 </button>
                 <button
+                  onClick={() => despacharASepare(productosSeleccionadosObj)}
+                  className="flex-1 sm:flex-none inline-flex items-center justify-center gap-1 bg-violet-600 hover:bg-violet-500 text-white font-black px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl text-xs uppercase tracking-wider transition-all shadow-md active:scale-95"
+                >
+                  <Bookmark size={14} /> <span>Separar ({productosSeleccionados.length})</span>
+                </button>
+                <button
                   onClick={() => setProductosSeleccionados([])}
                   className="hidden sm:inline-flex p-2 hover:bg-slate-800 text-slate-400 hover:text-white rounded-xl transition-colors shrink-0"
                   title="Cancelar selección"
@@ -2854,45 +2874,6 @@ export default function InventarioPage() {
                   <X size={16} />
                 </button>
               </div>
-            </div>
-          )}
-
-          {/* VISTA 2: TARJETAS CON CÓDIGOS QR */}
-          {esAdmin && vistaActual === 'qr' && (
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
-              {inventarioProcesado.map(prod => (
-                <div key={prod.id} className="bg-white dark:bg-[#0f172a] p-5 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col items-center text-center relative group hover:shadow-md transition-shadow">
-                  
-                  {esAdmin && (
-                    <div className="absolute top-3 right-3 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                      <button onClick={() => abrirEdicion(prod)} className="p-2 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg"><Edit3 size={14}/></button>
-                      <button onClick={() => setProductoAEliminar(prod)} className="p-2 bg-rose-50 hover:bg-rose-100 text-rose-600 rounded-lg"><Trash2 size={14}/></button>
-                    </div>
-                  )}
-
-                  <div className="w-28 h-28 bg-slate-50 dark:bg-slate-800 p-2 rounded-2xl border border-slate-100 dark:border-slate-700 flex items-center justify-center mb-3 shadow-inner">
-                    <QRCodeSVG value={prod.sku || prod.id} size={96} />
-                  </div>
-
-                  <span className="text-[10px] font-bold text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-500/10 px-2 py-0.5 rounded-full mb-1">
-                    {normalizarCategoria(prod.categoria)}
-                  </span>
-                  <h4 className="font-black text-slate-900 dark:text-white text-base truncate w-full">{prod.nombre}</h4>
-                  <span className="text-xs font-mono bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded text-slate-500 mt-1">SKU: {prod.sku || 'N/A'}</span>
-                  
-                  <div className="flex justify-between items-center w-full mt-4 pt-3 border-t border-slate-100 dark:border-slate-800">
-                    <div>
-                      {renderStockBadge(prod)}
-                    </div>
-                    <span className="font-black text-emerald-600 dark:text-emerald-400 text-base">${(prod.precioVenta || 0).toLocaleString('es-CO')}</span>
-                  </div>
-                </div>
-              ))}
-              {inventarioProcesado.length === 0 && (
-                <div className="col-span-full py-14 text-center text-slate-400 font-bold">
-                  No se encontraron productos con estos filtros.
-                </div>
-              )}
             </div>
           )}
 

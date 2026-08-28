@@ -151,11 +151,38 @@ function SepareContenido() {
     cantidad: number;
     fotoUrl?: string | null;
     esDeInventario?: boolean;
+    idProducto?: string | null;
   }
 
   const [filas, setFilas] = useState<FilaProductoSepare[]>([
     { id: "1", descripcion: "", valor: "", cantidad: 1, fotoUrl: null, esDeInventario: false }
   ]);
+
+  // Precarga automática de productos despachados desde Inventario
+  useEffect(() => {
+    try {
+      const precarga = sessionStorage.getItem('fiabono_productos_precargados');
+      if (precarga) {
+        const items = JSON.parse(precarga);
+        if (Array.isArray(items) && items.length > 0) {
+          const nuevasFilas = items.map((it: any, idx: number) => ({
+            id: String(Date.now() + idx),
+            descripcion: it.descripcion || "",
+            valor: it.valor ? String(it.valor).replace(/\D/g, "") : "",
+            cantidad: Number(it.cantidad) || 1,
+            fotoUrl: null,
+            esDeInventario: true,
+            idProducto: it.idProducto || null
+          }));
+          setFilas(nuevasFilas);
+          toast.success(`Se cargaron ${nuevasFilas.length} producto(s) desde el inventario.`);
+        }
+        sessionStorage.removeItem('fiabono_productos_precargados');
+      }
+    } catch (e) {
+      console.error("Error al cargar productos precargados en Separe:", e);
+    }
+  }, []);
 
   // Descuento Comercial
   const [descuentoTipo, setDescuentoTipo] = useState<'porcentaje' | 'fijo' | null>(null);
