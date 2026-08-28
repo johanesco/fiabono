@@ -309,6 +309,23 @@ function SeparesContenido() {
         saldoPendiente: nuevoSaldoPendiente
       });
 
+      // Registrar movimiento de abono en colección general
+      const payloadMovSepare: any = {
+        clienteId: separeSeleccionado.clienteId || null,
+        usuarioId: cuentaPrincipalId,
+        tipo: 'abono',
+        monto: monto,
+        descripcion: `Abono a Plan Separe (${metodoPagoAbono.toUpperCase()}${subMetodoAbono ? ` - ${subMetodoAbono}` : ''}) - ${separeSeleccionado.clienteNombre}`,
+        fecha: new Date(),
+        registradoPor: nombreUsuario || "Vendedor",
+        metodoPago: metodoPagoAbono,
+        idSepareOrigen: separeSeleccionado.id
+      };
+      if (referenciaAbono?.trim()) {
+        payloadMovSepare.referenciaPago = referenciaAbono.trim();
+      }
+      await addDoc(collection(db, "movimientos"), payloadMovSepare);
+
       reproducirSonidoExito();
       toast.success(`Abono de $${monto.toLocaleString('es-CO')} registrado con éxito`);
       setModalAbono(false);

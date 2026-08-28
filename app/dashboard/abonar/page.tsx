@@ -75,7 +75,7 @@ function AbonarContenido() {
 
   // Cargar separes activos del cliente seleccionado
   useEffect(() => {
-    if (!clienteTransaccion?.id || !cuentaPrincipalId) {
+    if (!clienteTransaccion || !cuentaPrincipalId) {
       setSeparesCliente([]);
       setDestinoAbono('fiado');
       setSepareSeleccionado(null);
@@ -85,24 +85,32 @@ function AbonarContenido() {
     const qS = query(
       collection(db, "separes"),
       where("usuarioId", "==", cuentaPrincipalId),
-      where("clienteId", "==", clienteTransaccion.id),
       where("estado", "==", "activo")
     );
 
     getDocs(qS).then(snap => {
       const list: any[] = [];
-      snap.forEach(d => list.push({ id: d.id, ...d.data() }));
+      snap.forEach(d => {
+        const data = d.data();
+        const coincideCliente = (clienteTransaccion.id && data.clienteId === clienteTransaccion.id) ||
+          (clienteTransaccion.nombre && data.clienteNombre?.trim().toLowerCase() === clienteTransaccion.nombre.trim().toLowerCase());
+        if (coincideCliente) {
+          list.push({ id: d.id, ...data });
+        }
+      });
       setSeparesCliente(list);
 
       if (list.length > 0 && (clienteTransaccion.deudaTotal || 0) <= 0) {
         setDestinoAbono('separe');
         setSepareSeleccionado(list[0]);
+      } else if (list.length > 0) {
+        setSepareSeleccionado(list[0]);
       } else {
         setDestinoAbono('fiado');
-        setSepareSeleccionado(list[0] || null);
+        setSepareSeleccionado(null);
       }
     }).catch(console.error);
-  }, [clienteTransaccion?.id, cuentaPrincipalId]);
+  }, [clienteTransaccion, cuentaPrincipalId]);
 
   const cargarDatosGlobales = async (uid: string) => {
     try {
@@ -184,10 +192,10 @@ function AbonarContenido() {
           fecha: new Date(),
           registradoPor: nombreUsuario || "Vendedor"
         };
-        if (subMetodoPago.trim()) nuevoAbono.subMetodoPago = subMetodoPago.trim();
-        if (referenciaPago.trim()) nuevoAbono.referenciaPago = referenciaPago.trim();
+        if (subMetodoPago?.trim()) nuevoAbono.subMetodoPago = subMetodoPago.trim();
+        if (referenciaPago?.trim()) nuevoAbono.referenciaPago = referenciaPago.trim();
 
-        const abonosActuales = separeSeleccionado.abonos || [];
+        const abonosActuales = Array.isArray(separeSeleccionado.abonos) ? separeSeleccionado.abonos : [];
         const nuevoMontoPagado = (separeSeleccionado.montoPagado || 0) + abonoReal;
         const nuevoSaldoPendiente = Math.max(0, (separeSeleccionado.total || 0) - nuevoMontoPagado);
 
@@ -199,18 +207,22 @@ function AbonarContenido() {
         });
 
         // Registrar en movimientos
-        await addDoc(collection(db, "movimientos"), {
-          clienteId: clienteTransaccion.id,
+        const payloadMov: any = {
+          clienteId: clienteTransaccion.id || null,
           usuarioId: cuentaPrincipalId,
           tipo: 'abono',
           monto: abonoReal,
           descripcion: `Abono a Plan Separe (${metodoPagoLabel}) - ${clienteTransaccion.nombre}`,
           fecha: new Date(),
-          registradoPor: nombreUsuario,
+          registradoPor: nombreUsuario || "Vendedor",
           metodoPago: metodoPago,
-          referenciaPago: refPagoCompleta || undefined,
           idSepareOrigen: separeSeleccionado.id
-        });
+        };
+        if (refPagoCompleta) {
+          payloadMov.referenciaPago = refPagoCompleta;
+        }
+
+        await addDoc(collection(db, "movimientos"), payloadMov);
 
         reproducirSonidoExito();
 
@@ -228,9 +240,9 @@ function AbonarContenido() {
           fecha: new Date(),
           tipo: 'abono' as const,
           detalles: (separeSeleccionado.items || []).map((it: any) => ({
-            descripcion: it.descripcion,
-            cantidad: it.cantidad,
-            valor: (Number(it.valor) || 0) * it.cantidad,
+            descripcion: it.descripcion || "Artículo",
+            cantidad: it.cantidad || 1,
+            valor: (Number(it.valor) || 0) * (it.cantidad || 1),
             valorUnitario: Number(it.valor) || 0
           })),
           descripcionGeneral: `Abono a Plan Separe: $${abonoReal.toLocaleString('es-CO')} | Saldo restante: $${nuevoSaldoPendiente.toLocaleString('es-CO')}`,
@@ -239,7 +251,7 @@ function AbonarContenido() {
           saldoNuevo: nuevoSaldoPendiente,
           idTransaccion: separeSeleccionado.id,
           metodoPago: metodoPago,
-          referenciaPago: refPagoCompleta
+          referenciaPago: refPagoCompleta || undefined
         };
 
         setModalExito({ 
