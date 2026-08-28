@@ -1,18 +1,44 @@
 "use client";
 import { useState, useEffect } from "react";
-import { PieChart, TrendingUp, ShieldAlert, ShoppingBag, ShoppingCart, Banknote, Users, Activity, Wallet, UserCheck, Award, BarChart3, Calendar } from 'lucide-react';
+import { 
+  TrendingUp, 
+  ShoppingBag, 
+  ShoppingCart, 
+  Banknote, 
+  Users, 
+  Activity, 
+  Wallet, 
+  Award, 
+  BarChart3, 
+  Calendar, 
+  Crown, 
+  Sparkles, 
+  CheckCircle2, 
+  ChevronRight, 
+  Bookmark, 
+  ArrowUpRight,
+  Info
+} from 'lucide-react';
 import toast from "react-hot-toast";
 import { collection, query, where, onSnapshot } from "firebase/firestore";
 import { db } from "../../../firebase";
+import { useRouter } from "next/navigation";
 
 import { useAuth } from "../../../hooks/AuthContext";
 import { API_DB } from "../../../servicios/db";
 import { Cliente, Movimiento } from "../../../types";
-import ReportesBloqueados from "@/components/ReportesBloqueados";
 import ModalSuscripcion from "@/components/ModalSuscripcion";
+
+const NOMBRES_MESES = [
+  'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
+  'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'
+];
+
+const NOMBRES_MESES_CORTO = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
 
 export default function ReportesPage() {
   const { datosSesion } = useAuth();
+  const router = useRouter();
   const cuentaPrincipalId = datosSesion?.cuentaPrincipalId;
   const esPro = datosSesion?.esPro;
   const esComercio = datosSesion?.esComercio;
@@ -23,13 +49,20 @@ export default function ReportesPage() {
   const [todosMovimientos, setTodosMovimientos] = useState<Movimiento[]>([]);
   const [separes, setSepares] = useState<any[]>([]);
 
+  // Filtros principales
   const [filtroGeneral, setFiltroGeneral] = useState<'hoy' | 'semana' | 'mes' | 'ano' | 'todos'>('hoy');
-  const [filtroGrafica, setFiltroGrafica] = useState<'semana' | 'mes' | 'ano'>('semana');
+  const [filtroGrafica, setFiltroGrafica] = useState<'semana' | 'mes' | 'ano' | 'historico_mes' | 'historico_ano'>('semana');
   const [filtroColab, setFiltroColab] = useState<'hoy' | 'semana' | 'mes' | 'ano' | 'todos'>('hoy');
   const [criterioColaborador, setCriterioColaborador] = useState<'monto' | 'cantidad'>('monto');
 
+  // Selectores históricos (Exclusivos Plan PRO)
+  const hoyDate = new Date();
+  const [anoHistorico, setAnoHistorico] = useState<number>(hoyDate.getFullYear());
+  const [mesHistorico, setMesHistorico] = useState<number>(hoyDate.getMonth());
+
   const [cargando, setCargando] = useState(true);
   const [modalSuscripcionOpen, setModalSuscripcionOpen] = useState(false);
+  const [planInicialSuscripcion, setPlanInicialSuscripcion] = useState<'comercio' | 'pro'>('pro');
 
   useEffect(() => {
     if (!cuentaPrincipalId) return;
@@ -74,7 +107,6 @@ export default function ReportesPage() {
     };
   }, [cuentaPrincipalId]);
 
-  const hoyDate = new Date();
   const diaActualNum = hoyDate.getDay() === 0 ? 6 : hoyDate.getDay() - 1;
   const inicioSemanaDate = new Date(hoyDate.getFullYear(), hoyDate.getMonth(), hoyDate.getDate() - diaActualNum, 0, 0, 0, 0);
 
@@ -104,26 +136,65 @@ export default function ReportesPage() {
     });
   };
 
-  const obtenerTextoRango = (filtro: 'hoy' | 'semana' | 'mes' | 'ano' | 'todos') => {
+  // Helper de textos y rangos dinámicos
+  const obtenerMetadatosPeriodo = (filtro: 'hoy' | 'semana' | 'mes' | 'ano' | 'todos') => {
     if (filtro === 'hoy') {
-      return hoyDate.toLocaleDateString('es-CO', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+      const fHoyStr = hoyDate.toLocaleDateString('es-CO', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+      return {
+        etiquetaVentas: "Ventas de Hoy",
+        etiquetaFiados: "Fiados de Hoy",
+        etiquetaAbonos: "Abonos de Hoy",
+        etiquetaCaja: "Dinero Neto en Caja (Hoy)",
+        rangoDescriptivo: fHoyStr.charAt(0).toUpperCase() + fHoyStr.slice(1),
+        badgePeriodo: "Hoy"
+      };
     }
     if (filtro === 'semana') {
       const finSemanaDate = new Date(inicioSemanaDate);
       finSemanaDate.setDate(finSemanaDate.getDate() + 6);
       const fInicio = inicioSemanaDate.toLocaleDateString('es-CO', { day: 'numeric', month: 'short' });
       const fFin = finSemanaDate.toLocaleDateString('es-CO', { day: 'numeric', month: 'short', year: 'numeric' });
-      return `Del ${fInicio} al ${fFin}`;
+      return {
+        etiquetaVentas: "Ventas Esta Semana",
+        etiquetaFiados: "Fiados Esta Semana",
+        etiquetaAbonos: "Abonos Esta Semana",
+        etiquetaCaja: "Dinero Neto en Caja (Semana)",
+        rangoDescriptivo: `Semana del ${fInicio} al ${fFin}`,
+        badgePeriodo: `Semana (Lun - Dom)`
+      };
     }
     if (filtro === 'mes') {
-      return hoyDate.toLocaleDateString('es-CO', { month: 'long', year: 'numeric' });
+      const mesActualNombre = NOMBRES_MESES[hoyDate.getMonth()];
+      return {
+        etiquetaVentas: `Ventas de ${mesActualNombre}`,
+        etiquetaFiados: `Fiados de ${mesActualNombre}`,
+        etiquetaAbonos: `Abonos de ${mesActualNombre}`,
+        etiquetaCaja: `Dinero Neto en Caja (${mesActualNombre})`,
+        rangoDescriptivo: `Lo que va de ${mesActualNombre} ${hoyDate.getFullYear()}`,
+        badgePeriodo: `${mesActualNombre} ${hoyDate.getFullYear()}`
+      };
     }
     if (filtro === 'ano') {
-      return `Año ${hoyDate.getFullYear()}`;
+      return {
+        etiquetaVentas: `Ventas del ${hoyDate.getFullYear()}`,
+        etiquetaFiados: `Fiados del ${hoyDate.getFullYear()}`,
+        etiquetaAbonos: `Abonos del ${hoyDate.getFullYear()}`,
+        etiquetaCaja: `Dinero Neto en Caja (${hoyDate.getFullYear()})`,
+        rangoDescriptivo: `Lo que va del año ${hoyDate.getFullYear()}`,
+        badgePeriodo: `Año ${hoyDate.getFullYear()}`
+      };
     }
-    return 'Histórico Completo';
+    return {
+      etiquetaVentas: "Ventas Totales (Histórico)",
+      etiquetaFiados: "Fiados Totales (Histórico)",
+      etiquetaAbonos: "Abonos Totales (Histórico)",
+      etiquetaCaja: "Dinero Neto en Caja (Histórico)",
+      rangoDescriptivo: "Histórico Total Acumulado",
+      badgePeriodo: "Histórico Completo"
+    };
   };
 
+  const metaPeriodo = obtenerMetadatosPeriodo(filtroGeneral);
   const movimientosGenerales = filtrarPorTiempo(todosMovimientos, filtroGeneral);
 
   const carteraActiva = clientes.reduce((acc, c) => acc + (c.deudaTotal > 0 ? c.deudaTotal : 0), 0);
@@ -145,21 +216,27 @@ export default function ReportesPage() {
   const countAbonos = movsAbonos.length;
 
   const totalEgresos = movsEgresos.reduce((acc, m) => acc + (m.monto || 0), 0);
-  const countEgresos = movsEgresos.length;
 
   // Dinero Neto en Caja: (Ventas Directas + Abonos) - Egresos/Devoluciones
   const ingresosCaja = Math.max(0, (totalVentas + totalAbonos) - totalEgresos);
   const countIngresos = countVentas + countAbonos;
 
-  const obtenerDatosGrafica = () => {
-    const movsGrafica = filtroGrafica === 'semana'
-      ? filtrarPorTiempo(todosMovimientos, 'semana')
-      : (filtroGrafica === 'mes' ? filtrarPorTiempo(todosMovimientos, 'mes') : filtrarPorTiempo(todosMovimientos, 'ano'));
+  // Tasa de recuperación de crédito / Salud de cartera (Abonos vs Fiados)
+  const ratioRecaudo = totalFiados > 0 ? Math.min(100, Math.round((totalAbonos / totalFiados) * 100)) : 100;
 
+  // Métricas del Plan Separe
+  const separesActivos = separes.filter(s => s.estado === 'activo');
+  const totalEnSeparesActivos = separesActivos.reduce((a, s) => a + (s.total || 0), 0);
+  const abonosEnSeparesActivos = separesActivos.reduce((a, s) => a + (s.montoPagado || 0), 0);
+  const saldoPendienteSepares = separesActivos.reduce((a, s) => a + (s.saldoPendiente || 0), 0);
+
+  // Generador de datos para Gráfica de Comportamiento Financiero
+  const obtenerDatosGrafica = () => {
     if (filtroGrafica === 'semana') {
       const dias = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'];
       const datos = dias.map(d => ({ label: d, ventas: 0, fiados: 0, abonos: 0 }));
-      movsGrafica.forEach(mov => {
+      const movsSemana = filtrarPorTiempo(todosMovimientos, 'semana');
+      movsSemana.forEach(mov => {
         if (mov.fecha) {
           const d = obtenerFechaJS(mov.fecha);
           let jsDay = d.getDay();
@@ -173,9 +250,10 @@ export default function ReportesPage() {
       });
       return datos;
     } else if (filtroGrafica === 'mes') {
-      const semanas = ['Sem 1', 'Sem 2', 'Sem 3', 'Sem 4'];
+      const semanas = ['Semana 1', 'Semana 2', 'Semana 3', 'Semana 4'];
       const datos = semanas.map(s => ({ label: s, ventas: 0, fiados: 0, abonos: 0 }));
-      movsGrafica.forEach(mov => {
+      const movsMes = filtrarPorTiempo(todosMovimientos, 'mes');
+      movsMes.forEach(mov => {
         if (mov.fecha) {
           const d = obtenerFechaJS(mov.fecha);
           const diaMes = d.getDate();
@@ -188,10 +266,10 @@ export default function ReportesPage() {
         }
       });
       return datos;
-    } else {
-      const meses = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
-      const datos = meses.map(m => ({ label: m, ventas: 0, fiados: 0, abonos: 0 }));
-      movsGrafica.forEach(mov => {
+    } else if (filtroGrafica === 'ano') {
+      const datos = NOMBRES_MESES_CORTO.map(m => ({ label: m, ventas: 0, fiados: 0, abonos: 0 }));
+      const movsAno = filtrarPorTiempo(todosMovimientos, 'ano');
+      movsAno.forEach(mov => {
         if (mov.fecha) {
           const d = obtenerFechaJS(mov.fecha);
           let idx = d.getMonth();
@@ -203,11 +281,48 @@ export default function ReportesPage() {
         }
       });
       return datos;
+    } else if (filtroGrafica === 'historico_mes') {
+      const semanas = ['Sem 1 (1-7)', 'Sem 2 (8-14)', 'Sem 3 (15-21)', 'Sem 4 (22+)'];
+      const datos = semanas.map(s => ({ label: s, ventas: 0, fiados: 0, abonos: 0 }));
+      todosMovimientos.forEach(mov => {
+        if (mov.fecha) {
+          const d = obtenerFechaJS(mov.fecha);
+          if (d.getFullYear() === anoHistorico && d.getMonth() === mesHistorico) {
+            const diaMes = d.getDate();
+            let idx = Math.min(Math.floor((diaMes - 1) / 7), 3);
+            if (datos[idx]) {
+              if (mov.tipo === 'venta') datos[idx].ventas += (mov.monto || 0);
+              if (mov.tipo === 'fiado') datos[idx].fiados += (mov.monto || 0);
+              if (mov.tipo === 'abono') datos[idx].abonos += (mov.monto || 0);
+            }
+          }
+        }
+      });
+      return datos;
+    } else {
+      const datos = NOMBRES_MESES_CORTO.map(m => ({ label: m, ventas: 0, fiados: 0, abonos: 0 }));
+      todosMovimientos.forEach(mov => {
+        if (mov.fecha) {
+          const d = obtenerFechaJS(mov.fecha);
+          if (d.getFullYear() === anoHistorico) {
+            let idx = d.getMonth();
+            if (datos[idx]) {
+              if (mov.tipo === 'venta') datos[idx].ventas += (mov.monto || 0);
+              if (mov.tipo === 'fiado') datos[idx].fiados += (mov.monto || 0);
+              if (mov.tipo === 'abono') datos[idx].abonos += (mov.monto || 0);
+            }
+          }
+        }
+      });
+      return datos;
     }
   };
 
   const datosGrafica = obtenerDatosGrafica();
   const maxBarra = Math.max(...datosGrafica.map(d => Math.max(d.ventas, d.fiados, d.abonos)), 1);
+  const totalGraficaVentas = datosGrafica.reduce((a, d) => a + d.ventas, 0);
+  const totalGraficaFiados = datosGrafica.reduce((a, d) => a + d.fiados, 0);
+  const totalGraficaAbonos = datosGrafica.reduce((a, d) => a + d.abonos, 0);
 
   const movimientosColab = filtrarPorTiempo(todosMovimientos, filtroColab);
   const colaboradoresMap: { [key: string]: { nombre: string; monto: number; cantidad: number } } = {};
@@ -226,48 +341,55 @@ export default function ReportesPage() {
     return criterioColaborador === 'monto' ? b.monto - a.monto : b.cantidad - a.cantidad;
   });
 
+  // Años disponibles para selector histórico
+  const anosDisponibles = [hoyDate.getFullYear(), hoyDate.getFullYear() - 1, hoyDate.getFullYear() - 2, hoyDate.getFullYear() - 3];
+
   // =========================================================================
-  // SI ES PLAN GRATIS O SIN PERMISOS: MUESTRA EL DISEÑO CON MONTOS DIFUMINADOS
+  // SI ES PLAN GRATIS: MUESTRA EL FEATURE PAYWALL CON MONTOS DIFUMINADOS
   // =========================================================================
   if (!puedeVerReportes || (esGratis && !esPro && !esComercio)) {
     return (
-      <div className="flex flex-col gap-8 animate-in fade-in duration-500 h-full max-w-7xl mx-auto w-full pb-16 relative">
+      <div className="flex flex-col gap-6 animate-in fade-in duration-500 h-full max-w-7xl mx-auto w-full pb-16 relative">
 
         <div className="bg-gradient-to-r from-blue-600 via-indigo-600 to-slate-900 text-white p-6 sm:p-8 rounded-[2.5rem] shadow-2xl border border-white/20 flex flex-col sm:flex-row items-center justify-between gap-6 z-50">
           <div className="space-y-1 text-center sm:text-left">
             <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/20 text-emerald-300 font-bold text-xs uppercase tracking-wider border border-emerald-500/30">
-              ✨ ¡Tus datos reales ya están calculados!
+              ✨ ¡Tus métricas reales ya están calculadas!
             </span>
             <h3 className="text-xl sm:text-2xl font-black tracking-tight">
-              Desbloquea los montos y reportes financieros
+              Desbloquea el Panel de Reportes y Comportamiento Financiero
             </h3>
             <p className="text-slate-200 text-xs sm:text-sm">
-              Estás viendo tu diseño original completo. Pásate al Plan PRO para revelar los montos exactos y las gráficas interactivas.
+              Accede a gráficas interactivas, balance de caja neta, rendimiento de personal e historial financiero mes a mes.
             </p>
           </div>
 
           <button
             type="button"
-            onClick={() => setModalSuscripcionOpen(true)}
+            onClick={() => {
+              setPlanInicialSuscripcion('pro');
+              setModalSuscripcionOpen(true);
+            }}
             className="bg-white text-blue-900 hover:bg-slate-100 font-black text-sm sm:text-base py-3.5 px-7 rounded-2xl shadow-xl transition-transform transform active:scale-95 shrink-0 cursor-pointer flex items-center gap-2"
           >
             Actualizar al Plan PRO 🚀
           </button>
         </div>
 
-        <div className="bg-gradient-to-r from-slate-800 to-slate-900 p-8 rounded-[2.5rem] shadow-2xl text-white flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+        <div className="bg-gradient-to-r from-slate-800 to-slate-900 p-6 sm:p-8 rounded-[2.5rem] shadow-2xl text-white flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
           <div>
             <div className="flex items-center gap-3 mb-2">
               <span className="bg-white/20 backdrop-blur-md px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider">Panel Ejecutivo</span>
-              <span className="text-slate-300 text-xs flex items-center gap-1.5"><Calendar size={14} /> {obtenerTextoRango(filtroGeneral)}</span>
+              <span className="text-slate-300 text-xs flex items-center gap-1.5"><Calendar size={14} /> {metaPeriodo.rangoDescriptivo}</span>
             </div>
-            <h1 className="text-3xl sm:text-4xl font-black tracking-tight">Reportes y Analíticas</h1>
-            <p className="text-slate-400 text-sm mt-1">Supervisa el flujo de caja, el estado de créditos y el personal.</p>
+            <h1 className="text-2xl sm:text-4xl font-black tracking-tight">Reportes y Analíticas</h1>
+            <p className="text-slate-400 text-xs sm:text-sm mt-1">Supervisa el flujo de caja, el estado de créditos y el personal.</p>
           </div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <div className="bg-white dark:bg-[#0f172a] p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-800/60 shadow-sm flex items-center justify-between relative overflow-hidden">
+        {/* Tarjetas de Resumen Difuminadas */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
+          <div className="bg-white dark:bg-[#0f172a] p-6 sm:p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-800/60 shadow-sm flex items-center justify-between relative overflow-hidden">
             <div className="absolute right-0 top-0 bottom-0 w-2 bg-amber-500"></div>
             <div>
               <span className="text-xs font-extrabold text-slate-400 uppercase tracking-widest">Cartera en la Calle</span>
@@ -279,7 +401,7 @@ export default function ReportesPage() {
             <div className="p-4 bg-amber-50 dark:bg-amber-500/10 text-amber-600 rounded-3xl shrink-0"><Wallet size={36} /></div>
           </div>
 
-          <div className="bg-white dark:bg-[#0f172a] p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-800/60 shadow-sm flex items-center justify-between relative overflow-hidden">
+          <div className="bg-white dark:bg-[#0f172a] p-6 sm:p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-800/60 shadow-sm flex items-center justify-between relative overflow-hidden">
             <div className="absolute right-0 top-0 bottom-0 w-2 bg-slate-800 dark:bg-slate-500"></div>
             <div>
               <span className="text-xs font-extrabold text-slate-400 uppercase tracking-widest">Directorio de Clientes</span>
@@ -302,7 +424,7 @@ export default function ReportesPage() {
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           <div className="bg-gradient-to-br from-emerald-500 to-green-600 p-6 rounded-[2rem] shadow-lg flex flex-col justify-between text-white">
             <div className="flex justify-between items-start mb-2">
-              <span className="text-xs font-black uppercase tracking-widest text-emerald-100 opacity-90">Total Ventas</span>
+              <span className="text-xs font-black uppercase tracking-widest text-emerald-100 opacity-90">{metaPeriodo.etiquetaVentas}</span>
               <div className="p-3 bg-white/20 backdrop-blur-sm rounded-2xl shrink-0"><ShoppingCart size={20} /></div>
             </div>
             <p className="text-2xl sm:text-3xl font-black tracking-tight mt-4 filter blur-md select-none bg-black/10 px-2 rounded">
@@ -312,7 +434,7 @@ export default function ReportesPage() {
 
           <div className="bg-gradient-to-br from-rose-500 to-red-600 p-6 rounded-[2rem] shadow-lg flex flex-col justify-between text-white">
             <div className="flex justify-between items-start mb-2">
-              <span className="text-xs font-black uppercase tracking-widest text-rose-100 opacity-90">Total Fiados</span>
+              <span className="text-xs font-black uppercase tracking-widest text-rose-100 opacity-90">{metaPeriodo.etiquetaFiados}</span>
               <div className="p-3 bg-white/20 backdrop-blur-sm rounded-2xl shrink-0"><ShoppingBag size={20} /></div>
             </div>
             <p className="text-2xl sm:text-3xl font-black tracking-tight mt-4 filter blur-md select-none bg-black/10 px-2 rounded">
@@ -322,7 +444,7 @@ export default function ReportesPage() {
 
           <div className="bg-gradient-to-br from-blue-500 to-blue-700 p-6 rounded-[2rem] shadow-lg flex flex-col justify-between text-white">
             <div className="flex justify-between items-start mb-2">
-              <span className="text-xs font-black uppercase tracking-widest text-blue-100 opacity-90">Total Abonos</span>
+              <span className="text-xs font-black uppercase tracking-widest text-blue-100 opacity-90">{metaPeriodo.etiquetaAbonos}</span>
               <div className="p-3 bg-white/20 backdrop-blur-sm rounded-2xl shrink-0"><Banknote size={20} /></div>
             </div>
             <p className="text-2xl sm:text-3xl font-black tracking-tight mt-4 filter blur-md select-none bg-black/10 px-2 rounded">
@@ -332,7 +454,7 @@ export default function ReportesPage() {
 
           <div className="bg-gradient-to-br from-slate-800 to-slate-900 p-6 rounded-[2rem] shadow-lg flex flex-col justify-between text-white border border-slate-700">
             <div className="flex justify-between items-start mb-2">
-              <span className="text-[11px] font-black uppercase tracking-widest text-slate-300 opacity-90">Ingresos (V+A)</span>
+              <span className="text-[11px] font-black uppercase tracking-widest text-slate-300 opacity-90">{metaPeriodo.etiquetaCaja}</span>
               <div className="p-3 bg-white/10 backdrop-blur-sm rounded-2xl shrink-0"><TrendingUp size={20} /></div>
             </div>
             <p className="text-2xl sm:text-3xl font-black tracking-tight mt-4 text-emerald-400 filter blur-md select-none bg-white/10 px-2 rounded">
@@ -341,279 +463,417 @@ export default function ReportesPage() {
           </div>
         </div>
 
-        <div className="bg-white dark:bg-[#0f172a] p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-800/60 shadow-sm flex flex-col gap-6 relative overflow-hidden">
-          <div className="flex justify-between items-center">
-            <h3 className="text-xl font-bold text-slate-900 dark:text-white flex items-center gap-2">
-              <BarChart3 className="text-slate-800 dark:text-slate-400" size={24} /> Comportamiento Financiero
-            </h3>
-            <span className="text-xs font-bold bg-amber-500/10 text-amber-500 px-3 py-1 rounded-full">🔒 Exclusivo PRO</span>
-          </div>
-          <div className="h-72 flex items-center justify-center filter blur-md select-none opacity-40 bg-slate-50 dark:bg-[#020617] rounded-3xl">
-            <div className="w-full h-full flex items-end justify-around p-6">
-              <div className="w-8 bg-emerald-500 h-3/4 rounded-t-xl"></div>
-              <div className="w-8 bg-rose-500 h-1/2 rounded-t-xl"></div>
-              <div className="w-8 bg-blue-500 h-5/6 rounded-t-xl"></div>
-              <div className="w-8 bg-emerald-500 h-2/3 rounded-t-xl"></div>
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-white dark:bg-[#0f172a] p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-800/60 shadow-sm flex flex-col gap-6">
-          <div className="flex justify-between items-center border-b border-slate-100 dark:border-slate-800 pb-5">
-            <h3 className="text-xl font-bold text-slate-900 dark:text-white flex items-center gap-2">
-              <Award className="text-amber-500" size={24} /> Rendimiento de Colaboradores
-            </h3>
-            <span className="text-xs font-bold bg-amber-500/10 text-amber-500 px-3 py-1 rounded-full">🔒 Exclusivo PRO</span>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {listaColaboradores.length > 0 ? (
-              listaColaboradores.map((colab, index) => (
-                <div key={colab.nombre} className="p-5 bg-slate-50 dark:bg-[#020617] rounded-2xl border border-slate-100 dark:border-slate-800/60 flex items-center gap-4">
-                  <div className="w-12 h-12 rounded-2xl bg-emerald-500 text-white flex items-center justify-center font-black text-lg">
-                    #{index + 1}
-                  </div>
-                  <div className="flex flex-col min-w-0 flex-1">
-                    <p className="font-bold text-slate-900 dark:text-slate-100 truncate text-base">{colab.nombre}</p>
-                    <div className="flex justify-between items-center mt-1">
-                      <span className="text-xs text-slate-500 font-medium">{colab.cantidad} ventas</span>
-                      <span className="text-sm font-black text-emerald-600 dark:text-emerald-400 filter blur-sm select-none">
-                        ${colab.monto.toLocaleString('es-CO')}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              ))
-            ) : (
-              <div className="col-span-full py-6 text-center text-slate-400 text-sm">
-                No hay colaboradores activos en este rango.
-              </div>
-            )}
-          </div>
-        </div>
-
-        <ModalSuscripcion isOpen={modalSuscripcionOpen} onClose={() => setModalSuscripcionOpen(false)} cuentaPrincipalId={cuentaPrincipalId || ""} />
+        <ModalSuscripcion 
+          isOpen={modalSuscripcionOpen} 
+          onClose={() => setModalSuscripcionOpen(false)} 
+          cuentaPrincipalId={cuentaPrincipalId || ""} 
+          planInicial={planInicialSuscripcion}
+        />
       </div>
     );
   }
 
   // =========================================================================
-  // SI ES PLAN PRO: RENDERIZA LA VISTA COMPLETA NORMAL Y FUNCIONAL
+  // VISTA DESBLOQUEADA (COMERCIO Y PRO)
   // =========================================================================
   return (
-    <div className="flex flex-col gap-8 animate-in fade-in duration-500 h-full max-w-7xl mx-auto w-full pb-16">
+    <div className="flex flex-col gap-6 sm:gap-8 animate-in fade-in duration-500 h-full max-w-7xl mx-auto w-full pb-16">
       
-      {/* CABECERA PRINCIPAL PRO */}
-      <div className="bg-gradient-to-r from-slate-800 to-slate-900 p-8 rounded-[2.5rem] shadow-2xl text-white flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
-        <div>
-          <div className="flex items-center gap-3 mb-2">
-            <span className="bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider">🚀 Plan PRO Activo</span>
-            <span className="text-slate-300 text-xs flex items-center gap-1.5"><Calendar size={14}/> {obtenerTextoRango(filtroGeneral)}</span>
+      {/* CABECERA PRINCIPAL CON SELECTOR DE PERIODO */}
+      <div className="bg-gradient-to-br from-slate-800 via-slate-900 to-indigo-950 p-6 sm:p-8 rounded-[2.5rem] shadow-2xl text-white flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6 relative overflow-hidden">
+        <div className="space-y-1.5 z-10">
+          <div className="flex items-center gap-2.5 flex-wrap">
+            <span className="bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 px-3 py-1 rounded-full text-xs font-black uppercase tracking-wider inline-flex items-center gap-1.5">
+              <Sparkles size={13} /> {esPro ? 'Plan PRO Almacén' : 'Plan Comercio'}
+            </span>
+            <span className="text-slate-300 text-xs font-bold flex items-center gap-1.5 bg-white/10 px-3 py-1 rounded-full backdrop-blur-md">
+              <Calendar size={13} /> {metaPeriodo.rangoDescriptivo}
+            </span>
           </div>
-          <h1 className="text-3xl sm:text-4xl font-black tracking-tight">Reportes y Analíticas</h1>
-          <p className="text-slate-400 text-sm mt-1">Supervisa el flujo de caja, el estado de créditos y el personal sin restricciones.</p>
+          <h1 className="text-2xl sm:text-4xl font-black tracking-tight">Reportes y Analíticas</h1>
+          <p className="text-slate-300 text-xs sm:text-sm font-medium">Supervisa el flujo de caja, estado de cartera y rendimiento del negocio en tiempo real.</p>
         </div>
 
-        <div className="flex bg-black/40 backdrop-blur-md p-1.5 rounded-2xl w-full md:w-auto border border-white/10 overflow-x-auto">
-          {(['hoy', 'semana', 'mes', 'ano', 'todos'] as const).map((filtro) => (
+        {/* SELECTOR DE PERIODO GENERAL (HOY / SEMANA / MES / AÑO / TODOS) */}
+        <div className="flex bg-black/40 backdrop-blur-md p-1.5 rounded-2xl w-full lg:w-auto border border-white/10 overflow-x-auto shrink-0 z-10">
+          {[
+            { id: 'hoy', label: 'Hoy' },
+            { id: 'semana', label: 'Semana' },
+            { id: 'mes', label: 'Mes' },
+            { id: 'ano', label: 'Año' },
+            { id: 'todos', label: 'Todos' }
+          ].map((f) => (
             <button 
-              key={filtro} 
-              onClick={() => setFiltroGeneral(filtro)}
-              className={`flex-1 md:flex-initial px-4 text-xs sm:text-sm font-bold py-2.5 rounded-xl capitalize transition-all whitespace-nowrap ${
-                filtroGeneral === filtro 
+              key={f.id} 
+              onClick={() => setFiltroGeneral(f.id as any)}
+              className={`flex-1 lg:flex-initial px-3.5 sm:px-4 text-xs sm:text-sm font-black py-2 rounded-xl transition-all whitespace-nowrap cursor-pointer ${
+                filtroGeneral === f.id 
                   ? 'bg-white text-slate-900 shadow-md scale-105' 
-                  : 'text-white/70 hover:text-white'
+                  : 'text-white/70 hover:text-white hover:bg-white/5'
               }`}
             >
-              {filtro === 'ano' ? 'Año' : filtro}
+              {f.label}
             </button>
           ))}
         </div>
       </div>
 
-      {/* BLOQUE 1: CARTERA Y CLIENTES */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <div className="bg-white dark:bg-[#0f172a] p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-800/60 shadow-sm flex items-center justify-between relative overflow-hidden">
+      {/* BLOQUE 1: CARTERA EN LA CALLE & SALUD DE COBRO */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-6">
+        {/* Tarjeta Cartera */}
+        <div className="bg-white dark:bg-[#0f172a] p-6 sm:p-7 rounded-[2.5rem] border border-slate-100 dark:border-slate-800/60 shadow-sm flex items-center justify-between relative overflow-hidden">
           <div className="absolute right-0 top-0 bottom-0 w-2 bg-amber-500"></div>
           <div>
             <span className="text-xs font-extrabold text-slate-400 uppercase tracking-widest">Cartera en la Calle</span>
-            <p className="text-3xl sm:text-4xl font-black text-amber-500 mt-2">${carteraActiva.toLocaleString('es-CO')}</p>
-            <p className="text-xs text-slate-500 mt-1 font-medium">Deuda total acumulada por tus clientes.</p>
+            <p className="text-2xl sm:text-3xl font-black text-amber-500 mt-1">${carteraActiva.toLocaleString('es-CO')}</p>
+            <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 font-medium">Deuda total de tus clientes.</p>
           </div>
-          <div className="p-4 bg-amber-50 dark:bg-amber-500/10 text-amber-600 rounded-3xl shrink-0"><Wallet size={36}/></div>
+          <div className="p-3.5 bg-amber-50 dark:bg-amber-500/10 text-amber-600 rounded-2xl shrink-0"><Wallet size={30} /></div>
         </div>
 
-        <div className="bg-white dark:bg-[#0f172a] p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-800/60 shadow-sm flex items-center justify-between relative overflow-hidden">
+        {/* Tarjeta Clientes */}
+        <div className="bg-white dark:bg-[#0f172a] p-6 sm:p-7 rounded-[2.5rem] border border-slate-100 dark:border-slate-800/60 shadow-sm flex items-center justify-between relative overflow-hidden">
           <div className="absolute right-0 top-0 bottom-0 w-2 bg-slate-800 dark:bg-slate-500"></div>
           <div>
             <span className="text-xs font-extrabold text-slate-400 uppercase tracking-widest">Directorio de Clientes</span>
-            <div className="flex items-baseline gap-4 mt-2">
+            <div className="flex items-baseline gap-4 mt-1">
               <div>
-                <span className="text-3xl font-black text-slate-900 dark:text-white">{totalClientesRegistrados}</span>
-                <p className="text-[11px] text-slate-400 font-bold uppercase">Registrados</p>
+                <span className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-white">{totalClientesRegistrados}</span>
+                <p className="text-[10px] text-slate-400 font-bold uppercase">Registrados</p>
               </div>
-              <div className="h-8 w-[1px] bg-slate-200 dark:bg-slate-800"></div>
+              <div className="h-6 w-[1px] bg-slate-200 dark:bg-slate-800"></div>
               <div>
-                <span className="text-3xl font-black text-rose-500">{clientesConCredito}</span>
-                <p className="text-[11px] text-rose-400 font-bold uppercase">Con Crédito</p>
+                <span className="text-2xl sm:text-3xl font-black text-rose-500">{clientesConCredito}</span>
+                <p className="text-[10px] text-rose-400 font-bold uppercase">Con Deuda</p>
               </div>
             </div>
           </div>
-          <div className="p-4 bg-slate-100 dark:bg-slate-800/50 text-slate-600 dark:text-slate-300 rounded-3xl shrink-0"><Users size={36}/></div>
+          <div className="p-3.5 bg-slate-100 dark:bg-slate-800/50 text-slate-600 dark:text-slate-300 rounded-2xl shrink-0"><Users size={30} /></div>
+        </div>
+
+        {/* Tarjeta Eficiencia de Cobro */}
+        <div className="bg-white dark:bg-[#0f172a] p-6 sm:p-7 rounded-[2.5rem] border border-slate-100 dark:border-slate-800/60 shadow-sm flex items-center justify-between relative overflow-hidden">
+          <div className="absolute right-0 top-0 bottom-0 w-2 bg-emerald-500"></div>
+          <div>
+            <span className="text-xs font-extrabold text-slate-400 uppercase tracking-widest">Salud de Cartera</span>
+            <div className="flex items-baseline gap-2 mt-1">
+              <span className="text-2xl sm:text-3xl font-black text-emerald-600 dark:text-emerald-400">{ratioRecaudo}%</span>
+              <span className="text-[11px] font-bold text-slate-400">tasa recaudo</span>
+            </div>
+            <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 font-medium">Abonos recibidos vs crédito otorgado.</p>
+          </div>
+          <div className="p-3.5 bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 rounded-2xl shrink-0"><Activity size={30} /></div>
         </div>
       </div>
 
-      {/* BLOQUE 2: MÉTRICAS FINANCIERAS */}
+      {/* BLOQUE 2: MÉTRICAS FINANCIERAS DINÁMICAS (HOY / SEMANA / MES / AÑO / HISTÓRICO) */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="bg-gradient-to-br from-emerald-500 to-green-600 p-6 rounded-[2rem] shadow-lg flex flex-col justify-between text-white">
+        {/* Ventas */}
+        <div className="bg-gradient-to-br from-emerald-500 to-green-600 p-5 sm:p-6 rounded-[2rem] shadow-lg flex flex-col justify-between text-white relative overflow-hidden">
           <div className="flex justify-between items-start mb-2">
-            <div className="flex flex-col gap-1.5">
-              <span className="text-xs font-black uppercase tracking-widest text-emerald-100 opacity-90">Total Ventas</span>
-              <span className="inline-block bg-white/25 backdrop-blur-md px-2.5 py-0.5 rounded-lg text-[10px] font-bold w-max shadow-sm border border-white/10">
+            <div className="flex flex-col gap-1">
+              <span className="text-xs font-black uppercase tracking-widest text-emerald-100 opacity-90">{metaPeriodo.etiquetaVentas}</span>
+              <span className="inline-block bg-white/25 backdrop-blur-md px-2 py-0.5 rounded-lg text-[10px] font-bold w-max shadow-sm border border-white/10">
                 {countVentas} {countVentas === 1 ? 'venta' : 'ventas'}
               </span>
             </div>
-            <div className="p-3 bg-white/20 backdrop-blur-sm rounded-2xl shrink-0"><ShoppingCart size={20}/></div>
+            <div className="p-2.5 bg-white/20 backdrop-blur-sm rounded-xl shrink-0"><ShoppingCart size={18} /></div>
           </div>
-          <p className="text-2xl sm:text-3xl font-black tracking-tight mt-4">${totalVentas.toLocaleString('es-CO')}</p>
+          <p className="text-2xl sm:text-3xl font-black tracking-tight mt-3">${totalVentas.toLocaleString('es-CO')}</p>
         </div>
 
-        <div className="bg-gradient-to-br from-rose-500 to-red-600 p-6 rounded-[2rem] shadow-lg flex flex-col justify-between text-white">
+        {/* Fiados */}
+        <div className="bg-gradient-to-br from-rose-500 to-red-600 p-5 sm:p-6 rounded-[2rem] shadow-lg flex flex-col justify-between text-white relative overflow-hidden">
           <div className="flex justify-between items-start mb-2">
-            <div className="flex flex-col gap-1.5">
-              <span className="text-xs font-black uppercase tracking-widest text-rose-100 opacity-90">Total Fiados</span>
-              <span className="inline-block bg-white/25 backdrop-blur-md px-2.5 py-0.5 rounded-lg text-[10px] font-bold w-max shadow-sm border border-white/10">
+            <div className="flex flex-col gap-1">
+              <span className="text-xs font-black uppercase tracking-widest text-rose-100 opacity-90">{metaPeriodo.etiquetaFiados}</span>
+              <span className="inline-block bg-white/25 backdrop-blur-md px-2 py-0.5 rounded-lg text-[10px] font-bold w-max shadow-sm border border-white/10">
                 {countFiados} {countFiados === 1 ? 'fiado' : 'fiados'}
               </span>
             </div>
-            <div className="p-3 bg-white/20 backdrop-blur-sm rounded-2xl shrink-0"><ShoppingBag size={20}/></div>
+            <div className="p-2.5 bg-white/20 backdrop-blur-sm rounded-xl shrink-0"><ShoppingBag size={18} /></div>
           </div>
-          <p className="text-2xl sm:text-3xl font-black tracking-tight mt-4">${totalFiados.toLocaleString('es-CO')}</p>
+          <p className="text-2xl sm:text-3xl font-black tracking-tight mt-3">${totalFiados.toLocaleString('es-CO')}</p>
         </div>
 
-        <div className="bg-gradient-to-br from-blue-500 to-blue-700 p-6 rounded-[2rem] shadow-lg flex flex-col justify-between text-white">
+        {/* Abonos */}
+        <div className="bg-gradient-to-br from-blue-500 to-blue-700 p-5 sm:p-6 rounded-[2rem] shadow-lg flex flex-col justify-between text-white relative overflow-hidden">
           <div className="flex justify-between items-start mb-2">
-            <div className="flex flex-col gap-1.5">
-              <span className="text-xs font-black uppercase tracking-widest text-blue-100 opacity-90">Total Abonos</span>
-              <span className="inline-block bg-white/25 backdrop-blur-md px-2.5 py-0.5 rounded-lg text-[10px] font-bold w-max shadow-sm border border-white/10">
+            <div className="flex flex-col gap-1">
+              <span className="text-xs font-black uppercase tracking-widest text-blue-100 opacity-90">{metaPeriodo.etiquetaAbonos}</span>
+              <span className="inline-block bg-white/25 backdrop-blur-md px-2 py-0.5 rounded-lg text-[10px] font-bold w-max shadow-sm border border-white/10">
                 {countAbonos} {countAbonos === 1 ? 'abono' : 'abonos'}
               </span>
             </div>
-            <div className="p-3 bg-white/20 backdrop-blur-sm rounded-2xl shrink-0"><Banknote size={20}/></div>
+            <div className="p-2.5 bg-white/20 backdrop-blur-sm rounded-xl shrink-0"><Banknote size={18} /></div>
           </div>
-          <p className="text-2xl sm:text-3xl font-black tracking-tight mt-4">${totalAbonos.toLocaleString('es-CO')}</p>
+          <p className="text-2xl sm:text-3xl font-black tracking-tight mt-3">${totalAbonos.toLocaleString('es-CO')}</p>
         </div>
 
-        <div className="bg-gradient-to-br from-slate-800 to-slate-900 p-6 rounded-[2rem] shadow-lg flex flex-col justify-between text-white border border-slate-700">
+        {/* Dinero Neto en Caja */}
+        <div className="bg-gradient-to-br from-slate-800 to-slate-900 p-5 sm:p-6 rounded-[2rem] shadow-lg flex flex-col justify-between text-white border border-slate-700 relative overflow-hidden">
           <div className="flex justify-between items-start mb-2">
-            <div className="flex flex-col gap-1.5">
-              <span className="text-[11px] font-black uppercase tracking-widest text-slate-300 opacity-90">Dinero Neto en Caja</span>
+            <div className="flex flex-col gap-1">
+              <span className="text-[11px] font-black uppercase tracking-widest text-slate-300 opacity-90">{metaPeriodo.etiquetaCaja}</span>
               <div className="flex items-center gap-1.5 flex-wrap">
-                <span className="inline-block bg-white/15 backdrop-blur-md px-2.5 py-0.5 rounded-lg text-[10px] font-bold w-max shadow-sm border border-white/5 text-slate-300">
-                  {countIngresos} {countIngresos === 1 ? 'ingreso' : 'ingresos'}
+                <span className="inline-block bg-white/15 backdrop-blur-md px-2 py-0.5 rounded-lg text-[10px] font-bold w-max shadow-sm border border-white/5 text-slate-300">
+                  {countIngresos} ingresos
                 </span>
                 {totalEgresos > 0 && (
-                  <span className="inline-block bg-rose-500/25 text-rose-300 border border-rose-500/30 px-2 py-0.5 rounded-lg text-[10px] font-bold">
-                    -${totalEgresos.toLocaleString('es-CO')} devoluciones
+                  <span className="inline-block bg-rose-500/25 text-rose-300 border border-rose-500/30 px-1.5 py-0.5 rounded-md text-[9px] font-bold">
+                    -${totalEgresos.toLocaleString('es-CO')}
                   </span>
                 )}
               </div>
             </div>
-            <div className="p-3 bg-white/10 backdrop-blur-sm rounded-2xl shrink-0"><TrendingUp size={20}/></div>
+            <div className="p-2.5 bg-white/10 backdrop-blur-sm rounded-xl shrink-0"><TrendingUp size={18} /></div>
           </div>
-          <p className="text-2xl sm:text-3xl font-black tracking-tight mt-4 text-emerald-400">${ingresosCaja.toLocaleString('es-CO')}</p>
+          <p className="text-2xl sm:text-3xl font-black tracking-tight mt-3 text-emerald-400">${ingresosCaja.toLocaleString('es-CO')}</p>
         </div>
       </div>
 
-      {/* BLOQUE 3: GRÁFICO */}
-      <div className="bg-white dark:bg-[#0f172a] p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-800/60 shadow-sm flex flex-col gap-6">
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-          <div>
-            <h3 className="text-xl font-bold text-slate-900 dark:text-white flex items-center gap-2">
-              <BarChart3 className="text-slate-800 dark:text-slate-400" size={24} /> Comportamiento Financiero
-            </h3>
-            <p className="text-slate-500 text-xs mt-1">Evolución en el tiempo.</p>
-          </div>
-
-          <div className="flex bg-slate-100 dark:bg-[#020617] p-1.5 rounded-xl">
-            {(['semana', 'mes', 'ano'] as const).map(f => (
-              <button 
-                key={f}
-                onClick={() => setFiltroGrafica(f)}
-                className={`px-4 py-2 text-xs font-bold rounded-lg uppercase transition-all ${filtroGrafica === f ? 'bg-white dark:bg-[#1e293b] text-slate-900 dark:text-white shadow-sm' : 'text-slate-500'}`}
-              >
-                {f === 'ano' ? 'Año' : f}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        <div className="flex items-center gap-6 text-xs font-bold pt-2 border-t border-slate-100 dark:border-slate-800">
-          <span className="flex items-center gap-2"><span className="w-3.5 h-3.5 rounded-md bg-emerald-500 inline-block shadow-sm"></span> Ventas</span>
-          <span className="flex items-center gap-2"><span className="w-3.5 h-3.5 rounded-md bg-rose-500 inline-block shadow-sm"></span> Fiados</span>
-          <span className="flex items-center gap-2"><span className="w-3.5 h-3.5 rounded-md bg-blue-500 inline-block shadow-sm"></span> Abonos</span>
-        </div>
-
-        <div className="grid grid-cols-7 gap-3 items-end h-72 pt-6 pb-2 border-b border-slate-100 dark:border-slate-800 overflow-x-auto">
-          {datosGrafica.map((item) => {
-            const hVentas = Math.max((item.ventas / maxBarra) * 100, 4);
-            const hFiados = Math.max((item.fiados / maxBarra) * 100, 4);
-            const hAbonos = Math.max((item.abonos / maxBarra) * 100, 4);
-
-            return (
-              <div key={item.label} className="flex flex-col items-center h-full justify-end group relative min-w-[35px]">
-                <div className="absolute -top-16 bg-slate-900 text-white text-[11px] p-3 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-20 whitespace-nowrap shadow-2xl">
-                  <p className="font-bold border-b border-slate-700 pb-1 mb-1">{item.label}</p>
-                  <p className="text-emerald-400 font-medium">Ventas: ${item.ventas.toLocaleString()}</p>
-                  <p className="text-rose-400 font-medium">Fiados: ${item.fiados.toLocaleString()}</p>
-                  <p className="text-blue-400 font-medium">Abonos: ${item.abonos.toLocaleString()}</p>
-                </div>
-
-                <div className="flex items-end justify-center gap-1.5 w-full h-full">
-                  <div className="w-2.5 bg-emerald-500 rounded-t-md transition-all duration-500" style={{ height: `${hVentas}%` }}></div>
-                  <div className="w-2.5 bg-rose-500 rounded-t-md transition-all duration-500" style={{ height: `${hFiados}%` }}></div>
-                  <div className="w-2.5 bg-blue-500 rounded-t-md transition-all duration-500" style={{ height: `${hAbonos}%` }}></div>
-                </div>
-                <span className="text-xs font-bold text-slate-500 mt-3 truncate max-w-full">{item.label}</span>
+      {/* BLOQUE ADICIONAL EXCLUSIVO PRO: RESUMEN DE PLAN SEPARE */}
+      {esPro && (
+        <div className="p-5 sm:p-6 bg-gradient-to-br from-purple-50 via-indigo-50/40 to-white dark:from-purple-950/20 dark:via-indigo-950/10 dark:to-[#0f172a] rounded-3xl border border-purple-200/80 dark:border-purple-800/60 shadow-sm flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <div className="w-12 h-12 rounded-2xl bg-purple-600 text-white flex items-center justify-center shrink-0 shadow-md">
+              <Bookmark size={22} />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h4 className="font-black text-slate-900 dark:text-white text-base">
+                  Resumen de Mercancía en Plan Separe
+                </h4>
+                <span className="bg-purple-100 dark:bg-purple-900/40 text-purple-700 dark:text-purple-300 text-[10px] font-black px-2 py-0.5 rounded-full">
+                  {separesActivos.length} activos
+                </span>
               </div>
-            );
-          })}
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                Mercancía apartada con anticipos recibidos y saldo pendiente de cobro.
+              </p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-3 gap-3 w-full lg:w-auto shrink-0 pt-2 lg:pt-0 border-t lg:border-t-0 border-purple-100 dark:border-purple-900/40">
+            <div className="bg-white dark:bg-[#020617] p-2.5 rounded-xl border border-purple-100 dark:border-purple-900/40 text-center">
+              <span className="text-[9px] uppercase font-bold text-slate-400 block">Total Separes</span>
+              <span className="font-black text-xs sm:text-sm text-slate-900 dark:text-white">${totalEnSeparesActivos.toLocaleString('es-CO')}</span>
+            </div>
+            <div className="bg-white dark:bg-[#020617] p-2.5 rounded-xl border border-purple-100 dark:border-purple-900/40 text-center">
+              <span className="text-[9px] uppercase font-bold text-emerald-600 dark:text-emerald-400 block">Abonos en Caja</span>
+              <span className="font-black text-xs sm:text-sm text-emerald-600 dark:text-emerald-400">${abonosEnSeparesActivos.toLocaleString('es-CO')}</span>
+            </div>
+            <div className="bg-white dark:bg-[#020617] p-2.5 rounded-xl border border-purple-100 dark:border-purple-900/40 text-center">
+              <span className="text-[9px] uppercase font-bold text-purple-600 dark:text-purple-400 block">Por Cobrar</span>
+              <span className="font-black text-xs sm:text-sm text-purple-600 dark:text-purple-400">${saldoPendienteSepares.toLocaleString('es-CO')}</span>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* BLOQUE 3: COMPORTAMIENTO FINANCIERO & GRÁFICA INTERACTIVA CON HISTORIAL PRO */}
+      <div className="bg-white dark:bg-[#0f172a] p-6 sm:p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-800/60 shadow-sm flex flex-col gap-6">
+        
+        {/* Cabecera del Gráfico con Filtros y Selectores Históricos */}
+        <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-4">
+          <div>
+            <div className="flex items-center gap-2">
+              <h3 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white flex items-center gap-2">
+                <BarChart3 className="text-emerald-500" size={24} /> Comportamiento Financiero
+              </h3>
+            </div>
+            <p className="text-slate-500 dark:text-slate-400 text-xs mt-1">
+              Evolución comparativa entre Ventas de Contado, Créditos Fiados y Abonos Recaudados.
+            </p>
+          </div>
+
+          {/* Selector de periodo para la gráfica */}
+          <div className="flex flex-wrap items-center gap-2 w-full xl:w-auto">
+            <div className="flex bg-slate-100 dark:bg-[#020617] p-1.5 rounded-2xl overflow-x-auto w-full sm:w-auto">
+              {[
+                { id: 'semana', label: 'Esta Semana' },
+                { id: 'mes', label: 'Este Mes' },
+                { id: 'ano', label: 'Este Año' },
+                { id: 'historico_mes', label: '📅 Mes Histórico', esProOnly: true },
+                { id: 'historico_ano', label: '🗓️ Año Histórico', esProOnly: true }
+              ].map(f => (
+                <button 
+                  key={f.id}
+                  onClick={() => {
+                    if (f.esProOnly && !esPro) {
+                      setPlanInicialSuscripcion('pro');
+                      setModalSuscripcionOpen(true);
+                      return;
+                    }
+                    setFiltroGrafica(f.id as any);
+                  }}
+                  className={`px-3 py-1.5 text-xs font-black rounded-xl transition-all whitespace-nowrap flex items-center gap-1 cursor-pointer ${
+                    filtroGrafica === f.id 
+                      ? 'bg-white dark:bg-[#1e293b] text-slate-900 dark:text-white shadow-sm' 
+                      : 'text-slate-500 hover:text-slate-900 dark:hover:text-slate-300'
+                  }`}
+                >
+                  <span>{f.label}</span>
+                  {f.esProOnly && !esPro && <Crown size={11} className="text-amber-500 ml-0.5" />}
+                </button>
+              ))}
+            </div>
+
+            {/* Selectores de Mes y Año si se activa el modo histórico PRO */}
+            {filtroGrafica === 'historico_mes' && esPro && (
+              <div className="flex items-center gap-1.5 bg-slate-100 dark:bg-[#020617] p-1.5 rounded-2xl animate-in fade-in">
+                <select
+                  value={mesHistorico}
+                  onChange={(e) => setMesHistorico(Number(e.target.value))}
+                  className="bg-white dark:bg-[#1e293b] text-slate-900 dark:text-white font-bold text-xs px-2.5 py-1.5 rounded-xl border-none outline-none cursor-pointer"
+                >
+                  {NOMBRES_MESES.map((nombre, idx) => (
+                    <option key={nombre} value={idx}>{nombre}</option>
+                  ))}
+                </select>
+
+                <select
+                  value={anoHistorico}
+                  onChange={(e) => setAnoHistorico(Number(e.target.value))}
+                  className="bg-white dark:bg-[#1e293b] text-slate-900 dark:text-white font-bold text-xs px-2.5 py-1.5 rounded-xl border-none outline-none cursor-pointer"
+                >
+                  {anosDisponibles.map((a) => (
+                    <option key={a} value={a}>{a}</option>
+                  ))}
+                </select>
+              </div>
+            )}
+
+            {filtroGrafica === 'historico_ano' && esPro && (
+              <div className="flex items-center gap-1.5 bg-slate-100 dark:bg-[#020617] p-1.5 rounded-2xl animate-in fade-in">
+                <select
+                  value={anoHistorico}
+                  onChange={(e) => setAnoHistorico(Number(e.target.value))}
+                  className="bg-white dark:bg-[#1e293b] text-slate-900 dark:text-white font-bold text-xs px-3 py-1.5 rounded-xl border-none outline-none cursor-pointer"
+                >
+                  {anosDisponibles.map((a) => (
+                    <option key={a} value={a}>Año {a}</option>
+                  ))}
+                </select>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Leyenda y Totales del Gráfico */}
+        <div className="flex flex-wrap items-center justify-between gap-3 text-xs font-bold pt-3 border-t border-slate-100 dark:border-slate-800">
+          <div className="flex items-center gap-5">
+            <span className="flex items-center gap-2">
+              <span className="w-3.5 h-3.5 rounded-md bg-emerald-500 shadow-xs"></span> 
+              <span>Ventas: <strong>${totalGraficaVentas.toLocaleString('es-CO')}</strong></span>
+            </span>
+            <span className="flex items-center gap-2">
+              <span className="w-3.5 h-3.5 rounded-md bg-rose-500 shadow-xs"></span> 
+              <span>Fiados: <strong>${totalGraficaFiados.toLocaleString('es-CO')}</strong></span>
+            </span>
+            <span className="flex items-center gap-2">
+              <span className="w-3.5 h-3.5 rounded-md bg-blue-500 shadow-xs"></span> 
+              <span>Abonos: <strong>${totalGraficaAbonos.toLocaleString('es-CO')}</strong></span>
+            </span>
+          </div>
+
+          <span className="text-[11px] text-slate-400 font-medium hidden sm:inline">
+            Pasa el cursor o toca cada barra para ver los detalles exactos
+          </span>
+        </div>
+
+        {/* Visualización de Barras Responsive */}
+        <div className="w-full overflow-x-auto pb-2">
+          <div className="grid grid-flow-col auto-cols-fr gap-2.5 sm:gap-4 items-end h-64 sm:h-72 pt-8 pb-2 border-b border-slate-100 dark:border-slate-800 min-w-[340px]">
+            {datosGrafica.map((item) => {
+              const hVentas = Math.max((item.ventas / maxBarra) * 100, 3);
+              const hFiados = Math.max((item.fiados / maxBarra) * 100, 3);
+              const hAbonos = Math.max((item.abonos / maxBarra) * 100, 3);
+
+              return (
+                <div key={item.label} className="flex flex-col items-center h-full justify-end group relative">
+                  
+                  {/* Tooltip flotante enriquecido */}
+                  <div className="absolute -top-20 bg-slate-900/95 dark:bg-slate-800/95 text-white text-[11px] p-2.5 rounded-2xl opacity-0 group-hover:opacity-100 transition-all pointer-events-none z-30 whitespace-nowrap shadow-2xl backdrop-blur-md border border-white/10">
+                    <p className="font-black border-b border-white/10 pb-1 mb-1 text-center">{item.label}</p>
+                    <p className="text-emerald-400 font-bold">Ventas: ${item.ventas.toLocaleString('es-CO')}</p>
+                    <p className="text-rose-400 font-bold">Fiados: ${item.fiados.toLocaleString('es-CO')}</p>
+                    <p className="text-blue-400 font-bold">Abonos: ${item.abonos.toLocaleString('es-CO')}</p>
+                  </div>
+
+                  {/* Barras de datos */}
+                  <div className="flex items-end justify-center gap-1 sm:gap-1.5 w-full h-full">
+                    <div 
+                      className="w-2 sm:w-3.5 bg-gradient-to-t from-emerald-600 to-emerald-400 rounded-t-lg transition-all duration-500 shadow-xs" 
+                      style={{ height: `${hVentas}%` }}
+                    ></div>
+                    <div 
+                      className="w-2 sm:w-3.5 bg-gradient-to-t from-rose-600 to-rose-400 rounded-t-lg transition-all duration-500 shadow-xs" 
+                      style={{ height: `${hFiados}%` }}
+                    ></div>
+                    <div 
+                      className="w-2 sm:w-3.5 bg-gradient-to-t from-blue-600 to-blue-400 rounded-t-lg transition-all duration-500 shadow-xs" 
+                      style={{ height: `${hAbonos}%` }}
+                    ></div>
+                  </div>
+                  
+                  <span className="text-[10px] sm:text-xs font-black text-slate-500 dark:text-slate-400 mt-2 truncate max-w-full text-center">
+                    {item.label}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
         </div>
       </div>
 
-      {/* BLOQUE 4: COLABORADORES */}
-      <div className="bg-white dark:bg-[#0f172a] p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-800/60 shadow-sm flex flex-col gap-6">
+      {/* BLOQUE 4: RENDIMIENTO DE COLABORADORES */}
+      <div className="bg-white dark:bg-[#0f172a] p-6 sm:p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-800/60 shadow-sm flex flex-col gap-6">
         <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 border-b border-slate-100 dark:border-slate-800 pb-5">
           <div>
-            <h3 className="text-xl font-bold text-slate-900 dark:text-white flex items-center gap-2">
+            <h3 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white flex items-center gap-2">
               <Award className="text-amber-500" size={24} /> Rendimiento de Colaboradores
             </h3>
-            <p className="text-slate-500 text-xs mt-1">Ranking de ventas por personal ({obtenerTextoRango(filtroColab)}).</p>
+            <p className="text-slate-500 dark:text-slate-400 text-xs mt-1">
+              Ranking de ventas generadas por el equipo de trabajo ({metaPeriodo.rangoDescriptivo}).
+            </p>
           </div>
 
-          <div className="flex flex-wrap items-center gap-3">
-            <div className="flex bg-slate-100 dark:bg-[#020617] p-1.5 rounded-xl overflow-x-auto">
+          <div className="flex flex-wrap items-center gap-2.5">
+            <div className="flex bg-slate-100 dark:bg-[#020617] p-1.5 rounded-2xl overflow-x-auto">
               {(['hoy', 'semana', 'mes', 'ano', 'todos'] as const).map(f => (
                 <button 
                   key={f}
                   onClick={() => setFiltroColab(f)}
-                  className={`px-3 py-1.5 text-xs font-bold rounded-lg capitalize transition-all whitespace-nowrap ${filtroColab === f ? 'bg-white dark:bg-[#1e293b] text-slate-900 dark:text-white shadow-sm' : 'text-slate-500'}`}
+                  className={`px-3 py-1.5 text-xs font-black rounded-xl capitalize transition-all whitespace-nowrap cursor-pointer ${
+                    filtroColab === f 
+                      ? 'bg-white dark:bg-[#1e293b] text-slate-900 dark:text-white shadow-sm' 
+                      : 'text-slate-500 hover:text-slate-900 dark:hover:text-slate-300'
+                  }`}
                 >
                   {f === 'ano' ? 'Año' : f}
                 </button>
               ))}
             </div>
 
-            <div className="flex bg-slate-100 dark:bg-[#020617] p-1.5 rounded-xl">
+            <div className="flex bg-slate-100 dark:bg-[#020617] p-1.5 rounded-2xl">
               <button 
                 onClick={() => setCriterioColaborador('monto')}
-                className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all ${criterioColaborador === 'monto' ? 'bg-white dark:bg-[#1e293b] text-slate-900 dark:text-white shadow-sm' : 'text-slate-500'}`}
+                className={`px-3 py-1.5 text-xs font-black rounded-xl transition-all cursor-pointer ${
+                  criterioColaborador === 'monto' 
+                    ? 'bg-white dark:bg-[#1e293b] text-slate-900 dark:text-white shadow-sm' 
+                    : 'text-slate-500'
+                }`}
               >
                 Por Monto ($)
               </button>
               <button 
                 onClick={() => setCriterioColaborador('cantidad')}
-                className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all ${criterioColaborador === 'cantidad' ? 'bg-white dark:bg-[#1e293b] text-slate-900 dark:text-white shadow-sm' : 'text-slate-500'}`}
+                className={`px-3 py-1.5 text-xs font-black rounded-xl transition-all cursor-pointer ${
+                  criterioColaborador === 'cantidad' 
+                    ? 'bg-white dark:bg-[#1e293b] text-slate-900 dark:text-white shadow-sm' 
+                    : 'text-slate-500'
+                }`}
               >
                 Por Cantidad (#)
               </button>
@@ -622,29 +882,54 @@ export default function ReportesPage() {
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {listaColaboradores.map((colab, index) => (
-            <div key={colab.nombre} className="p-5 bg-slate-50 dark:bg-[#020617] rounded-2xl border border-slate-100 dark:border-slate-800/60 flex items-center gap-4 hover:border-emerald-500/50 transition-all">
-              <div className={`w-12 h-12 rounded-2xl flex items-center justify-center font-black text-lg shadow-sm ${index === 0 ? 'bg-emerald-500 text-white' : (index === 1 ? 'bg-emerald-100 text-emerald-600 dark:bg-emerald-500/20 dark:text-emerald-400' : 'bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-400')}`}>
-                #{index + 1}
-              </div>
-              <div className="flex flex-col min-w-0 flex-1">
-                <p className="font-bold text-slate-900 dark:text-slate-100 truncate text-base">{colab.nombre}</p>
-                <div className="flex justify-between items-center mt-1">
-                  <span className="text-xs text-slate-500 font-medium">{colab.cantidad} ventas</span>
-                  <span className="text-sm font-black text-emerald-600 dark:text-emerald-400">${colab.monto.toLocaleString('es-CO')}</span>
+          {listaColaboradores.map((colab, index) => {
+            const ticketPromedio = colab.cantidad > 0 ? Math.round(colab.monto / colab.cantidad) : 0;
+            return (
+              <div 
+                key={colab.nombre} 
+                className="p-5 bg-slate-50 dark:bg-[#020617] rounded-3xl border border-slate-100 dark:border-slate-800/60 flex items-center gap-4 hover:border-emerald-500/50 transition-all shadow-xs"
+              >
+                <div className={`w-12 h-12 rounded-2xl flex items-center justify-center font-black text-lg shadow-sm shrink-0 ${
+                  index === 0 
+                    ? 'bg-amber-500 text-white shadow-amber-500/20' 
+                    : (index === 1 
+                      ? 'bg-slate-400 text-white' 
+                      : (index === 2 
+                        ? 'bg-amber-700 text-white' 
+                        : 'bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-400'))
+                }`}>
+                  #{index + 1}
+                </div>
+                <div className="flex flex-col min-w-0 flex-1">
+                  <div className="flex items-center justify-between gap-1">
+                    <p className="font-black text-slate-900 dark:text-slate-100 truncate text-base">{colab.nombre}</p>
+                    <span className="text-[10px] font-extrabold uppercase text-slate-400 bg-slate-200 dark:bg-slate-800 px-2 py-0.5 rounded-md">
+                      {colab.cantidad} {colab.cantidad === 1 ? 'venta' : 'ventas'}
+                    </span>
+                  </div>
+                  <div className="flex justify-between items-baseline mt-1.5">
+                    <span className="text-[11px] text-slate-400 font-medium">Ticket prom: ${ticketPromedio.toLocaleString('es-CO')}</span>
+                    <span className="text-base font-black text-emerald-600 dark:text-emerald-400">${colab.monto.toLocaleString('es-CO')}</span>
+                  </div>
                 </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
 
           {listaColaboradores.length === 0 && (
-            <div className="col-span-full py-10 text-center text-slate-400 text-sm">
-              No hay registros de ventas por colaboradores para este filtro.
+            <div className="col-span-full py-10 text-center text-slate-400 text-sm font-medium">
+              No hay ventas registradas por colaboradores en el periodo seleccionado ({metaPeriodo.rangoDescriptivo}).
             </div>
           )}
         </div>
       </div>
 
+      <ModalSuscripcion 
+        isOpen={modalSuscripcionOpen} 
+        onClose={() => setModalSuscripcionOpen(false)} 
+        cuentaPrincipalId={cuentaPrincipalId || ""} 
+        planInicial={planInicialSuscripcion}
+      />
     </div>
   );
 }
