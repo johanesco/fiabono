@@ -589,32 +589,41 @@ export default function InventarioPage() {
   };
 
   const guardarProducto = async () => {
-    const erroresNuevos = {
-      nombre: '',
-      categoria: '',
-      stock: '',
-      precio: ''
-    };
+    const hayProductosEnCola = !editandoId && productosEnCarga.length > 0;
+    const formularioTieneDatos = Boolean(nombre.trim() || precioVenta || (tipoProducto === 'producto' && stock.trim() !== ''));
 
-    const esInventariable = tipoProducto === 'producto' && inventariable;
+    // Si NO hay productos en cola O el usuario está editando O el formulario superior tiene algún dato ingresado, validamos el formulario
+    if (!hayProductosEnCola || formularioTieneDatos) {
+      const erroresNuevos = {
+        nombre: '',
+        categoria: '',
+        stock: '',
+        precio: ''
+      };
 
-    if (!nombre.trim()) erroresNuevos.nombre = 'El nombre del producto es obligatorio.';
-    if (!categoria.trim()) erroresNuevos.categoria = 'Selecciona o agrega una categoría.';
-    else if (!categoriasDisponibles.some(item => item.toLowerCase() === categoria.trim().toLowerCase())) {
-      erroresNuevos.categoria = 'Agrega esta categoría antes de continuar.';
-    }
-    if (esInventariable && stock.trim() === '') erroresNuevos.stock = 'El stock es obligatorio para productos físicos.';
-    if (!precioVenta) erroresNuevos.precio = 'El precio de venta es obligatorio.';
+      const esInventariable = tipoProducto === 'producto' && inventariable;
 
-    setErrores(erroresNuevos);
+      if (!nombre.trim()) erroresNuevos.nombre = 'El nombre del producto es obligatorio.';
+      if (!categoria.trim()) erroresNuevos.categoria = 'Selecciona o agrega una categoría.';
+      else if (!categoriasDisponibles.some(item => item.toLowerCase() === categoria.trim().toLowerCase())) {
+        erroresNuevos.categoria = 'Agrega esta categoría antes de continuar.';
+      }
+      if (esInventariable && stock.trim() === '') erroresNuevos.stock = 'El stock es obligatorio para productos físicos.';
+      if (!precioVenta) erroresNuevos.precio = 'El precio de venta es obligatorio.';
 
-    if (erroresNuevos.nombre || erroresNuevos.categoria || erroresNuevos.stock || erroresNuevos.precio) {
-      return;
+      // Si hay errores en el formulario y no hay productos en cola, o si el usuario escribió un nombre y tiene errores:
+      if (erroresNuevos.nombre || erroresNuevos.categoria || erroresNuevos.stock || erroresNuevos.precio) {
+        if (!hayProductosEnCola || nombre.trim()) {
+          setErrores(erroresNuevos);
+          return;
+        }
+      }
     }
 
     setGuardando(true);
     try {
       if (editandoId) {
+        const esInventariable = tipoProducto === 'producto' && inventariable;
         const docRef = doc(db, "inventario", editandoId);
         await updateDoc(docRef, {
           nombre: nombre.trim(),
@@ -626,14 +635,22 @@ export default function InventarioPage() {
           inventariable: esInventariable,
           fechaActualizacion: new Date()
         });
-        toast.success("Producto actualizado.");
+        toast.success("Producto actualizado con éxito.");
       } else {
         const totalGuardados = await guardarProductosEnCarga();
-        if (nombre.trim()) {
+        let totalExtra = 0;
+        
+        // Si el usuario además completó válidamente el formulario superior, lo guardamos también
+        if (nombre.trim() && precioVenta) {
           const docRef = await addDoc(collection(db, "inventario"), crearProductoDesdeFormulario());
-          if (docRef.id) {
-            toast.success(totalGuardados ? `Se guardaron ${totalGuardados + 1} productos.` : "Producto creado.");
-          }
+          if (docRef.id) totalExtra = 1;
+        }
+
+        const totalFinal = totalGuardados + totalExtra;
+        if (totalFinal > 1) {
+          toast.success(`¡Se guardaron ${totalFinal} productos en el catálogo! 🎉`);
+        } else if (totalFinal === 1) {
+          toast.success("Producto creado con éxito.");
         }
       }
 
@@ -642,7 +659,7 @@ export default function InventarioPage() {
       if (cuentaPrincipalId) cargarInventario(cuentaPrincipalId);
     } catch (error) {
       console.error(error);
-      toast.error("Error al guardar el producto.");
+      toast.error("Error al guardar en el inventario.");
     } finally {
       setGuardando(false);
     }
