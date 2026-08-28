@@ -1598,16 +1598,15 @@ Estamos atentos para cualquier consulta.
                 </span>
               )}
 
-              {pestanas.length > 1 && (
-                <button
-                  type="button"
-                  onClick={(e) => cerrarPestana(p.id, e)}
-                  className={`p-0.5 rounded-full hover:bg-black/10 transition-colors ${activa ? 'text-slate-500 hover:text-slate-900' : 'text-white/60 hover:text-white'}`}
-                  title="Cerrar este separe"
-                >
-                  <X size={13} />
-                </button>
-              )}
+              {/* Botón Cerrar o Limpiar Pestaña */}
+              <button
+                type="button"
+                onClick={(e) => cerrarPestana(p.id, e)}
+                className={`p-0.5 rounded-full hover:bg-black/10 transition-colors ${activa ? 'text-slate-500 hover:text-slate-900' : 'text-white/60 hover:text-white'}`}
+                title={pestanas.length > 1 ? "Cerrar este separe" : "Limpiar este separe"}
+              >
+                <X size={13} />
+              </button>
             </div>
           );
         })}
