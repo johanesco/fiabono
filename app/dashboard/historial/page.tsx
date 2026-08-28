@@ -283,7 +283,19 @@ Quedamos pendientes para revisar detalles o responder cualquier duda.
     if (busquedaHistorial && !matchBusqueda) return false;
     if (filtroTipoHistorial !== 'todos' && mov.tipo !== filtroTipoHistorial) return false;
 
-    const ms = mov.fecha?.toMillis() || 0;
+    // Regla de privacidad: Colaborador solo ve sus propios movimientos
+    const esColaborador = datosSesion?.rol === 'cajero' || datosSesion?.tipoUsuario === 'colaborador';
+    if (esColaborador) {
+      const nombreActual = (datosSesion?.nombreUsuario || '').trim().toLowerCase();
+      const regPor = (mov.registradoPor || '').trim().toLowerCase();
+      const vend = ((mov as any).vendedor || '').trim().toLowerCase();
+      const creador = (mov as any).creadoPor || '';
+      const matchUsuario = (nombreActual && (regPor === nombreActual || vend === nombreActual)) ||
+                           (datosSesion?.uid && creador === datosSesion.uid);
+      if (!matchUsuario) return false;
+    }
+
+    const ms = mov.fecha?.toMillis ? mov.fecha.toMillis() : (mov.fecha ? new Date(mov.fecha).getTime() : 0);
     const inicioHoy = new Date(hoyDate.getFullYear(), hoyDate.getMonth(), hoyDate.getDate()).getTime();
     const inicioSemana = inicioSemanaDate.getTime();
     const inicioMes = new Date(hoyDate.getFullYear(), hoyDate.getMonth(), 1).getTime();

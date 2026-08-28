@@ -19,7 +19,7 @@ export default function BottomNav({
   separesActivosCount?: number;
 }) {
   const pathname = usePathname();
-  const puedeGestionarSepares = esAdmin || puedeAbonar;
+  const puedeGestionarSepares = esAdmin === true;
 
   return (
     <nav className="fixed bottom-0 left-0 right-0 bg-white/95 dark:bg-[#0f172a]/95 backdrop-blur-xl border-t border-slate-200/80 dark:border-slate-800/80 shadow-[0_-10px_40px_rgba(0,0,0,0.05)] dark:shadow-[0_-10px_40px_rgba(0,0,0,0.5)] z-[100] pb-safe transition-colors duration-300">

@@ -9,7 +9,7 @@ interface SidebarProps {
   sidebarAbierto: boolean;
   setSidebarAbierto: (estado: boolean) => void;
   puedeVerReportes: boolean;
-  puedeSepare?: boolean;
+  puedeGestionarSepares?: boolean;
   nombreNegocio: string;
   ordenesPendientesCount?: number;
   separesActivosCount?: number;
@@ -19,7 +19,7 @@ export default function Sidebar({
   sidebarAbierto,
   setSidebarAbierto,
   puedeVerReportes,
-  puedeSepare = true,
+  puedeGestionarSepares = false,
   nombreNegocio,
   ordenesPendientesCount = 0,
   separesActivosCount = 0
@@ -30,7 +30,7 @@ export default function Sidebar({
     { href: "/dashboard/inicio", label: "Inicio", icon: Home },
     { href: "/dashboard/inventario", label: "Inventario", icon: Package },
     { href: "/dashboard/ordenes", label: "Órdenes", icon: Receipt, badge: ordenesPendientesCount, badgeColor: "bg-rose-500" },
-    ...(puedeSepare ? [{ href: "/dashboard/separes", label: "Planes Separe", icon: Bookmark, badge: separesActivosCount, badgeColor: "bg-violet-500" }] : []),
+    ...(puedeGestionarSepares ? [{ href: "/dashboard/separes", label: "Planes Separe", icon: Bookmark, badge: separesActivosCount, badgeColor: "bg-violet-500" }] : []),
     ...(puedeVerReportes ? [{ href: "/dashboard/reportes", label: "Reportes", icon: BarChart3 }] : []),
     { href: "/dashboard/historial", label: "Historial", icon: Clock },
     { href: "/dashboard/perfil", label: "Ajustes", icon: Settings },
