@@ -427,15 +427,17 @@ Quedamos pendientes para revisar detalles o responder cualquier duda.
                 nombre: 'ABONAR',
                 icono: Banknote,
                 ruta: '/dashboard/abonar',
+                esProOnly: false,
                 gradiente: 'from-blue-500 to-blue-700 dark:from-blue-600 dark:to-blue-800 hover:from-blue-600 hover:to-blue-700 border-blue-400/30 dark:border-blue-500/20'
               }] : []),
-              ...(puedeSepare ? [{
+              {
                 id: 'separe',
                 nombre: 'SEPARE',
                 icono: Bookmark,
                 ruta: '/dashboard/separe',
+                esProOnly: !datosSesion?.esPro,
                 gradiente: 'from-violet-600 to-purple-800 hover:from-violet-700 hover:to-purple-900 border-violet-400/30 dark:border-violet-500/20'
-              }] : [])
+              }
             ];
 
             const gridColsClass = botonesSecundarios.length === 3 
@@ -451,11 +453,25 @@ Quedamos pendientes para revisar detalles o responder cualquier duda.
                   return (
                     <button
                       key={btn.id}
-                      onClick={() => router.push(btn.ruta)}
-                      className={`w-full bg-gradient-to-br ${btn.gradiente} text-white font-black text-sm xs:text-base sm:text-2xl lg:text-3xl py-4 sm:py-7 lg:py-8 rounded-2xl sm:rounded-3xl shadow-lg flex flex-col items-center justify-center transition-transform transform active:scale-95 border cursor-pointer`}
+                      onClick={() => {
+                        if (btn.esProOnly) {
+                          abrirUpsell(
+                            "Plan Separe Exclusivo PRO Almacén",
+                            "Aparta mercancía de clientes, gestiona abonos parciales y recibe alertas automáticas de vencimiento con el Plan PRO Almacén."
+                          );
+                          return;
+                        }
+                        router.push(btn.ruta);
+                      }}
+                      className={`w-full bg-gradient-to-br ${btn.gradiente} text-white font-black text-sm xs:text-base sm:text-2xl lg:text-3xl py-4 sm:py-7 lg:py-8 rounded-2xl sm:rounded-3xl shadow-lg flex flex-col items-center justify-center transition-transform transform active:scale-95 border cursor-pointer relative`}
                     >
-                      <Icono className="mb-1.5 sm:mb-2 opacity-90 shrink-0 w-6 h-6 sm:w-10 sm:h-10 lg:w-12 lg:h-12" />
-                      <span className="truncate px-1 max-w-full">{btn.nombre}</span>
+                      {btn.esProOnly && (
+                        <span className="absolute top-2 right-2 bg-amber-400 text-slate-900 text-[9px] font-black uppercase px-1.5 py-0.5 rounded-full flex items-center gap-0.5 shadow-sm">
+                          👑 PRO
+                        </span>
+                      )}
+                      <Icono className="mb-1 sm:mb-2 opacity-90 shrink-0 w-6 h-6 sm:w-8 sm:h-8 lg:w-10 lg:h-10" />
+                      {btn.nombre}
                     </button>
                   );
                 })}

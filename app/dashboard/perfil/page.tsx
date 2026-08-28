@@ -37,6 +37,7 @@ export default function PerfilPage() {
   const [modalAjustarOpen, setModalAjustarOpen] = useState(false);
   const [procesandoLogo, setProcesandoLogo] = useState(false);
 
+  const [mostrarPerfilNegocio, setMostrarPerfilNegocio] = useState(false);
   const [modoEdicionPerfil, setModoEdicionPerfil] = useState(false);
   const [editNombreUsuario, setEditNombreUsuario] = useState(nombreUsuario);
   
@@ -747,169 +748,294 @@ export default function PerfilPage() {
             </div>
           </div>
 
+          {/* SECCIÓN DEDICADA: SUSCRIPCIÓN Y PLAN */}
           <div className="bg-white dark:bg-[#0f172a] p-6 sm:p-8 rounded-[2rem] shadow-sm border border-slate-100 dark:border-slate-800/60">
             <div className="flex justify-between items-center mb-6 border-b border-slate-100 dark:border-slate-800/60 pb-4">
-              <h3 className="font-black text-lg text-slate-800 dark:text-slate-100 flex items-center gap-2"><Building2 size={20} className="text-blue-500 shrink-0"/> Perfil del Negocio y Marca</h3>
-              {!modoEdicionPerfil && (
-                <button onClick={() => { setEditNombreUsuario(nombreUsuario); setModoEdicionPerfil(true); }} className="text-blue-600 dark:text-blue-400 text-sm font-bold flex items-center gap-1 bg-blue-50 dark:bg-blue-500/10 px-3 py-1.5 rounded-lg shrink-0"><Edit2 size={14}/> Modificar</button>
-              )}
+              <h3 className="font-black text-lg text-slate-800 dark:text-slate-100 flex items-center gap-2">
+                <Sparkles size={20} className="text-blue-500 shrink-0"/> Suscripción y Facturación
+              </h3>
+              <button 
+                onClick={() => setModalSuscripcionOpen(true)} 
+                className="text-blue-600 dark:text-blue-400 text-xs sm:text-sm font-black flex items-center gap-1 bg-blue-50 dark:bg-blue-500/10 px-3 py-1.5 rounded-xl hover:bg-blue-100 transition-colors cursor-pointer"
+              >
+                Cambiar Plan
+              </button>
+            </div>
+
+            {/* Tarjeta Visual del Plan Activo */}
+            <div className={`p-6 rounded-2xl border transition-all ${
+              planActual === 'pro'
+                ? 'border-purple-200 dark:border-purple-900/50 bg-gradient-to-br from-purple-50/70 via-indigo-50/30 to-purple-50/70 dark:from-purple-950/20 dark:via-indigo-950/10 dark:to-purple-950/20'
+                : planActual === 'comercio'
+                  ? 'border-blue-200 dark:border-blue-900/50 bg-gradient-to-br from-blue-50/70 via-sky-50/30 to-blue-50/70 dark:from-blue-950/20 dark:via-sky-950/10 dark:to-blue-950/20'
+                  : 'border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-[#020617]'
+            }`}>
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2">
+                    <span className={`text-xs font-black uppercase tracking-wider px-2.5 py-0.5 rounded-full ${
+                      planActual === 'pro'
+                        ? 'bg-purple-600 text-white'
+                        : planActual === 'comercio'
+                          ? 'bg-blue-600 text-white'
+                          : 'bg-slate-200 text-slate-700 dark:bg-slate-700 dark:text-slate-200'
+                    }`}>
+                      {planActual === 'pro' ? 'Plan PRO Almacén' : (planActual === 'comercio' ? 'Plan Comercio' : 'Plan Gratuito')}
+                    </span>
+                    {diasPro !== null && (
+                      <span className="text-xs font-bold text-slate-500 dark:text-slate-400">
+                        • Quedan {diasPro} días
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-sm font-medium text-slate-600 dark:text-slate-300">
+                    {planActual === 'pro'
+                      ? 'Control total de tu almacén: Separes, Etiquetas QR, Excel y 4 colaboradores.'
+                      : (planActual === 'comercio'
+                        ? 'Ideal para tu tienda: Clientes e inventario ilimitados, Factura y 1 colaborador.'
+                        : 'Plan de inicio: Hasta 15 clientes, 30 productos y 40 ventas/mes.')}
+                  </p>
+                </div>
+
+                <div className="flex items-center gap-2 shrink-0">
+                  <button
+                    onClick={() => setModalSuscripcionOpen(true)}
+                    className={`px-5 py-2.5 rounded-xl font-black text-xs uppercase tracking-wider text-white shadow-md transition-transform active:scale-95 cursor-pointer ${
+                      planActual === 'pro'
+                        ? 'bg-purple-600 hover:bg-purple-700'
+                        : 'bg-blue-600 hover:bg-blue-700'
+                    }`}
+                  >
+                    {planActual === 'pro' ? 'Renovar Plan' : 'Subir de Plan'}
+                  </button>
+                </div>
+              </div>
+
+              {/* Matriz de capacidades activas */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 mt-5 pt-4 border-t border-slate-200/60 dark:border-slate-800">
+                <div className="text-center p-2 rounded-xl bg-white/80 dark:bg-[#0f172a]/80">
+                  <span className="text-[10px] uppercase font-bold text-slate-400 block">Clientes</span>
+                  <span className="text-xs font-black text-slate-800 dark:text-white">
+                    {planActual === 'gratis' || planActual === 'basico' ? 'Hasta 15' : 'Ilimitados'}
+                  </span>
+                </div>
+                <div className="text-center p-2 rounded-xl bg-white/80 dark:bg-[#0f172a]/80">
+                  <span className="text-[10px] uppercase font-bold text-slate-400 block">Inventario</span>
+                  <span className="text-xs font-black text-slate-800 dark:text-white">
+                    {planActual === 'gratis' || planActual === 'basico' ? 'Hasta 30' : 'Ilimitado'}
+                  </span>
+                </div>
+                <div className="text-center p-2 rounded-xl bg-white/80 dark:bg-[#0f172a]/80">
+                  <span className="text-[10px] uppercase font-bold text-slate-400 block">Colaboradores</span>
+                  <span className="text-xs font-black text-slate-800 dark:text-white">
+                    {planActual === 'pro' ? 'Hasta 4' : (planActual === 'comercio' ? '1 Incluido' : '0')}
+                  </span>
+                </div>
+                <div className="text-center p-2 rounded-xl bg-white/80 dark:bg-[#0f172a]/80">
+                  <span className="text-[10px] uppercase font-bold text-slate-400 block">Plan Separe</span>
+                  <span className={`text-xs font-black ${planActual === 'pro' ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-400'}`}>
+                    {planActual === 'pro' ? 'Habilitado' : 'Solo PRO'}
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* PERFIL DEL NEGOCIO Y MARCA (EXPANDIBLE / RECOGIDO POR DEFECTO) */}
+          <div className="bg-white dark:bg-[#0f172a] p-6 sm:p-8 rounded-[2rem] shadow-sm border border-slate-100 dark:border-slate-800/60 transition-all">
+            <div className="flex justify-between items-center border-b border-slate-100 dark:border-slate-800/60 pb-4 cursor-pointer select-none" onClick={() => setMostrarPerfilNegocio(!mostrarPerfilNegocio)}>
+              <div className="flex items-center gap-2">
+                <Building2 size={20} className="text-blue-500 shrink-0"/>
+                <div>
+                  <h3 className="font-black text-lg text-slate-800 dark:text-slate-100">Perfil del Negocio y Marca</h3>
+                  {!mostrarPerfilNegocio && (
+                    <p className="text-xs text-slate-400 font-medium">{nombreNegocio || "Configura los datos de tu empresa"}</p>
+                  )}
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2 shrink-0">
+                <button 
+                  type="button"
+                  onClick={(e) => { e.stopPropagation(); setMostrarPerfilNegocio(!mostrarPerfilNegocio); }}
+                  className="p-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-500 hover:text-slate-800 dark:hover:text-white transition-colors cursor-pointer"
+                >
+                  {mostrarPerfilNegocio ? <ChevronUp size={18}/> : <ChevronDown size={18}/>}
+                </button>
+              </div>
 
               <ModalHorarios isOpen={modalHorariosOpen} onClose={() => { setModalHorariosOpen(false); setColabParaHorarios(null); cargarListaColaboradores(adminId); }} usuarioId={colabParaHorarios ? colabParaHorarios.id : ""} horariosIniciales={colabParaHorarios ? (colabParaHorarios.horariosActividad || []) : []} />
             </div>
             
-            {modoEdicionPerfil ? (
-              <div className="flex flex-col gap-5 animate-in fade-in">
-                
-                {/* SUBIDA Y CONTROL DE LOGO */}
-                <div className="bg-slate-50 dark:bg-[#020617] p-5 rounded-2xl border border-slate-200 dark:border-slate-800/80 flex flex-col sm:flex-row items-center gap-4">
-                  <div className="w-20 h-20 rounded-2xl bg-white dark:bg-slate-800 border-2 border-dashed border-slate-300 dark:border-slate-700 flex items-center justify-center overflow-hidden shrink-0 shadow-inner">
-                    {logoNegocio ? (
-                      <img src={logoNegocio} alt="Logo Negocio" className="w-full h-full object-contain p-1.5" />
-                    ) : (
-                      <ImageIcon className="text-slate-400" size={32} />
-                    )}
-                  </div>
-                  <div className="flex-1 text-center sm:text-left">
-                    <h4 className="font-black text-slate-800 dark:text-slate-200 text-sm">Logo o Identificador del Negocio</h4>
-                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Se mostrará en la cabecera de las facturas térmicas y en tu perfil.</p>
-                    <div className="flex flex-wrap gap-2 mt-3 justify-center sm:justify-start">
-                      <button
-                        type="button"
-                        onClick={() => fileInputRef.current?.click()}
-                        disabled={procesandoLogo}
-                        className="bg-blue-600 hover:bg-blue-700 text-white text-xs font-black py-2 px-4 rounded-xl flex items-center gap-1.5 transition-transform active:scale-95 shadow-sm"
-                      >
-                        <Upload size={14} /> {logoNegocio ? "Cambiar Logo" : "Subir Logo"}
-                      </button>
-                      {logoNegocio && (
-                        <button
-                          type="button"
-                          onClick={() => setLogoNegocio(null)}
-                          className="bg-rose-50 hover:bg-rose-100 dark:bg-rose-500/10 text-rose-600 dark:text-rose-400 text-xs font-bold py-2 px-3 rounded-xl border border-rose-200 dark:border-rose-500/20 transition-colors flex items-center gap-1"
-                        >
-                          <Trash2 size={13} /> Quitar
-                        </button>
+            {mostrarPerfilNegocio && (
+              <div className="pt-6 animate-in fade-in duration-200">
+                {modoEdicionPerfil ? (
+                  <div className="flex flex-col gap-5">
+                    
+                    {/* SUBIDA Y CONTROL DE LOGO */}
+                    <div className="bg-slate-50 dark:bg-[#020617] p-5 rounded-2xl border border-slate-200 dark:border-slate-800/80 flex flex-col sm:flex-row items-center gap-4">
+                      <div className="w-20 h-20 rounded-2xl bg-white dark:bg-slate-800 border-2 border-dashed border-slate-300 dark:border-slate-700 flex items-center justify-center overflow-hidden shrink-0 shadow-inner">
+                        {logoNegocio ? (
+                          <img src={logoNegocio} alt="Logo Negocio" className="w-full h-full object-contain p-1.5" />
+                        ) : (
+                          <ImageIcon className="text-slate-400" size={32} />
+                        )}
+                      </div>
+                      <div className="flex-1 text-center sm:text-left">
+                        <h4 className="font-black text-slate-800 dark:text-slate-200 text-sm">Logo o Identificador del Negocio</h4>
+                        <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Se mostrará en la cabecera de las facturas térmicas y en tu perfil.</p>
+                        <div className="flex flex-wrap gap-2 mt-3 justify-center sm:justify-start">
+                          <button
+                            type="button"
+                            onClick={() => fileInputRef.current?.click()}
+                            disabled={procesandoLogo}
+                            className="bg-blue-600 hover:bg-blue-700 text-white text-xs font-black py-2 px-4 rounded-xl flex items-center gap-1.5 transition-transform active:scale-95 shadow-sm cursor-pointer"
+                          >
+                            <Upload size={14} /> {logoNegocio ? "Cambiar Logo" : "Subir Logo"}
+                          </button>
+                          {logoNegocio && (
+                            <button
+                              type="button"
+                              onClick={() => setLogoNegocio(null)}
+                              className="bg-rose-50 hover:bg-rose-100 dark:bg-rose-500/10 text-rose-600 dark:text-rose-400 text-xs font-bold py-2 px-3 rounded-xl border border-rose-200 dark:border-rose-500/20 transition-colors flex items-center gap-1 cursor-pointer"
+                            >
+                              <Trash2 size={13} /> Quitar
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1.5">Nombre del Negocio</label>
+                        <input type="text" value={nombreNegocio} onChange={(e) => setNombreNegocio(e.target.value)} placeholder="Ej. Tienda Doña Juana" className="w-full p-4 bg-slate-50 dark:bg-[#020617] border border-slate-200 dark:border-slate-800/80 rounded-2xl outline-none focus:border-blue-500 dark:focus:border-blue-400 font-bold text-base text-slate-900 dark:text-white placeholder-slate-400" />
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1.5">NIT / RUT / Cédula</label>
+                        <input type="text" value={nitNegocio} onChange={(e) => setNitNegocio(e.target.value)} placeholder="Ej. 901.234.567-8" className="w-full p-4 bg-slate-50 dark:bg-[#020617] border border-slate-200 dark:border-slate-800/80 rounded-2xl outline-none focus:border-blue-500 dark:focus:border-blue-400 font-bold text-base text-slate-900 dark:text-white placeholder-slate-400" />
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1.5">Dirección del Establecimiento</label>
+                        <input type="text" value={direccionNegocio} onChange={(e) => setDireccionNegocio(e.target.value)} placeholder="Ej. Cra 15 # 45-20, Centro" className="w-full p-4 bg-slate-50 dark:bg-[#020617] border border-slate-200 dark:border-slate-800/80 rounded-2xl outline-none focus:border-blue-500 dark:focus:border-blue-400 font-bold text-base text-slate-900 dark:text-white placeholder-slate-400" />
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1.5">WhatsApp / Teléfono Comercial</label>
+                        <input type="tel" value={telefonoNegocio} onChange={(e) => setTelefonoNegocio(e.target.value)} placeholder="Ej. 3001234567" className="w-full p-4 bg-slate-50 dark:bg-[#020617] border border-slate-200 dark:border-slate-800/80 rounded-2xl outline-none focus:border-blue-500 dark:focus:border-blue-400 font-bold text-base text-slate-900 dark:text-white placeholder-slate-400" />
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1.5">Mensaje de Despedida en el Recibo (Opcional)</label>
+                      <input type="text" value={mensajePieTicket} onChange={(e) => setMensajePieTicket(e.target.value)} placeholder="Ej. ¡Gracias por su compra! Vuelva pronto." className="w-full p-4 bg-slate-50 dark:bg-[#020617] border border-slate-200 dark:border-slate-800/80 rounded-2xl outline-none focus:border-blue-500 dark:focus:border-blue-400 font-bold text-base text-slate-900 dark:text-white placeholder-slate-400" />
+                    </div>
+
+                    {/* CONFIGURACIÓN DE IVA / IMPUESTOS */}
+                    <div className="p-4 bg-blue-50/60 dark:bg-blue-950/20 rounded-2xl border border-blue-100 dark:border-blue-900/30 space-y-3">
+                      <div className="flex items-center justify-between gap-3">
+                        <div>
+                          <h4 className="font-bold text-sm text-slate-900 dark:text-white flex items-center gap-1.5">
+                            <Receipt size={16} className="text-blue-600 dark:text-blue-400" /> Cobrar / Desglosar IVA en Ventas
+                          </h4>
+                          <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Actívalo si tu negocio es responsable de IVA para desglosarlo en tus facturas.</p>
+                        </div>
+                        <label className="relative inline-flex items-center cursor-pointer shrink-0">
+                          <input 
+                            type="checkbox" 
+                            checked={habilitarIva} 
+                            onChange={(e) => setHabilitarIva(e.target.checked)} 
+                            className="sr-only peer" 
+                          />
+                          <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer dark:bg-slate-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                        </label>
+                      </div>
+
+                      {habilitarIva && (
+                        <div className="pt-3 border-t border-blue-100 dark:border-blue-900/30 flex flex-wrap items-center gap-2">
+                          <span className="text-xs font-bold text-slate-700 dark:text-slate-300">Tarifa de IVA:</span>
+                          {[19, 5, 8].map((tasa) => (
+                            <button
+                              key={tasa}
+                              type="button"
+                              onClick={() => setPorcentajeIva(tasa)}
+                              className={`px-3 py-1 text-xs font-black rounded-xl transition-all cursor-pointer ${
+                                porcentajeIva === tasa
+                                  ? 'bg-blue-600 text-white shadow-sm'
+                                  : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700 hover:bg-slate-100'
+                              }`}
+                            >
+                              {tasa}% {tasa === 8 ? '(Impoconsumo)' : ''}
+                            </button>
+                          ))}
+                        </div>
                       )}
                     </div>
-                  </div>
-                </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1.5">Nombre del Negocio</label>
-                    <input type="text" value={nombreNegocio} onChange={(e) => setNombreNegocio(e.target.value)} placeholder="Ej. Tienda Doña Juana" className="w-full p-4 bg-slate-50 dark:bg-[#020617] border border-slate-200 dark:border-slate-800/80 rounded-2xl outline-none focus:border-blue-500 dark:focus:border-blue-400 font-bold text-base text-slate-900 dark:text-white placeholder-slate-400" />
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1.5">NIT / RUT / Cédula</label>
-                    <input type="text" value={nitNegocio} onChange={(e) => setNitNegocio(e.target.value)} placeholder="Ej. 901.234.567-8" className="w-full p-4 bg-slate-50 dark:bg-[#020617] border border-slate-200 dark:border-slate-800/80 rounded-2xl outline-none focus:border-blue-500 dark:focus:border-blue-400 font-bold text-base text-slate-900 dark:text-white placeholder-slate-400" />
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1.5">Dirección del Establecimiento</label>
-                    <input type="text" value={direccionNegocio} onChange={(e) => setDireccionNegocio(e.target.value)} placeholder="Ej. Cra 15 # 45-20, Centro" className="w-full p-4 bg-slate-50 dark:bg-[#020617] border border-slate-200 dark:border-slate-800/80 rounded-2xl outline-none focus:border-blue-500 dark:focus:border-blue-400 font-bold text-base text-slate-900 dark:text-white placeholder-slate-400" />
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1.5">WhatsApp / Teléfono Comercial</label>
-                    <input type="tel" value={telefonoNegocio} onChange={(e) => setTelefonoNegocio(e.target.value)} placeholder="Ej. 3001234567" className="w-full p-4 bg-slate-50 dark:bg-[#020617] border border-slate-200 dark:border-slate-800/80 rounded-2xl outline-none focus:border-blue-500 dark:focus:border-blue-400 font-bold text-base text-slate-900 dark:text-white placeholder-slate-400" />
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1.5">Mensaje de Despedida en el Recibo (Opcional)</label>
-                  <input type="text" value={mensajePieTicket} onChange={(e) => setMensajePieTicket(e.target.value)} placeholder="Ej. ¡Gracias por su compra! Vuelva pronto." className="w-full p-4 bg-slate-50 dark:bg-[#020617] border border-slate-200 dark:border-slate-800/80 rounded-2xl outline-none focus:border-blue-500 dark:focus:border-blue-400 font-bold text-base text-slate-900 dark:text-white placeholder-slate-400" />
-                </div>
-
-                {/* CONFIGURACIÓN DE IVA / IMPUESTOS */}
-                <div className="p-4 bg-blue-50/60 dark:bg-blue-950/20 rounded-2xl border border-blue-100 dark:border-blue-900/30 space-y-3">
-                  <div className="flex items-center justify-between gap-3">
-                    <div>
-                      <h4 className="font-bold text-sm text-slate-900 dark:text-white flex items-center gap-1.5">
-                        <Receipt size={16} className="text-blue-600 dark:text-blue-400" /> Cobrar / Desglosar IVA en Ventas
-                      </h4>
-                      <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Actívalo si tu negocio es responsable de IVA para desglosarlo en tus facturas.</p>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2 border-t border-slate-100 dark:border-slate-800/60">
+                      <div>
+                        <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1.5">Tu Nombre de Usuario</label>
+                        <input type="text" value={editNombreUsuario} onChange={(e) => setEditNombreUsuario(e.target.value)} placeholder="Ej. Juan Pérez" className="w-full p-4 bg-slate-50 dark:bg-[#020617] border border-slate-200 dark:border-slate-800/80 rounded-2xl outline-none focus:border-blue-500 dark:focus:border-blue-400 font-bold text-base text-slate-900 dark:text-white placeholder-slate-400" />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1.5 flex items-center gap-1.5"><Mail size={13}/> Correo Registrado (Solo lectura)</label>
+                        <input type="email" value={correoNegocio} disabled className="w-full p-4 bg-slate-100 dark:bg-[#020617]/50 border border-slate-200 dark:border-slate-800/50 rounded-2xl text-slate-500 dark:text-slate-400 cursor-not-allowed font-medium text-base" />
+                      </div>
                     </div>
-                    <label className="relative inline-flex items-center cursor-pointer shrink-0">
-                      <input 
-                        type="checkbox" 
-                        checked={habilitarIva} 
-                        onChange={(e) => setHabilitarIva(e.target.checked)} 
-                        className="sr-only peer" 
-                      />
-                      <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer dark:bg-slate-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
-                    </label>
-                  </div>
 
-                  {habilitarIva && (
-                    <div className="pt-3 border-t border-blue-100 dark:border-blue-900/30 flex flex-wrap items-center gap-2">
-                      <span className="text-xs font-bold text-slate-700 dark:text-slate-300">Tarifa de IVA:</span>
-                      {[19, 5, 8].map((tasa) => (
-                        <button
-                          key={tasa}
-                          type="button"
-                          onClick={() => setPorcentajeIva(tasa)}
-                          className={`px-3 py-1 text-xs font-black rounded-xl transition-all ${
-                            porcentajeIva === tasa
-                              ? 'bg-blue-600 text-white shadow-sm'
-                              : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700 hover:bg-slate-100'
-                          }`}
-                        >
-                          {tasa}% {tasa === 8 ? '(Impoconsumo)' : ''}
-                        </button>
-                      ))}
+                    <div className="grid grid-cols-2 gap-3 mt-3">
+                      <button onClick={() => setModoEdicionPerfil(false)} className="bg-slate-100 dark:bg-[#020617] hover:bg-slate-200 dark:hover:bg-[#1e293b] text-slate-700 dark:text-slate-300 font-bold py-4 rounded-2xl transition-colors border dark:border-slate-800/80 text-base cursor-pointer">Cancelar</button>
+                      <button onClick={guardarDatosPerfil} className="bg-blue-600 hover:bg-blue-700 text-white font-black py-4 rounded-2xl shadow-lg transition-transform transform active:scale-95 text-base cursor-pointer">Guardar Cambios</button>
                     </div>
-                  )}
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2 border-t border-slate-100 dark:border-slate-800/60">
-                  <div>
-                    <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1.5">Tu Nombre de Usuario</label>
-                    <input type="text" value={editNombreUsuario} onChange={(e) => setEditNombreUsuario(e.target.value)} placeholder="Ej. Juan Pérez" className="w-full p-4 bg-slate-50 dark:bg-[#020617] border border-slate-200 dark:border-slate-800/80 rounded-2xl outline-none focus:border-blue-500 dark:focus:border-blue-400 font-bold text-base text-slate-900 dark:text-white placeholder-slate-400" />
                   </div>
-                  <div>
-                    <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1.5 flex items-center gap-1.5"><Mail size={13}/> Correo Registrado (Solo lectura)</label>
-                    <input type="email" value={correoNegocio} disabled className="w-full p-4 bg-slate-100 dark:bg-[#020617]/50 border border-slate-200 dark:border-slate-800/50 rounded-2xl text-slate-500 dark:text-slate-400 cursor-not-allowed font-medium text-base" />
-                  </div>
-                </div>
+                ) : (
+                  <div className="space-y-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <div className="min-w-0">
+                        <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1 flex items-center gap-1.5"><Building2 size={13} className="text-blue-500" /> Negocio</p>
+                        <p className="font-bold text-slate-800 dark:text-slate-200 text-lg truncate">{nombreNegocio}</p>
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1 flex items-center gap-1.5"><Receipt size={13} className="text-blue-500" /> NIT / RUT</p>
+                        <p className="font-bold text-slate-800 dark:text-slate-200 text-lg truncate">{nitNegocio || "No registrado"}</p>
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1 flex items-center gap-1.5"><MapPin size={13} className="text-blue-500" /> Dirección</p>
+                        <p className="font-bold text-slate-800 dark:text-slate-200 text-lg truncate">{direccionNegocio || "No registrada"}</p>
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1 flex items-center gap-1.5"><PhoneCall size={13} className="text-blue-500" /> WhatsApp / Teléfono</p>
+                        <p className="font-bold text-slate-800 dark:text-slate-200 text-lg truncate">{telefonoNegocio || "No registrado"}</p>
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1 flex items-center gap-1.5"><UserCog size={13} className="text-blue-500" /> Administrador</p>
+                        <p className="font-bold text-slate-800 dark:text-slate-200 text-lg truncate">{nombreUsuario}</p>
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1 flex items-center gap-1.5"><Receipt size={13} className="text-blue-500" /> Impuestos / IVA</p>
+                        <p className="font-bold text-slate-800 dark:text-slate-200 text-base truncate">
+                          {habilitarIva ? `Activo (${porcentajeIva}%)` : "Precios finales (Sin IVA)"}
+                        </p>
+                      </div>
+                      <div className="min-w-0 md:col-span-2">
+                        <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1 flex items-center gap-1.5"><Receipt size={13} className="text-blue-500" /> Pie de Ticket</p>
+                        <p className="font-bold text-slate-800 dark:text-slate-200 text-base truncate">{mensajePieTicket || "¡GRACIAS POR SU COMPRA!"}</p>
+                      </div>
+                    </div>
 
-                <div className="grid grid-cols-2 gap-3 mt-3">
-                  <button onClick={() => setModoEdicionPerfil(false)} className="bg-slate-100 dark:bg-[#020617] hover:bg-slate-200 dark:hover:bg-[#1e293b] text-slate-700 dark:text-slate-300 font-bold py-4 rounded-2xl transition-colors border dark:border-slate-800/80 text-base">Cancelar</button>
-                  <button onClick={guardarDatosPerfil} className="bg-blue-600 hover:bg-blue-700 text-white font-black py-4 rounded-2xl shadow-lg transition-transform transform active:scale-95 text-base">Guardar Cambios</button>
-                </div>
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="min-w-0">
-                  <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1 flex items-center gap-1.5"><Building2 size={13} className="text-blue-500" /> Negocio</p>
-                  <p className="font-bold text-slate-800 dark:text-slate-200 text-lg truncate">{nombreNegocio}</p>
-                </div>
-                <div className="min-w-0">
-                  <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1 flex items-center gap-1.5"><Receipt size={13} className="text-blue-500" /> NIT / RUT</p>
-                  <p className="font-bold text-slate-800 dark:text-slate-200 text-lg truncate">{nitNegocio || "No registrado"}</p>
-                </div>
-                <div className="min-w-0">
-                  <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1 flex items-center gap-1.5"><MapPin size={13} className="text-blue-500" /> Dirección</p>
-                  <p className="font-bold text-slate-800 dark:text-slate-200 text-lg truncate">{direccionNegocio || "No registrada"}</p>
-                </div>
-                <div className="min-w-0">
-                  <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1 flex items-center gap-1.5"><PhoneCall size={13} className="text-blue-500" /> WhatsApp / Teléfono</p>
-                  <p className="font-bold text-slate-800 dark:text-slate-200 text-lg truncate">{telefonoNegocio || "No registrado"}</p>
-                </div>
-                <div className="min-w-0">
-                  <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1 flex items-center gap-1.5"><UserCog size={13} className="text-blue-500" /> Administrador</p>
-                  <p className="font-bold text-slate-800 dark:text-slate-200 text-lg truncate">{nombreUsuario}</p>
-                </div>
-                <div className="min-w-0">
-                  <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1 flex items-center gap-1.5"><Receipt size={13} className="text-blue-500" /> Impuestos / IVA</p>
-                  <p className="font-bold text-slate-800 dark:text-slate-200 text-base truncate">
-                    {habilitarIva ? `Activo (${porcentajeIva}%)` : "Precios finales (Sin IVA)"}
-                  </p>
-                </div>
-                <div className="min-w-0 md:col-span-2">
-                  <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1 flex items-center gap-1.5"><Receipt size={13} className="text-blue-500" /> Pie de Ticket</p>
-                  <p className="font-bold text-slate-800 dark:text-slate-200 text-base truncate">{mensajePieTicket || "¡GRACIAS POR SU COMPRA!"}</p>
-                </div>
+                    <div className="pt-4 border-t border-slate-100 dark:border-slate-800 flex justify-end">
+                      <button 
+                        type="button"
+                        onClick={() => { setEditNombreUsuario(nombreUsuario); setModoEdicionPerfil(true); }}
+                        className="text-blue-600 dark:text-blue-400 text-sm font-bold flex items-center gap-1 bg-blue-50 dark:bg-blue-500/10 px-4 py-2 rounded-xl hover:bg-blue-100 transition-colors cursor-pointer"
+                      >
+                        <Edit2 size={14}/> Editar Datos del Negocio
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
           </div>

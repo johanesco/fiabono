@@ -56,6 +56,7 @@ export default function TicketFacturaModal({ isOpen, onClose, datos }: TicketFac
 
   if (!isOpen || !datos) return null;
 
+
   const formatearFecha = (f: any) => {
     if (!f) return new Date().toLocaleDateString('es-CO', { day: '2-digit', month: '2-digit', year: 'numeric' });
     if (f.toDate && typeof f.toDate === 'function') {
@@ -437,4 +438,3 @@ export default function TicketFacturaModal({ isOpen, onClose, datos }: TicketFac
     </>
   );
 }
-

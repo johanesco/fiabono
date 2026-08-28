@@ -90,7 +90,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
           puedeModificarPrecios: esAdmin || permisos?.modificarPrecios === true,
           puedeAplicarDescuentos: esAdmin || permisos?.aplicarDescuentos === true,
           esTerminalMultivendedor: esPro && (permisos?.terminalMultivendedor === true || esAdmin),
-          puedeSepare: !esGratis && (permisos?.planSepare !== false),
+          puedeSepare: esPro && (permisos?.planSepare !== false),
           tipoUsuario: data.rol === 'cajero' ? 'colaborador' : 'principal',
           planActual,
           esGratis,

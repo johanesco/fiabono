@@ -72,8 +72,8 @@ export default function ModalUpsellSuscripcion({
               <p className="text-xl font-black text-slate-900 dark:text-white">$19.900 <span className="text-xs font-normal text-slate-500">/mes</span></p>
               <ul className="mt-3 space-y-1.5 text-xs font-medium text-slate-600 dark:text-slate-300">
                 <li className="flex items-center gap-1.5"><CheckCircle2 size={13} className="text-emerald-500 shrink-0" /> Clientes e Inv. Ilimitados</li>
-                <li className="flex items-center gap-1.5"><CheckCircle2 size={13} className="text-emerald-500 shrink-0" /> Factura Imprimible</li>
-                <li className="flex items-center gap-1.5"><CheckCircle2 size={13} className="text-emerald-500 shrink-0" /> Módulo Plan Separe</li>
+                <li className="flex items-center gap-1.5"><CheckCircle2 size={13} className="text-emerald-500 shrink-0" /> Factura Imprimible (58/80mm)</li>
+                <li className="flex items-center gap-1.5"><CheckCircle2 size={13} className="text-emerald-500 shrink-0" /> Alertas de Stock Bajo</li>
                 <li className="flex items-center gap-1.5"><CheckCircle2 size={13} className="text-emerald-500 shrink-0" /> 1 Usuario Colaborador</li>
               </ul>
             </div>
@@ -89,7 +89,7 @@ export default function ModalUpsellSuscripcion({
               </div>
               <p className="text-xl font-black text-slate-900 dark:text-white">$44.900 <span className="text-xs font-normal text-slate-500">/mes</span></p>
               <ul className="mt-3 space-y-1.5 text-xs font-medium text-slate-600 dark:text-slate-300">
-                <li className="flex items-center gap-1.5"><CheckCircle2 size={13} className="text-purple-500 shrink-0" /> Todo lo de Comercio</li>
+                <li className="flex items-center gap-1.5"><CheckCircle2 size={13} className="text-purple-500 shrink-0" /> Módulo PLAN SEPARE Completo</li>
                 <li className="flex items-center gap-1.5"><CheckCircle2 size={13} className="text-purple-500 shrink-0" /> Etiquetas Adhesivas QR</li>
                 <li className="flex items-center gap-1.5"><CheckCircle2 size={13} className="text-purple-500 shrink-0" /> Carga Masiva Excel</li>
                 <li className="flex items-center gap-1.5"><CheckCircle2 size={13} className="text-purple-500 shrink-0" /> 4 Colaboradores + Multi</li>

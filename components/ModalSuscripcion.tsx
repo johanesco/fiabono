@@ -176,10 +176,10 @@ export default function ModalSuscripcion({ isOpen, onClose, cuentaPrincipalId, p
                 </p>
                 <ul className="mt-3 space-y-1 text-xs text-slate-600 dark:text-slate-300">
                   <li className="flex items-center gap-1.5"><CheckCircle2 size={12} className="text-emerald-500 shrink-0" /> Clientes e Inv. ILIMITADOS</li>
-                  <li className="flex items-center gap-1.5"><CheckCircle2 size={12} className="text-emerald-500 shrink-0" /> 1 Usuario Colaborador</li>
-                  <li className="flex items-center gap-1.5"><CheckCircle2 size={12} className="text-emerald-500 shrink-0" /> Módulo PLAN SEPARE</li>
+                  <li className="flex items-center gap-1.5"><CheckCircle2 size={12} className="text-emerald-500 shrink-0" /> 1 Usuario Colaborador con permisos</li>
                   <li className="flex items-center gap-1.5"><CheckCircle2 size={12} className="text-emerald-500 shrink-0" /> Factura Imprimible (58/80mm)</li>
-                  <li className="flex items-center gap-1.5"><CheckCircle2 size={12} className="text-emerald-500 shrink-0" /> Alertas de stock bajo</li>
+                  <li className="flex items-center gap-1.5"><CheckCircle2 size={12} className="text-emerald-500 shrink-0" /> Alertas de Stock Bajo y Agotados</li>
+                  <li className="flex items-center gap-1.5"><CheckCircle2 size={12} className="text-emerald-500 shrink-0" /> Reportes de Caja Neta y Cartera</li>
                 </ul>
               </div>
             </div>
@@ -204,11 +204,11 @@ export default function ModalSuscripcion({ isOpen, onClose, cuentaPrincipalId, p
                   {ciclo === 'anual' ? '$449.000' : '$44.900'} <span className="text-xs font-normal text-slate-500">COP/{ciclo === 'anual' ? 'año' : 'mes'}</span>
                 </p>
                 <ul className="mt-3 space-y-1 text-xs text-slate-600 dark:text-slate-300">
-                  <li className="flex items-center gap-1.5"><CheckCircle2 size={12} className="text-purple-500 shrink-0" /> Todo lo de Comercio</li>
+                  <li className="flex items-center gap-1.5"><CheckCircle2 size={12} className="text-purple-500 shrink-0" /> Módulo PLAN SEPARE Completo</li>
                   <li className="flex items-center gap-1.5"><CheckCircle2 size={12} className="text-purple-500 shrink-0" /> 4 Usuarios Colaboradores</li>
-                  <li className="flex items-center gap-1.5"><CheckCircle2 size={12} className="text-purple-500 shrink-0" /> Modo Multivendedor</li>
-                  <li className="flex items-center gap-1.5"><CheckCircle2 size={12} className="text-purple-500 shrink-0" /> Etiquetas Adhesivas QR</li>
-                  <li className="flex items-center gap-1.5"><CheckCircle2 size={12} className="text-purple-500 shrink-0" /> Carga Masiva Excel</li>
+                  <li className="flex items-center gap-1.5"><CheckCircle2 size={12} className="text-purple-500 shrink-0" /> Modo Terminal Multivendedor</li>
+                  <li className="flex items-center gap-1.5"><CheckCircle2 size={12} className="text-purple-500 shrink-0" /> Etiquetas Adhesivas QR para prendas</li>
+                  <li className="flex items-center gap-1.5"><CheckCircle2 size={12} className="text-purple-500 shrink-0" /> Carga Masiva en Excel</li>
                 </ul>
               </div>
             </div>
