@@ -28,8 +28,8 @@ function VenderContenido() {
   const nombreNegocio = datosSesion?.nombreNegocio;
   const esAdmin = datosSesion?.tipoUsuario === 'principal';
   const puedeVentaDirecta: boolean = datosSesion?.puedeVentaDirecta ?? true;
-  const puedeModificarPrecios = esAdmin;
-  const puedeAplicarDescuentos = esAdmin;
+  const puedeModificarPrecios = esAdmin || (datosSesion?.permisos?.modificarPrecios === true);
+  const puedeAplicarDescuentos = esAdmin || (datosSesion?.permisos?.aplicarDescuentos === true);
 
   const [vendedorActivo, setVendedorActivo] = useState(nombreUsuario || "Vendedor");
   const [listaVendedores, setListaVendedores] = useState<string[]>([]);

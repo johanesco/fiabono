@@ -34,8 +34,8 @@ function SepareContenido() {
   const nombreNegocio = datosSesion?.nombreNegocio || "Mi Negocio";
   const esAdmin = datosSesion?.tipoUsuario === 'principal';
   const puedeVentaDirecta = esAdmin || (datosSesion?.puedeVentaDirecta === true);
-  const puedeModificarPrecios = esAdmin || (datosSesion?.permisos?.editarInventario === true);
-  const puedeAplicarDescuentos = esAdmin;
+  const puedeModificarPrecios = esAdmin || (datosSesion?.permisos?.modificarPrecios === true) || (datosSesion?.permisos?.editarInventario === true);
+  const puedeAplicarDescuentos = esAdmin || (datosSesion?.permisos?.aplicarDescuentos === true);
   const puedeGestionarSepares = esAdmin || (datosSesion?.permisos?.abonar === true);
 
   const [listaVendedores, setListaVendedores] = useState<string[]>([]);
