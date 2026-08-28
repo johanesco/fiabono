@@ -60,6 +60,7 @@ export default function ReportesPage() {
   const hoyDate = new Date();
   const [anoHistorico, setAnoHistorico] = useState<number>(hoyDate.getFullYear() - 1);
   const [mesHistorico, setMesHistorico] = useState<number>(hoyDate.getMonth());
+  const [itemInspeccionado, setItemInspeccionado] = useState<any | null>(null);
 
   const [cargando, setCargando] = useState(true);
   const [modalSuscripcionOpen, setModalSuscripcionOpen] = useState(false);
@@ -865,40 +866,103 @@ export default function ReportesPage() {
           </div>
         </div>
 
-        {/* TARJETA DESTACADA: MEJOR DÍA DEL MES (RÉCORD EN VENTAS) */}
-        {mejorDiaPeriodo && (
-          <div className="p-4 sm:p-5 bg-gradient-to-r from-amber-500/10 via-emerald-500/10 to-transparent dark:from-amber-500/15 dark:via-emerald-500/15 rounded-2xl border border-amber-400/40 dark:border-amber-400/30 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-xs">
+        {/* BANNER DE INSPECCIÓN ACTIVA (LIVE DATA INSPECTOR) */}
+        {itemInspeccionado ? (
+          <div className="p-4 sm:p-5 bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white rounded-2xl border border-indigo-500/40 shadow-xl flex flex-col md:flex-row items-start md:items-center justify-between gap-4 animate-in fade-in">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-400 to-amber-600 text-white flex items-center justify-center shrink-0 shadow-md">
-                <Crown size={20} className="fill-current" />
+              <div className="w-11 h-11 rounded-2xl bg-indigo-600 text-white flex items-center justify-center font-black text-sm shrink-0 shadow-md">
+                <Calendar size={20} />
               </div>
               <div>
-                <span className="text-[10px] font-black uppercase tracking-wider text-amber-600 dark:text-amber-400 block">
-                  🌟 Día con Mejor Facturación del Periodo
-                </span>
-                <p className="text-sm sm:text-base font-black text-slate-900 dark:text-white">
-                  {mejorDiaPeriodo.label}
-                </p>
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] font-extrabold uppercase tracking-widest text-indigo-300">
+                    Información Detallada
+                  </span>
+                  {mejorDiaPeriodo && itemInspeccionado.ventas === mejorDiaPeriodo.ventas && itemInspeccionado.ventas > 0 && (
+                    <span className="bg-amber-500/20 text-amber-300 text-[10px] font-black px-2 py-0.5 rounded-full border border-amber-500/40 flex items-center gap-1">
+                      <Crown size={11} className="fill-current" /> Mejor Día
+                    </span>
+                  )}
+                </div>
+                <h4 className="text-base sm:text-lg font-black text-white capitalize">
+                  {itemInspeccionado.label}
+                </h4>
               </div>
             </div>
 
-            <div className="flex items-center gap-4 shrink-0 pl-13 sm:pl-0">
-              <div>
-                <span className="text-[10px] uppercase font-bold text-slate-400 block">Ventas Récord</span>
-                <span className="text-base sm:text-lg font-black text-emerald-600 dark:text-emerald-400">
-                  ${mejorDiaPeriodo.ventas.toLocaleString('es-CO')}
+            <div className="flex flex-wrap items-center gap-4 sm:gap-6 w-full md:w-auto justify-between md:justify-end pt-2 md:pt-0 border-t md:border-t-0 border-white/10">
+              <div className="text-left md:text-right">
+                <span className="text-[10px] uppercase font-bold text-emerald-400 block">Ventas</span>
+                <span className="text-sm sm:text-base font-black text-white">
+                  ${itemInspeccionado.ventas.toLocaleString('es-CO')}
+                </span>
+                {itemInspeccionado.countVentas > 0 && (
+                  <span className="text-[10px] text-slate-400 block font-medium">
+                    {itemInspeccionado.countVentas} transacciones
+                  </span>
+                )}
+              </div>
+
+              <div className="text-left md:text-right">
+                <span className="text-[10px] uppercase font-bold text-rose-400 block">Fiados</span>
+                <span className="text-sm sm:text-base font-black text-white">
+                  ${itemInspeccionado.fiados.toLocaleString('es-CO')}
                 </span>
               </div>
-              {mejorDiaPeriodo.countVentas > 0 && (
-                <div className="border-l border-slate-200 dark:border-slate-700 pl-3">
-                  <span className="text-[10px] uppercase font-bold text-slate-400 block">Transacciones</span>
-                  <span className="text-sm font-black text-slate-700 dark:text-slate-300">
-                    {mejorDiaPeriodo.countVentas} {mejorDiaPeriodo.countVentas === 1 ? 'venta' : 'ventas'}
-                  </span>
-                </div>
-              )}
+
+              <div className="text-left md:text-right">
+                <span className="text-[10px] uppercase font-bold text-blue-400 block">Abonos</span>
+                <span className="text-sm sm:text-base font-black text-white">
+                  ${itemInspeccionado.abonos.toLocaleString('es-CO')}
+                </span>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setItemInspeccionado(null)}
+                className="px-3 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 text-slate-300 text-xs font-bold transition-colors cursor-pointer"
+                title="Volver al resumen general"
+              >
+                ✕ Ver Total
+              </button>
             </div>
           </div>
+        ) : (
+          /* TARJETA DESTACADA: MEJOR DÍA DEL MES (RÉCORD EN VENTAS) */
+          mejorDiaPeriodo && (
+            <div className="p-4 sm:p-5 bg-gradient-to-r from-amber-500/10 via-emerald-500/10 to-transparent dark:from-amber-500/15 dark:via-emerald-500/15 rounded-2xl border border-amber-400/40 dark:border-amber-400/30 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-xs">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-400 to-amber-600 text-white flex items-center justify-center shrink-0 shadow-md">
+                  <Crown size={20} className="fill-current" />
+                </div>
+                <div>
+                  <span className="text-[10px] font-black uppercase tracking-wider text-amber-600 dark:text-amber-400 block">
+                    🌟 Día con Mejor Facturación del Periodo
+                  </span>
+                  <p className="text-sm sm:text-base font-black text-slate-900 dark:text-white capitalize">
+                    {mejorDiaPeriodo.label}
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-4 shrink-0 pl-13 sm:pl-0">
+                <div>
+                  <span className="text-[10px] uppercase font-bold text-slate-400 block">Ventas Récord</span>
+                  <span className="text-base sm:text-lg font-black text-emerald-600 dark:text-emerald-400">
+                    ${mejorDiaPeriodo.ventas.toLocaleString('es-CO')}
+                  </span>
+                </div>
+                {mejorDiaPeriodo.countVentas > 0 && (
+                  <div className="border-l border-slate-200 dark:border-slate-700 pl-3">
+                    <span className="text-[10px] uppercase font-bold text-slate-400 block">Transacciones</span>
+                    <span className="text-sm font-black text-slate-700 dark:text-slate-300">
+                      {mejorDiaPeriodo.countVentas} {mejorDiaPeriodo.countVentas === 1 ? 'venta' : 'ventas'}
+                    </span>
+                  </div>
+                )}
+              </div>
+            </div>
+          )
         )}
 
         {/* Leyenda y Totales del Gráfico */}
@@ -919,22 +983,31 @@ export default function ReportesPage() {
           </div>
 
           <span className="text-[11px] text-slate-400 font-medium hidden sm:inline">
-            Desliza horizontalmente para ver todos los días y toca cada barra para detalles
+            Toca o pasa el cursor sobre cualquier barra para ver el desglose en el panel
           </span>
         </div>
 
-        {/* Visualización de Barras Responsive */}
+        {/* Visualización de Barras Responsive Táctil */}
         <div className="w-full overflow-x-auto pb-4 scrollbar-thin scrollbar-thumb-slate-200 dark:scrollbar-thumb-slate-800">
-          <div className="grid grid-flow-col auto-cols-fr gap-2.5 sm:gap-3.5 items-end h-64 sm:h-72 pt-12 pb-2 border-b border-slate-100 dark:border-slate-800 min-w-[500px]">
+          <div className="grid grid-flow-col auto-cols-fr gap-2 sm:gap-3 items-end h-64 sm:h-72 pt-10 pb-2 border-b border-slate-100 dark:border-slate-800 min-w-[520px]">
             {datosGrafica.map((item) => {
               const hVentas = Math.max((item.ventas / maxBarra) * 100, 3);
               const hFiados = Math.max((item.fiados / maxBarra) * 100, 3);
               const hAbonos = Math.max((item.abonos / maxBarra) * 100, 3);
               const esElMejorDia = mejorDiaPeriodo && item.ventas === mejorDiaPeriodo.ventas && item.ventas > 0;
+              const estaSeleccionado = itemInspeccionado?.id === item.id;
 
               return (
-                <div key={item.id || item.label} className="flex flex-col items-center h-full justify-end group relative min-w-[28px] sm:min-w-[36px]">
-                  
+                <div 
+                  key={item.id || item.label} 
+                  onClick={() => setItemInspeccionado(item)}
+                  onMouseEnter={() => setItemInspeccionado(item)}
+                  className={`flex flex-col items-center h-full justify-end relative min-w-[28px] sm:min-w-[36px] cursor-pointer p-1 rounded-2xl transition-all ${
+                    estaSeleccionado 
+                      ? 'bg-indigo-50 dark:bg-indigo-950/50 ring-2 ring-indigo-500 scale-105 shadow-md' 
+                      : 'hover:bg-slate-100/80 dark:hover:bg-slate-800/60'
+                  }`}
+                >
                   {/* Corona de Mejor Día */}
                   {esElMejorDia && (
                     <div className="absolute -top-7 text-amber-500 animate-bounce flex items-center justify-center pointer-events-none">
@@ -942,19 +1015,8 @@ export default function ReportesPage() {
                     </div>
                   )}
 
-                  {/* Tooltip flotante enriquecido */}
-                  <div className="absolute bottom-[105%] mb-2 bg-slate-900/95 dark:bg-slate-800/95 text-white text-[11px] p-2.5 rounded-2xl opacity-0 group-hover:opacity-100 transition-all pointer-events-none z-50 whitespace-nowrap shadow-2xl backdrop-blur-md border border-white/10">
-                    <p className="font-black border-b border-white/10 pb-1 mb-1 text-center flex items-center justify-center gap-1">
-                      {esElMejorDia && <Crown size={12} className="text-amber-400 fill-current" />}
-                      {item.label}
-                    </p>
-                    <p className="text-emerald-400 font-bold">Ventas: ${item.ventas.toLocaleString('es-CO')}</p>
-                    <p className="text-rose-400 font-bold">Fiados: ${item.fiados.toLocaleString('es-CO')}</p>
-                    <p className="text-blue-400 font-bold">Abonos: ${item.abonos.toLocaleString('es-CO')}</p>
-                  </div>
-
                   {/* Barras de datos */}
-                  <div className={`flex items-end justify-center gap-0.5 sm:gap-1 w-full h-full p-0.5 rounded-t-lg ${esElMejorDia ? 'bg-amber-400/15 ring-1 ring-amber-400/50' : ''}`}>
+                  <div className="flex items-end justify-center gap-0.5 sm:gap-1 w-full h-full p-0.5">
                     <div 
                       className="w-1.5 sm:w-2.5 bg-gradient-to-t from-emerald-600 to-emerald-400 rounded-t-md transition-all duration-500 shadow-xs" 
                       style={{ height: `${hVentas}%` }}
@@ -969,7 +1031,13 @@ export default function ReportesPage() {
                     ></div>
                   </div>
                   
-                  <span className={`text-[10px] sm:text-xs font-black mt-2 truncate max-w-full text-center ${esElMejorDia ? 'text-amber-500 font-black scale-110' : 'text-slate-500 dark:text-slate-400'}`}>
+                  <span className={`text-[10px] sm:text-xs font-black mt-2 truncate max-w-full text-center ${
+                    estaSeleccionado 
+                      ? 'text-indigo-600 dark:text-indigo-400 font-black' 
+                      : esElMejorDia 
+                      ? 'text-amber-500 font-black' 
+                      : 'text-slate-500 dark:text-slate-400'
+                  }`}>
                     {item.shortLabel || item.label}
                   </span>
                 </div>
