@@ -57,6 +57,25 @@ export default function ModalSuscripcion({ isOpen, onClose, cuentaPrincipalId, p
     }
   };
 
+  const volverAPlanGratuito = async () => {
+    if (!cuentaPrincipalId) return;
+    setCargando(true);
+    try {
+      await updateDoc(doc(db, "usuarios", cuentaPrincipalId), {
+        plan: 'gratis',
+        planVence: null,
+        cicloPlan: 'mensual'
+      });
+      toast.success("Has cambiado al Plan Gratuito con éxito. Todos tus datos se conservan intactos 🙌");
+      handleClose();
+      window.location.reload();
+    } catch (e) {
+      toast.error("Error al cambiar al Plan Gratuito.");
+    } finally {
+      setCargando(false);
+    }
+  };
+
   const abrirSoportePagoWhatsApp = (tipo: 'comercio' | 'pro') => {
     const nombrePlan = tipo === 'pro' ? 'Plan PRO Almacén ($44.900/mes)' : 'Plan Comercio ($19.900/mes)';
     const cicloTexto = ciclo === 'anual' ? 'Anual' : 'Mensual';
@@ -271,8 +290,23 @@ export default function ModalSuscripcion({ isOpen, onClose, cuentaPrincipalId, p
             )}
           </div>
 
-          <div className="mt-4 text-center flex items-center justify-center gap-1 text-[11px] text-slate-400 font-medium">
-            <ShieldCheck size={14} className="text-emerald-500" /> Activación segura e inmediata en tu cuenta
+          <div className="mt-4 text-center space-y-2">
+            <div className="flex items-center justify-center gap-1 text-[11px] text-slate-400 font-medium">
+              <ShieldCheck size={14} className="text-emerald-500" /> Activación segura e inmediata en tu cuenta
+            </div>
+
+            <button
+              type="button"
+              disabled={cargando}
+              onClick={() => {
+                if (window.confirm("¿Deseas cancelar tu suscripción y volver al Plan Gratuito ($0)?\n\nTodos tus datos, clientes e historial se conservarán intactos.")) {
+                  volverAPlanGratuito();
+                }
+              }}
+              className="text-[11px] font-bold text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 transition-colors underline cursor-pointer"
+            >
+              Cancelar suscripción y volver al Plan Gratuito ($0)
+            </button>
           </div>
         </div>
       </div>

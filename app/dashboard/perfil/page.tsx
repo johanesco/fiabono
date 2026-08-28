@@ -378,17 +378,17 @@ export default function PerfilPage() {
       const cred = EmailAuthProvider.credential(usuarioAuth!.email!, passCancelarPro);
       await reauthenticateWithCredential(usuarioAuth!, cred);
       
-      await updateDoc(doc(db, "usuarios", usuarioAuth!.uid), { plan: 'basico', planVence: null });
+      await updateDoc(doc(db, "usuarios", usuarioAuth!.uid), { plan: 'gratis', planVence: null, cicloPlan: 'mensual' });
       const qC = query(collection(db, "usuarios"), where("adminId", "==", usuarioAuth!.uid), where("rol", "==", "cajero"));
       const snap = await getDocs(qC);
       const batchPromesas: any[] = [];
       snap.forEach((documento) => { batchPromesas.push(updateDoc(doc(db, "usuarios", documento.id), { activo: false })); });
       await Promise.all(batchPromesas);
 
-      setDatosSesion((prev:any) => ({...prev, planActual: 'basico', diasPro: null}));
+      setDatosSesion((prev:any) => ({...prev, planActual: 'gratis', esGratis: true, esPro: false, esComercio: false, diasPro: null}));
       setModalCancelarPro(false); setPassCancelarPro(""); setErrorCancelarPro("");
       cargarListaColaboradores(usuarioAuth!.uid);
-      setModalAvisoColaborador({ visible: true, titulo: "Suscripción Cancelada", mensaje: "Has vuelto al Plan Básico.\n\nTus colaboradores han sido apagados temporalmente, pero puedes encender a UNO para que siga activo.", icono: 'info' });
+      setModalAvisoColaborador({ visible: true, titulo: "Suscripción Cancelada", mensaje: "Has vuelto al Plan Gratuito con éxito.\n\nTodos tus datos, clientes e inventario se conservan intactos. Las nuevas creaciones respetarán los límites del plan gratuito.", icono: 'info' });
     } catch (error) { setErrorCancelarPro("Contraseña incorrecta. Intenta de nuevo."); }
   };
 
@@ -797,7 +797,15 @@ export default function PerfilPage() {
                   </p>
                 </div>
 
-                <div className="flex items-center gap-2 shrink-0">
+                <div className="flex flex-wrap items-center gap-2 shrink-0">
+                  {(planActual === 'pro' || planActual === 'comercio') && (
+                    <button
+                      onClick={() => setModalCancelarPro(true)}
+                      className="px-3.5 py-2.5 rounded-xl font-bold text-xs text-slate-500 hover:text-rose-600 dark:hover:text-rose-400 bg-white/80 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 transition-colors cursor-pointer"
+                    >
+                      Cancelar Suscripción
+                    </button>
+                  )}
                   <button
                     onClick={() => setModalSuscripcionOpen(true)}
                     className={`px-5 py-2.5 rounded-xl font-black text-xs uppercase tracking-wider text-white shadow-md transition-transform active:scale-95 cursor-pointer ${
