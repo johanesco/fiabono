@@ -990,6 +990,41 @@ function SepareContenido() {
     } catch (e) {}
   };
 
+  const reproducirSonidoNoEncontrado = () => {
+    try {
+      const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+      if (!AudioCtx) return;
+      const ctx = new AudioCtx();
+      if (ctx.state === 'suspended') ctx.resume();
+
+      // Pulso 1: Tono medio descendente
+      const osc1 = ctx.createOscillator();
+      const gain1 = ctx.createGain();
+      osc1.type = 'triangle';
+      osc1.frequency.setValueAtTime(360, ctx.currentTime);
+      osc1.frequency.exponentialRampToValueAtTime(260, ctx.currentTime + 0.1);
+      gain1.gain.setValueAtTime(0.3, ctx.currentTime);
+      gain1.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.1);
+      osc1.connect(gain1);
+      gain1.connect(ctx.destination);
+      osc1.start();
+      osc1.stop(ctx.currentTime + 0.1);
+
+      // Pulso 2: Tono grave descendente
+      const osc2 = ctx.createOscillator();
+      const gain2 = ctx.createGain();
+      osc2.type = 'triangle';
+      osc2.frequency.setValueAtTime(220, ctx.currentTime + 0.12);
+      osc2.frequency.exponentialRampToValueAtTime(150, ctx.currentTime + 0.26);
+      gain2.gain.setValueAtTime(0.35, ctx.currentTime + 0.12);
+      gain2.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.26);
+      osc2.connect(gain2);
+      gain2.connect(ctx.destination);
+      osc2.start(ctx.currentTime + 0.12);
+      osc2.stop(ctx.currentTime + 0.26);
+    } catch (e) {}
+  };
+
   const manejarProductoScaneado = (codigoTexto: string) => {
     const texto = (codigoTexto || '').trim().toLowerCase();
     if (!texto) return;
@@ -1006,18 +1041,18 @@ function SepareContenido() {
       (p.nombre && p.nombre.toLowerCase() === texto)
     );
 
-    reproducirSonidoScan();
-
     if (prod) {
       const esInventariable = prod.tipoProducto !== 'servicio' && prod.inventariable !== false;
       const totalEnCarrito = filas.filter(f => f.descripcion.toLowerCase() === prod.nombre.toLowerCase()).reduce((acc, f) => acc + f.cantidad, 0);
 
       if (esInventariable && totalEnCarrito >= (prod.stock || 0)) {
+        reproducirSonidoNoEncontrado();
         setMensajeScaneo({ texto: `⚠️ Sin stock disponible (${prod.stock || 0} máx) de "${prod.nombre}"`, tipo: 'error' });
         setTimeout(() => setMensajeScaneo(null), 2500);
         return;
       }
 
+      reproducirSonidoScan();
       setFlashExito(true);
       setTimeout(() => setFlashExito(false), 300);
 
@@ -1064,6 +1099,7 @@ function SepareContenido() {
       setMensajeScaneo({ texto: `+1 "${prod.nombre}"`, tipo: 'exito' });
       setTimeout(() => setMensajeScaneo(null), 2000);
     } else {
+      reproducirSonidoNoEncontrado();
       setMensajeScaneo({ texto: `Código no reconocido: "${codigoTexto}"`, tipo: 'error' });
       setTimeout(() => setMensajeScaneo(null), 2500);
     }
