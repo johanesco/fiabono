@@ -94,6 +94,9 @@ export interface OrdenPendiente {
   payloadSepare?: any;
 }
 
+export type TipoPlan = 'gratis' | 'comercio' | 'pro' | 'basico';
+export type CicloPlan = 'mensual' | 'anual';
+
 export interface UsuarioBD {
   id?: string;
   nombreUsuario: string;
@@ -108,8 +111,9 @@ export interface UsuarioBD {
   email: string;
   rol: 'admin' | 'cajero';
   adminId?: string;
-  plan?: 'basico' | 'pro';
+  plan?: TipoPlan;
   planVence?: any; // Timestamp de Firebase
+  cicloPlan?: CicloPlan;
   permisos?: PermisosColaborador;
   activo?: boolean;
 }

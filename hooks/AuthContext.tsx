@@ -42,24 +42,31 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         }
 
         // Validar expiración plan
-        let planActual = adminData.plan || 'basico';
-        let diasPro = null;
+        let planRaw = (adminData.plan || 'gratis').toLowerCase();
+        if (planRaw === 'basico') planRaw = 'gratis';
+        let planActual = planRaw; // 'gratis' | 'comercio' | 'pro'
+        let diasRestantesPlan = null;
         let avisoExpiracion = false;
 
-        if (planActual === 'pro' && adminData.planVence) {
-          const timeRemaining = adminData.planVence.toDate().getTime() - new Date().getTime();
+        if ((planActual === 'pro' || planActual === 'comercio') && adminData.planVence) {
+          const timeVence = adminData.planVence.toDate ? adminData.planVence.toDate().getTime() : new Date(adminData.planVence).getTime();
+          const timeRemaining = timeVence - new Date().getTime();
           const daysLeft = Math.ceil(timeRemaining / (1000 * 3600 * 24));
           if (daysLeft <= 0) {
-            planActual = 'basico';
-            await updateDoc(doc(db, "usuarios", idParaConsultar), { plan: 'basico' });
+            planActual = 'gratis';
+            await updateDoc(doc(db, "usuarios", idParaConsultar), { plan: 'gratis' });
           } else {
-            diasPro = daysLeft;
+            diasRestantesPlan = daysLeft;
             if (daysLeft <= 5) avisoExpiracion = true;
           }
         }
 
         const esAdmin = data.rol !== 'cajero';
         const permisos = data.permisos || null;
+        const esGratis = planActual === 'gratis';
+        const esComercio = planActual === 'comercio';
+        const esPro = planActual === 'pro';
+
         setDatosSesion({
           uid: user.uid,
           cuentaPrincipalId: idParaConsultar,
@@ -67,7 +74,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
           nombreNegocio: adminData.nombreNegocio,
           telefonoNegocio: adminData.telefonoNegocio || "",
           correoNegocio: adminData.email || user.email || "",
-          logoNegocio: adminData.logoNegocio || null,
+          logoNegocio: esPro ? (adminData.logoNegocio || null) : null,
           nitNegocio: adminData.nitNegocio || "",
           direccionNegocio: adminData.direccionNegocio || "",
           mensajePieTicket: adminData.mensajePieTicket || "",
@@ -75,18 +82,30 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
           porcentajeIva: typeof adminData.porcentajeIva === 'number' ? adminData.porcentajeIva : 19,
           rol: data.rol,
           permisos,
-          // Helpers derivados de permisos para uso fácil en páginas
+          // Helpers derivados de permisos y planes
           esAdmin,
           puedeVentaDirecta: esAdmin || permisos?.ventaDirecta === true,
           puedeAbonar: esAdmin || permisos?.abonar === true,
           puedeEditarInventario: esAdmin || permisos?.editarInventario === true,
           puedeModificarPrecios: esAdmin || permisos?.modificarPrecios === true,
           puedeAplicarDescuentos: esAdmin || permisos?.aplicarDescuentos === true,
-          esTerminalMultivendedor: permisos?.terminalMultivendedor === true,
-          puedeSepare: permisos?.planSepare !== false,
+          esTerminalMultivendedor: esPro && (permisos?.terminalMultivendedor === true || esAdmin),
+          puedeSepare: !esGratis && (permisos?.planSepare !== false),
           tipoUsuario: data.rol === 'cajero' ? 'colaborador' : 'principal',
           planActual,
-          diasPro,
+          esGratis,
+          esComercio,
+          esPro,
+          puedeFacturaImprimible: !esGratis,
+          puedeExcel: esPro,
+          puedeEtiquetasQR: esPro,
+          puedeLogoFactura: esPro,
+          limiteColaboradores: esPro ? 4 : (esComercio ? 1 : 0),
+          limiteClientes: esGratis ? 15 : Infinity,
+          limiteProductos: esGratis ? 30 : Infinity,
+          limiteTransaccionesMes: esGratis ? 40 : Infinity,
+          diasPro: diasRestantesPlan,
+          diasRestantesPlan,
           avisoExpiracion,
           datosUsuarioOriginales: data
         });

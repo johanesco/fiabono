@@ -5,13 +5,15 @@ import { doc, setDoc } from "firebase/firestore";
 import { auth, db } from "../firebase";
 import { 
   CheckCircle2, ChevronRight, Star, BookX, PenTool, 
-  MessageCircle, ShieldAlert, Store, Wallet, Shirt, Lock, AlertCircle, X, Eye, EyeOff 
+  MessageCircle, ShieldAlert, Store, Wallet, Shirt, Lock, AlertCircle, X, Eye, EyeOff, Sparkles, Crown 
 } from 'lucide-react';
 
 export default function LandingPage() {
   const [modalLandingInfo, setModalLandingInfo] = useState<{ visible: boolean, tipo: 'login' | 'registro' | null }>({ visible: false, tipo: null });
   const [authForm, setAuthForm] = useState({ email: "", password: "", confirmPassword: "", nombreUsuario: "", negocio: "" });
   const [authErrores, setAuthErrores] = useState({ email: "", password: "", confirmPassword: "", general: "" });
+  const [cicloFacturacion, setCicloFacturacion] = useState<'mensual' | 'anual'>('mensual');
+  const [planSeleccionadoRegistro, setPlanSeleccionadoRegistro] = useState<'gratis' | 'comercio' | 'pro'>('gratis');
   
   // Estados para controlar la visibilidad de las contraseñas
   const [mostrarPassword, setMostrarPassword] = useState(false);
@@ -36,14 +38,25 @@ export default function LandingPage() {
 
       try {
         const credencial = await createUserWithEmailAndPassword(auth, loginEmail, authForm.password);
+        
+        // Si eligió Comercio o PRO, otorgamos 14 días de prueba gratuita completa
+        let diasPrueba = planSeleccionadoRegistro !== 'gratis' ? 14 : null;
+        let fechaVence = null;
+        if (diasPrueba) {
+          const d = new Date();
+          d.setDate(d.getDate() + diasPrueba);
+          fechaVence = d;
+        }
+
         await setDoc(doc(db, "usuarios", credencial.user.uid), { 
           nombreUsuario: authForm.nombreUsuario.trim(),
           nombreNegocio: authForm.negocio.trim(), 
           email: loginEmail, 
           telefonoNegocio: "",
           rol: "admin",
-          plan: "basico",
-          planVence: null
+          plan: planSeleccionadoRegistro,
+          planVence: fechaVence,
+          cicloPlan: cicloFacturacion
         });
         cerrarModal();
       } catch (error: any) { 
@@ -190,37 +203,116 @@ export default function LandingPage() {
           </div>
         </section>
 
-        <section id="planes" className="py-24 px-6 max-w-4xl mx-auto text-center border-t border-slate-100 dark:border-slate-800/50 scroll-mt-20">
-          <h3 className="text-3xl sm:text-4xl font-black text-slate-900 dark:text-white mb-4">Elige cómo quieres organizar tu negocio</h3>
-          <p className="text-slate-500 dark:text-slate-400 font-medium mb-12 max-w-lg mx-auto text-lg">Comienza gratis para probarlo. Cuando te des cuenta del tiempo y dinero que ahorras, pásate a PRO.</p>
+        <section id="planes" className="py-24 px-6 max-w-6xl mx-auto text-center border-t border-slate-100 dark:border-slate-800/50 scroll-mt-20">
+          <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 font-bold text-xs uppercase tracking-widest mb-4 border border-emerald-100 dark:border-emerald-500/20">
+            <Sparkles size={14} className="fill-current" /> Planes diseñados para crecer
+          </div>
+          <h3 className="text-3xl sm:text-5xl font-black text-slate-900 dark:text-white mb-4 tracking-tight">Elige el plan ideal para tu negocio</h3>
+          <p className="text-slate-500 dark:text-slate-400 font-medium mb-10 max-w-xl mx-auto text-base sm:text-lg leading-relaxed">
+            Comienza gratis hoy mismo. Cuando tu negocio crezca, pásate a Comercio o PRO para desbloquear herramientas avanzadas.
+          </p>
+
+          {/* Switch Mensual / Anual */}
+          <div className="flex items-center justify-center gap-3 mb-16">
+            <span className={`text-sm font-bold transition-colors ${cicloFacturacion === 'mensual' ? 'text-slate-900 dark:text-white' : 'text-slate-400'}`}>Mensual</span>
+            <button
+              type="button"
+              onClick={() => setCicloFacturacion(prev => prev === 'mensual' ? 'anual' : 'mensual')}
+              className="w-14 h-8 bg-blue-600 rounded-full p-1 transition-colors relative cursor-pointer focus:outline-none"
+            >
+              <div className={`w-6 h-6 bg-white rounded-full transition-transform ${cicloFacturacion === 'anual' ? 'translate-x-6' : 'translate-x-0'}`}></div>
+            </button>
+            <span className={`text-sm font-bold flex items-center gap-1.5 transition-colors ${cicloFacturacion === 'anual' ? 'text-slate-900 dark:text-white' : 'text-slate-400'}`}>
+              Anual <span className="bg-emerald-100 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-400 text-[11px] font-black uppercase px-2 py-0.5 rounded-md">Ahorra 2 meses</span>
+            </span>
+          </div>
           
-          <div className="grid sm:grid-cols-2 gap-8 text-left">
-            <div className="bg-white dark:bg-[#0f172a] p-8 sm:p-10 rounded-[2.5rem] border border-slate-200 dark:border-slate-800 flex flex-col shadow-sm">
-              <h4 className="text-2xl font-black text-slate-900 dark:text-white mb-2">Plan Básico</h4>
-              <p className="text-slate-500 dark:text-slate-400 text-sm mb-6 h-10">Perfecto para negocios pequeños que apenas empiezan.</p>
-              <p className="text-4xl font-black text-slate-900 dark:text-white mb-8">Versión Prueba</p>
-              <ul className="flex flex-col gap-4 mb-8 flex-1">
-                <li className="flex items-center gap-3 text-base font-bold text-slate-700 dark:text-slate-300"><CheckCircle2 size={24} className="text-emerald-500 shrink-0"/> 1 Colaborador de prueba</li>
-                <li className="flex items-start gap-3 text-base font-bold text-slate-700 dark:text-slate-300"><CheckCircle2 size={24} className="text-emerald-500 shrink-0"/> Registro de ventas, fiados o abonos</li>
-                <li className="flex items-center gap-3 text-base font-bold text-slate-700 dark:text-slate-300"><CheckCircle2 size={24} className="text-emerald-500 shrink-0"/> Hasta 10 clientes en tu agenda</li>
-                <li className="flex items-center gap-3 text-base font-bold text-slate-700 dark:text-slate-300"><CheckCircle2 size={24} className="text-emerald-500 shrink-0"/> 10 apuntes diarios</li>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8 text-left items-stretch">
+            {/* 1. PLAN GRATIS */}
+            <div className="bg-white dark:bg-[#0f172a] p-8 rounded-[2.5rem] border border-slate-200 dark:border-slate-800 flex flex-col shadow-sm hover:shadow-md transition-shadow">
+              <h4 className="text-2xl font-black text-slate-900 dark:text-white mb-1">Plan Gratis</h4>
+              <p className="text-slate-500 dark:text-slate-400 text-xs mb-6 h-8">Para quienes inician o venden desde casa.</p>
+              
+              <div className="mb-6">
+                <span className="text-4xl font-black text-slate-900 dark:text-white">$0</span>
+                <span className="text-xs text-slate-500 font-bold ml-1">/ para siempre</span>
+              </div>
+
+              <ul className="flex flex-col gap-3.5 mb-8 flex-1 text-sm font-bold text-slate-700 dark:text-slate-300">
+                <li className="flex items-center gap-2.5"><CheckCircle2 size={18} className="text-emerald-500 shrink-0"/> 1 Usuario Administrador</li>
+                <li className="flex items-center gap-2.5"><CheckCircle2 size={18} className="text-emerald-500 shrink-0"/> Hasta 15 clientes registrados</li>
+                <li className="flex items-center gap-2.5"><CheckCircle2 size={18} className="text-emerald-500 shrink-0"/> Hasta 30 productos en catálogo</li>
+                <li className="flex items-center gap-2.5"><CheckCircle2 size={18} className="text-emerald-500 shrink-0"/> Hasta 40 ventas/abonos al mes</li>
+                <li className="flex items-center gap-2.5"><CheckCircle2 size={18} className="text-emerald-500 shrink-0"/> Notificación por WhatsApp</li>
+                <li className="flex items-center gap-2.5"><CheckCircle2 size={18} className="text-emerald-500 shrink-0"/> Descuento automático de stock</li>
               </ul>
-              <button type="button" onClick={() => setModalLandingInfo({ visible: true, tipo: 'registro' })} className="relative z-10 w-full bg-slate-100 dark:bg-[#020617] hover:bg-slate-200 dark:hover:bg-[#1e293b] text-slate-900 dark:text-white font-black py-5 text-lg rounded-2xl transition-colors border dark:border-slate-800/80">Crear mi cuenta gratis</button>
+              <button 
+                type="button" 
+                onClick={() => { setPlanSeleccionadoRegistro('gratis'); setModalLandingInfo({ visible: true, tipo: 'registro' }); }} 
+                className="w-full bg-slate-100 dark:bg-[#020617] hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-900 dark:text-white font-black py-4 rounded-2xl transition-colors cursor-pointer border border-slate-200 dark:border-slate-800"
+              >
+                Comenzar Gratis
+              </button>
             </div>
             
-            <div className="bg-blue-600 dark:bg-blue-700 p-8 sm:p-10 rounded-[2.5rem] border border-blue-500 flex flex-col shadow-2xl shadow-blue-600/20 relative overflow-hidden text-white transform sm:-translate-y-4">
-              <div className="absolute top-0 right-0 bg-emerald-500 text-white text-[10px] font-black uppercase tracking-widest px-4 py-1.5 rounded-bl-xl">El que todos usan</div>
-              <h4 className="text-2xl font-black mb-2 text-white">Plan PRO</h4>
-              <p className="text-blue-200 text-sm mb-6 h-10">Crece sin límites y protege la información de tu negocio.</p>
-              <p className="text-4xl font-black mb-8 text-white">Próximamente</p>
-              <ul className="flex flex-col gap-4 mb-8 flex-1">
-                <li className="flex items-start gap-3 text-base font-bold"><CheckCircle2 size={24} className="text-emerald-300 shrink-0"/> <span className="leading-tight">Colaboradores ilimitados con control de permisos</span></li>
-                <li className="flex items-center gap-3 text-base font-bold"><CheckCircle2 size={24} className="text-emerald-300 shrink-0"/> Clientes infinitos</li>
-                <li className="flex items-center gap-3 text-base font-bold"><CheckCircle2 size={24} className="text-emerald-300 shrink-0"/> Apuntes ilimitados en el día</li>
-                <li className="flex items-start gap-3 text-base font-bold"><CheckCircle2 size={24} className="text-emerald-300 shrink-0"/> Gráficas visuales de tu caja</li>
-                <li className="flex items-start gap-3 text-base font-bold"><CheckCircle2 size={24} className="text-emerald-300 shrink-0"/> Historial completo de meses pasados</li>
+            {/* 2. PLAN COMERCIO */}
+            <div className="bg-blue-600 dark:bg-blue-700 p-8 rounded-[2.5rem] border-2 border-blue-400 flex flex-col shadow-2xl shadow-blue-600/20 relative text-white transform md:-translate-y-2">
+              <div className="absolute top-0 right-0 bg-emerald-500 text-white text-[10px] font-black uppercase tracking-widest px-4 py-1 rounded-bl-2xl">Más Popular</div>
+              <h4 className="text-2xl font-black mb-1 text-white">Plan Comercio</h4>
+              <p className="text-blue-100 text-xs mb-6 h-8">El estándar para tiendas, minimarkets y boutiques.</p>
+              
+              <div className="mb-6">
+                <span className="text-4xl font-black text-white">{cicloFacturacion === 'anual' ? '$199.000' : '$19.900'}</span>
+                <span className="text-xs text-blue-200 font-bold ml-1">COP {cicloFacturacion === 'anual' ? '/ año' : '/ mes'}</span>
+              </div>
+
+              <ul className="flex flex-col gap-3.5 mb-8 flex-1 text-sm font-bold text-white">
+                <li className="flex items-center gap-2.5"><CheckCircle2 size={18} className="text-emerald-300 shrink-0"/> Clientes e Inventario ILIMITADOS</li>
+                <li className="flex items-center gap-2.5"><CheckCircle2 size={18} className="text-emerald-300 shrink-0"/> Ventas, fiados y abonos ILIMITADOS</li>
+                <li className="flex items-center gap-2.5"><CheckCircle2 size={18} className="text-emerald-300 shrink-0"/> 1 Usuario Colaborador con permisos</li>
+                <li className="flex items-center gap-2.5"><CheckCircle2 size={18} className="text-emerald-300 shrink-0"/> Módulo PLAN SEPARE completo</li>
+                <li className="flex items-center gap-2.5"><CheckCircle2 size={18} className="text-emerald-300 shrink-0"/> Factura Imprimible (58/80mm)</li>
+                <li className="flex items-center gap-2.5"><CheckCircle2 size={18} className="text-emerald-300 shrink-0"/> Alertas de stock bajo y valorización</li>
+                <li className="flex items-center gap-2.5"><CheckCircle2 size={18} className="text-emerald-300 shrink-0"/> Reportes de caja neta y cartera</li>
               </ul>
-              <button type="button" onClick={() => setModalLandingInfo({ visible: true, tipo: 'registro' })} className="relative z-10 w-full bg-white text-blue-600 hover:bg-slate-50 font-black py-5 text-lg rounded-2xl shadow-lg transition-transform transform active:scale-95">Digitalizar mis cuentas</button>
+              <button 
+                type="button" 
+                onClick={() => { setPlanSeleccionadoRegistro('comercio'); setModalLandingInfo({ visible: true, tipo: 'registro' }); }} 
+                className="w-full bg-white text-blue-600 hover:bg-blue-50 font-black py-4 rounded-2xl shadow-lg transition-transform active:scale-95 cursor-pointer"
+              >
+                Elegir Plan Comercio
+              </button>
+            </div>
+
+            {/* 3. PLAN PRO ALMACÉN */}
+            <div className="bg-white dark:bg-[#0f172a] p-8 rounded-[2.5rem] border-2 border-purple-500/50 flex flex-col shadow-sm hover:shadow-md transition-shadow relative">
+              <div className="absolute top-0 right-0 bg-purple-600 text-white text-[10px] font-black uppercase tracking-widest px-4 py-1 rounded-bl-2xl">Control Total</div>
+              <h4 className="text-2xl font-black text-slate-900 dark:text-white mb-1 flex items-center gap-1.5">
+                <Crown size={20} className="text-amber-500" /> PRO Almacén
+              </h4>
+              <p className="text-slate-500 dark:text-slate-400 text-xs mb-6 h-8">Para almacenes con equipo de trabajo y alto flujo.</p>
+              
+              <div className="mb-6">
+                <span className="text-4xl font-black text-slate-900 dark:text-white">{cicloFacturacion === 'anual' ? '$449.000' : '$44.900'}</span>
+                <span className="text-xs text-slate-500 font-bold ml-1">COP {cicloFacturacion === 'anual' ? '/ año' : '/ mes'}</span>
+              </div>
+
+              <ul className="flex flex-col gap-3.5 mb-8 flex-1 text-sm font-bold text-slate-700 dark:text-slate-300">
+                <li className="flex items-center gap-2.5"><CheckCircle2 size={18} className="text-purple-600 dark:text-purple-400 shrink-0"/> Todo lo del Plan Comercio</li>
+                <li className="flex items-center gap-2.5"><CheckCircle2 size={18} className="text-purple-600 dark:text-purple-400 shrink-0"/> 4 Usuarios Colaboradores incluidos</li>
+                <li className="flex items-center gap-2.5"><CheckCircle2 size={18} className="text-purple-600 dark:text-purple-400 shrink-0"/> Modo Terminal Multivendedor</li>
+                <li className="flex items-center gap-2.5"><CheckCircle2 size={18} className="text-purple-600 dark:text-purple-400 shrink-0"/> Etiquetas Adhesivas QR para productos</li>
+                <li className="flex items-center gap-2.5"><CheckCircle2 size={18} className="text-purple-600 dark:text-purple-400 shrink-0"/> Importar y Exportar masivo en Excel</li>
+                <li className="flex items-center gap-2.5"><CheckCircle2 size={18} className="text-purple-600 dark:text-purple-400 shrink-0"/> Logo del Negocio en la Factura</li>
+                <li className="flex items-center gap-2.5"><CheckCircle2 size={18} className="text-purple-600 dark:text-purple-400 shrink-0"/> Historial total e informes de turnos</li>
+              </ul>
+              <button 
+                type="button" 
+                onClick={() => { setPlanSeleccionadoRegistro('pro'); setModalLandingInfo({ visible: true, tipo: 'registro' }); }} 
+                className="w-full bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white font-black py-4 rounded-2xl shadow-lg transition-transform active:scale-95 cursor-pointer"
+              >
+                Elegir PRO Almacén
+              </button>
             </div>
           </div>
         </section>

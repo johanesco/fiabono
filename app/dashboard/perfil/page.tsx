@@ -4,7 +4,7 @@ import { collection, getDocs, query, doc, updateDoc, where, setDoc, deleteDoc } 
 import { signOut, updatePassword, EmailAuthProvider, reauthenticateWithCredential, getAuth, createUserWithEmailAndPassword } from "firebase/auth";
 import { getApps, initializeApp } from "firebase/app";
 import { db, auth } from "../../../firebase";
-import { UserCog, LogOut, Sun, Monitor, Moon, Edit2, Mail, ShieldAlert, CheckCircle2, AlertCircle, Star, Lock, UserPlus, ChevronUp, ChevronDown, Trash2, Info, X, Clock, Upload, Image as ImageIcon, Building2, MapPin, Receipt, PhoneCall, Camera, Smartphone, ArrowUpFromLine, MoreHorizontal, Download } from 'lucide-react';
+import { UserCog, LogOut, Sun, Monitor, Moon, Edit2, Mail, ShieldAlert, CheckCircle2, AlertCircle, Star, Lock, UserPlus, ChevronUp, ChevronDown, Trash2, Info, X, Clock, Upload, Image as ImageIcon, Building2, MapPin, Receipt, PhoneCall, Camera, Smartphone, ArrowUpFromLine, MoreHorizontal, Download, Crown, Store, Sparkles } from 'lucide-react';
 import ModalHorarios from '@/components/ModalHorarios';
 import { useAuth } from "../../../hooks/AuthContext";
 import ModalSuscripcion from "@/components/ModalSuscripcion";
@@ -303,12 +303,22 @@ export default function PerfilPage() {
       if(formColaborador.password.length < 6) return setErrorFormColaborador(p => ({...p, general: "La contraseña debe tener mínimo 6 caracteres."}));
       if(formColaborador.password !== formColaborador.confirmPassword) return setErrorFormColaborador(p => ({...p, general: "Las contraseñas no coinciden."}));
       
-      if (planActual === 'basico' && colaboradoresRegistrados.length >= 1) {
+      const esGratis = planActual === 'gratis' || planActual === 'basico';
+      const esComercio = planActual === 'comercio';
+
+      if (esGratis && colaboradoresRegistrados.length >= 0) {
         setModoCrearColaborador(false);
-        abrirUpsell("Colaboradores Ilimitados", "El plan básico te permite tener 1 colaborador de prueba. Pásate a PRO para añadir colaboradores ilimitados y controlar todos sus permisos.");
+        setModalSuscripcionOpen(true);
+        toast.error("El plan Gratis no incluye usuarios colaboradores. Mejora al Plan Comercio para agregar tu primer colaborador.");
         return;
       }
-      if(planActual === 'pro' && colaboradoresRegistrados.length >= 4) {
+      if (esComercio && colaboradoresRegistrados.length >= 1) {
+        setModoCrearColaborador(false);
+        setModalSuscripcionOpen(true);
+        toast.error("Tu Plan Comercio permite 1 colaborador. Mejora al Plan PRO Almacén para tener hasta 4 colaboradores.");
+        return;
+      }
+      if (planActual === 'pro' && colaboradoresRegistrados.length >= 4) {
         return setModalAvisoColaborador({ visible: true, titulo: "Límite Alcanzado", mensaje: "Tu plan PRO permite un máximo de 4 colaboradores simultáneos para tu negocio.", icono: 'error' });
       }
     }
@@ -449,20 +459,41 @@ export default function PerfilPage() {
             <h2 className="text-2xl font-black text-slate-900 dark:text-white truncate">{nombreNegocio}</h2>
             <p className="text-slate-500 dark:text-slate-400 font-medium mb-4 truncate">{correoNegocio}</p>
             
-            {planActual === 'pro' ? (
-              <div className="flex flex-col items-center justify-center gap-3 mt-4">
-                <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-black text-xs uppercase tracking-widest border border-emerald-100 dark:border-emerald-500/20">
-                  <Star size={14} className="fill-current shrink-0"/> <span className="truncate">Plan Pro Activo {diasPro !== null && `(${diasPro} días)`}</span>
+            {/* ESTADO DE SUSCRIPCIÓN */}
+            <div className="flex flex-col items-center justify-center gap-2.5 mt-4">
+              {planActual === 'pro' && (
+                <div className="flex flex-col items-center gap-2">
+                  <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-purple-50 dark:bg-purple-500/10 text-purple-600 dark:text-purple-400 font-black text-xs uppercase tracking-widest border border-purple-200 dark:border-purple-500/20 shadow-sm">
+                    <Crown size={14} className="text-amber-500 fill-current shrink-0"/> <span>Plan PRO Almacén Activo {diasPro !== null && `(${diasPro} días)`}</span>
+                  </div>
+                  <button onClick={() => setModalSuscripcionOpen(true)} className="text-xs font-bold text-slate-500 hover:text-purple-600 transition-colors underline underline-offset-4 cursor-pointer">
+                    Gestionar o Renovar Plan
+                  </button>
                 </div>
-                <button onClick={() => setModalCancelarPro(true)} className="text-xs font-bold text-rose-500 dark:text-rose-400 hover:text-rose-600 transition-colors underline decoration-rose-300 underline-offset-4">
-                  Cancelar suscripción Pro
-                </button>
-              </div>
-            ) : (
-              <button onClick={() => setModalSuscripcionOpen(true)} className="inline-flex items-center gap-2 px-5 py-2 rounded-full bg-slate-900 dark:bg-white text-white dark:text-slate-900 font-black text-xs uppercase tracking-widest shadow-md hover:scale-105 transition-transform mt-4">
-                <Lock size={14} className="shrink-0"/> Subir a Pro
-              </button>
-            )}
+              )}
+
+              {planActual === 'comercio' && (
+                <div className="flex flex-col items-center gap-2">
+                  <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400 font-black text-xs uppercase tracking-widest border border-blue-200 dark:border-blue-500/20 shadow-sm">
+                    <Store size={14} className="shrink-0"/> <span>Plan Comercio Activo {diasPro !== null && `(${diasPro} días)`}</span>
+                  </div>
+                  <button onClick={() => setModalSuscripcionOpen(true)} className="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-full bg-gradient-to-r from-purple-600 to-indigo-600 text-white font-black text-xs shadow-md hover:scale-105 transition-transform cursor-pointer">
+                    <Crown size={13} className="text-amber-400" /> Mejorar a PRO Almacén
+                  </button>
+                </div>
+              )}
+
+              {(planActual === 'gratis' || planActual === 'basico' || !planActual) && (
+                <div className="flex flex-col items-center gap-2">
+                  <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-black text-xs uppercase tracking-widest border border-slate-200 dark:border-slate-700">
+                    <span>Plan Gratuito</span>
+                  </div>
+                  <button onClick={() => setModalSuscripcionOpen(true)} className="inline-flex items-center gap-2 px-5 py-2 rounded-full bg-blue-600 hover:bg-blue-700 text-white font-black text-xs uppercase tracking-widest shadow-md hover:scale-105 transition-transform cursor-pointer">
+                    <Sparkles size={14} className="shrink-0"/> Mejorar mi Plan
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
 
           <ModalSuscripcion isOpen={modalSuscripcionOpen} onClose={() => setModalSuscripcionOpen(false)} cuentaPrincipalId={usuarioAuth ? usuarioAuth.uid : (adminId || "")} />

@@ -158,9 +158,12 @@ export default function InicioPage() {
 
   const guardarClienteNuevo = async () => {
     if (!nombreNuevo.trim()) return alert("El nombre del cliente es obligatorio.");
-    if (planActual === 'basico' && clientes.length >= 10) {
+    const esGratis = datosSesion?.esGratis ?? (planActual === 'gratis' || planActual === 'basico');
+    if (esGratis && clientes.length >= 15) {
       setModalNuevoCliente(false);
-      setTimeout(() => { abrirUpsell("Límite de Clientes Alcanzado", "En el plan básico se permite un máximo de 10 clientes.\n\nMejora a nuestro plan PRO para clientes ilimitados."); }, 100);
+      setTimeout(() => { 
+        abrirUpsell("Límite de Clientes Alcanzado", "En el plan Gratis puedes registrar hasta 15 clientes. Mejora a nuestro Plan Comercio o PRO para clientes ilimitados."); 
+      }, 100);
       return;
     }
     setGuardandoCliente(true);

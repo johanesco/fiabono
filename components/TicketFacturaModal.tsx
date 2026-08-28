@@ -1,6 +1,8 @@
 "use client";
-import React, { useRef } from "react";
-import { X, Printer, CheckCircle2, Receipt, Store, Phone, User, Calendar, Clock } from "lucide-react";
+import React, { useRef, useState } from "react";
+import { X, Printer, Receipt, Crown } from "lucide-react";
+import { useAuth } from "@/hooks/AuthContext";
+import ModalUpsellSuscripcion from "./ModalUpsellSuscripcion";
 
 export interface DetalleFacturaItem {
   descripcion: string;
@@ -48,7 +50,9 @@ interface TicketFacturaModalProps {
 }
 
 export default function TicketFacturaModal({ isOpen, onClose, datos }: TicketFacturaModalProps) {
+  const { datosSesion } = useAuth() || {};
   const ticketRef = useRef<HTMLDivElement>(null);
+  const [modalUpsell, setModalUpsell] = useState(false);
 
   if (!isOpen || !datos) return null;
 
@@ -402,15 +406,34 @@ export default function TicketFacturaModal({ isOpen, onClose, datos }: TicketFac
             </button>
             <button
               type="button"
-              onClick={manejarImprimir}
+              onClick={() => {
+                if (datosSesion?.esGratis) {
+                  setModalUpsell(true);
+                  return;
+                }
+                manejarImprimir();
+              }}
               className="flex-1 py-2.5 sm:py-3.5 px-3 sm:px-4 bg-blue-600 hover:bg-blue-700 text-white font-black rounded-xl sm:rounded-2xl shadow-md sm:shadow-lg shadow-blue-600/30 flex items-center justify-center gap-1.5 sm:gap-2 transition-transform transform active:scale-95 text-xs sm:text-sm text-center cursor-pointer"
             >
-              <Printer size={16} className="shrink-0" /> <span className="truncate">Imprimir Factura</span>
+              <Printer size={16} className="shrink-0" /> 
+              <span className="truncate">
+                {datosSesion?.esGratis ? 'Factura Imprimible (Comercio)' : 'Imprimir Factura'}
+              </span>
+              {datosSesion?.esGratis && <Crown size={13} className="text-amber-300 shrink-0" />}
             </button>
           </div>
 
         </div>
       </div>
+
+      {/* MODAL UPSELL SI ESTÁ EN PLAN GRATIS */}
+      <ModalUpsellSuscripcion
+        visible={modalUpsell}
+        titulo="Facturas Imprimibles en Plan Comercio"
+        mensaje="Imprime facturas térmicas de 58mm y 80mm para tus ventas, abonos y separes mejorando al Plan Comercio o PRO Almacén."
+        planRecomendado="comercio"
+        onClose={() => setModalUpsell(false)}
+      />
     </>
   );
 }

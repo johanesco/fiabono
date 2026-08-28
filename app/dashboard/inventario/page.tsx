@@ -42,7 +42,9 @@ import {
   ChevronLeft,
   ChevronRight,
   MoreVertical,
-  Bookmark
+  Bookmark,
+  Crown,
+  Lock
 } from 'lucide-react';
 import { useAuth } from "@/hooks/AuthContext";
 import toast from "react-hot-toast";
@@ -50,6 +52,7 @@ import { QRCodeSVG } from 'qrcode.react';
 import jsPDF from 'jspdf';
 import * as XLSX from 'xlsx';
 import ExcelJS from 'exceljs';
+import ModalUpsellSuscripcion from "@/components/ModalUpsellSuscripcion";
 
 type ColumnaOrden = 'categoria' | 'nombre' | 'sku' | 'stock' | 'precioVenta';
 type DireccionOrden = 'asc' | 'desc';
@@ -96,6 +99,12 @@ export default function InventarioPage() {
   const [filtrosStock, setFiltrosStock] = useState<('en_stock' | 'stock_bajo' | 'sin_stock' | 'servicios')[]>([]);
   const [mostrarMetricas, setMostrarMetricas] = useState(false);
   const [menuHerramientasMovil, setMenuHerramientasMovil] = useState(false);
+  const [modalUpsell, setModalUpsell] = useState<{ visible: boolean; titulo?: string; mensaje?: string; plan?: 'comercio' | 'pro' }>({
+    visible: false,
+    titulo: "",
+    mensaje: "",
+    plan: 'comercio'
+  });
 
   // Referencias para scroll horizontal con flechas en filtros de stock y categorías
   const stockScrollRef = useRef<HTMLDivElement>(null);
@@ -2014,25 +2023,64 @@ export default function InventarioPage() {
               {/* En Pantallas Medianas/Grandes (md:): Botones directos */}
               <div className="hidden md:flex items-center gap-1.5">
                 <button 
-                  onClick={() => setModalExportarExcel(true)} 
-                  className="bg-white/20 hover:bg-white/30 px-3 py-2 rounded-xl font-bold text-xs flex items-center gap-1.5 transition-colors backdrop-blur-sm shadow-sm"
+                  onClick={() => {
+                    if (!datosSesion?.esPro) {
+                      setModalUpsell({
+                        visible: true,
+                        titulo: "Exportación a Excel en Plan PRO",
+                        mensaje: "Descarga reportes de inventario y catálogos en Excel ilimitadamente con el Plan PRO Almacén.",
+                        plan: 'pro'
+                      });
+                      return;
+                    }
+                    setModalExportarExcel(true);
+                  }} 
+                  className="bg-white/20 hover:bg-white/30 px-3 py-2 rounded-xl font-bold text-xs flex items-center gap-1.5 transition-colors backdrop-blur-sm shadow-sm cursor-pointer"
                   title="Descargar inventario en archivo Excel .xlsx"
                 >
                   <FileSpreadsheet size={15}/> <span>Exportar Excel</span>
+                  {!datosSesion?.esPro && <Crown size={12} className="text-amber-300 ml-0.5" />}
                 </button>
+
                 <button 
-                  onClick={() => { setProductosAImportar([]); setModalImportarExcel(true); }} 
-                  className="bg-white/20 hover:bg-white/30 px-3 py-2 rounded-xl font-bold text-xs flex items-center gap-1.5 transition-colors backdrop-blur-sm shadow-sm"
+                  onClick={() => {
+                    if (!datosSesion?.esPro) {
+                      setModalUpsell({
+                        visible: true,
+                        titulo: "Carga Masiva en Excel (Plan PRO)",
+                        mensaje: "Importa cientos o miles de productos con stock y precios en segundos desde un archivo Excel con el Plan PRO Almacén.",
+                        plan: 'pro'
+                      });
+                      return;
+                    }
+                    setProductosAImportar([]); 
+                    setModalImportarExcel(true); 
+                  }} 
+                  className="bg-white/20 hover:bg-white/30 px-3 py-2 rounded-xl font-bold text-xs flex items-center gap-1.5 transition-colors backdrop-blur-sm shadow-sm cursor-pointer"
                   title="Cargar productos masivamente desde un archivo Excel"
                 >
                   <Upload size={15}/> <span>Importar Excel</span>
+                  {!datosSesion?.esPro && <Crown size={12} className="text-amber-300 ml-0.5" />}
                 </button>
+
                 <button 
-                  onClick={() => setModalExportarQR(true)} 
-                  className="bg-white/20 hover:bg-white/30 px-3 py-2 rounded-xl font-bold text-xs flex items-center gap-1.5 transition-colors backdrop-blur-sm shadow-sm"
+                  onClick={() => {
+                    if (!datosSesion?.esPro) {
+                      setModalUpsell({
+                        visible: true,
+                        titulo: "Etiquetas Adhesivas QR para Productos",
+                        mensaje: "Genera e imprime planchas térmicas con Código QR, Nombre y Precio para pegar en tus prendas o estanterías y cobrar en 1 segundo.",
+                        plan: 'pro'
+                      });
+                      return;
+                    }
+                    setModalExportarQR(true);
+                  }} 
+                  className="bg-white/20 hover:bg-white/30 px-3 py-2 rounded-xl font-bold text-xs flex items-center gap-1.5 transition-colors backdrop-blur-sm shadow-sm cursor-pointer"
                   title="Imprimir o exportar etiquetas con códigos QR"
                 >
-                  <Printer size={15}/> <span>Exportar QRs</span>
+                  <Printer size={15}/> <span>Etiquetas QR</span>
+                  {!datosSesion?.esPro && <Crown size={12} className="text-amber-300 ml-0.5" />}
                 </button>
               </div>
 
@@ -2041,34 +2089,82 @@ export default function InventarioPage() {
                 <button 
                   type="button"
                   onClick={() => setMenuHerramientasMovil(!menuHerramientasMovil)}
-                  className="bg-white/20 hover:bg-white/30 p-2 rounded-xl font-bold text-xs flex items-center justify-center transition-colors backdrop-blur-sm shadow-sm text-white active:scale-95"
+                  className="bg-white/20 hover:bg-white/30 p-2 rounded-xl font-bold text-xs flex items-center justify-center transition-colors backdrop-blur-sm shadow-sm text-white active:scale-95 cursor-pointer"
                   title="Herramientas de inventario (Excel, Importar, QRs)"
                 >
                   <MoreVertical size={18}/>
                 </button>
 
                 {menuHerramientasMovil && (
-                  <div className="absolute right-0 top-full mt-2 w-52 bg-white dark:bg-[#0f172a] text-slate-800 dark:text-white rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 p-1.5 z-50 animate-in zoom-in-95 duration-150">
+                  <div className="absolute right-0 top-full mt-2 w-56 bg-white dark:bg-[#0f172a] text-slate-800 dark:text-white rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 p-1.5 z-50 animate-in zoom-in-95 duration-150">
                     <button
-                      onClick={() => { setMenuHerramientasMovil(false); setModalExportarExcel(true); }}
-                      className="w-full flex items-center gap-2.5 px-3 py-2.5 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl text-xs font-bold text-left transition-colors"
+                      onClick={() => {
+                        setMenuHerramientasMovil(false);
+                        if (!datosSesion?.esPro) {
+                          setModalUpsell({
+                            visible: true,
+                            titulo: "Exportación a Excel en Plan PRO",
+                            mensaje: "Descarga reportes de inventario y catálogos en Excel ilimitadamente con el Plan PRO Almacén.",
+                            plan: 'pro'
+                          });
+                          return;
+                        }
+                        setModalExportarExcel(true);
+                      }}
+                      className="w-full flex items-center justify-between px-3 py-2.5 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl text-xs font-bold text-left transition-colors cursor-pointer"
                     >
-                      <FileSpreadsheet size={16} className="text-emerald-600"/>
-                      <span>Exportar a Excel</span>
+                      <div className="flex items-center gap-2">
+                        <FileSpreadsheet size={16} className="text-emerald-600"/>
+                        <span>Exportar a Excel</span>
+                      </div>
+                      {!datosSesion?.esPro && <Crown size={12} className="text-amber-500" />}
                     </button>
+
                     <button
-                      onClick={() => { setMenuHerramientasMovil(false); setProductosAImportar([]); setModalImportarExcel(true); }}
-                      className="w-full flex items-center gap-2.5 px-3 py-2.5 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl text-xs font-bold text-left transition-colors"
+                      onClick={() => {
+                        setMenuHerramientasMovil(false);
+                        if (!datosSesion?.esPro) {
+                          setModalUpsell({
+                            visible: true,
+                            titulo: "Carga Masiva en Excel (Plan PRO)",
+                            mensaje: "Importa cientos de productos con stock y precios en segundos desde un archivo Excel con el Plan PRO Almacén.",
+                            plan: 'pro'
+                          });
+                          return;
+                        }
+                        setProductosAImportar([]);
+                        setModalImportarExcel(true);
+                      }}
+                      className="w-full flex items-center justify-between px-3 py-2.5 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl text-xs font-bold text-left transition-colors cursor-pointer"
                     >
-                      <Upload size={16} className="text-blue-600"/>
-                      <span>Importar desde Excel</span>
+                      <div className="flex items-center gap-2">
+                        <Upload size={16} className="text-blue-600"/>
+                        <span>Importar desde Excel</span>
+                      </div>
+                      {!datosSesion?.esPro && <Crown size={12} className="text-amber-500" />}
                     </button>
+
                     <button
-                      onClick={() => { setMenuHerramientasMovil(false); setModalExportarQR(true); }}
-                      className="w-full flex items-center gap-2.5 px-3 py-2.5 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl text-xs font-bold text-left transition-colors"
+                      onClick={() => {
+                        setMenuHerramientasMovil(false);
+                        if (!datosSesion?.esPro) {
+                          setModalUpsell({
+                            visible: true,
+                            titulo: "Etiquetas Adhesivas QR para Productos",
+                            mensaje: "Genera e imprime planchas térmicas con Código QR, Nombre y Precio para pegar en tus prendas o estanterías.",
+                            plan: 'pro'
+                          });
+                          return;
+                        }
+                        setModalExportarQR(true);
+                      }}
+                      className="w-full flex items-center justify-between px-3 py-2.5 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl text-xs font-bold text-left transition-colors cursor-pointer"
                     >
-                      <Printer size={16} className="text-indigo-600"/>
-                      <span>Exportar códigos QR</span>
+                      <div className="flex items-center gap-2">
+                        <Printer size={16} className="text-indigo-600"/>
+                        <span>Etiquetas QR Adhesivas</span>
+                      </div>
+                      {!datosSesion?.esPro && <Crown size={12} className="text-amber-500" />}
                     </button>
                   </div>
                 )}
@@ -2076,8 +2172,20 @@ export default function InventarioPage() {
 
               {/* Botón Principal: Agregar Productos */}
               <button 
-                onClick={() => { limpiarFormulario(); setModalProducto(true); }} 
-                className="bg-white text-emerald-700 hover:bg-emerald-50 px-2.5 sm:px-4 py-2 rounded-xl font-black text-xs sm:text-sm flex items-center gap-1 shadow-md transition-transform active:scale-95 shrink-0"
+                onClick={() => {
+                  if (datosSesion?.esGratis && inventario.length >= 30) {
+                    setModalUpsell({
+                      visible: true,
+                      titulo: "Límite de 30 Productos Alcanzado",
+                      mensaje: "El plan Gratis te permite registrar hasta 30 productos en catálogo. Pásate al Plan Comercio para tener inventario ILIMITADO.",
+                      plan: 'comercio'
+                    });
+                    return;
+                  }
+                  limpiarFormulario(); 
+                  setModalProducto(true); 
+                }} 
+                className="bg-white text-emerald-700 hover:bg-emerald-50 px-2.5 sm:px-4 py-2 rounded-xl font-black text-xs sm:text-sm flex items-center gap-1 shadow-md transition-transform active:scale-95 shrink-0 cursor-pointer"
                 title="Agregar nuevos productos o servicios al inventario"
               >
                 <Plus size={16}/> <span>Agregar<span className="hidden sm:inline"> Productos</span></span>
@@ -4499,6 +4607,15 @@ export default function InventarioPage() {
           </div>
         </div>
       )}
+
+      {/* MODAL UPSELL DE SUSCRIPCIÓN PARA EXCEL, QR O LÍMITES */}
+      <ModalUpsellSuscripcion
+        visible={modalUpsell.visible}
+        titulo={modalUpsell.titulo}
+        mensaje={modalUpsell.mensaje}
+        planRecomendado={modalUpsell.plan}
+        onClose={() => setModalUpsell({ visible: false, titulo: "", mensaje: "", plan: 'comercio' })}
+      />
     </div>
   );
 }
