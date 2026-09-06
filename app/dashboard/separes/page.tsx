@@ -574,30 +574,45 @@ Gracias por tu compra y preferencia.
         montoPagadoAlCancelar: montoDevuelto
       });
 
-      // 3. Devolver artículos reservados al inventario físico
+      // CORRECCIÓN A-6: Devolver stock leyendo cada producto por su ID directamente,
+      // en lugar de descargar TODO el catálogo de inventario con getDocs.
       if (separeSeleccionado.items && Array.isArray(separeSeleccionado.items)) {
-        const qInv = query(
-          collection(db, "inventario"),
-          where("usuarioId", "==", cuentaPrincipalId)
-        );
-        const snapInv = await getDocs(qInv);
         for (const item of separeSeleccionado.items) {
-          let prodDoc = null;
+          let prodRef = null;
+
+          // Intentar por ID directo primero (más eficiente)
           if (item.idProducto) {
-            prodDoc = snapInv.docs.find(d => d.id === item.idProducto);
+            const docSnap = await import("firebase/firestore").then(({ getDoc }) =>
+              getDoc(doc(db, "inventario", item.idProducto))
+            );
+            if (docSnap.exists()) {
+              const data = docSnap.data();
+              if (data.tipoProducto !== 'servicio' && data.inventariable !== false) {
+                await updateDoc(doc(db, "inventario", item.idProducto), {
+                  stock: increment(item.cantidad || 1)
+                });
+              }
+              continue;
+            }
           }
-          if (!prodDoc) {
-            prodDoc = snapInv.docs.find(d => {
-              const data = d.data();
-              return (data.nombre || '').trim().toLowerCase() === (item.descripcion || '').trim().toLowerCase();
-            });
-          }
-          if (prodDoc) {
-            const data = prodDoc.data();
-            if (data.tipoProducto !== 'servicio' && data.inventariable !== false) {
-              await updateDoc(doc(db, "inventario", prodDoc.id), {
-                stock: increment(item.cantidad || 1)
-              });
+
+          // Fallback: buscar por nombre del producto (solo si no hay ID)
+          if (item.descripcion) {
+            const { getDocs: gd, query: q2, collection: col, where: wh } = await import("firebase/firestore");
+            const qNombre = q2(
+              col(db, "inventario"),
+              wh("usuarioId", "==", cuentaPrincipalId),
+              wh("nombre", "==", item.descripcion.trim())
+            );
+            const snapNombre = await gd(qNombre);
+            if (!snapNombre.empty) {
+              const prodDoc = snapNombre.docs[0];
+              const data = prodDoc.data();
+              if (data.tipoProducto !== 'servicio' && data.inventariable !== false) {
+                await updateDoc(doc(db, "inventario", prodDoc.id), {
+                  stock: increment(item.cantidad || 1)
+                });
+              }
             }
           }
         }
@@ -666,7 +681,7 @@ Gracias por contactarnos.`;
       celularCliente: sep.clienteCelular || "",
       registradoPor: sep.creadoPor || nombreUsuario,
       fecha: sep.fechaCreacion,
-      tipo: 'abono',
+      tipo: 'separe',
       detalles: (sep.items || []).map((it: any) => ({
         descripcion: it.descripcion,
         cantidad: it.cantidad,

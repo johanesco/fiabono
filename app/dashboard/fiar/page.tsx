@@ -1,7 +1,7 @@
 "use client";
 import { useState, useEffect, Suspense, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { collection, addDoc, getDocs, query, doc, updateDoc, where, increment } from "firebase/firestore";
+import { collection, addDoc, getDocs, query, doc, updateDoc, where, increment, writeBatch } from "firebase/firestore";
 import { db } from "../../../firebase";
 import { Search, ShoppingBag, CheckCircle2, ChevronRight, X, AlertCircle, UserCog, Plus, Minus, ArrowLeft, MessageCircle, Package, QrCode, Volume2, Printer, ChevronDown, ChevronUp, Tag, Receipt, Pause, FolderOpen, User, Trash2 } from 'lucide-react';
 import { useAuth } from "@/hooks/AuthContext";
@@ -973,7 +973,7 @@ function FiarContenido() {
             const resFiado = await API_DB.registrarMovimientoConTransaccion(
                 {
                     clienteId: clienteTransaccion.id,
-                    usuarioId: cuentaPrincipalId,
+                    usuarioId: cuentaPrincipalId!,
                     tipo: 'fiado',
                     monto: faltante,
                     descripcion: descripcionUnificada + (montoDescuentoTotal > 0 ? ` [Dto: -$${montoDescuentoTotal.toLocaleString('es-CO')}]` : ''),
@@ -1001,10 +1001,12 @@ function FiarContenido() {
                 }
             }
 
-            for (const [pId, cant] of Object.entries(cantidadesPorProducto)) {
-                await updateDoc(doc(db, "inventario", pId), {
-                    stock: increment(-cant)
-                });
+            if (Object.keys(cantidadesPorProducto).length > 0) {
+                const batch = writeBatch(db);
+                for (const [pId, cant] of Object.entries(cantidadesPorProducto)) {
+                    batch.update(doc(db, "inventario", pId), { stock: increment(-cant) });
+                }
+                await batch.commit();
             }
 
             const saldoFinal = resFiado.nuevoSaldoCliente !== undefined ? resFiado.nuevoSaldoCliente : ((clienteTransaccion.deudaTotal || 0) + faltante);

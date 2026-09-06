@@ -4,11 +4,19 @@ import { onAuthStateChanged, signOut } from "firebase/auth";
 import { doc, getDoc, updateDoc } from "firebase/firestore";
 import { auth, db } from "../firebase";
 import { useRouter, usePathname } from "next/navigation";
+import { DatosSesionContext, UsuarioBD } from "../types";
 
-const AuthContext = createContext<any>(null);
+interface AuthContextType {
+  datosSesion: DatosSesionContext | null;
+  cargando: boolean;
+  setDatosSesion: React.Dispatch<React.SetStateAction<DatosSesionContext | null>>;
+  cerrarSesion: () => Promise<void>;
+}
+
+const AuthContext = createContext<AuthContextType | null>(null);
 
 export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
-  const [datosSesion, setDatosSesion] = useState<any>(null);
+  const [datosSesion, setDatosSesion] = useState<DatosSesionContext | null>(null);
   const [cargando, setCargando] = useState(true);
   const router = useRouter();
   const pathname = usePathname();
@@ -130,11 +138,16 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
           diasPro: diasRestantesPlan,
           diasRestantesPlan,
           avisoExpiracion,
-          datosUsuarioOriginales: data
+          datosUsuarioOriginales: data as UsuarioBD
         });
-      } catch (e) {
-        await signOut(auth);
-        router.push('/');
+      } catch (e: any) {
+        console.error("Error validando sesión:", e);
+        // CORRECCIÓN A-9: Solo desloguear si el error es de cuenta inválida o inactiva.
+        // Errores de red u otros fallos temporales NO deben forzar el cierre de sesión.
+        if (e.message === "No existe" || e.message === "Inactivo" || e.message === "NegocioNoExiste" || e.code === "permission-denied") {
+          await signOut(auth);
+          router.push('/');
+        }
       }
       setCargando(false);
     });
@@ -158,5 +171,10 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     </AuthContext.Provider>
   );
 };
-
-export const useAuth = () => useContext(AuthContext);
+export const useAuth = () => {
+  const context = useContext(AuthContext);
+  if (!context) {
+    throw new Error("useAuth debe ser usado dentro de un AuthProvider");
+  }
+  return context;
+};

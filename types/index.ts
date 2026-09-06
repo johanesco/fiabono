@@ -179,8 +179,31 @@ export interface DatosSesionContext {
   porcentajeIva?: number;
   rol: 'admin' | 'cajero';
   permisos: PermisosColaborador | null;
-  planActual: 'basico' | 'pro';
+  planActual: 'gratis' | 'basico' | 'comercio' | 'pro';
   diasPro: number | null;
+  diasRestantesPlan: number | null;
   avisoExpiracion: boolean;
   datosUsuarioOriginales: UsuarioBD;
+
+  // Helpers derivados
+  esAdmin: boolean;
+  puedeVentaDirecta: boolean;
+  puedeAbonar: boolean;
+  puedeEditarInventario: boolean;
+  puedeModificarPrecios: boolean;
+  puedeAplicarDescuentos: boolean;
+  esTerminalMultivendedor: boolean;
+  puedeSepare: boolean;
+  tipoUsuario: 'principal' | 'colaborador';
+  esGratis: boolean;
+  esComercio: boolean;
+  esPro: boolean;
+  puedeFacturaImprimible: boolean;
+  puedeExcel: boolean;
+  puedeEtiquetasQR: boolean;
+  puedeLogoFactura: boolean;
+  limiteColaboradores: number;
+  limiteClientes: number;
+  limiteProductos: number;
+  limiteTransaccionesMes: number;
 }

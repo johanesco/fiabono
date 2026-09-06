@@ -269,7 +269,7 @@ function AbonarContenido() {
       const resAbono = await API_DB.registrarMovimientoConTransaccion(
         {
           clienteId: clienteTransaccion.id,
-          usuarioId: cuentaPrincipalId,
+          usuarioId: cuentaPrincipalId!,
           tipo: 'abono',
           monto: abonoReal,
           descripcion: `Abono a cuenta (${metodoPagoLabel})`,

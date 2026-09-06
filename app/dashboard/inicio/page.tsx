@@ -168,9 +168,9 @@ export default function InicioPage() {
     }
     setGuardandoCliente(true);
     try {
-      await addDoc(collection(db, "clientes"), { nombre: nombreNuevo.trim(), celular: celularNuevo.trim(), deudaTotal: 0, usuarioId: cuentaPrincipalId, fecha_creacion: new Date() });
+      await addDoc(collection(db, "clientes"), { nombre: nombreNuevo.trim(), celular: celularNuevo.trim(), deudaTotal: 0, usuarioId: cuentaPrincipalId!, fecha_creacion: new Date() });
       setModalNuevoCliente(false); setNombreNuevo(""); setCelularNuevo("");
-      await cargarDatosGlobales(cuentaPrincipalId);
+      await cargarDatosGlobales(cuentaPrincipalId!);
       toast.success("Cliente guardado con éxito");
     } catch (error) { alert("Error al guardar cliente."); } finally { setGuardandoCliente(false); }
   };

@@ -331,8 +331,10 @@ ${detalleTexto}*TOTAL: $${orden.total.toLocaleString('es-CO')}*
         detalles: detallesParaComprobante,
         descripcionGeneral: orden.tipo === 'separe' ? `Plan Separe: ${descripcionUnificada}` : descripcionUnificada,
         montoTotal: orden.total,
-        pagoRecibido: orden.tipo === 'separe' ? pagoNum : (orden.tipo === 'fiado' ? 0 : pagoNum),
-        saldoNuevo: orden.tipo === 'separe' ? saldoPend : undefined,
+        // CORRECCIÓN A-5: El ticket de fiado ahora muestra el abono inicial real
+        // y el saldo pendiente en lugar de $0 y undefined respectivamente.
+        pagoRecibido: pagoNum > 0 ? pagoNum : undefined,
+        saldoNuevo: saldoPend > 0 ? saldoPend : undefined,
         idTransaccion: orden.idTransaccion || orden.id,
         metodoPago: (orden.metodoPago as any) || 'efectivo',
         referenciaPago: [orden.subMetodoPago, orden.referenciaPago].filter(Boolean).join(' — ') || undefined,

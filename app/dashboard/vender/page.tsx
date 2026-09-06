@@ -1063,7 +1063,7 @@ function VenderContenido() {
       if (montoVentaReal > 0) {
         const resVenta = await API_DB.registrarMovimientoConTransaccion({
           clienteId: clienteTransaccion ? clienteTransaccion.id : 'mostrador',
-          usuarioId: cuentaPrincipalId,
+          usuarioId: cuentaPrincipalId!,
           tipo: 'venta',
           monto: montoVentaReal,
           descripcion: descripcionUnificada + (fiarFaltante ? ` (Pago parcial de $${totalFilasRegistro.toLocaleString('es-CO')})` : '') + (montoDescuentoTotal > 0 ? ` [Dto: -$${montoDescuentoTotal.toLocaleString('es-CO')}]` : ''),
@@ -1109,7 +1109,7 @@ function VenderContenido() {
         const resFiado = await API_DB.registrarMovimientoConTransaccion(
           {
             clienteId: clienteTransaccion.id,
-            usuarioId: cuentaPrincipalId,
+            usuarioId: cuentaPrincipalId!,
             tipo: 'fiado',
             monto: faltante,
             descripcion: `Saldo pendiente de venta: ${descripcionUnificada}`,

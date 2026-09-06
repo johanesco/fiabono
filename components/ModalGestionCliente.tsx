@@ -169,6 +169,26 @@ export default function ModalGestionCliente({
       const credenciales = EmailAuthProvider.credential(currentUser.email, password);
       await reauthenticateWithCredential(currentUser, credenciales);
 
+      // CORRECCIÓN A-4: Si el cliente tiene deuda, registrar un asiento contable (condonación/pérdida)
+      // para que el cuadre de caja y los reportes de cartera histórica no queden descuadrados al eliminarlo.
+      if (tieneDeuda && (cliente.deudaTotal || 0) > 0) {
+        await API_DB.registrarMovimientoConTransaccion(
+          {
+            clienteId: cliente.id,
+            usuarioId: cliente.usuarioId,
+            tipo: 'abono',
+            monto: cliente.deudaTotal || 0,
+            descripcion: 'Ajuste contable automático por eliminación de cliente con deuda (Condonación / Pérdida)',
+            fecha: new Date(),
+            registradoPor: currentUser.displayName || "Administrador",
+            metodoPago: 'efectivo'
+          },
+          {
+            ajustarSaldoCliente: false // El cliente será eliminado, no hace falta actualizar su doc
+          }
+        );
+      }
+
       await API_DB.eliminarCliente(cliente.id);
       toast.success("Cliente eliminado exitosamente.");
       onSuccess(undefined, true);

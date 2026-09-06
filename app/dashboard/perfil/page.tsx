@@ -131,7 +131,7 @@ export default function PerfilPage() {
     setTemaCargado(true); 
     
     if (adminId && !esCajero) {
-      cargarListaColaboradores(adminId);
+      cargarListaColaboradores(adminId!);
     }
   }, [adminId, esCajero]);
 
@@ -320,7 +320,7 @@ export default function PerfilPage() {
       toast.success(nuevoEstado ? "Colaborador habilitado correctamente" : "Colaborador deshabilitado");
     } 
     catch (error) { 
-      cargarListaColaboradores(adminId); 
+      cargarListaColaboradores(adminId!); 
     }
   };
 
@@ -400,7 +400,7 @@ export default function PerfilPage() {
       }
       setFormColaborador({ nombre:"", usuarioAcceso:"", password:"", confirmPassword: "", permisos: { verCelulares: false, verDirectorio: false, verReportes: false, ventaDirecta: false, abonar: false, editarInventario: false, terminalMultivendedor: false, modificarPrecios: false, aplicarDescuentos: false, planSepare: false } });
       setModoCrearColaborador(false); setColaboradorEnEdicion(null);
-      cargarListaColaboradores(adminId);
+      cargarListaColaboradores(adminId!);
     } catch (error: any) {
       if (error.code === 'auth/email-already-in-use') setErrorFormColaborador(p => ({...p, usuarioAcceso: "Este usuario ya existe. Intenta agregarle un número (Ej: colab2)."}));
       else setErrorFormColaborador(p => ({...p, general: "Ocurrió un error al guardar. Intenta de nuevo."}));
@@ -418,7 +418,7 @@ export default function PerfilPage() {
       if (modalSeguridad.accion === 'eliminar_colaborador') {
         setModalSeguridad({ visible: false, accion: null });
         await deleteDoc(doc(db, "usuarios", colaboradorAEliminar.id));
-        setColaboradorAEliminar(null); cargarListaColaboradores(adminId);
+        setColaboradorAEliminar(null); cargarListaColaboradores(adminId!);
         setModalAvisoColaborador({ visible: true, titulo: "Colaborador Eliminado", mensaje: "El acceso de este colaborador ha sido revocado y su cuenta borrada permanentemente del sistema.", icono: 'info' });
       }
     } catch (error: any) { setCargandoSeguridad(false); setErrorSeguridad("Contraseña incorrecta. Intenta de nuevo."); }
@@ -1094,7 +1094,7 @@ export default function PerfilPage() {
                 </button>
               </div>
 
-              <ModalHorarios isOpen={modalHorariosOpen} onClose={() => { setModalHorariosOpen(false); setColabParaHorarios(null); cargarListaColaboradores(adminId); }} usuarioId={colabParaHorarios ? colabParaHorarios.id : ""} horariosIniciales={colabParaHorarios ? (colabParaHorarios.horariosActividad || []) : []} />
+              <ModalHorarios isOpen={modalHorariosOpen} onClose={() => { setModalHorariosOpen(false); setColabParaHorarios(null); cargarListaColaboradores(adminId!); }} usuarioId={colabParaHorarios ? colabParaHorarios.id : ""} horariosIniciales={colabParaHorarios ? (colabParaHorarios.horariosActividad || []) : []} />
             </div>
             
             {mostrarPerfilNegocio && (

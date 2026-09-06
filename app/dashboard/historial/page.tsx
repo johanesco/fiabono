@@ -79,12 +79,20 @@ export default function HistorialPage() {
       setHayMasMovimientos(resPaginada.hayMas);
       
       if (clienteActivo) {
-         const movs = resPaginada.movimientos.filter(m => m.clienteId === clienteActivo.id).sort((a, b) => {
-           const tA = a.fecha?.toMillis ? a.fecha.toMillis() : 0;
-           const tB = b.fecha?.toMillis ? b.fecha.toMillis() : 0;
-           return tB - tA;
-         });
-         setMovimientosCliente(movs);
+         try {
+           const qM = query(collection(db, "movimientos"), where("clienteId", "==", clienteActivo.id));
+           const snapM = await getDocs(qM);
+           const movs: any[] = [];
+           snapM.forEach(doc => movs.push({ id: doc.id, ...doc.data() }));
+           movs.sort((a, b) => {
+             const tA = a.fecha?.toMillis ? a.fecha.toMillis() : 0;
+             const tB = b.fecha?.toMillis ? b.fecha.toMillis() : 0;
+             return tB - tA;
+           });
+           setMovimientosCliente(movs);
+         } catch (e) {
+           console.error("Error al actualizar movimientos del cliente activo:", e);
+         }
          
          const clienteActualizado = listaC.find(c => c.id === clienteActivo.id);
          if(clienteActualizado) setClienteActivo(clienteActualizado);
@@ -155,12 +163,20 @@ export default function HistorialPage() {
     const cliente = clientes.find(c => c.id === clienteId);
     if (cliente) {
       setClienteActivo(cliente);
-      const movs = todosMovimientos.filter(m => m.clienteId === clienteId).sort((a, b) => {
-        const tA = (a.fecha as any)?.toMillis ? (a.fecha as any).toMillis() : (a.fecha ? new Date(a.fecha as any).getTime() : 0);
-        const tB = (b.fecha as any)?.toMillis ? (b.fecha as any).toMillis() : (b.fecha ? new Date(b.fecha as any).getTime() : 0);
-        return tB - tA;
-      });
-      setMovimientosCliente(movs);
+      try {
+        const qM = query(collection(db, "movimientos"), where("clienteId", "==", clienteId));
+        const snapM = await getDocs(qM);
+        const movs: any[] = [];
+        snapM.forEach(doc => movs.push({ id: doc.id, ...doc.data() }));
+        movs.sort((a, b) => {
+          const tA = (a.fecha as any)?.toMillis ? (a.fecha as any).toMillis() : (a.fecha ? new Date(a.fecha as any).getTime() : 0);
+          const tB = (b.fecha as any)?.toMillis ? (b.fecha as any).toMillis() : (b.fecha ? new Date(b.fecha as any).getTime() : 0);
+          return tB - tA;
+        });
+        setMovimientosCliente(movs);
+      } catch (e) {
+        console.error("Error cargando historial de movimientos del cliente:", e);
+      }
 
       // Cargar separes asociados a este cliente
       try {

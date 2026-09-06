@@ -346,7 +346,7 @@ export default function TicketFacturaModal({ isOpen, onClose, datos }: TicketFac
                   </div>
                 )}
 
-                {datos.pagoRecibido !== undefined && datos.pagoRecibido > 0 && (
+                {datos.pagoRecibido !== undefined && (
                   <div className="flex justify-between items-center text-slate-600">
                     <span className="font-bold">Monto Recibido:</span>
                     <span className="font-bold">${datos.pagoRecibido.toLocaleString('es-CO')}</span>
