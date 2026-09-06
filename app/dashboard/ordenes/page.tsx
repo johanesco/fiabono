@@ -436,12 +436,35 @@ ${detalleTexto}*TOTAL: $${orden.total.toLocaleString('es-CO')}*
           descuentoValor: modalEdicion.descuentoTipo && modalEdicion.descuentoValor ? Number(modalEdicion.descuentoValor.replace(/\D/g, '')) : null,
           montoDescuento: montoDescuentoEdicion,
           total: totalEdicion,
-          montoPagado: pagoNum || 0,
-          saldoPendiente: Math.max(0, totalEdicion - (pagoNum || 0)),
           metodoPago: modalEdicion.metodoPago || 'efectivo',
           subMetodoPago: modalEdicion.metodoPago !== 'efectivo' ? (modalEdicion.subMetodoPago || null) : null,
           referenciaPago: modalEdicion.metodoPago !== 'efectivo' ? (modalEdicion.referenciaPago || null) : null,
-          abonos: (pagoNum && pagoNum > 0) ? [abonoObj] : [],
+          // CORRECCIÓN C-4: Preservar historial de abonos previos y agregar el nuevo al final
+          // Nunca reemplazar el array completo — los abonos anteriores son registros financieros inamovibles
+          abonos: (() => {
+            const abonosPrevios = Array.isArray(modalEdicion.orden.payloadSepare?.abonos)
+              ? modalEdicion.orden.payloadSepare.abonos
+              : [];
+            if (pagoNum && pagoNum > 0) {
+              return [...abonosPrevios, abonoObj];
+            }
+            return abonosPrevios;
+          })(),
+          // montoPagado y saldoPendiente recalculados desde el historial completo
+          montoPagado: (() => {
+            const abonosPrevios = Array.isArray(modalEdicion.orden.payloadSepare?.abonos)
+              ? modalEdicion.orden.payloadSepare.abonos
+              : [];
+            const totalPrevio = abonosPrevios.reduce((s: number, a: any) => s + (a.monto || 0), 0);
+            return totalPrevio + (pagoNum || 0);
+          })(),
+          saldoPendiente: (() => {
+            const abonosPrevios = Array.isArray(modalEdicion.orden.payloadSepare?.abonos)
+              ? modalEdicion.orden.payloadSepare.abonos
+              : [];
+            const totalPrevio = abonosPrevios.reduce((s: number, a: any) => s + (a.monto || 0), 0);
+            return Math.max(0, totalEdicion - totalPrevio - (pagoNum || 0));
+          })(),
           fotos: filasValidas.map((it: any) => it.fotoUrl).filter(Boolean),
           fechaCreacion: modalEdicion.orden.fecha || new Date(),
           fechaLimite: modalEdicion.fechaLimite ? new Date(modalEdicion.fechaLimite + "T23:59:59") : null,

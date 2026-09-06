@@ -1,7 +1,7 @@
 "use client";
 import { useState, useEffect, Suspense, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { collection, addDoc, getDocs, query, doc, updateDoc, where, increment } from "firebase/firestore";
+import { collection, addDoc, getDocs, query, doc, updateDoc, where, increment, writeBatch } from "firebase/firestore";
 import { db } from "../../../firebase";
 import { Search, ShoppingCart, CheckCircle2, ChevronRight, X, AlertCircle, UserCog, Plus, Minus, ArrowLeft, MessageCircle, Banknote, Package, QrCode, Volume2, Printer, Smartphone, CreditCard, Zap, Receipt, ChevronDown, ChevronUp, Tag, Percent, Pause, FolderOpen, User, Trash2 } from 'lucide-react';
 import { useAuth } from "@/hooks/AuthContext";
@@ -988,6 +988,16 @@ function VenderContenido() {
     const pagadoNum = pagadoRaw === "" 
       ? (metodoPago !== 'efectivo' ? totalFilasRegistro : (totalFilasRegistro > 0 ? 0 : 0)) 
       : parseFloat(pagadoRaw);
+
+    // CORRECCIÓN A-7: Si el campo de pago está vacío y el método es efectivo,
+    // advertir explícitamente antes de crear un fiado por el monto completo
+    if (pagadoRaw === "" && metodoPago === 'efectivo' && totalFilasRegistro > 0) {
+      const confirmar = window.confirm(
+        `⚠️ No ingresaste ningún monto de pago.\n\n¿Confirmas fiar el total completo de $${totalFilasRegistro.toLocaleString('es-CO')} a ${clienteTransaccion?.nombre || 'este cliente'}?\n\nPresiona "Aceptar" para continuar o "Cancelar" para ingresar el monto.`
+      );
+      if (!confirmar) return;
+    }
+
     const faltante = totalFilasRegistro - pagadoNum;
 
     if (faltante > 0) {
@@ -1072,7 +1082,10 @@ function VenderContenido() {
         idTransaccionVenta = resVenta.movimientoId;
       }
 
-      // Descontar inventario de forma atómica y consolidada
+      // CORRECCIÓN C-2: Descontar inventario con WriteBatch atómico
+      // Si falla la conexión, todas las escrituras de stock se revierten juntas
+      // (el movimiento de venta ya se registró antes — en una mejora futura, 
+      //  ambos deberían estar en el mismo batch con runTransaction)
       const cantidadesPorProducto: Record<string, number> = {};
       for (const fila of filasValidas) {
         const item = inventario.find(p => p.nombre.toLowerCase() === fila.descripcion.toLowerCase());
@@ -1082,10 +1095,12 @@ function VenderContenido() {
         }
       }
 
-      for (const [pId, cant] of Object.entries(cantidadesPorProducto)) {
-        await updateDoc(doc(db, "inventario", pId), {
-          stock: increment(-cant)
-        });
+      if (Object.keys(cantidadesPorProducto).length > 0) {
+        const batch = writeBatch(db);
+        for (const [pId, cant] of Object.entries(cantidadesPorProducto)) {
+          batch.update(doc(db, "inventario", pId), { stock: increment(-cant) });
+        }
+        await batch.commit();
       }
 
       let saldoFinalCliente = clienteTransaccion?.deudaTotal || 0;

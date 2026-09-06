@@ -1,7 +1,7 @@
 "use client";
 import { useState, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { collection, addDoc, getDocs, query, doc, updateDoc, where } from "firebase/firestore";
+import { collection, addDoc, getDocs, query, doc, updateDoc, where, arrayUnion, increment } from "firebase/firestore";
 import { db } from "../../../firebase";
 import { Search, CheckCircle2, ChevronRight, X, AlertCircle, UserCog, ArrowLeft, MessageCircle, Banknote, Printer, Smartphone, CreditCard, Zap } from 'lucide-react';
 import { useAuth } from "../../../hooks/AuthContext";
@@ -195,16 +195,16 @@ function AbonarContenido() {
         if (subMetodoPago?.trim()) nuevoAbono.subMetodoPago = subMetodoPago.trim();
         if (referenciaPago?.trim()) nuevoAbono.referenciaPago = referenciaPago.trim();
 
-        const abonosActuales = Array.isArray(separeSeleccionado.abonos) ? separeSeleccionado.abonos : [];
-        const nuevoMontoPagado = (separeSeleccionado.montoPagado || 0) + abonoReal;
-        const nuevoSaldoPendiente = Math.max(0, (separeSeleccionado.total || 0) - nuevoMontoPagado);
-
         const separeRef = doc(db, "separes", separeSeleccionado.id);
         await updateDoc(separeRef, {
-          abonos: [...abonosActuales, nuevoAbono],
-          montoPagado: nuevoMontoPagado,
-          saldoPendiente: nuevoSaldoPendiente
+          abonos: arrayUnion(nuevoAbono),
+          montoPagado: increment(abonoReal),
+          saldoPendiente: increment(-abonoReal)
         });
+
+        // Cálculo local solo para mostrar en el modal de éxito/ticket
+        // La fuente de verdad ya fue actualizada atómicamente en Firestore arriba
+        const nuevoSaldoPendiente = Math.max(0, (separeSeleccionado.saldoPendiente || 0) - abonoReal);
 
         // Registrar en movimientos
         const payloadMov: any = {

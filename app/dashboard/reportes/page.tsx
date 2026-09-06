@@ -64,6 +64,8 @@ export default function ReportesPage() {
   const [cargando, setCargando] = useState(true);
   const [modalSuscripcionOpen, setModalSuscripcionOpen] = useState(false);
   const [planInicialSuscripcion, setPlanInicialSuscripcion] = useState<'comercio' | 'pro'>('pro');
+  // Estado del Live Data Inspector — ítem de gráfica actualmente inspeccionado
+  const [itemInspeccionado, setItemInspeccionado] = useState<any | null>(null);
 
   useEffect(() => {
     if (!cuentaPrincipalId) return;
