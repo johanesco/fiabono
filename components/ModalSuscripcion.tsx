@@ -1,9 +1,9 @@
 "use client";
-import { useState } from "react";
-import { X, Sparkles, ShieldCheck, Ticket, CheckCircle2, Store, Crown, MessageCircle } from "lucide-react";
+import { useState, useEffect } from "react";
+import { X, Sparkles, ShieldCheck, Ticket, CheckCircle2, Store, Crown, MessageCircle, Lock } from "lucide-react";
 import toast from "react-hot-toast";
 import { API_DB } from "../servicios/db";
-import { doc, updateDoc } from "firebase/firestore";
+import { doc, updateDoc, collection, getDocs, query, where } from "firebase/firestore";
 import { db } from "../firebase";
 
 interface ModalSuscripcionProps {
@@ -20,6 +20,15 @@ export default function ModalSuscripcion({ isOpen, onClose, cuentaPrincipalId, p
   const [codigoBono, setCodigoBono] = useState("");
   const [cargando, setCargando] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // CORRECCIÓN A-3: Sincronizar planSeleccionado cuando el modal abre o cambia planInicial.
+  // El modal siempre está montado (no se destruye), entonces useState(planInicial) solo se
+  // ejecuta en el primer render. Sin este efecto, abrir con diferente planInicial era ignorado.
+  useEffect(() => {
+    if (isOpen) {
+      setPlanSeleccionado(planInicial);
+    }
+  }, [planInicial, isOpen]);
 
   if (!isOpen) return null;
 
@@ -61,11 +70,27 @@ export default function ModalSuscripcion({ isOpen, onClose, cuentaPrincipalId, p
     if (!cuentaPrincipalId) return;
     setCargando(true);
     try {
+      // 1. Bajar el plan a gratis
       await updateDoc(doc(db, "usuarios", cuentaPrincipalId), {
         plan: 'gratis',
         planVence: null,
         cicloPlan: 'mensual'
       });
+
+      // CORRECCIÓN A-1: Desactivar todos los colaboradores al bajar de plan.
+      // Sin esto, colaboradores creados en plan PRO/Comercio quedaban activos
+      // en plan gratuito, evadiendo el límite de 0 colaboradores.
+      const qColabs = query(
+        collection(db, "usuarios"),
+        where("adminId", "==", cuentaPrincipalId),
+        where("rol", "==", "cajero")
+      );
+      const snapColabs = await getDocs(qColabs);
+      const desactivaciones = snapColabs.docs.map(d =>
+        updateDoc(doc(db, "usuarios", d.id), { activo: false })
+      );
+      await Promise.all(desactivaciones);
+
       toast.success("Has cambiado al Plan Gratuito con éxito. Todos tus datos se conservan intactos 🙌");
       handleClose();
       window.location.reload();
@@ -233,28 +258,31 @@ export default function ModalSuscripcion({ isOpen, onClose, cuentaPrincipalId, p
             </div>
           </div>
 
-          {/* Botones de Acción */}
+          {/* Botones de Acción — FLUJO SEGURO */}
           <div className="flex flex-col gap-2.5">
+            {/* BOTÓN PRINCIPAL: WhatsApp para coordinar el pago real */}
             <button
               type="button"
-              disabled={cargando}
-              onClick={() => activarPlanDirecto(planSeleccionado)}
-              className={`w-full py-4 rounded-2xl font-black text-base text-white shadow-lg transition-transform active:scale-95 cursor-pointer disabled:opacity-50 ${
+              onClick={() => abrirSoportePagoWhatsApp(planSeleccionado)}
+              className={`w-full py-4 rounded-2xl font-black text-base text-white shadow-lg transition-transform active:scale-95 cursor-pointer ${
                 planSeleccionado === 'pro'
                   ? 'bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 shadow-purple-600/30'
                   : 'bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 shadow-blue-600/30'
               }`}
             >
-              {cargando ? "Activando..." : `Activar ${planSeleccionado === 'pro' ? 'PRO Almacén' : 'Comercio'} Ahora`}
+              <span className="flex items-center justify-center gap-2">
+                <MessageCircle size={18} />
+                Activar {planSeleccionado === 'pro' ? 'PRO Almacén' : 'Comercio'} por WhatsApp
+              </span>
             </button>
 
-            <button
-              type="button"
-              onClick={() => abrirSoportePagoWhatsApp(planSeleccionado)}
-              className="w-full py-3 bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 font-bold text-xs rounded-xl flex items-center justify-center gap-1.5 hover:bg-emerald-100 dark:hover:bg-emerald-500/20 transition-colors cursor-pointer border border-emerald-200 dark:border-emerald-500/20"
-            >
-              <MessageCircle size={15} /> Pagar o solicitar activación por WhatsApp
-            </button>
+            {/* Nota informativa del proceso de activación */}
+            <div className="flex items-start gap-2 bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-800 rounded-xl p-3">
+              <Lock size={14} className="text-slate-400 mt-0.5 shrink-0" />
+              <p className="text-[11px] text-slate-500 dark:text-slate-400 font-medium leading-relaxed">
+                Escríbenos por WhatsApp, te enviamos los datos de pago (PSE / Nequi / Transferencia) y en minutos activamos tu plan manualmente. Sin tarjeta de crédito requerida.
+              </p>
+            </div>
           </div>
 
           {/* Sección de Canje de Bono Promocional */}

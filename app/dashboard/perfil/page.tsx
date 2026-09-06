@@ -346,18 +346,24 @@ export default function PerfilPage() {
         toast.error("El Plan Gratis no incluye colaboradores. Mejora al Plan Comercio para agregar a tu primer colaborador.");
         return;
       }
-      if (esComercio && colaboradoresRegistrados.length >= 1) {
+
+      // CORRECCIÓN A-2: Validar por colaboradores ACTIVOS (no por total registrado).
+      // Antes se bloqueaba por .length total, lo que impedía tener 1 activo + 1 inactivo en Comercio.
+      // Ahora se puede crear un colaborador inactivo sin bloquear; el límite aplica al activarlo.
+      const activosActuales = colaboradoresRegistrados.filter(c => c.activo === true || c.activo === undefined).length;
+
+      if (esComercio && activosActuales >= 1) {
         setModoCrearColaborador(false);
         setPlanInicialSuscripcion('pro');
         setModalSuscripcionOpen(true);
-        toast.error("Tu Plan Comercio permite 1 colaborador. Mejora al Plan PRO Almacén para tener hasta 4 colaboradores.");
+        toast.error("Tu Plan Comercio ya tiene 1 colaborador activo. Mejora al Plan PRO Almacén para tener hasta 4, o desactiva el actual y crea el nuevo.");
         return;
       }
-      if (esPro && colaboradoresRegistrados.length >= 4) {
+      if (esPro && activosActuales >= 4) {
         return setModalAvisoColaborador({ 
           visible: true, 
           titulo: "Límite Alcanzado", 
-          mensaje: "Tu Plan PRO Almacén permite un máximo de 4 colaboradores simultáneos para tu negocio.", 
+          mensaje: "Tu Plan PRO Almacén permite un máximo de 4 colaboradores activos. Desactiva uno antes de crear otro.", 
           icono: 'error' 
         });
       }
