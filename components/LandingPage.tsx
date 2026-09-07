@@ -1,7 +1,7 @@
 "use client";
 import React, { useState } from "react";
 import { signInWithEmailAndPassword, createUserWithEmailAndPassword, signInWithPopup, GoogleAuthProvider, signOut } from "firebase/auth";
-import { doc, getDoc, setDoc } from "firebase/firestore";
+import { doc, getDoc, setDoc, updateDoc } from "firebase/firestore";
 import { auth, db } from "../firebase";
 import { 
   CheckCircle2, ChevronRight, Star, BookX, PenTool, 
@@ -11,7 +11,8 @@ import {
   Smartphone, ShieldCheck, HelpCircle, ChevronDown, ChevronUp,
   Receipt, ShoppingBag, BarChart3, Clock, TrendingUp,
   Flame, BadgePercent, Check, ArrowUpRight, Calculator,
-  Sparkle, Shield, PartyPopper, Briefcase, Building2, Phone, Bookmark, Menu
+  Sparkle, Shield, PartyPopper, Briefcase, Building2, Phone, Bookmark, Menu,
+  Tag, Gift
 } from 'lucide-react';
 
 export default function LandingPage() {
@@ -62,6 +63,75 @@ export default function LandingPage() {
     setFaqAbierto(faqAbierto === index ? null : index);
   };
 
+  // Estados para Código de Suscripción / Promocional
+  const [codigoInput, setCodigoInput] = useState("");
+  const [validandoCodigo, setValidandoCodigo] = useState(false);
+  const [errorCodigo, setErrorCodigo] = useState("");
+  const [exitoCodigo, setExitoCodigo] = useState("");
+  const [codigoAplicado, setCodigoAplicado] = useState<{
+    codigo: string;
+    planOtorgado: 'gratis' | 'comercio' | 'pro';
+    diasOtorgados: number;
+    unSoloUso: boolean;
+  } | null>(null);
+
+  const validarCodigo = async (codigoParam?: string, emailParaValidar?: string) => {
+    const cod = (codigoParam || codigoInput).trim().toUpperCase();
+    setErrorCodigo("");
+    setExitoCodigo("");
+
+    if (!cod) {
+      setErrorCodigo("Por favor escribe un código.");
+      return;
+    }
+
+    setValidandoCodigo(true);
+    try {
+      const snap = await getDoc(doc(db, "codigos_promocionales", cod));
+      if (!snap.exists()) {
+        setErrorCodigo("El código ingresado no existe o no es válido.");
+        setCodigoAplicado(null);
+        return;
+      }
+
+      const data = snap.data();
+      if (!data.activo) {
+        setErrorCodigo("Este código ya fue utilizado o no se encuentra activo.");
+        setCodigoAplicado(null);
+        return;
+      }
+
+      const emailCheck = emailParaValidar || authForm.email || (googleUserPendiente?.email ?? "");
+      if (data.emailObjetivo && data.emailObjetivo.trim() !== "") {
+        if (!emailCheck || data.emailObjetivo.trim().toLowerCase() !== emailCheck.trim().toLowerCase()) {
+          setErrorCodigo(`Este código es exclusivo para la cuenta ${data.emailObjetivo}`);
+          setCodigoAplicado(null);
+          return;
+        }
+      }
+
+      const planOtorgado: 'gratis' | 'comercio' | 'pro' = data.planOtorgado || 'pro';
+      const diasOtorgados = typeof data.diasOtorgados === 'number' ? data.diasOtorgados : 30;
+      const unSoloUso = data.unSoloUso !== false;
+
+      setCodigoAplicado({
+        codigo: cod,
+        planOtorgado,
+        diasOtorgados,
+        unSoloUso
+      });
+      setPlanSeleccionadoRegistro(planOtorgado);
+      setFormGoogleOnboarding(prev => ({ ...prev, plan: planOtorgado }));
+      setExitoCodigo(`¡Código activado! Te otorga Plan ${planOtorgado.toUpperCase()} por ${diasOtorgados} días.`);
+    } catch (err) {
+      console.error("Error al validar código promocional:", err);
+      setErrorCodigo("Error al verificar el código. Intenta de nuevo.");
+      setCodigoAplicado(null);
+    } finally {
+      setValidandoCodigo(false);
+    }
+  };
+
   const manejarAuth = async (e: React.FormEvent) => {
     e.preventDefault();
     setAuthErrores({ email: "", password: "", confirmPassword: "", general: "" });
@@ -82,11 +152,12 @@ export default function LandingPage() {
       try {
         const credencial = await createUserWithEmailAndPassword(auth, loginEmail, authForm.password);
         
-        let diasPrueba = planSeleccionadoRegistro !== 'gratis' ? 14 : null;
-        let fechaVence = null;
-        if (diasPrueba) {
+        let planFinal = codigoAplicado ? codigoAplicado.planOtorgado : planSeleccionadoRegistro;
+        let diasOtorgados = codigoAplicado ? codigoAplicado.diasOtorgados : (planFinal !== 'gratis' ? 14 : null);
+        let fechaVence: Date | null = null;
+        if (diasOtorgados) {
           const d = new Date();
-          d.setDate(d.getDate() + diasPrueba);
+          d.setDate(d.getDate() + diasOtorgados);
           fechaVence = d;
         }
 
@@ -96,10 +167,24 @@ export default function LandingPage() {
           email: loginEmail, 
           telefonoNegocio: "",
           rol: "admin",
-          plan: planSeleccionadoRegistro,
+          plan: planFinal,
           planVence: fechaVence,
-          cicloPlan: cicloFacturacion
+          cicloPlan: cicloFacturacion,
+          fechaRegistro: new Date(),
+          ...(codigoAplicado ? { codigoPromocionalUsado: codigoAplicado.codigo } : {})
         });
+
+        if (codigoAplicado && codigoAplicado.unSoloUso) {
+          try {
+            await updateDoc(doc(db, "codigos_promocionales", codigoAplicado.codigo), {
+              activo: false,
+              usadoPor: credencial.user.uid,
+              fechaUso: new Date()
+            });
+          } catch (e) {
+            console.error("Error al desactivar código promocional:", e);
+          }
+        }
         if (typeof window !== 'undefined') {
           localStorage.setItem('fiabono_mostrar_tour', 'true');
         }
@@ -156,7 +241,7 @@ export default function LandingPage() {
           tipoNegocio: "Moda y Calzado",
           telefonoNegocio: "",
           moduloSepare: true,
-          plan: planSeleccionadoRegistro || 'comercio'
+          plan: codigoAplicado ? codigoAplicado.planOtorgado : (planSeleccionadoRegistro || 'comercio')
         });
 
         setPasoGoogleOnboarding(1);
@@ -199,11 +284,12 @@ export default function LandingPage() {
 
     setGuardandoGoogleOnboarding(true);
     try {
-      const diasPrueba = formGoogleOnboarding.plan !== 'gratis' ? 14 : null;
+      let planFinal = codigoAplicado ? codigoAplicado.planOtorgado : formGoogleOnboarding.plan;
+      let diasOtorgados = codigoAplicado ? codigoAplicado.diasOtorgados : (planFinal !== 'gratis' ? 14 : null);
       let fechaVence: Date | null = null;
-      if (diasPrueba) {
+      if (diasOtorgados) {
         const d = new Date();
-        d.setDate(d.getDate() + diasPrueba);
+        d.setDate(d.getDate() + diasOtorgados);
         fechaVence = d;
       }
 
@@ -216,12 +302,25 @@ export default function LandingPage() {
         email: googleUserPendiente.email,
         telefonoNegocio: formGoogleOnboarding.telefonoNegocio.trim(),
         rol: "admin",
-        plan: formGoogleOnboarding.plan,
+        plan: planFinal,
         planVence: fechaVence,
         cicloPlan: cicloFacturacion,
         creadoCon: "google",
-        fechaRegistro: new Date()
+        fechaRegistro: new Date(),
+        ...(codigoAplicado ? { codigoPromocionalUsado: codigoAplicado.codigo } : {})
       });
+
+      if (codigoAplicado && codigoAplicado.unSoloUso) {
+        try {
+          await updateDoc(doc(db, "codigos_promocionales", codigoAplicado.codigo), {
+            activo: false,
+            usadoPor: googleUserPendiente.uid,
+            fechaUso: new Date()
+          });
+        } catch (e) {
+          console.error("Error al desactivar código promocional en Google:", e);
+        }
+      }
 
       setModalGoogleOnboarding(false);
       setGoogleUserPendiente(null);
@@ -1073,11 +1172,74 @@ export default function LandingPage() {
         </div>
 
         {/* Banner Informativo de Planes */}
-        <div className="flex items-center justify-center gap-2 mb-12">
+        <div className="flex items-center justify-center gap-2 mb-8">
           <div className="inline-flex items-center gap-2 px-5 py-2.5 rounded-2xl bg-blue-50 dark:bg-blue-500/10 border border-blue-200 dark:border-blue-500/20 text-blue-700 dark:text-blue-300 text-xs sm:text-sm font-black tracking-wide shadow-xs">
             <Sparkles size={16} className="text-amber-500 fill-current shrink-0" />
             <span>Planes asequibles para Colombia • Tarifas oficiales próximamente disponibles • ¡Prueba 14 días gratis sin tarjeta!</span>
           </div>
+        </div>
+
+        {/* BARRA PROMO CODE VISIBLE Y SIEMPRE DISPONIBLE */}
+        <div className="max-w-2xl mx-auto mb-12 bg-white dark:bg-[#0f172a] p-4 sm:p-5 rounded-3xl border-2 border-dashed border-blue-400/60 dark:border-blue-500/40 shadow-sm text-left">
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+            <div className="flex items-center gap-3 w-full sm:w-auto">
+              <div className="w-11 h-11 rounded-2xl bg-gradient-to-tr from-blue-600 to-indigo-600 text-white flex items-center justify-center shrink-0 shadow-md shadow-blue-500/20">
+                <Tag size={20} />
+              </div>
+              <div>
+                <p className="text-xs sm:text-sm font-black text-slate-900 dark:text-white flex items-center gap-1.5">
+                  ¿Tienes un código de suscripción o descuento?
+                </p>
+                <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                  Ingrésalo aquí para registrarte con meses o beneficios especiales.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 w-full sm:w-auto shrink-0">
+              <input
+                type="text"
+                placeholder="Ej. PRO2026"
+                value={codigoInput}
+                onChange={(e) => {
+                  setCodigoInput(e.target.value);
+                  setErrorCodigo("");
+                  setExitoCodigo("");
+                }}
+                className="p-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-black uppercase tracking-wider outline-none focus:border-blue-500 w-full sm:w-36 text-center"
+              />
+              <button
+                type="button"
+                onClick={() => validarCodigo()}
+                disabled={validandoCodigo || !codigoInput.trim()}
+                className="bg-blue-600 hover:bg-blue-700 text-white text-xs font-black py-2.5 px-4 rounded-xl transition-transform active:scale-95 disabled:opacity-50 cursor-pointer shrink-0"
+              >
+                {validandoCodigo ? "..." : "Canjear"}
+              </button>
+            </div>
+          </div>
+
+          {errorCodigo && (
+            <div className="mt-3 text-xs font-bold text-rose-600 dark:text-rose-400 flex items-center gap-1.5 animate-in fade-in">
+              <AlertCircle size={14} /> {errorCodigo}
+            </div>
+          )}
+
+          {exitoCodigo && codigoAplicado && (
+            <div className="mt-3 p-3 bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/30 rounded-2xl text-xs font-bold text-emerald-700 dark:text-emerald-300 flex flex-col sm:flex-row items-center justify-between gap-3 animate-in fade-in">
+              <div className="flex items-center gap-1.5">
+                <CheckCircle2 size={16} className="text-emerald-600 shrink-0" />
+                <span>{exitoCodigo}</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => abrirRegistroConPlan(codigoAplicado.planOtorgado)}
+                className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black py-2 px-3.5 rounded-xl shadow-sm active:scale-95 cursor-pointer whitespace-nowrap"
+              >
+                Registrarme con este Beneficio
+              </button>
+            </div>
+          )}
         </div>
         
         {/* Grid de 3 Planes */}
@@ -1463,6 +1625,45 @@ export default function LandingPage() {
                 </div>
               )}
 
+              {/* Código Promocional / Suscripción en Registro tradicional */}
+              {modalLandingInfo.tipo === 'registro' && (
+                <div className="p-3.5 bg-slate-50 dark:bg-[#020617] rounded-2xl border border-slate-200 dark:border-slate-800 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <label className="text-[11px] font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+                      <Tag size={13} className="text-blue-600 dark:text-blue-400"/> ¿Tienes un código promocional?
+                    </label>
+                    {codigoAplicado && (
+                      <span className="text-[10px] font-black text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-500/10 px-2 py-0.5 rounded-md">
+                        {codigoAplicado.codigo} ✓
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <input 
+                      type="text" 
+                      placeholder="Ej. PRO2026 (opcional)" 
+                      value={codigoInput} 
+                      onChange={e => {
+                        setCodigoInput(e.target.value);
+                        setErrorCodigo("");
+                        setExitoCodigo("");
+                      }}
+                      className="w-full p-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-black uppercase outline-none focus:border-blue-500 dark:text-white"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => validarCodigo(undefined, authForm.email)}
+                      disabled={validandoCodigo || !codigoInput.trim()}
+                      className="bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 text-xs font-bold py-2.5 px-3 rounded-xl disabled:opacity-50 cursor-pointer shrink-0"
+                    >
+                      {validandoCodigo ? "..." : "Aplicar"}
+                    </button>
+                  </div>
+                  {errorCodigo && <p className="text-rose-500 text-[11px] font-bold flex items-center gap-1"><AlertCircle size={12}/>{errorCodigo}</p>}
+                  {exitoCodigo && <p className="text-emerald-600 dark:text-emerald-400 text-[11px] font-bold flex items-center gap-1"><CheckCircle2 size={12}/>{exitoCodigo}</p>}
+                </div>
+              )}
+
               <button 
                 type="submit" 
                 className="w-full bg-blue-600 hover:bg-blue-700 text-white font-black text-base py-4 rounded-xl shadow-lg shadow-blue-600/25 transition-transform transform active:scale-95 mt-2 cursor-pointer"
@@ -1767,9 +1968,49 @@ export default function LandingPage() {
                     </div>
                   </div>
 
-                  <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                    Selecciona tu Plan de Inicio
-                  </label>
+                  <div className="flex items-center justify-between">
+                    <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                      Selecciona tu Plan de Inicio
+                    </label>
+                  </div>
+
+                  {/* Canjear Código en Google Onboarding */}
+                  <div className="p-3.5 bg-blue-50/60 dark:bg-blue-950/30 rounded-2xl border border-blue-200/80 dark:border-blue-900/40 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[11px] font-bold text-blue-900 dark:text-blue-200 flex items-center gap-1.5">
+                        <Tag size={13} className="text-blue-600 dark:text-blue-400"/>
+                        ¿Tienes un código de suscripción o descuento?
+                      </span>
+                      {codigoAplicado && (
+                        <span className="text-[10px] font-black text-emerald-600 dark:text-emerald-400 bg-emerald-100 dark:bg-emerald-500/20 px-2 py-0.5 rounded-md">
+                          {codigoAplicado.codigo} ✓
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="text"
+                        placeholder="Ej. PRO2026"
+                        value={codigoInput}
+                        onChange={e => {
+                          setCodigoInput(e.target.value);
+                          setErrorCodigo("");
+                          setExitoCodigo("");
+                        }}
+                        className="p-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-xs font-black uppercase outline-none focus:border-blue-500 dark:text-white flex-1"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => validarCodigo(undefined, googleUserPendiente.email)}
+                        disabled={validandoCodigo || !codigoInput.trim()}
+                        className="bg-blue-600 hover:bg-blue-700 text-white text-xs font-black py-2.5 px-3.5 rounded-xl disabled:opacity-50 cursor-pointer shrink-0"
+                      >
+                        {validandoCodigo ? "..." : "Aplicar"}
+                      </button>
+                    </div>
+                    {errorCodigo && <p className="text-rose-500 text-[11px] font-bold flex items-center gap-1"><AlertCircle size={12}/>{errorCodigo}</p>}
+                    {exitoCodigo && <p className="text-emerald-600 dark:text-emerald-400 text-[11px] font-bold flex items-center gap-1"><CheckCircle2 size={12}/>{exitoCodigo}</p>}
+                  </div>
 
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                     {/* Plan Comercio */}

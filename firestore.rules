@@ -155,8 +155,10 @@ service cloud.firestore {
     // 3. MONETIZACIÓN: CÓDIGOS PROMOCIONALES & BONOS
     // =========================================================================
     match /codigos_promocionales/{codigoId} {
-      // Cualquier usuario autenticado puede leer para validar si el código existe y está activo
-      allow read: if estaAutenticado();
+      // Permitir consultar (get) un código individual para validar su vigencia durante el registro
+      // Listar todos los códigos (list) sigue restringido al Master
+      allow get: if true;
+      allow list: if estaAutenticado() && esMaster();
 
       // Solo el Master puede crear o eliminar códigos promocionales
       allow create, delete: if esMaster();
