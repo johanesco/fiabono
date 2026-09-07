@@ -12,9 +12,12 @@ export default function GlobalExpirationWarning() {
   const [modalSuscripcionOpen, setModalSuscripcionOpen] = useState(false);
   const [rutaAnterior, setRutaAnterior] = useState(pathname);
 
+  const [pildoraCerrada, setPildoraCerrada] = useState(false);
+
   const dias = datosSesion?.diasRestantesPlan;
   const plan = datosSesion?.planActual;
   const enGracia = datosSesion?.enPeriodoGracia;
+  const esAdmin = datosSesion?.esAdmin;
   
   // Condición de Peligro Crítico: 2 días o menos, o en gracia (-2, -1, 0, 1, 2)
   const esCritico = dias !== undefined && dias !== null && dias <= 2;
@@ -23,30 +26,40 @@ export default function GlobalExpirationWarning() {
 
   // Verificar si ya se mostró en esta sesión
   useEffect(() => {
-    if (!datosSesion) return;
+    if (!datosSesion || !esAdmin) return;
     const yaMostrado = sessionStorage.getItem('fiabono_alerta_vencimiento');
     if (!yaMostrado && (esCritico || esAlerta)) {
       setModalAbierto(true);
       sessionStorage.setItem('fiabono_alerta_vencimiento', 'true');
     }
-  }, [datosSesion, esCritico, esAlerta]);
+  }, [datosSesion, esAdmin, esCritico, esAlerta]);
 
-  if (!datosSesion || plan === 'gratis' || dias === null || dias === undefined || dias > 8) {
+  if (!datosSesion || !esAdmin || plan === 'gratis' || dias === null || dias === undefined || dias > 8) {
     return null;
   }
 
   return (
     <>
-      {/* PÍLDORA FLOTANTE (siempre visible si hay alerta) */}
-      {!modalAbierto && (esCritico || esAlerta) && (
-        <button
-          onClick={() => setModalSuscripcionOpen(true)}
-          className={`fixed bottom-20 md:bottom-6 right-4 md:right-6 z-[8000] flex items-center gap-2 px-4 py-2.5 rounded-full shadow-xl transition-transform hover:scale-105 active:scale-95 font-bold text-xs sm:text-sm animate-in slide-in-from-bottom-4 ${esCritico ? 'bg-rose-600 text-white shadow-rose-600/30' : 'bg-amber-500 text-white shadow-amber-500/30'}`}
-        >
-          {esCritico ? <AlertTriangle size={16} /> : <Clock size={16} />}
-          <span>{enGracia ? 'Vencido' : `Vence en ${dias}d`}</span>
-          <span className="bg-white/20 px-2 py-0.5 rounded-full text-[10px] ml-1 uppercase">Renovar</span>
-        </button>
+      {/* PÍLDORA FLOTANTE (siempre visible si hay alerta, a menos que se cierre) */}
+      {!modalAbierto && !pildoraCerrada && (esCritico || esAlerta) && (
+        <div className={`fixed bottom-24 md:bottom-6 right-4 md:right-6 z-[8000] flex items-center gap-0 pl-4 pr-1 py-1.5 rounded-full shadow-xl animate-in slide-in-from-bottom-4 ${esCritico ? 'bg-rose-600 text-white shadow-rose-600/30' : 'bg-amber-500 text-white shadow-amber-500/30'}`}>
+          <button
+            onClick={() => setModalSuscripcionOpen(true)}
+            className="flex items-center gap-2 font-bold text-xs sm:text-sm active:scale-95 transition-transform"
+          >
+            {esCritico ? <AlertTriangle size={16} /> : <Clock size={16} />}
+            <span>{enGracia ? 'Vencido' : `Vence en ${dias}d`}</span>
+            <span className="bg-white/20 px-2 py-0.5 rounded-full text-[10px] ml-1 uppercase mr-2">Renovar</span>
+          </button>
+          <div className="w-px h-5 bg-white/20 mx-1"></div>
+          <button 
+            onClick={() => setPildoraCerrada(true)}
+            className="p-1.5 hover:bg-white/20 rounded-full transition-colors"
+            title="Ocultar"
+          >
+            <X size={14} />
+          </button>
+        </div>
       )}
 
       {/* MODAL PROFESIONAL CENTRADO */}
