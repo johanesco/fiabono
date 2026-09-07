@@ -1409,11 +1409,15 @@ export default function PerfilPage() {
                 <div className="text-xs text-slate-600 dark:text-slate-300 space-y-1.5 pl-1">
                   <div className="flex items-start gap-2">
                     <span className="w-4 h-4 rounded-full bg-emerald-500 text-white flex items-center justify-center text-[10px] font-black shrink-0 mt-0.5">1</span>
-                    <span>Busca el icono de <strong>Instalar</strong> en la barra de direcciones superior derecha (junto a la estrella de favoritos).</span>
+                    <span>Haz clic en los <strong>3 puntos (Menú)</strong> arriba a la derecha del navegador.</span>
                   </div>
                   <div className="flex items-start gap-2">
                     <span className="w-4 h-4 rounded-full bg-emerald-500 text-white flex items-center justify-center text-[10px] font-black shrink-0 mt-0.5">2</span>
-                    <span>Haz clic y selecciona <strong>Instalar</strong>.</span>
+                    <span>Ve a <strong>&quot;Guardar y compartir&quot;</strong>.</span>
+                  </div>
+                  <div className="flex items-start gap-2">
+                    <span className="w-4 h-4 rounded-full bg-emerald-500 text-white flex items-center justify-center text-[10px] font-black shrink-0 mt-0.5">3</span>
+                    <span>Selecciona <strong>&quot;Instalar página como aplicación...&quot;</strong></span>
                   </div>
                 </div>
               </div>

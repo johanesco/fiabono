@@ -35,6 +35,12 @@ export default function InstallPrompt() {
 
     const esApple = esIOS();
     const esChrome = esChromeIOS();
+    const isDesktop = !/android|iphone|ipad|ipod|mobile/i.test(window.navigator.userAgent);
+    
+    // Si es escritorio, mejor no mostrar el banner flotante invasivo,
+    // el usuario puede instalarlo desde Ajustes o la barra de URL.
+    if (isDesktop) return;
+
     setEsDispositivoIOS(esApple);
     setEsChromeEnIOS(esChrome);
 
