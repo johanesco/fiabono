@@ -183,6 +183,7 @@ export interface DatosSesionContext {
   diasPro: number | null;
   diasRestantesPlan: number | null;
   avisoExpiracion: boolean;
+  enPeriodoGracia: boolean;
   datosUsuarioOriginales: UsuarioBD;
 
   // Helpers derivados

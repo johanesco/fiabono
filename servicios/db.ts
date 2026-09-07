@@ -226,7 +226,7 @@ export const API_DB = {
   // --------------------------------------------------------
   // NUEVA LÓGICA DE BONOS / SUSCRIPCIÓN
   // --------------------------------------------------------
-  verificarCodigoPromocional: async (codigo: string) => {
+  verificarCodigoPromocional: async (codigo: string, emailUsuario: string) => {
     try {
       const docRef = doc(db, "codigos_promocionales", codigo);
       const docSnap = await getDoc(docRef);
@@ -240,13 +240,27 @@ export const API_DB = {
         return { valido: false, reason: 'inactive' };
       }
 
-      return { valido: true, beneficio: data.descuento };
+      // Validar si el código está restringido a un correo específico
+      if (data.emailObjetivo && data.emailObjetivo.trim() !== "") {
+        if (data.emailObjetivo.trim().toLowerCase() !== emailUsuario.trim().toLowerCase()) {
+           return { valido: false, reason: 'unauthorized_email' };
+        }
+      }
+
+      // Valores por defecto si el doc antiguo no los tiene
+      const planOtorgado = data.planOtorgado || 'pro';
+      const diasOtorgados = typeof data.diasOtorgados === 'number' ? data.diasOtorgados : 30;
+
+      return { 
+        valido: true, 
+        planOtorgado,
+        diasOtorgados 
+      };
     } catch (error) {
       console.error("Error al validar cupón:", error);
       return { valido: false, reason: 'error' };
     }
-  }
-  ,
+  },
 
   crearCodigoPromocional: async (codigo: string, datos: { activo: boolean; descuento?: string; [key: string]: any } = { activo: true, descuento: '1mes' }) => {
     try {

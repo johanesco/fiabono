@@ -83,12 +83,14 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
           const timeVence = adminData.planVence.toDate ? adminData.planVence.toDate().getTime() : new Date(adminData.planVence).getTime();
           const timeRemaining = timeVence - new Date().getTime();
           const daysLeft = Math.ceil(timeRemaining / (1000 * 3600 * 24));
-          if (daysLeft <= 0) {
+          
+          // Si el plan venció hace MÁS de 2 días, forzar downgrade
+          if (daysLeft < -2) {
             planActual = 'gratis';
             await updateDoc(doc(db, "usuarios", idParaConsultar), { plan: 'gratis' });
           } else {
             diasRestantesPlan = daysLeft;
-            if (daysLeft <= 5) avisoExpiracion = true;
+            if (daysLeft <= 8) avisoExpiracion = true;
           }
         }
 
@@ -97,6 +99,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         const esGratis = planActual === 'gratis';
         const esComercio = planActual === 'comercio';
         const esPro = planActual === 'pro';
+        const enPeriodoGracia = diasRestantesPlan !== null && diasRestantesPlan <= 0 && diasRestantesPlan >= -2;
 
         setDatosSesion({
           uid: user.uid,
@@ -138,6 +141,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
           diasPro: diasRestantesPlan,
           diasRestantesPlan,
           avisoExpiracion,
+          enPeriodoGracia,
           datosUsuarioOriginales: data as UsuarioBD
         });
       } catch (e: any) {
