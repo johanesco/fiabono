@@ -432,8 +432,11 @@ export default function MasterPage() {
                         {c.permisos?.abonar && <span className="inline-block mt-1 px-2 py-0.5 bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-400 text-[9px] font-black uppercase rounded-full">Puede Abonar</span>}
                       </div>
                       <div className="text-right">
-                        <p className="text-[10px] uppercase font-bold text-slate-400 mb-0.5">PIN de Acceso</p>
-                        <p className="font-mono font-black text-lg text-slate-700 dark:text-slate-300 bg-white dark:bg-slate-900 px-2 py-1 rounded-lg border border-slate-200 dark:border-slate-700">{c.pinAcceso || '----'}</p>
+                        {c.activo === false ? (
+                          <span className="px-2 py-1 bg-rose-100 text-rose-700 dark:bg-rose-500/20 dark:text-rose-400 text-[10px] font-black uppercase rounded-lg">Inactivo</span>
+                        ) : (
+                          <span className="px-2 py-1 bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-400 text-[10px] font-black uppercase rounded-lg">Activo</span>
+                        )}
                       </div>
                     </div>
                   ))}
