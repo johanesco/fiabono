@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Home as HomeIcon, PieChart, Clock, UserCog, Package, Receipt, Bookmark } from 'lucide-react';
+import { Home as HomeIcon, PieChart, Clock, UserCog, Package, Receipt, Bookmark, Crown } from 'lucide-react';
 
 export default function BottomNav({ 
   puedeVerReportes,
@@ -9,7 +9,8 @@ export default function BottomNav({
   puedeAbonar = true,
   ordenesPendientesCount = 0,
   puedeSepare = false,
-  separesActivosCount = 0
+  separesActivosCount = 0,
+  esMaster = false
 }: { 
   puedeVerReportes: boolean;
   esAdmin?: boolean;
@@ -17,6 +18,7 @@ export default function BottomNav({
   ordenesPendientesCount?: number;
   puedeSepare?: boolean;
   separesActivosCount?: number;
+  esMaster?: boolean;
 }) {
   const pathname = usePathname();
   const puedeGestionarSepares = esAdmin === true && puedeSepare === true;
@@ -105,6 +107,17 @@ export default function BottomNav({
           <UserCog size={20} className={pathname?.includes('/perfil') ? 'stroke-[2.5]' : 'stroke-2'} /> 
           <span className="text-[9px] xs:text-[10px] uppercase tracking-wider leading-none">Ajustes</span>
         </Link>
+
+        {/* Master */}
+        {esMaster && (
+          <Link 
+            href="/dashboard/master" 
+            className={`flex-1 py-1.5 sm:py-2 flex flex-col items-center gap-0.5 transition-all active:scale-90 ${pathname?.includes('/master') ? 'text-amber-500 dark:text-amber-400 font-black' : 'text-slate-400 dark:text-slate-500 hover:text-amber-500 dark:hover:text-amber-400 font-bold'}`}
+          >
+            <Crown size={20} className={pathname?.includes('/master') ? 'stroke-[2.5]' : 'stroke-2'} /> 
+            <span className="text-[9px] xs:text-[10px] uppercase tracking-wider leading-none">Master</span>
+          </Link>
+        )}
 
       </div>
     </nav>

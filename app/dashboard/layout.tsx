@@ -299,6 +299,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             ordenesPendientesCount={ordenesPendientesCount}
             puedeSepare={puedeSepare}
             separesActivosCount={separesActivosCount}
+            esMaster={datosSesion?.correoNegocio === 'johanescobar1@gmail.com'}
           />
         </div>
 

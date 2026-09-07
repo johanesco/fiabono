@@ -1355,8 +1355,8 @@ export default function PerfilPage() {
                   <Smartphone size={24} />
                 </div>
                 <div>
-                  <h4 className="font-black text-slate-900 dark:text-white text-base">Instalar Fiabono en este celular</h4>
-                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Accede sin abrir el navegador y con pantalla completa</p>
+                  <h4 className="font-black text-slate-900 dark:text-white text-base">Instalar Fiabono en este dispositivo</h4>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Accede sin abrir el navegador (Celular o Computador)</p>
                 </div>
               </div>
               <button 
@@ -1380,7 +1380,7 @@ export default function PerfilPage() {
       {/* MODAL GUÍA DE INSTALACIÓN PASO A PASO */}
       {modalInstalarApp && (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 z-[350] animate-in zoom-in-95 duration-200">
-          <div className="bg-white dark:bg-[#0f172a] p-6 sm:p-8 rounded-[2.5rem] w-full max-w-md shadow-2xl border border-slate-100 dark:border-slate-800 relative">
+          <div className="bg-white dark:bg-[#0f172a] p-6 sm:p-8 rounded-[2.5rem] w-full max-w-md shadow-2xl border border-slate-100 dark:border-slate-800 relative max-h-[90dvh] overflow-y-auto pb-8 sm:pb-8">
             <button 
               onClick={() => setModalInstalarApp(false)} 
               className="absolute top-4 right-4 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-500 rounded-full p-2 transition-colors cursor-pointer"
@@ -1396,10 +1396,28 @@ export default function PerfilPage() {
               Instalar Fiabono App
             </h3>
             <p className="text-xs text-slate-500 text-center mb-6">
-              Sigue estos sencillos pasos para tener Fiabono en tu pantalla de inicio:
+              Sigue estos sencillos pasos para tener Fiabono instalado:
             </p>
 
             <div className="space-y-4">
+              
+              {/* Sección PC / Escritorio */}
+              <div className="p-4 bg-slate-50 dark:bg-[#020617] rounded-2xl border border-slate-200/80 dark:border-slate-800 space-y-2.5">
+                <div className="flex items-center gap-2 text-xs font-black text-slate-900 dark:text-white">
+                  <span>💻 En Computador (Chrome / Edge)</span>
+                </div>
+                <div className="text-xs text-slate-600 dark:text-slate-300 space-y-1.5 pl-1">
+                  <div className="flex items-start gap-2">
+                    <span className="w-4 h-4 rounded-full bg-emerald-500 text-white flex items-center justify-center text-[10px] font-black shrink-0 mt-0.5">1</span>
+                    <span>Busca el icono de <strong>Instalar</strong> en la barra de direcciones superior derecha (junto a la estrella de favoritos).</span>
+                  </div>
+                  <div className="flex items-start gap-2">
+                    <span className="w-4 h-4 rounded-full bg-emerald-500 text-white flex items-center justify-center text-[10px] font-black shrink-0 mt-0.5">2</span>
+                    <span>Haz clic y selecciona <strong>Instalar</strong>.</span>
+                  </div>
+                </div>
+              </div>
+
               {/* Sección iPhone / iOS */}
               <div className="p-4 bg-slate-50 dark:bg-[#020617] rounded-2xl border border-slate-200/80 dark:border-slate-800 space-y-2.5">
                 <div className="flex items-center gap-2 text-xs font-black text-slate-900 dark:text-white">
@@ -1416,12 +1434,12 @@ export default function PerfilPage() {
                   </div>
                   <div className="flex items-start gap-2">
                     <span className="w-4 h-4 rounded-full bg-emerald-500 text-white flex items-center justify-center text-[10px] font-black shrink-0 mt-0.5">3</span>
-                    <span>Toca <strong>Añadir</strong> en la esquina superior derecha.</span>
+                    <span>Toca <strong>Añadir</strong>.</span>
                   </div>
                 </div>
               </div>
 
-              {/* Sección Android / Chrome */}
+              {/* Sección Android */}
               <div className="p-4 bg-slate-50 dark:bg-[#020617] rounded-2xl border border-slate-200/80 dark:border-slate-800 space-y-2.5">
                 <div className="flex items-center gap-2 text-xs font-black text-slate-900 dark:text-white">
                   <span>🤖 En Android / Chrome</span>
