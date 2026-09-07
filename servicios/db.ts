@@ -250,11 +250,13 @@ export const API_DB = {
       // Valores por defecto si el doc antiguo no los tiene
       const planOtorgado = data.planOtorgado || 'pro';
       const diasOtorgados = typeof data.diasOtorgados === 'number' ? data.diasOtorgados : 30;
+      const unSoloUso = data.unSoloUso !== false; // Por defecto true, a menos que diga explícitamente false
 
       return { 
         valido: true, 
         planOtorgado,
-        diasOtorgados 
+        diasOtorgados,
+        unSoloUso
       };
     } catch (error) {
       console.error("Error al validar cupón:", error);

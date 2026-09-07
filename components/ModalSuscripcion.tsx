@@ -16,7 +16,7 @@ interface ModalSuscripcionProps {
 
 export default function ModalSuscripcion({ isOpen, onClose, cuentaPrincipalId, planInicial = 'comercio' }: ModalSuscripcionProps) {
   const [planSeleccionado, setPlanSeleccionado] = useState<'comercio' | 'pro'>(planInicial);
-  const [ciclo, setCiclo] = useState<'mensual' | 'anual'>('mensual');
+  const [ciclo, setCiclo] = useState<'mensual' | 'trimestral' | 'anual'>('mensual');
   const [mostrarCanjeBono, setMostrarCanjeBono] = useState(false);
   const [codigoBono, setCodigoBono] = useState("");
   const [cargando, setCargando] = useState(false);
@@ -104,9 +104,13 @@ export default function ModalSuscripcion({ isOpen, onClose, cuentaPrincipalId, p
   };
 
   const abrirSoportePagoWhatsApp = (tipo: 'comercio' | 'pro') => {
-    const nombrePlan = tipo === 'pro' ? 'Plan PRO Almacén ($44.900/mes)' : 'Plan Comercio ($19.900/mes)';
-    const cicloTexto = ciclo === 'anual' ? 'Anual' : 'Mensual';
-    const texto = `Hola equipo Fiabono 👋 Quiero activar mi suscripción al *${nombrePlan}* en ciclo *${cicloTexto}*. Mi ID de negocio es: ${cuentaPrincipalId}.`;
+    const nombrePlan = tipo === 'pro' ? 'Plan PRO Almacén' : 'Plan Comercio';
+    
+    let tiempoTexto = '1 Mes';
+    if (ciclo === 'trimestral') tiempoTexto = '3 Meses';
+    if (ciclo === 'anual') tiempoTexto = '1 Año';
+
+    const texto = `Hola equipo Fiabono 👋 Quiero activar mi suscripción al *${nombrePlan}* por *${tiempoTexto}*. Mi correo de cuenta es: ${datosSesion?.correoNegocio || '____@____.com'}`;
     const url = `https://wa.me/573128018444?text=${encodeURIComponent(texto)}`;
     window.open(url, '_blank');
   };
@@ -147,6 +151,7 @@ export default function ModalSuscripcion({ isOpen, onClose, cuentaPrincipalId, p
         nuevaFechaVencimiento.setDate(nuevaFechaVencimiento.getDate() + diasOtorgados);
 
         const cicloAsignado = diasOtorgados >= 365 ? "anual" : "mensual";
+        const esUnSoloUso = (resultado as any).unSoloUso !== false;
 
         const batch = writeBatch(db);
         // Actualizar usuario
@@ -155,10 +160,13 @@ export default function ModalSuscripcion({ isOpen, onClose, cuentaPrincipalId, p
           planVence: nuevaFechaVencimiento,
           cicloPlan: cicloAsignado
         });
-        // Quemar el código
-        batch.update(doc(db, "codigos_promocionales", codigoBono.trim().toUpperCase()), {
-          activo: false
-        });
+        
+        // Quemar el código si es de un solo uso
+        if (esUnSoloUso) {
+          batch.update(doc(db, "codigos_promocionales", codigoBono.trim().toUpperCase()), {
+            activo: false
+          });
+        }
 
         await batch.commit();
 
@@ -220,13 +228,22 @@ export default function ModalSuscripcion({ isOpen, onClose, cuentaPrincipalId, p
               </button>
               <button
                 type="button"
+                onClick={() => setCiclo('trimestral')}
+                className={`px-4 py-1.5 rounded-lg text-xs font-black transition-all cursor-pointer ${
+                  ciclo === 'trimestral' ? 'bg-white dark:bg-[#0f172a] text-slate-900 dark:text-white shadow-sm' : 'text-slate-500'
+                }`}
+              >
+                Trimestral
+              </button>
+              <button
+                type="button"
                 onClick={() => setCiclo('anual')}
                 className={`px-4 py-1.5 rounded-lg text-xs font-black flex items-center gap-1 transition-all cursor-pointer ${
                   ciclo === 'anual' ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-500'
                 }`}
               >
                 <span>Anual</span>
-                <span className="text-[10px] bg-emerald-400 text-slate-900 px-1 rounded font-black">Ahorra 2 meses</span>
+                <span className="text-[10px] bg-emerald-400 text-slate-900 px-1 rounded font-black">Ahorra 20%</span>
               </button>
             </div>
           </div>
@@ -250,7 +267,7 @@ export default function ModalSuscripcion({ isOpen, onClose, cuentaPrincipalId, p
                   {planSeleccionado === 'comercio' && <CheckCircle2 size={16} className="text-blue-600 dark:text-blue-400" />}
                 </div>
                 <p className="text-2xl font-black text-slate-900 dark:text-white">
-                  {ciclo === 'anual' ? '$199.000' : '$19.900'} <span className="text-xs font-normal text-slate-500">COP/{ciclo === 'anual' ? 'año' : 'mes'}</span>
+                  {ciclo === 'anual' ? '$199.000' : ciclo === 'trimestral' ? '$59.700' : '$19.900'} <span className="text-xs font-normal text-slate-500">COP/{ciclo === 'anual' ? 'año' : ciclo === 'trimestral' ? 'trimestre' : 'mes'}</span>
                 </p>
                 <ul className="mt-3 space-y-1 text-xs text-slate-600 dark:text-slate-300">
                   <li className="flex items-center gap-1.5"><CheckCircle2 size={12} className="text-emerald-500 shrink-0" /> Clientes e Inv. ILIMITADOS</li>
@@ -279,7 +296,7 @@ export default function ModalSuscripcion({ isOpen, onClose, cuentaPrincipalId, p
                   {planSeleccionado === 'pro' && <CheckCircle2 size={16} className="text-purple-600 dark:text-purple-400" />}
                 </div>
                 <p className="text-2xl font-black text-slate-900 dark:text-white">
-                  {ciclo === 'anual' ? '$449.000' : '$44.900'} <span className="text-xs font-normal text-slate-500">COP/{ciclo === 'anual' ? 'año' : 'mes'}</span>
+                  {ciclo === 'anual' ? '$449.000' : ciclo === 'trimestral' ? '$134.700' : '$44.900'} <span className="text-xs font-normal text-slate-500">COP/{ciclo === 'anual' ? 'año' : ciclo === 'trimestral' ? 'trimestre' : 'mes'}</span>
                 </p>
                 <ul className="mt-3 space-y-1 text-xs text-slate-600 dark:text-slate-300">
                   <li className="flex items-center gap-1.5"><CheckCircle2 size={12} className="text-purple-500 shrink-0" /> Módulo PLAN SEPARE Completo</li>
