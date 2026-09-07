@@ -5,6 +5,7 @@ import { doc, getDoc, updateDoc } from "firebase/firestore";
 import { auth, db } from "../firebase";
 import { useRouter, usePathname } from "next/navigation";
 import { DatosSesionContext, UsuarioBD } from "../types";
+import toast from "react-hot-toast";
 
 interface AuthContextType {
   datosSesion: DatosSesionContext | null;
@@ -39,6 +40,30 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         
         const data = userDoc.data();
         if (data.rol === 'cajero' && data.activo === false) throw new Error("Inactivo");
+
+        // Validación dinámica en tiempo real de Horarios de Actividad (si fueron configurados)
+        if (data.rol === 'cajero' && Array.isArray(data.horariosActividad) && data.horariosActividad.length > 0) {
+          const tieneHorariosValidos = data.horariosActividad.some((h: any) => h?.activoAuto !== false);
+          if (tieneHorariosValidos) {
+            const nombresDias = ['Dom', 'Lun', 'Mar', 'Mie', 'Jue', 'Vie', 'Sab'];
+            const ahora = new Date();
+            const diaHoy = nombresDias[ahora.getDay()];
+            const horaActual = `${String(ahora.getHours()).padStart(2, '0')}:${String(ahora.getMinutes()).padStart(2, '0')}`;
+
+            const dentroDeHorario = data.horariosActividad.some((h: any) => {
+              if (h?.activoAuto === false) return false;
+              const dias = h.dias || [];
+              if (!dias.includes(diaHoy)) return false;
+              const inicio = h.inicio || '00:00';
+              const fin = h.fin || '23:59';
+              return inicio <= horaActual && horaActual < fin;
+            });
+
+            if (!dentroDeHorario && data.manualOverride !== true) {
+              throw new Error("FueraDeHorario");
+            }
+          }
+        }
 
         let idParaConsultar = user.uid;
         let adminData = data;
@@ -146,10 +171,27 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         });
       } catch (e: any) {
         console.error("Error validando sesión:", e);
-        // CORRECCIÓN A-9: Solo desloguear si el error es de cuenta inválida o inactiva.
-        // Errores de red u otros fallos temporales NO deben forzar el cierre de sesión.
-        if (e.message === "No existe" || e.message === "Inactivo" || e.message === "NegocioNoExiste" || e.code === "permission-denied") {
+        // Desloguear con mensaje explicativo si el acceso está revocado o bloqueado
+        if (
+          e.message === "No existe" || 
+          e.message === "Inactivo" || 
+          e.message === "NegocioNoExiste" || 
+          e.message === "PlanGratisSinColaboradores" ||
+          e.message === "FueraDeHorario" ||
+          e.code === "permission-denied"
+        ) {
+          if (e.message === "PlanGratisSinColaboradores") {
+            toast.error("El negocio se encuentra en Plan Gratuito. El administrador debe activar el Plan Comercio o PRO para permitir el acceso de colaboradores.", { duration: 6000 });
+          } else if (e.message === "Inactivo") {
+            toast.error("Tu cuenta de colaborador ha sido deshabilitada por el administrador.", { duration: 5000 });
+          } else if (e.message === "FueraDeHorario") {
+            toast.error("Tu acceso no está permitido fuera del horario laboral configurado.", { duration: 5000 });
+          } else if (e.message === "NegocioNoExiste" || e.message === "No existe") {
+            toast.error("Usuario o negocio no encontrado.", { duration: 4000 });
+          }
+
           await signOut(auth);
+          setDatosSesion(null);
           router.push('/');
         }
       }

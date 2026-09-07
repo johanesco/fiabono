@@ -69,6 +69,7 @@ export default function InventarioPage() {
   const router = useRouter();
   const cuentaPrincipalId = datosSesion?.cuentaPrincipalId;
   const esAdmin = datosSesion?.rol !== 'cajero';
+  const puedeEditarInventario = esAdmin || datosSesion?.permisos?.editarInventario === true || datosSesion?.puedeEditarInventario === true;
 
   const [inventario, setInventario] = useState<any[]>([]);
   const [cargando, setCargando] = useState(true);
@@ -2076,7 +2077,7 @@ export default function InventarioPage() {
               <span className="hidden sm:inline">Inventario General</span>
             </h2>
             <p className="text-[11px] text-white/80 font-medium hidden lg:block truncate">
-              {esAdmin ? "Control de stock, precios y catálogo de productos" : "Consulta de catálogo, precios y disponibilidad"}
+              {esAdmin || puedeEditarInventario ? "Control de stock, precios y catálogo de productos" : "Consulta de catálogo, precios y disponibilidad"}
             </p>
           </div>
         </div>
@@ -2234,28 +2235,30 @@ export default function InventarioPage() {
                   </div>
                 )}
               </div>
-
-              {/* Botón Principal: Agregar Productos */}
-              <button 
-                onClick={() => {
-                  if (datosSesion?.esGratis && inventario.length >= 30) {
-                    setModalUpsell({
-                      visible: true,
-                      titulo: "Límite de 30 Productos Alcanzado",
-                      mensaje: "El plan Gratis te permite registrar hasta 30 productos en catálogo. Pásate al Plan Comercio para tener inventario ILIMITADO.",
-                      plan: 'comercio'
-                    });
-                    return;
-                  }
-                  limpiarFormulario(); 
-                  setModalProducto(true); 
-                }} 
-                className="bg-white text-emerald-700 hover:bg-emerald-50 px-2.5 sm:px-4 py-2 rounded-xl font-black text-xs sm:text-sm flex items-center gap-1 shadow-md transition-transform active:scale-95 shrink-0 cursor-pointer"
-                title="Agregar nuevos productos o servicios al inventario"
-              >
-                <Plus size={16}/> <span>Agregar<span className="hidden sm:inline"> Productos</span></span>
-              </button>
             </>
+          )}
+
+          {/* Botón Principal: Agregar Productos (Admin o Colaborador con permiso) */}
+          {(esAdmin || puedeEditarInventario) && (
+            <button 
+              onClick={() => {
+                if (datosSesion?.esGratis && inventario.length >= 30) {
+                  setModalUpsell({
+                    visible: true,
+                    titulo: "Límite de 30 Productos Alcanzado",
+                    mensaje: "El plan Gratis te permite registrar hasta 30 productos en catálogo. Pásate al Plan Comercio para tener inventario ILIMITADO.",
+                    plan: 'comercio'
+                  });
+                  return;
+                }
+                limpiarFormulario(); 
+                setModalProducto(true); 
+              }} 
+              className="bg-white text-emerald-700 hover:bg-emerald-50 px-2.5 sm:px-4 py-2 rounded-xl font-black text-xs sm:text-sm flex items-center gap-1 shadow-md transition-transform active:scale-95 shrink-0 cursor-pointer"
+              title="Agregar nuevos productos o servicios al inventario"
+            >
+              <Plus size={16}/> <span>Agregar<span className="hidden sm:inline"> Productos</span></span>
+            </button>
           )}
         </div>
       </div>
@@ -2717,7 +2720,7 @@ export default function InventarioPage() {
                             <Receipt size={12} /> <span>Fiar</span>
                           </button>
 
-                          {esAdmin && (
+                          {(esAdmin || puedeEditarInventario) && (
                             <div className="flex items-center ml-0.5">
                               <button 
                                 onClick={() => abrirEdicion(prod)} 
@@ -2726,13 +2729,15 @@ export default function InventarioPage() {
                               >
                                 <Edit3 size={13}/>
                               </button>
-                              <button 
-                                onClick={() => setProductoAEliminar(prod)} 
-                                className="p-1 hover:bg-rose-50 text-slate-400 hover:text-rose-500 rounded-md transition-colors"
-                                title="Eliminar"
-                              >
-                                <Trash2 size={13}/>
-                              </button>
+                              {esAdmin && (
+                                <button 
+                                  onClick={() => setProductoAEliminar(prod)} 
+                                  className="p-1 hover:bg-rose-50 text-slate-400 hover:text-rose-500 rounded-md transition-colors"
+                                  title="Eliminar"
+                                >
+                                  <Trash2 size={13}/>
+                                </button>
+                              )}
                             </div>
                           )}
                         </div>
@@ -2747,7 +2752,7 @@ export default function InventarioPage() {
                     <p className="font-bold text-sm">
                       {inventario.length === 0 ? "Tu inventario aún está vacío." : "No se encontraron productos con estos filtros."}
                     </p>
-                    {inventario.length === 0 && esAdmin && (
+                    {inventario.length === 0 && (esAdmin || puedeEditarInventario) && (
                       <button 
                         onClick={() => { limpiarFormulario(); setModalProducto(true); }}
                         className="mt-3 inline-flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-black px-4 py-2 rounded-xl text-xs uppercase tracking-wider transition-all shadow-md active:scale-95"
@@ -2943,7 +2948,7 @@ export default function InventarioPage() {
                                   <Bookmark size={12} /> <span>Separe</span>
                                 </button>
 
-                                {esAdmin && (
+                                {(esAdmin || puedeEditarInventario) && (
                                   <>
                                     <button 
                                       onClick={() => abrirEdicion(prod)} 
@@ -2952,13 +2957,15 @@ export default function InventarioPage() {
                                     >
                                       <Edit3 size={14}/>
                                     </button>
-                                    <button 
-                                      onClick={() => setProductoAEliminar(prod)} 
-                                      title="Eliminar producto"
-                                      className="p-1 hover:bg-rose-50 dark:hover:bg-rose-500/10 text-slate-400 hover:text-rose-500 rounded-lg transition-colors"
-                                    >
-                                      <Trash2 size={14}/>
-                                    </button>
+                                    {esAdmin && (
+                                      <button 
+                                        onClick={() => setProductoAEliminar(prod)} 
+                                        title="Eliminar producto"
+                                        className="p-1 hover:bg-rose-50 dark:hover:bg-rose-500/10 text-slate-400 hover:text-rose-500 rounded-lg transition-colors"
+                                      >
+                                        <Trash2 size={14}/>
+                                      </button>
+                                    )}
                                   </>
                                 )}
                               </div>
@@ -2975,7 +2982,7 @@ export default function InventarioPage() {
                             <p className="font-bold text-sm">
                               {inventario.length === 0 ? "Tu inventario aún está vacío." : "No se encontraron productos con estos filtros."}
                             </p>
-                            {inventario.length === 0 && esAdmin ? (
+                            {inventario.length === 0 && (esAdmin || puedeEditarInventario) ? (
                               <button 
                                 onClick={() => { limpiarFormulario(); setModalProducto(true); }}
                                 className="mt-3 inline-flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-black px-4 py-2 rounded-xl text-xs uppercase tracking-wider transition-all shadow-md active:scale-95"
@@ -4248,7 +4255,7 @@ export default function InventarioPage() {
       )}
 
       {/* MODAL CREAR / EDITAR PRODUCTO (BLINDADO PARA MÓVIL Y ESCRITORIO) */}
-      {esAdmin && modalProducto && (
+      {(esAdmin || puedeEditarInventario) && modalProducto && (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center p-2 sm:p-4 z-[950]">
           <div className="bg-white dark:bg-[#0f172a] rounded-3xl sm:rounded-[2.5rem] w-full max-w-5xl shadow-2xl border border-slate-100 dark:border-slate-800 flex flex-col max-h-[94dvh] sm:max-h-[90dvh] overflow-hidden animate-in zoom-in-95 duration-200">
             
