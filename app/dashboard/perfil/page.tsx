@@ -4,7 +4,7 @@ import { collection, getDocs, query, doc, updateDoc, where, setDoc, deleteDoc } 
 import { signOut, updatePassword, EmailAuthProvider, reauthenticateWithCredential, getAuth, createUserWithEmailAndPassword } from "firebase/auth";
 import { getApps, initializeApp } from "firebase/app";
 import { db, auth } from "../../../firebase";
-import { UserCog, LogOut, Sun, Monitor, Moon, Edit2, Mail, ShieldAlert, CheckCircle2, AlertCircle, Star, Lock, UserPlus, ChevronUp, ChevronDown, Trash2, Info, X, Clock, Upload, Image as ImageIcon, Building2, MapPin, Receipt, PhoneCall, Camera, Smartphone, ArrowUpFromLine, MoreHorizontal, Download, Crown, Store, Sparkles } from 'lucide-react';
+import { UserCog, LogOut, Sun, Monitor, Moon, Edit2, Mail, ShieldAlert, CheckCircle2, AlertCircle, Star, Lock, UserPlus, ChevronUp, ChevronDown, Trash2, Info, X, Clock, Upload, Image as ImageIcon, Building2, MapPin, Receipt, PhoneCall, Camera, Smartphone, ArrowUpFromLine, MoreHorizontal, Download, Crown, Store, Sparkles, Bookmark } from 'lucide-react';
 import ModalHorarios from '@/components/ModalHorarios';
 import { useAuth } from "../../../hooks/AuthContext";
 import ModalSuscripcion from "@/components/ModalSuscripcion";
@@ -30,6 +30,7 @@ export default function PerfilPage() {
   const [mensajePieTicket, setMensajePieTicket] = useState(datosSesion?.mensajePieTicket || "");
   const [habilitarIva, setHabilitarIva] = useState(datosSesion?.habilitarIva || false);
   const [porcentajeIva, setPorcentajeIva] = useState<number>(datosSesion?.porcentajeIva || 19);
+  const [moduloSepareActivo, setModuloSepareActivo] = useState(datosSesion?.moduloSepareActivo !== false);
   const correoNegocio = datosSesion?.correoNegocio || "";
   
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -64,7 +65,7 @@ export default function PerfilPage() {
       verReportes: false,
       ventaDirecta: false,
       abonar: false,
-      editarInventario: false,
+      editarInventario: false, ingresoInventario: false,
       terminalMultivendedor: false,
       modificarPrecios: false,
       aplicarDescuentos: false
@@ -122,6 +123,7 @@ export default function PerfilPage() {
       setMensajePieTicket(datosSesion.mensajePieTicket || "");
       setHabilitarIva(datosSesion.habilitarIva || false);
       setPorcentajeIva(datosSesion.porcentajeIva || 19);
+      setModuloSepareActivo(datosSesion.moduloSepareActivo !== false);
     }
   }, [datosSesion]);
 
@@ -222,7 +224,8 @@ export default function PerfilPage() {
         logoNegocio: logoNegocio || null,
         nombreUsuario: editNombreUsuario,
         habilitarIva,
-        porcentajeIva: Number(porcentajeIva) || 19
+        porcentajeIva: Number(porcentajeIva) || 19,
+        moduloSepareActivo
       });
       setNombreUsuario(editNombreUsuario);
       setDatosSesion((prev: any) => ({
@@ -230,12 +233,13 @@ export default function PerfilPage() {
         nombreNegocio, 
         telefonoNegocio, 
         nitNegocio, 
-        direccionNegocio,
-        mensajePieTicket,
-        logoNegocio: logoNegocio || null,
-        nombreUsuario: editNombreUsuario,
-        habilitarIva,
-        porcentajeIva: Number(porcentajeIva) || 19
+        direccionNegocio, 
+        mensajePieTicket, 
+        logoNegocio: logoNegocio || null, 
+        nombreUsuario: editNombreUsuario, 
+        habilitarIva, 
+        porcentajeIva: Number(porcentajeIva) || 19,
+        moduloSepareActivo
       }));
       setMensajePerfil({ texto: "Datos del negocio actualizados correctamente.", tipo: "exito" });
       setModoEdicionPerfil(false);
@@ -398,7 +402,7 @@ export default function PerfilPage() {
         await secondaryAuthObj.signOut();
         setModalAvisoColaborador({ visible: true, titulo: "¡Acceso Creado!", mensaje: `El colaborador fue creado exitosamente.\n\nUsuario para entrar: \n${correoGenerado}`, icono: 'exito' });
       }
-      setFormColaborador({ nombre:"", usuarioAcceso:"", password:"", confirmPassword: "", permisos: { verCelulares: false, verDirectorio: false, verReportes: false, ventaDirecta: false, abonar: false, editarInventario: false, terminalMultivendedor: false, modificarPrecios: false, aplicarDescuentos: false, planSepare: false } });
+      setFormColaborador({ nombre:"", usuarioAcceso:"", password:"", confirmPassword: "", permisos: { verCelulares: false, verDirectorio: false, verReportes: false, ventaDirecta: false, abonar: false, editarInventario: false, ingresoInventario: false, terminalMultivendedor: false, modificarPrecios: false, aplicarDescuentos: false, planSepare: false } });
       setModoCrearColaborador(false); setColaboradorEnEdicion(null);
       cargarListaColaboradores(adminId!);
     } catch (error: any) {
@@ -655,6 +659,7 @@ export default function PerfilPage() {
                                   ventaDirecta: c.permisos?.ventaDirecta || false,
                                   abonar: c.permisos?.abonar || false,
                                   editarInventario: c.permisos?.editarInventario || false,
+                                  ingresoInventario: c.permisos?.ingresoInventario || false,
                                   terminalMultivendedor: c.permisos?.terminalMultivendedor || false,
                                   modificarPrecios: c.permisos?.modificarPrecios || false,
                                   aplicarDescuentos: c.permisos?.aplicarDescuentos || false,
@@ -713,6 +718,7 @@ export default function PerfilPage() {
                           {c.permisos?.modificarPrecios ? <span className="text-[10px] bg-cyan-100 text-cyan-700 dark:bg-cyan-500/20 dark:text-cyan-400 font-bold px-2 py-0.5 rounded-md">Editar Precios</span> : null}
                           {c.permisos?.aplicarDescuentos ? <span className="text-[10px] bg-rose-100 text-rose-700 dark:bg-rose-500/20 dark:text-rose-400 font-bold px-2 py-0.5 rounded-md">Descuentos</span> : null}
                           {c.permisos?.abonar ? <span className="text-[10px] bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-400 font-bold px-2 py-0.5 rounded-md">Abonar</span> : null}
+                          {c.permisos?.ingresoInventario ? <span className="text-[10px] bg-indigo-100 text-indigo-700 dark:bg-indigo-500/20 dark:text-indigo-400 font-bold px-2 py-0.5 rounded-md">Ingresar</span> : null}
                           {c.permisos?.editarInventario ? <span className="text-[10px] bg-teal-100 text-teal-700 dark:bg-teal-500/20 dark:text-teal-400 font-bold px-2 py-0.5 rounded-md">Editar Inv.</span> : null}
                           {c.permisos?.planSepare ? <span className="text-[10px] bg-purple-100 text-purple-700 dark:bg-purple-500/20 dark:text-purple-400 font-bold px-2 py-0.5 rounded-md">Separes</span> : null}
                         </div>
@@ -759,7 +765,7 @@ export default function PerfilPage() {
                         verReportes: false, 
                         ventaDirecta: false, 
                         abonar: false, 
-                        editarInventario: false, 
+                        editarInventario: false, ingresoInventario: false, 
                         terminalMultivendedor: false, 
                         modificarPrecios: false, 
                         aplicarDescuentos: false, 
@@ -1232,6 +1238,29 @@ export default function PerfilPage() {
                       )}
                     </div>
 
+                    {/* INTERRUPTOR MÓDULO PLAN SEPARE */}
+                    <div className="p-4 rounded-2xl bg-violet-50/60 dark:bg-violet-950/20 border border-violet-100 dark:border-violet-900/40">
+                      <div className="flex items-center justify-between gap-4">
+                        <div>
+                          <h4 className="font-bold text-sm text-slate-900 dark:text-white flex items-center gap-1.5">
+                            <Bookmark size={16} className="text-violet-600 dark:text-violet-400" /> Módulo Plan Separe (Apartados con Abonos)
+                          </h4>
+                          <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                            Muestra el acceso a Planes Separe en la pantalla de inicio y catálogos. Desactívalo si eres tienda de barrio y solo usas ventas y fiados.
+                          </p>
+                        </div>
+                        <label className="relative inline-flex items-center cursor-pointer shrink-0">
+                          <input 
+                            type="checkbox" 
+                            checked={moduloSepareActivo} 
+                            onChange={(e) => setModuloSepareActivo(e.target.checked)} 
+                            className="sr-only peer" 
+                          />
+                          <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer dark:bg-slate-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-violet-600"></div>
+                        </label>
+                      </div>
+                    </div>
+
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2 border-t border-slate-100 dark:border-slate-800/60">
                       <div>
                         <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1.5">Tu Nombre de Usuario</label>
@@ -1275,6 +1304,12 @@ export default function PerfilPage() {
                         <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1 flex items-center gap-1.5"><Receipt size={13} className="text-blue-500" /> Impuestos / IVA</p>
                         <p className="font-bold text-slate-800 dark:text-slate-200 text-base truncate">
                           {habilitarIva ? `Activo (${porcentajeIva}%)` : "Precios finales (Sin IVA)"}
+                        </p>
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1 flex items-center gap-1.5"><Bookmark size={13} className="text-violet-500" /> Plan Separe</p>
+                        <p className="font-bold text-slate-800 dark:text-slate-200 text-base truncate">
+                          {moduloSepareActivo ? "Habilitado en Inicio" : "Oculto en Inicio"}
                         </p>
                       </div>
                       <div className="min-w-0 md:col-span-2">

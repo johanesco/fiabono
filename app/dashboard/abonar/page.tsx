@@ -146,7 +146,7 @@ function AbonarContenido() {
   };
 
   const guardarClienteNuevo = async () => {
-    if (!nombreNuevo.trim()) return alert("El nombre del cliente es obligatorio.");
+    if (!nombreNuevo.trim()) return toast.error("El nombre del cliente es obligatorio.");
     setGuardandoCliente(true);
     try {
       const docRef = await addDoc(collection(db, "clientes"), { nombre: nombreNuevo.trim(), celular: celularNuevo.trim(), deudaTotal: 0, usuarioId: cuentaPrincipalId, fecha_creacion: new Date() });

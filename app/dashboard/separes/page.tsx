@@ -1381,6 +1381,23 @@ Gracias por contactarnos.`;
               </ul>
             </div>
 
+            {separeSeleccionado.fotos && separeSeleccionado.fotos.length > 0 && (
+              <div className="p-3 bg-slate-50 dark:bg-slate-800/50 rounded-2xl text-left border border-slate-100 dark:border-slate-800">
+                <p className="font-bold text-slate-800 dark:text-slate-200 text-xs mb-2 flex items-center gap-1.5"><Package size={14}/> Evidencia de artículos a entregar:</p>
+                <div className="flex gap-2 overflow-x-auto pb-1">
+                  {separeSeleccionado.fotos.map((fotoUrl: string, idx: number) => (
+                    <img 
+                      key={idx} 
+                      src={fotoUrl} 
+                      alt="Artículo separado" 
+                      onClick={() => setFotoLightbox(fotoUrl)}
+                      className="w-16 h-16 object-cover rounded-xl cursor-pointer hover:scale-105 transition-transform shadow-sm border border-slate-200 dark:border-slate-700"
+                    />
+                  ))}
+                </div>
+              </div>
+            )}
+
             <div className="grid grid-cols-2 gap-3 pt-2">
               <button
                 type="button"

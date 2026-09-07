@@ -28,14 +28,18 @@
 
 html.dark input,
 html.dark textarea,
-html.dark select {
+html.dark select,
+.input-dark,
+.dark input,
+.dark textarea,
+.dark select {
   color: #ffffff !important;
   -webkit-text-fill-color: #ffffff !important;
 }
 
-html:not(.dark) input,
-html:not(.dark) textarea,
-html:not(.dark) select {
+html:not(.dark) input:not(.input-dark),
+html:not(.dark) textarea:not(.input-dark),
+html:not(.dark) select:not(.input-dark) {
   color: #0f172a !important; 
   -webkit-text-fill-color: #0f172a !important;
 }
@@ -46,14 +50,16 @@ html:not(.dark) select {
 
 /* Modo Oscuro: Texto de ayuda en blanco opaco/transparente */
 html.dark input::placeholder,
-html.dark textarea::placeholder {
-  color: rgba(255, 255, 255, 0.4) !important;
-  -webkit-text-fill-color: rgba(255, 255, 255, 0.4) !important;
+html.dark textarea::placeholder,
+.input-dark::placeholder,
+.dark input::placeholder {
+  color: rgba(255, 255, 255, 0.5) !important;
+  -webkit-text-fill-color: rgba(255, 255, 255, 0.5) !important;
 }
 
 /* Modo Claro: Texto de ayuda en oscuro opaco/transparente */
-html:not(.dark) input::placeholder,
-html:not(.dark) textarea::placeholder {
+html:not(.dark) input:not(.input-dark)::placeholder,
+html:not(.dark) textarea:not(.input-dark)::placeholder {
   color: rgba(15, 23, 42, 0.4) !important; 
   -webkit-text-fill-color: rgba(15, 23, 42, 0.4) !important;
 }

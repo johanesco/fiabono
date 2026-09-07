@@ -1,7 +1,7 @@
 "use client";
 import React, { useState } from "react";
-import { signInWithEmailAndPassword, createUserWithEmailAndPassword } from "firebase/auth";
-import { doc, setDoc } from "firebase/firestore";
+import { signInWithEmailAndPassword, createUserWithEmailAndPassword, signInWithPopup, GoogleAuthProvider, signOut } from "firebase/auth";
+import { doc, getDoc, setDoc } from "firebase/firestore";
 import { auth, db } from "../firebase";
 import { 
   CheckCircle2, ChevronRight, Star, BookX, PenTool, 
@@ -11,7 +11,7 @@ import {
   Smartphone, ShieldCheck, HelpCircle, ChevronDown, ChevronUp,
   Receipt, ShoppingBag, BarChart3, Clock, TrendingUp,
   Flame, BadgePercent, Check, ArrowUpRight, Calculator,
-  Sparkle, Shield
+  Sparkle, Shield, PartyPopper, Briefcase, Building2, Phone, Bookmark, Menu
 } from 'lucide-react';
 
 export default function LandingPage() {
@@ -24,9 +24,28 @@ export default function LandingPage() {
   // Visibilidad de contraseñas
   const [mostrarPassword, setMostrarPassword] = useState(false);
   const [mostrarConfirmPassword, setMostrarConfirmPassword] = useState(false);
+  const [cargandoGoogle, setCargandoGoogle] = useState(false);
+
+  // Menú móvil abierto/cerrado
+  const [menuMovilAbierto, setMenuMovilAbierto] = useState(false);
+
+  // Estados para Onboarding Elegante de Google
+  const [googleUserPendiente, setGoogleUserPendiente] = useState<{ uid: string; email: string; nombre: string; foto?: string } | null>(null);
+  const [modalGoogleOnboarding, setModalGoogleOnboarding] = useState(false);
+  const [pasoGoogleOnboarding, setPasoGoogleOnboarding] = useState<1 | 2>(1);
+  const [formGoogleOnboarding, setFormGoogleOnboarding] = useState({
+    nombreUsuario: "",
+    nombreNegocio: "",
+    tipoNegocio: "Moda y Calzado",
+    telefonoNegocio: "",
+    moduloSepare: true,
+    plan: 'comercio' as 'gratis' | 'comercio' | 'pro'
+  });
+  const [guardandoGoogleOnboarding, setGuardandoGoogleOnboarding] = useState(false);
+  const [errorGoogleOnboarding, setErrorGoogleOnboarding] = useState("");
 
   // Tab de Mockup Interactivo
-  const [tabMockup, setTabMockup] = useState<'pos' | 'whatsapp' | 'ticket' | 'separe'>('pos');
+  const [tabMockup, setTabMockup] = useState<'pos' | 'whatsapp' | 'factura' | 'separe'>('pos');
 
   // Tab de Nichos de Mercado
   const [tabNicho, setTabNicho] = useState<'tienda' | 'moda' | 'ferreteria' | 'belleza'>('moda');
@@ -81,6 +100,9 @@ export default function LandingPage() {
           planVence: fechaVence,
           cicloPlan: cicloFacturacion
         });
+        if (typeof window !== 'undefined') {
+          localStorage.setItem('fiabono_mostrar_tour', 'true');
+        }
         cerrarModal();
       } catch (error: any) { 
         if (error.code === 'auth/email-already-in-use') setAuthErrores(p => ({...p, email: "Este correo ya está registrado."}));
@@ -100,6 +122,132 @@ export default function LandingPage() {
         }
       }
     }
+  };
+
+  const iniciarConGoogle = async () => {
+    setAuthErrores({ email: "", password: "", confirmPassword: "", general: "" });
+    setCargandoGoogle(true);
+    try {
+      const provider = new GoogleAuthProvider();
+      provider.setCustomParameters({ prompt: 'select_account' });
+      const resultado = await signInWithPopup(auth, provider);
+      const user = resultado.user;
+
+      // Verificar si ya existe el usuario en Firestore
+      const userDocRef = doc(db, "usuarios", user.uid);
+      const userDocSnap = await getDoc(userDocRef);
+
+      if (!userDocSnap.exists()) {
+        // Usuario nuevo con Google: abrir modal de bienvenida y configuración de negocio
+        const nombreSugerido = user.displayName || "";
+        const primerNombre = user.displayName ? user.displayName.split(' ')[0] : "";
+        const negocioSugerido = primerNombre ? `Comercio de ${primerNombre}` : "Mi Comercio";
+        
+        setGoogleUserPendiente({
+          uid: user.uid,
+          email: user.email || "",
+          nombre: nombreSugerido,
+          foto: user.photoURL || undefined
+        });
+
+        setFormGoogleOnboarding({
+          nombreUsuario: nombreSugerido,
+          nombreNegocio: "",
+          tipoNegocio: "Moda y Calzado",
+          telefonoNegocio: "",
+          moduloSepare: true,
+          plan: planSeleccionadoRegistro || 'comercio'
+        });
+
+        setPasoGoogleOnboarding(1);
+        setErrorGoogleOnboarding("");
+        cerrarModal();
+        setModalGoogleOnboarding(true);
+      } else {
+        // Usuario ya registrado: cerrar modal de landing (AuthContext se encarga de redirigir)
+        cerrarModal();
+      }
+    } catch (error: any) {
+      console.error("Error al autenticar con Google:", error);
+      if (error.code === 'auth/popup-closed-by-user' || error.code === 'auth/cancelled-popup-request') {
+        // Ventana cerrada voluntariamente por el usuario
+        return;
+      } else if (error.code === 'auth/operation-not-allowed') {
+        setAuthErrores(p => ({ ...p, general: "El inicio con Google debe ser habilitado en la consola de Firebase (Authentication > Sign-in method)." }));
+      } else {
+        setAuthErrores(p => ({ ...p, general: "No se pudo acceder con Google. Intenta de nuevo o ingresa con correo." }));
+      }
+    } finally {
+      setCargandoGoogle(false);
+    }
+  };
+
+  const completarOnboardingGoogle = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!googleUserPendiente) return;
+    setErrorGoogleOnboarding("");
+
+    if (!formGoogleOnboarding.nombreNegocio.trim()) {
+      setErrorGoogleOnboarding("Por favor ingresa el nombre de tu negocio.");
+      return;
+    }
+
+    if (!formGoogleOnboarding.telefonoNegocio.trim()) {
+      setErrorGoogleOnboarding("El número de WhatsApp es obligatorio para activar el envío de comprobantes y recordatorios.");
+      return;
+    }
+
+    setGuardandoGoogleOnboarding(true);
+    try {
+      const diasPrueba = formGoogleOnboarding.plan !== 'gratis' ? 14 : null;
+      let fechaVence: Date | null = null;
+      if (diasPrueba) {
+        const d = new Date();
+        d.setDate(d.getDate() + diasPrueba);
+        fechaVence = d;
+      }
+
+      const userDocRef = doc(db, "usuarios", googleUserPendiente.uid);
+      await setDoc(userDocRef, {
+        nombreUsuario: formGoogleOnboarding.nombreUsuario.trim() || (googleUserPendiente.nombre || "Comerciante"),
+        nombreNegocio: formGoogleOnboarding.nombreNegocio.trim(),
+        tipoNegocio: formGoogleOnboarding.tipoNegocio,
+        moduloSepareActivo: formGoogleOnboarding.moduloSepare,
+        email: googleUserPendiente.email,
+        telefonoNegocio: formGoogleOnboarding.telefonoNegocio.trim(),
+        rol: "admin",
+        plan: formGoogleOnboarding.plan,
+        planVence: fechaVence,
+        cicloPlan: cicloFacturacion,
+        creadoCon: "google",
+        fechaRegistro: new Date()
+      });
+
+      setModalGoogleOnboarding(false);
+      setGoogleUserPendiente(null);
+      // Marcamos para que el dashboard de inicio le muestre el tour de bienvenida al llegar
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('fiabono_mostrar_tour', 'true');
+      }
+      // Redirigir de inmediato al dashboard
+      window.location.href = "/dashboard/inicio";
+    } catch (err: any) {
+      console.error("Error guardando negocio Google:", err);
+      setErrorGoogleOnboarding("Ocurrió un error al crear tu negocio. Intenta nuevamente.");
+    } finally {
+      setGuardandoGoogleOnboarding(false);
+    }
+  };
+
+  const cancelarGoogleOnboarding = async () => {
+    try {
+      await signOut(auth);
+    } catch (err) {
+      console.error(err);
+    }
+    setModalGoogleOnboarding(false);
+    setGoogleUserPendiente(null);
+    setErrorGoogleOnboarding("");
   };
 
   const cerrarModal = () => {
@@ -122,14 +270,14 @@ export default function LandingPage() {
       
       {/* 1. TOP ANNOUNCEMENT BANNER */}
       <div className="bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 text-white text-[11px] sm:text-xs font-black py-2 px-4 text-center flex items-center justify-center gap-2">
-        <span>🇨🇴 El Sistema POS preferido por más de 1.800 comercios y almacenes en Colombia</span>
+        <span>🇨🇴 El sistema POS colombiano para almacenes, tiendas y negocios</span>
         <span className="hidden sm:inline-block bg-white/20 px-2 py-0.5 rounded-full text-[10px] uppercase font-bold">14 días de prueba gratis</span>
       </div>
 
       {/* 2. HEADER NAVEGACIÓN GLASSOVERLAY */}
       <header className="sticky top-0 bg-white/85 dark:bg-[#0f172a]/85 backdrop-blur-2xl border-b border-slate-200/60 dark:border-slate-800/60 z-[500] px-4 sm:px-8 py-3.5 transition-all shadow-sm">
         <div className="max-w-7xl mx-auto flex justify-between items-center">
-          <div className="flex items-center gap-2.5 cursor-pointer" onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}>
+          <div className="flex items-center gap-2.5 cursor-pointer" onClick={() => { setMenuMovilAbierto(false); window.scrollTo({ top: 0, behavior: 'smooth' }); }}>
             <div className="w-9 h-9 bg-gradient-to-tr from-blue-600 to-indigo-600 rounded-xl flex items-center justify-center shadow-lg shadow-blue-500/25">
               <Receipt size={20} className="text-white"/>
             </div>
@@ -141,29 +289,69 @@ export default function LandingPage() {
           <nav className="hidden md:flex items-center gap-7 text-xs lg:text-sm font-bold text-slate-600 dark:text-slate-300">
             <button onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })} className="hover:text-blue-600 dark:hover:text-blue-400 transition-colors cursor-pointer">Inicio</button>
             <button onClick={() => document.getElementById('comparativa')?.scrollIntoView({behavior: 'smooth'})} className="hover:text-blue-600 dark:hover:text-blue-400 transition-colors cursor-pointer">Cuaderno vs POS</button>
+            <button onClick={() => document.getElementById('features')?.scrollIntoView({behavior: 'smooth'})} className="hover:text-blue-600 dark:hover:text-blue-400 transition-colors cursor-pointer">Funciones</button>
             <button onClick={() => document.getElementById('calculadora')?.scrollIntoView({behavior: 'smooth'})} className="hover:text-blue-600 dark:hover:text-blue-400 transition-colors cursor-pointer">Calculadora</button>
             <button onClick={() => document.getElementById('nichos')?.scrollIntoView({behavior: 'smooth'})} className="hover:text-blue-600 dark:hover:text-blue-400 transition-colors cursor-pointer">Tu Negocio</button>
             <button onClick={() => document.getElementById('planes')?.scrollIntoView({behavior: 'smooth'})} className="hover:text-blue-600 dark:hover:text-blue-400 transition-colors cursor-pointer">Planes</button>
             <button onClick={() => document.getElementById('faq')?.scrollIntoView({behavior: 'smooth'})} className="hover:text-blue-600 dark:hover:text-blue-400 transition-colors cursor-pointer">Preguntas</button>
           </nav>
 
-          <div className="flex items-center gap-2 sm:gap-3 shrink-0">
+          <div className="flex items-center gap-1.5 sm:gap-3 shrink-0">
             <button 
               type="button" 
-              onClick={() => setModalLandingInfo({ visible: true, tipo: 'login' })} 
-              className="text-xs sm:text-sm font-black text-slate-700 dark:text-slate-200 hover:text-blue-600 dark:hover:text-blue-400 transition-colors px-3 py-2 cursor-pointer"
+              onClick={() => { setMenuMovilAbierto(false); setModalLandingInfo({ visible: true, tipo: 'login' }); }} 
+              className="text-xs sm:text-sm font-black text-slate-700 dark:text-slate-200 hover:text-blue-600 dark:hover:text-blue-400 transition-colors px-2.5 sm:px-3 py-2 cursor-pointer"
             >
               Iniciar Sesión
             </button>
             <button 
               type="button" 
-              onClick={() => abrirRegistroConPlan('gratis')} 
-              className="bg-blue-600 hover:bg-blue-700 text-white text-xs sm:text-sm font-black py-2.5 px-4 sm:px-5 rounded-xl shadow-md shadow-blue-600/25 transition-transform active:scale-95 cursor-pointer"
+              onClick={() => { setMenuMovilAbierto(false); abrirRegistroConPlan('gratis'); }} 
+              className="bg-blue-600 hover:bg-blue-700 text-white text-xs sm:text-sm font-black py-2.5 px-3 sm:px-5 rounded-xl shadow-md shadow-blue-600/25 transition-transform active:scale-95 cursor-pointer whitespace-nowrap"
             >
-              Empezar Gratis
+              <span className="hidden sm:inline">Empezar Gratis</span>
+              <span className="sm:hidden">Registrarse</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setMenuMovilAbierto(!menuMovilAbierto)}
+              className="md:hidden p-2 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-colors cursor-pointer"
+              aria-label="Abrir menú"
+            >
+              {menuMovilAbierto ? <X size={20} /> : <Menu size={20} />}
             </button>
           </div>
         </div>
+
+        {/* MENÚ MÓVIL DESPLEGABLE */}
+        {menuMovilAbierto && (
+          <div className="md:hidden border-t border-slate-200/80 dark:border-slate-800/80 mt-3 pt-3 pb-2 space-y-1 animate-in slide-in-from-top-2 duration-200">
+            {[
+              { label: 'Inicio', target: 'top' },
+              { label: 'Cuaderno vs POS', target: 'comparativa' },
+              { label: 'Funciones Reales', target: 'features' },
+              { label: 'Calculadora de Ahorro', target: 'calculadora' },
+              { label: 'Casos por Tipo de Negocio', target: 'nichos' },
+              { label: 'Planes y Precios', target: 'planes' },
+              { label: 'Preguntas Frecuentes', target: 'faq' },
+            ].map((item) => (
+              <button
+                key={item.target}
+                onClick={() => {
+                  setMenuMovilAbierto(false);
+                  if (item.target === 'top') {
+                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                  } else {
+                    document.getElementById(item.target)?.scrollIntoView({ behavior: 'smooth' });
+                  }
+                }}
+                className="w-full text-left px-3 py-2 rounded-lg text-sm font-bold text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+              >
+                {item.label}
+              </button>
+            ))}
+          </div>
+        )}
       </header>
 
       {/* 3. HERO SECTION DE ALTO IMPACTO EMOCIONAL */}
@@ -222,8 +410,8 @@ export default function LandingPage() {
           <div className="flex items-center justify-start sm:justify-center gap-2 overflow-x-auto pb-3 mb-6 no-scrollbar border-b border-slate-100 dark:border-slate-800">
             {[
               { id: 'pos', nombre: '1. Venta en Mostrador', icono: ShoppingBag },
-              { id: 'whatsapp', nombre: '2. Recibo por WhatsApp', icono: MessageCircle },
-              { id: 'ticket', nombre: '3. Factura Térmica QR', icono: Printer },
+              { id: 'whatsapp', nombre: '2. Comprobante por WhatsApp', icono: MessageCircle },
+              { id: 'factura', nombre: '3. Factura Térmica QR', icono: Printer },
               { id: 'separe', nombre: '4. Ficha Plan Separe', icono: Shirt },
             ].map(tab => {
               const Icon = tab.icono;
@@ -285,10 +473,10 @@ export default function LandingPage() {
               <div className="lg:col-span-5 space-y-3 text-left">
                 <h4 className="text-xl font-black text-slate-900 dark:text-white">Cobro sin filas ni retrasos</h4>
                 <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400 leading-relaxed font-medium">
-                  Busca productos por nombre, código de barras o código QR. Elige si el cliente paga en efectivo, transferencia (Nequi/Daviplata) o si lo lleva fiado con un clic.
+                  Busca productos por nombre, código de barras o código QR. Registra pagos de contado (efectivo o transferencias) o fíalo a la cuenta del cliente en un solo clic.
                 </p>
                 <div className="bg-blue-50 dark:bg-blue-500/10 p-3 rounded-xl text-xs font-bold text-blue-700 dark:text-blue-300 border border-blue-100 dark:border-blue-500/20">
-                  💡 Descuenta el stock automáticamente y actualiza la caja al instante.
+                  💡 Descuenta el stock automáticamente y registra el ingreso en tu caja al instante.
                 </div>
               </div>
             </div>
@@ -302,8 +490,8 @@ export default function LandingPage() {
                   <span className="text-[10px] bg-white/20 px-2 py-0.5 rounded">Enviado en 1 toque</span>
                 </div>
                 <div className="bg-emerald-700/50 p-3.5 rounded-xl space-y-1.5 text-[11px] leading-relaxed">
-                  <p className="font-bold text-emerald-200">🛒 *VENTA CONFIRMADA — Boutique Glamour*</p>
-                  <p className="border-t border-emerald-500/40 pt-1">Cliente: *María Camila Gómez*</p>
+                  <p className="font-bold text-emerald-200">🛒 *COMPROBANTE DE VENTA — Tu Negocio*</p>
+                  <p className="border-t border-emerald-500/40 pt-1">Cliente: *Cliente Registrado*</p>
                   <p>• Vestido Lino Estampado x1 $\rightarrow$ $65.000</p>
                   <p>• Sandalias Plataforma x1 $\rightarrow$ $45.000</p>
                   <p className="font-black text-sm pt-1 border-t border-emerald-500/40 text-emerald-100">*Total:* $110.000 (Pagado en Efectivo)</p>
@@ -316,20 +504,20 @@ export default function LandingPage() {
                   El cliente recibe el comprobante directamente en su WhatsApp. Si es un fiado o un abono, el mensaje detalla exactamente cuánto pagó y cuánto saldo le resta.
                 </p>
                 <div className="bg-emerald-50 dark:bg-emerald-500/10 p-3 rounded-xl text-xs font-bold text-emerald-700 dark:text-emerald-300 border border-emerald-100 dark:border-emerald-500/20">
-                  📱 Cuentas claras evitan discusiones y aceleran el pago de deudas.
+                  📱 Cuentas claras evitan discusiones y aceleran el recaudo de cartera.
                 </div>
               </div>
             </div>
           )}
 
-          {tabMockup === 'ticket' && (
+          {tabMockup === 'factura' && (
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-center animate-in fade-in duration-300">
               <div className="lg:col-span-6 flex justify-center">
                 <div className="bg-white text-slate-900 p-5 rounded-2xl border border-slate-200 shadow-xl font-mono text-[11px] space-y-2 w-full max-w-sm text-left">
                   <div className="text-center pb-2 border-b border-dashed border-slate-300">
-                    <p className="font-black text-sm tracking-wider">BOUTIQUE GLAMOUR</p>
-                    <p className="text-[10px] text-slate-500">NIT: 901.554.210-4 • Factura #0089</p>
-                    <p className="text-[9px] text-slate-400">Cra 15 # 45-20 • Cel: 312 456 7890</p>
+                    <p className="font-black text-sm tracking-wider">TU NEGOCIO</p>
+                    <p className="text-[10px] text-slate-500">NIT: 901.XXX.XXX-X • Factura / Comprobante #0089</p>
+                    <p className="text-[9px] text-slate-400">Cra Principal # 12-34 • Cel / WhatsApp</p>
                   </div>
                   <div className="space-y-1 py-1">
                     <div className="flex justify-between"><span>Vestido Lino M</span><span>$65.000</span></div>
@@ -368,7 +556,7 @@ export default function LandingPage() {
                   <span className="text-xs font-bold text-rose-500">📅 Vence en 8 días</span>
                 </div>
                 <div className="bg-white dark:bg-[#0f172a] p-3 rounded-xl border border-slate-200 dark:border-slate-800 space-y-2 text-xs">
-                  <p className="font-black text-slate-900 dark:text-white text-sm">Cliente: Natalia Restrepo</p>
+                  <p className="font-black text-slate-900 dark:text-white text-sm">Cliente: Cliente Registrado</p>
                   <p className="text-slate-500">Prenda: Jean Levantacola Talla 8 (Azul Oscuro)</p>
                   <div className="w-full bg-slate-100 dark:bg-slate-800 rounded-full h-3 overflow-hidden">
                     <div className="bg-gradient-to-r from-purple-600 to-indigo-600 h-full w-[65%]"></div>
@@ -440,7 +628,7 @@ export default function LandingPage() {
               </ul>
             </div>
             <div className="p-3 bg-rose-100/70 dark:bg-rose-900/40 rounded-xl text-rose-700 dark:text-rose-300 text-xs font-bold text-center">
-              ⚠️ Un negocio pierde en promedio $300.000 COP al mes en deudas no cobradas.
+              ⚠️ Cada fiado olvidado o cuenta mal anotada en el cuaderno es plata que no vuelve a tu bolsillo.
             </div>
           </div>
 
@@ -460,19 +648,19 @@ export default function LandingPage() {
               <ul className="space-y-3.5 text-xs sm:text-sm font-medium text-slate-700 dark:text-slate-300">
                 <li className="flex items-start gap-2.5">
                   <span className="text-emerald-500 font-black shrink-0">✓</span>
-                  <span><strong>Comprobante directo a WhatsApp:</strong> Cada abono o fiado genera un recibo digital claro y formal en 1 toque.</span>
+                  <span><strong>Comprobante directo a WhatsApp:</strong> Cada venta, abono o fiado genera un recibo digital claro y formal en 1 toque.</span>
                 </li>
                 <li className="flex items-start gap-2.5">
                   <span className="text-emerald-500 font-black shrink-0">✓</span>
-                  <span><strong>Respaldo 100% en la Nube:</strong> Si cambias o pierdes el celular, abres sesión en otro equipo y todo está intacto.</span>
+                  <span><strong>Respaldo 100% en la Nube:</strong> Si cambias o pierdes el celular, abres sesión en cualquier otro equipo y todo está intacto.</span>
                 </li>
                 <li className="flex items-start gap-2.5">
                   <span className="text-emerald-500 font-black shrink-0">✓</span>
-                  <span><strong>Cierre de caja automático en 2 segundos:</strong> Sabes cuánto entró en efectivo, Nequi, transferencias y qué está fiado.</span>
+                  <span><strong>Cierre de caja en 2 segundos:</strong> Sabes cuánto entró en efectivo, transferencias y qué quedó fiado en la calle.</span>
                 </li>
                 <li className="flex items-start gap-2.5">
                   <span className="text-emerald-500 font-black shrink-0">✓</span>
-                  <span><strong>Alertas de vencimiento de Separes:</strong> Fotos de las prendas, fechas límite y recordatorios para liberar mercancía.</span>
+                  <span><strong>Alertas de vencimiento de Separes:</strong> Fotos de las prendas, fechas límite y recordatorios para cobrar a tiempo.</span>
                 </li>
               </ul>
             </div>
@@ -594,7 +782,7 @@ export default function LandingPage() {
         </div>
 
         {/* Selector de Nichos */}
-        <div className="flex justify-center gap-2 overflow-x-auto pb-4 mb-8 no-scrollbar">
+        <div className="flex justify-start sm:justify-center gap-2 overflow-x-auto pb-4 mb-8 no-scrollbar px-2">
           {[
             { id: 'tienda', nombre: '🏪 Tiendas & Minimarkets' },
             { id: 'moda', nombre: '👗 Almacenes de Ropa & Calzado' },
@@ -627,15 +815,15 @@ export default function LandingPage() {
                 </p>
                 <div className="flex flex-wrap gap-2 text-xs font-bold text-slate-700 dark:text-slate-300">
                   <span className="bg-slate-100 dark:bg-slate-800 px-3 py-1 rounded-lg">✓ Cupo de fiado por cliente</span>
-                  <span className="bg-slate-100 dark:bg-slate-800 px-3 py-1 rounded-lg">✓ Cuadre de caja Nequi/Efectivo</span>
+                  <span className="bg-slate-100 dark:bg-slate-800 px-3 py-1 rounded-lg">✓ Historial de compras y deudas</span>
                 </div>
               </div>
               <div className="bg-blue-50 dark:bg-blue-950/30 p-6 rounded-2xl border border-blue-200/60 dark:border-blue-900/40 space-y-2">
-                <p className="font-black text-sm text-blue-900 dark:text-blue-200">Testimonio Real:</p>
-                <p className="text-xs italic text-slate-600 dark:text-slate-300">
-                  "Antes los vecinos me decían 'anóteme ahí' y luego se enredaban las cuentas. Ahora les llega su extracto por WhatsApp y pagan sin chistar."
+                <p className="font-black text-sm text-blue-900 dark:text-blue-200">En tu día a día:</p>
+                <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
+                  Al despachar registras si el cliente pagó de contado o si se añade a su saldo fiado. El vecino recibe su extracto por WhatsApp y al final del día obtienes un cuadre de caja transparente sin discusiones ni cuentas embolatadas.
                 </p>
-                <p className="text-[11px] font-bold text-blue-600 dark:text-blue-400 pt-1">— Don Gustavo Morales, Minimarket El Trébol (Bogotá)</p>
+                <p className="text-[11px] font-bold text-blue-600 dark:text-blue-400 pt-1">✓ Registro de métodos de pago para control interno de caja</p>
               </div>
             </div>
           )}
@@ -646,7 +834,7 @@ export default function LandingPage() {
                 <span className="text-xs font-black text-purple-600 uppercase tracking-wider">Almacenes de Ropa, Calzado & Boutiques</span>
                 <h3 className="text-2xl font-black text-slate-900 dark:text-white">Módulo Plan Separe con fotos de prendas y fechas límite</h3>
                 <p className="text-sm text-slate-600 dark:text-slate-400 leading-relaxed font-medium">
-                  Tus clientas apartan vestidos o zapatos para quincena. Tomas foto a la prenda, fijas la fecha de vencimiento y registras abonos parciales. Si el plazo vence, el sistema te avisa para cobrar o liberar el artículo.
+                  Tus clientas apartan vestidos o zapatos para quincena. Tomas foto a la prenda con tu celular, fijas la fecha de vencimiento y registras abonos parciales. Si el plazo vence, el sistema te avisa para cobrar o liberar el artículo.
                 </p>
                 <div className="flex flex-wrap gap-2 text-xs font-bold text-slate-700 dark:text-slate-300">
                   <span className="bg-slate-100 dark:bg-slate-800 px-3 py-1 rounded-lg">✓ Fotos de prendas apartadas</span>
@@ -654,11 +842,11 @@ export default function LandingPage() {
                 </div>
               </div>
               <div className="bg-purple-50 dark:bg-purple-950/30 p-6 rounded-2xl border border-purple-200/60 dark:border-purple-900/40 space-y-2">
-                <p className="font-black text-sm text-purple-900 dark:text-purple-200">Testimonio Real:</p>
-                <p className="text-xs italic text-slate-600 dark:text-slate-300">
-                  "El Plan Separe con foto me salvó el negocio. Se acabaron los reclamos de 'esa no era la blusa que yo aparté'. Mis clientas aman los comprobantes."
+                <p className="font-black text-sm text-purple-900 dark:text-purple-200">En tu día a día:</p>
+                <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
+                  Cero reclamos de "¿cuál fue la prenda que aparté?". Cada abono genera un comprobante inmediato por WhatsApp que muestra el saldo restante y la fecha límite, manteniendo el inventario reservado seguro.
                 </p>
-                <p className="text-[11px] font-bold text-purple-600 dark:text-purple-400 pt-1">— Marcela Restrepo, Boutique Glamour (Medellín)</p>
+                <p className="text-[11px] font-bold text-purple-600 dark:text-purple-400 pt-1">✓ Control de mercancía apartada y rotación oportuna</p>
               </div>
             </div>
           )}
@@ -669,7 +857,7 @@ export default function LandingPage() {
                 <span className="text-xs font-black text-indigo-600 uppercase tracking-wider">Papelerías, Ferreterías & Misceláneas</span>
                 <h3 className="text-2xl font-black text-slate-900 dark:text-white">Etiquetas adhesivas con Código QR y precios</h3>
                 <p className="text-sm text-slate-600 dark:text-slate-400 leading-relaxed font-medium">
-                  Miles de productos pequeños con precios cambiantes. Generas e imprimes planchas térmicas con el QR, Nombre y Precio para etiquetar estantes y cobrar en 1 segundo con la cámara del celular.
+                  Miles de productos pequeños con precios cambiantes. Generas e imprimes planchas térmicas con el QR, Nombre y Precio para etiquetar estantes y cobrar en 1 segundo con la cámara del celular o lector de barras.
                 </p>
                 <div className="flex flex-wrap gap-2 text-xs font-bold text-slate-700 dark:text-slate-300">
                   <span className="bg-slate-100 dark:bg-slate-800 px-3 py-1 rounded-lg">✓ Planchas de etiquetas QR</span>
@@ -677,11 +865,11 @@ export default function LandingPage() {
                 </div>
               </div>
               <div className="bg-indigo-50 dark:bg-indigo-950/30 p-6 rounded-2xl border border-indigo-200/60 dark:border-indigo-900/40 space-y-2">
-                <p className="font-black text-sm text-indigo-900 dark:text-indigo-200">Testimonio Real:</p>
-                <p className="text-xs italic text-slate-600 dark:text-slate-300">
-                  "Etiqueté toda la tornillería y herramientas. Mis colaboradores ahora solo escanean con la cámara y facturan sin equivocarse en los precios."
+                <p className="font-black text-sm text-indigo-900 dark:text-indigo-200">En tu día a día:</p>
+                <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
+                  Tus colaboradores escanean con la cámara y facturan sin equivocarse en los precios ni consultar cuadernos viejos. El stock se descuenta en vivo para saber cuándo reponer a proveedores.
                 </p>
-                <p className="text-[11px] font-bold text-indigo-600 dark:text-indigo-400 pt-1">— Julián Lozano, Ferretería La Central (Cali)</p>
+                <p className="text-[11px] font-bold text-indigo-600 dark:text-indigo-400 pt-1">✓ Agilidad total en mostrador y control de inventario</p>
               </div>
             </div>
           )}
@@ -692,7 +880,7 @@ export default function LandingPage() {
                 <span className="text-xs font-black text-rose-600 uppercase tracking-wider">Cosméticos, Belleza & Venta por Catálogo</span>
                 <h3 className="text-2xl font-black text-slate-900 dark:text-white">Cobro profesional a clientas de campañas y quincenas</h3>
                 <p className="text-sm text-slate-600 dark:text-slate-400 leading-relaxed font-medium">
-                  Maneja la lista de clientas por campaña (Novaventa, Yanbal, Avon, etc.). Envía recordatorios de cobro personalizados en quincena y registra abonos parciales sin confusiones.
+                  Maneja la lista de clientas por campaña o pedidos. Envía estados de cuenta claros por WhatsApp en quincena y registra abonos parciales sin enredos ni cuentas manuales.
                 </p>
                 <div className="flex flex-wrap gap-2 text-xs font-bold text-slate-700 dark:text-slate-300">
                   <span className="bg-slate-100 dark:bg-slate-800 px-3 py-1 rounded-lg">✓ Recordatorios de quincena</span>
@@ -700,72 +888,170 @@ export default function LandingPage() {
                 </div>
               </div>
               <div className="bg-rose-50 dark:bg-rose-950/30 p-6 rounded-2xl border border-rose-200/60 dark:border-rose-900/40 space-y-2">
-                <p className="font-black text-sm text-rose-900 dark:text-rose-200">Testimonio Real:</p>
-                <p className="text-xs italic text-slate-600 dark:text-slate-300">
-                  "Cobrar me daba mucha pena. El extracto de Fiabono se ve tan formal que mis clientas me transfieren puntual los días 15 y 30."
+                <p className="font-black text-sm text-rose-900 dark:text-rose-200">En tu día a día:</p>
+                <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
+                  Cobrar ya no da pena. El comprobante de Fiabono se ve formal y claro en el WhatsApp de tu clienta, indicando cuánto abonó y qué saldo tiene pendiente para sus fechas de pago.
                 </p>
-                <p className="text-[11px] font-bold text-rose-600 dark:text-rose-400 pt-1">— Carmen Alicia Barrios, Distribuidora de Belleza (Barranquilla)</p>
+                <p className="text-[11px] font-bold text-rose-600 dark:text-rose-400 pt-1">✓ Cobranza puntual sin desgastes ni malentendidos</p>
               </div>
             </div>
           )}
         </div>
       </section>
 
-      {/* 8. TESTIMONIOS Y PRUEBA SOCIAL POR CIUDADES */}
-      <section className="py-20 px-4 sm:px-6 max-w-6xl mx-auto">
-        <div className="text-center max-w-3xl mx-auto mb-12">
-          <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-black text-xs uppercase tracking-wider mb-3">
-            <Star size={14} className="fill-current" /> Respaldado por comerciantes reales
+      {/* 8. GRID DE FUNCIONALIDADES REALES DE FIABONO (REEMPLAZO HONESTO Y PROFESIONAL) */}
+      <section id="features" className="py-20 px-4 sm:px-6 max-w-7xl mx-auto scroll-mt-20">
+        <div className="text-center max-w-3xl mx-auto mb-14">
+          <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400 font-black text-xs uppercase tracking-wider mb-3">
+            <Sparkles size={14} /> Lo que realmente hace Fiabono
           </div>
           <h2 className="text-3xl sm:text-5xl font-black text-slate-900 dark:text-white tracking-tight">
-            Comerciantes en toda Colombia que transformaron su negocio
+            Todo lo que necesitas para operar tu negocio sin enredos
           </h2>
+          <p className="text-sm sm:text-base text-slate-600 dark:text-slate-400 mt-3 max-w-2xl mx-auto font-medium">
+            Herramientas reales construidas especialmente para tiendas, almacenes y comercios en Colombia.
+          </p>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 text-left">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 text-left">
           
-          <div className="bg-white dark:bg-[#0f172a] p-6 rounded-[2rem] border border-slate-200/70 dark:border-slate-800/70 shadow-sm flex flex-col justify-between space-y-4">
+          {/* Columna 1: Ventas, Fiados y Cobros */}
+          <div className="bg-white dark:bg-[#0f172a] p-6 rounded-[2rem] border border-slate-200/80 dark:border-slate-800/80 shadow-sm flex flex-col justify-between space-y-4 hover:shadow-md transition-shadow">
             <div>
-              <div className="flex items-center gap-1 text-amber-400 mb-3">
-                {[...Array(5)].map((_, i) => <Star key={i} size={15} className="fill-current"/>)}
+              <div className="w-12 h-12 rounded-2xl bg-blue-100 dark:bg-blue-500/20 text-blue-600 dark:text-blue-400 flex items-center justify-center mb-4">
+                <ShoppingBag size={24} />
               </div>
-              <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-300 leading-relaxed italic">
-                "En diciembre el Plan Separe era un dolor de cabeza. Con Fiabono registré más de 80 prendas con foto y ninguna se me embolató. Recuperé todo el dinero a tiempo."
-              </p>
+              <h3 className="text-lg font-black text-slate-900 dark:text-white mb-2">Ventas, Fiados y Cobros</h3>
+              <ul className="space-y-2.5 text-xs text-slate-600 dark:text-slate-300 font-medium">
+                <li className="flex items-start gap-2">
+                  <CheckCircle2 size={15} className="text-blue-600 shrink-0 mt-0.5" />
+                  <span><strong>Vende y fía en 1 toque</strong> con control de cupo por cliente.</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <CheckCircle2 size={15} className="text-blue-600 shrink-0 mt-0.5" />
+                  <span><strong>Historial completo:</strong> ventas, fiados y abonos registrados por cliente.</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <CheckCircle2 size={15} className="text-blue-600 shrink-0 mt-0.5" />
+                  <span><strong>Estados de cuenta por WhatsApp:</strong> cobra deudas formalmente con un toque.</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <CheckCircle2 size={15} className="text-blue-600 shrink-0 mt-0.5" />
+                  <span><strong>Abonos parciales:</strong> actualiza saldos al instante sin recalcular en cuaderno.</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <CheckCircle2 size={15} className="text-blue-600 shrink-0 mt-0.5" />
+                  <span><strong>Registro del medio de pago:</strong> anota efectivo, transferencia o datáfono para tu control.</span>
+                </li>
+              </ul>
             </div>
-            <div className="pt-3 border-t border-slate-100 dark:border-slate-800">
-              <p className="font-black text-sm text-slate-900 dark:text-white">Marcela Restrepo</p>
-              <p className="text-xs text-slate-400">Marcela Boutique • Medellín</p>
+            <div className="pt-3 border-t border-slate-100 dark:border-slate-800 text-[11px] font-bold text-blue-600 dark:text-blue-400">
+              ✓ Carrito multi-venta en paralelo
             </div>
           </div>
 
-          <div className="bg-white dark:bg-[#0f172a] p-6 rounded-[2rem] border border-slate-200/70 dark:border-slate-800/70 shadow-sm flex flex-col justify-between space-y-4">
+          {/* Columna 2: Inventario y Catálogo */}
+          <div className="bg-white dark:bg-[#0f172a] p-6 rounded-[2rem] border border-slate-200/80 dark:border-slate-800/80 shadow-sm flex flex-col justify-between space-y-4 hover:shadow-md transition-shadow">
             <div>
-              <div className="flex items-center gap-1 text-amber-400 mb-3">
-                {[...Array(5)].map((_, i) => <Star key={i} size={15} className="fill-current"/>)}
+              <div className="w-12 h-12 rounded-2xl bg-emerald-100 dark:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 flex items-center justify-center mb-4">
+                <QrCode size={24} />
               </div>
-              <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-300 leading-relaxed italic">
-                "Cerrar caja los domingos me tomaba 2 horas con calculadora. Ahora en 2 minutos sé exactamente cuánto entró en efectivo, Nequi y cuánto está fiado en el barrio."
-              </p>
+              <h3 className="text-lg font-black text-slate-900 dark:text-white mb-2">Inventario y Catálogo</h3>
+              <ul className="space-y-2.5 text-xs text-slate-600 dark:text-slate-300 font-medium">
+                <li className="flex items-start gap-2">
+                  <CheckCircle2 size={15} className="text-emerald-600 shrink-0 mt-0.5" />
+                  <span><strong>Catálogo completo:</strong> administra productos físicos y servicios.</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <CheckCircle2 size={15} className="text-emerald-600 shrink-0 mt-0.5" />
+                  <span><strong>Alertas de stock:</strong> aviso de productos agotados o por debajo del mínimo.</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <CheckCircle2 size={15} className="text-emerald-600 shrink-0 mt-0.5" />
+                  <span><strong>Etiquetas adhesivas QR:</strong> genera e imprime para rollos térmicos o PDF carta.</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <CheckCircle2 size={15} className="text-emerald-600 shrink-0 mt-0.5" />
+                  <span><strong>Carga masiva en Excel:</strong> sube o descarga todo tu catálogo en segundos.</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <CheckCircle2 size={15} className="text-emerald-600 shrink-0 mt-0.5" />
+                  <span><strong>Escaneo con cámara:</strong> cobra con el lector de barras o código QR desde el móvil.</span>
+                </li>
+              </ul>
             </div>
-            <div className="pt-3 border-t border-slate-100 dark:border-slate-800">
-              <p className="font-black text-sm text-slate-900 dark:text-white">Don Gustavo Morales</p>
-              <p className="text-xs text-slate-400">Minimarket El Trébol • Bogotá</p>
+            <div className="pt-3 border-t border-slate-100 dark:border-slate-800 text-[11px] font-bold text-emerald-600 dark:text-emerald-400">
+              ✓ Descuento atómico de stock
             </div>
           </div>
 
-          <div className="bg-white dark:bg-[#0f172a] p-6 rounded-[2rem] border border-slate-200/70 dark:border-slate-800/70 shadow-sm flex flex-col justify-between space-y-4">
+          {/* Columna 3: Plan Separe y Apartados */}
+          <div className="bg-white dark:bg-[#0f172a] p-6 rounded-[2rem] border border-slate-200/80 dark:border-slate-800/80 shadow-sm flex flex-col justify-between space-y-4 hover:shadow-md transition-shadow">
             <div>
-              <div className="flex items-center gap-1 text-amber-400 mb-3">
-                {[...Array(5)].map((_, i) => <Star key={i} size={15} className="fill-current"/>)}
+              <div className="w-12 h-12 rounded-2xl bg-purple-100 dark:bg-purple-500/20 text-purple-600 dark:text-purple-400 flex items-center justify-center mb-4">
+                <Bookmark size={24} />
               </div>
-              <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-300 leading-relaxed italic">
-                "Mis empleados registran ventas sin poder ver mis ganancias totales. La privacidad y la facilidad para imprimir facturas térmicas es insuperable."
-              </p>
+              <h3 className="text-lg font-black text-slate-900 dark:text-white mb-2">Plan Separe con Fotos</h3>
+              <ul className="space-y-2.5 text-xs text-slate-600 dark:text-slate-300 font-medium">
+                <li className="flex items-start gap-2">
+                  <CheckCircle2 size={15} className="text-purple-600 shrink-0 mt-0.5" />
+                  <span><strong>Fotos de la mercancía:</strong> toma foto a la prenda apartada para evitar confusiones.</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <CheckCircle2 size={15} className="text-purple-600 shrink-0 mt-0.5" />
+                  <span><strong>Fecha límite pactada:</strong> plazo claro de vencimiento acordado con el cliente.</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <CheckCircle2 size={15} className="text-purple-600 shrink-0 mt-0.5" />
+                  <span><strong>Alertas de vencimiento:</strong> sabe cuándo cobrar o cuándo liberar el artículo.</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <CheckCircle2 size={15} className="text-purple-600 shrink-0 mt-0.5" />
+                  <span><strong>Progreso visual:</strong> barra de porcentaje pagado vs. saldo pendiente.</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <CheckCircle2 size={15} className="text-purple-600 shrink-0 mt-0.5" />
+                  <span><strong>Liquidación segura:</strong> entrega formal cuando el saldo llega a $0.</span>
+                </li>
+              </ul>
             </div>
-            <div className="pt-3 border-t border-slate-100 dark:border-slate-800">
-              <p className="font-black text-sm text-slate-900 dark:text-white">Julián Lozano</p>
-              <p className="text-xs text-slate-400">Ferretería La Central • Cali</p>
+            <div className="pt-3 border-t border-slate-100 dark:border-slate-800 text-[11px] font-bold text-purple-600 dark:text-purple-400">
+              ✓ Ideal para boutiques y almacenes
+            </div>
+          </div>
+
+          {/* Columna 4: Control, Reportes y Seguridad */}
+          <div className="bg-white dark:bg-[#0f172a] p-6 rounded-[2rem] border border-slate-200/80 dark:border-slate-800/80 shadow-sm flex flex-col justify-between space-y-4 hover:shadow-md transition-shadow">
+            <div>
+              <div className="w-12 h-12 rounded-2xl bg-amber-100 dark:bg-amber-500/20 text-amber-600 dark:text-amber-400 flex items-center justify-center mb-4">
+                <BarChart3 size={24} />
+              </div>
+              <h3 className="text-lg font-black text-slate-900 dark:text-white mb-2">Control y Reportes</h3>
+              <ul className="space-y-2.5 text-xs text-slate-600 dark:text-slate-300 font-medium">
+                <li className="flex items-start gap-2">
+                  <CheckCircle2 size={15} className="text-amber-600 shrink-0 mt-0.5" />
+                  <span><strong>Resumen diario y mensual:</strong> cuánto vendiste, cuánto fiaste y cuánto recaudaste.</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <CheckCircle2 size={15} className="text-amber-600 shrink-0 mt-0.5" />
+                  <span><strong>Plata en la calle:</strong> reporte exacto de tu cartera total pendiente por cobrar.</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <CheckCircle2 size={15} className="text-amber-600 shrink-0 mt-0.5" />
+                  <span><strong>Cierre de caja automático:</strong> desglosado por efectivo vs. transferencias.</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <CheckCircle2 size={15} className="text-amber-600 shrink-0 mt-0.5" />
+                  <span><strong>Colaboradores con permisos:</strong> crea cajeros con horarios y vistas restringidas.</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <CheckCircle2 size={15} className="text-amber-600 shrink-0 mt-0.5" />
+                  <span><strong>100% en la Nube:</strong> nunca pierdes información, así cambies o extravíes el celular.</span>
+                </li>
+              </ul>
+            </div>
+            <div className="pt-3 border-t border-slate-100 dark:border-slate-800 text-[11px] font-bold text-amber-600 dark:text-amber-400">
+              ✓ Cuentas claras todos los días
             </div>
           </div>
 
@@ -786,19 +1072,12 @@ export default function LandingPage() {
           </p>
         </div>
 
-        {/* Switch Mensual / Anual */}
-        <div className="flex items-center justify-center gap-3 mb-16">
-          <span className={`text-sm font-bold transition-colors ${cicloFacturacion === 'mensual' ? 'text-slate-900 dark:text-white' : 'text-slate-400'}`}>Mensual</span>
-          <button
-            type="button"
-            onClick={() => setCicloFacturacion(prev => prev === 'mensual' ? 'anual' : 'mensual')}
-            className="w-14 h-8 bg-blue-600 rounded-full p-1 transition-colors relative cursor-pointer focus:outline-none"
-          >
-            <div className={`w-6 h-6 bg-white rounded-full transition-transform shadow-md ${cicloFacturacion === 'anual' ? 'translate-x-6' : 'translate-x-0'}`}></div>
-          </button>
-          <span className={`text-sm font-bold flex items-center gap-1.5 transition-colors ${cicloFacturacion === 'anual' ? 'text-slate-900 dark:text-white' : 'text-slate-400'}`}>
-            Anual <span className="bg-emerald-100 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-400 text-[11px] font-black uppercase px-2 py-0.5 rounded-md">Ahorra 2 meses</span>
-          </span>
+        {/* Banner Informativo de Planes */}
+        <div className="flex items-center justify-center gap-2 mb-12">
+          <div className="inline-flex items-center gap-2 px-5 py-2.5 rounded-2xl bg-blue-50 dark:bg-blue-500/10 border border-blue-200 dark:border-blue-500/20 text-blue-700 dark:text-blue-300 text-xs sm:text-sm font-black tracking-wide shadow-xs">
+            <Sparkles size={16} className="text-amber-500 fill-current shrink-0" />
+            <span>Planes asequibles para Colombia • Tarifas oficiales próximamente disponibles • ¡Prueba 14 días gratis sin tarjeta!</span>
+          </div>
         </div>
         
         {/* Grid de 3 Planes */}
@@ -851,10 +1130,12 @@ export default function LandingPage() {
             <p className="text-blue-100 text-xs mb-6 h-8">La solución para negocios con alto volumen y mostrador.</p>
             
             <div className="mb-6">
-              <span className="text-4xl font-black text-white">
-                {cicloFacturacion === 'anual' ? '$199.000' : '$19.900'}
-              </span>
-              <span className="text-xs text-blue-200 font-bold ml-1">COP {cicloFacturacion === 'anual' ? '/ año' : '/ mes'}</span>
+              <div className="flex items-baseline gap-2">
+                <span className="text-2xl sm:text-3xl font-black text-white">
+                  Precio Próximamente
+                </span>
+              </div>
+              <span className="text-xs text-blue-200 font-bold block mt-1">Tarifa mensual asequible • 14 días de prueba completa sin costo</span>
             </div>
 
             <ul className="flex flex-col gap-3 mb-8 flex-1 text-xs font-bold text-white">
@@ -871,7 +1152,7 @@ export default function LandingPage() {
               onClick={() => abrirRegistroConPlan('comercio')} 
               className="w-full bg-white text-blue-600 hover:bg-blue-50 font-black py-3.5 rounded-2xl shadow-lg transition-transform active:scale-95 cursor-pointer text-sm text-center"
             >
-              Elegir Plan Comercio (14 días gratis)
+              Comenzar Prueba Gratis (14 Días)
             </button>
           </div>
 
@@ -889,10 +1170,12 @@ export default function LandingPage() {
             <p className="text-slate-500 dark:text-slate-400 text-xs mb-6 h-8">Módulo Separe, etiquetas QR y hasta 4 colaboradores.</p>
             
             <div className="mb-6">
-              <span className="text-4xl font-black text-slate-900 dark:text-white">
-                {cicloFacturacion === 'anual' ? '$449.000' : '$44.900'}
-              </span>
-              <span className="text-xs text-slate-500 font-bold ml-1">COP {cicloFacturacion === 'anual' ? '/ año' : '/ mes'}</span>
+              <div className="flex items-baseline gap-2">
+                <span className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-white">
+                  Precio Próximamente
+                </span>
+              </div>
+              <span className="text-xs text-purple-600 dark:text-purple-400 font-bold block mt-1">Tarifa mensual asequible • 14 días de prueba completa sin costo</span>
             </div>
 
             <ul className="flex flex-col gap-3 mb-8 flex-1 text-xs font-bold text-slate-700 dark:text-slate-300">
@@ -909,7 +1192,7 @@ export default function LandingPage() {
               onClick={() => abrirRegistroConPlan('pro')} 
               className="w-full bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white font-black py-3.5 rounded-2xl shadow-lg shadow-purple-600/20 transition-transform active:scale-95 cursor-pointer text-sm text-center"
             >
-              Elegir PRO Almacén (14 días gratis)
+              Comenzar Prueba Gratis (14 Días)
             </button>
           </div>
 
@@ -1004,7 +1287,7 @@ export default function LandingPage() {
       </section>
 
       {/* 12. FOOTER */}
-      <footer className="py-12 px-6 border-t border-slate-200/60 dark:border-slate-800/60 text-center text-xs text-slate-500 dark:text-slate-400 font-medium">
+      <footer className="py-12 pb-24 md:pb-12 px-6 border-t border-slate-200/60 dark:border-slate-800/60 text-center text-xs text-slate-500 dark:text-slate-400 font-medium">
         <div className="max-w-6xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-2">
             <div className="w-6 h-6 bg-blue-600 rounded-lg flex items-center justify-center text-white font-black text-[11px]">F</div>
@@ -1032,7 +1315,7 @@ export default function LandingPage() {
       {/* 14. MODAL DE LOGIN / REGISTRO */}
       {modalLandingInfo.visible && (
         <div className="fixed inset-0 bg-slate-900/60 dark:bg-black/80 backdrop-blur-md flex items-center justify-center p-4 z-[9999] animate-in zoom-in-95 duration-200">
-          <div className="bg-white dark:bg-[#0f172a] p-8 rounded-[2.5rem] w-full max-w-md shadow-2xl border border-slate-100 dark:border-slate-800 relative max-h-[90vh] overflow-y-auto">
+          <div className="bg-white dark:bg-[#0f172a] p-5 sm:p-8 rounded-[2.5rem] w-full max-w-md shadow-2xl border border-slate-100 dark:border-slate-800 relative max-h-[90vh] overflow-y-auto">
             <button 
               type="button"
               onClick={cerrarModal} 
@@ -1064,6 +1347,37 @@ export default function LandingPage() {
                 {authErrores.general}
               </div>
             )}
+
+            {/* BOTÓN CONTINUAR CON GOOGLE (1 CLIC) */}
+            <button
+              type="button"
+              onClick={iniciarConGoogle}
+              disabled={cargandoGoogle}
+              className="w-full flex items-center justify-center gap-3 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700/80 border-2 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-100 font-black py-3.5 px-4 rounded-2xl shadow-xs transition-all active:scale-98 disabled:opacity-50 cursor-pointer mb-3"
+            >
+              {cargandoGoogle ? (
+                <div className="w-5 h-5 border-2 border-slate-400 border-t-blue-600 rounded-full animate-spin" />
+              ) : (
+                <svg className="w-5 h-5 shrink-0" viewBox="0 0 24 24">
+                  <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+                  <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+                  <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"/>
+                  <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"/>
+                </svg>
+              )}
+              <span className="text-xs sm:text-sm">
+                {modalLandingInfo.tipo === 'login' ? 'Iniciar sesión con Google' : 'Continuar con Google'}
+              </span>
+            </button>
+
+            {/* DIVISOR */}
+            <div className="flex items-center gap-3 my-2 mb-4">
+              <div className="flex-1 h-px bg-slate-200 dark:bg-slate-800" />
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider shrink-0">
+                o con correo / usuario
+              </span>
+              <div className="flex-1 h-px bg-slate-200 dark:bg-slate-800" />
+            </div>
 
             <form onSubmit={manejarAuth} className="flex flex-col gap-3.5">
               {modalLandingInfo.tipo === 'registro' && ( 
@@ -1172,6 +1486,409 @@ export default function LandingPage() {
                 {modalLandingInfo.tipo === 'login' ? '¿No tienes cuenta? Regístrate gratis' : '¿Ya tienes cuenta? Inicia sesión aquí'}
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* 15. MODAL DE ONBOARDING ELEGANTE PARA NUEVAS CUENTAS DE GOOGLE            */}
+      {/* ========================================================================= */}
+      {/* ========================================================================= */}
+      {/* 15. MODAL DE ONBOARDING ELEGANTE PARA NUEVAS CUENTAS DE GOOGLE            */}
+      {/* ========================================================================= */}
+      {modalGoogleOnboarding && googleUserPendiente && (
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 sm:p-6 bg-slate-950/80 backdrop-blur-md animate-in fade-in duration-200">
+          <div className="bg-white dark:bg-[#0b1329] border border-slate-200/80 dark:border-slate-800 w-full max-w-xl rounded-[2.5rem] p-5 sm:p-9 shadow-2xl relative max-h-[92vh] overflow-y-auto">
+            {/* Botón Salir / Cancelar */}
+            <button 
+              type="button"
+              onClick={cancelarGoogleOnboarding}
+              className="absolute top-5 right-5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800/80 transition-colors cursor-pointer"
+              title="Cancelar y salir"
+            >
+              <X size={20}/>
+            </button>
+
+            {/* Cabecera con identidad Google y Stepper */}
+            <div className="text-center mb-6 pt-1">
+              <div className="relative inline-block mb-3">
+                {googleUserPendiente.foto ? (
+                  <img 
+                    src={googleUserPendiente.foto} 
+                    alt="Foto de perfil" 
+                    className="w-16 h-16 rounded-full border-2 border-blue-500 shadow-md object-cover mx-auto ring-4 ring-blue-500/20"
+                  />
+                ) : (
+                  <div className="w-16 h-16 rounded-full bg-gradient-to-br from-blue-600 to-indigo-700 text-white font-black text-2xl flex items-center justify-center shadow-lg shadow-blue-500/30 mx-auto ring-4 ring-blue-500/20">
+                    {googleUserPendiente.nombre ? googleUserPendiente.nombre.charAt(0).toUpperCase() : 'G'}
+                  </div>
+                )}
+                <div className="absolute -bottom-1 -right-1 bg-white dark:bg-slate-900 rounded-full p-1 shadow-md border border-slate-200 dark:border-slate-700">
+                  <svg className="w-4 h-4" viewBox="0 0 24 24">
+                    <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+                    <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+                    <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"/>
+                    <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"/>
+                  </svg>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-center gap-2 mb-2">
+                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-black uppercase tracking-wider bg-emerald-50 text-emerald-600 dark:bg-emerald-500/10 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-500/20">
+                  <CheckCircle2 size={12}/> {googleUserPendiente.email}
+                </span>
+              </div>
+
+              <h3 className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-white mb-1">
+                {pasoGoogleOnboarding === 1 ? 'Configura tu Negocio 🏪' : 'Elige tu Plan de Inicio 🚀'}
+              </h3>
+              <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 max-w-md mx-auto">
+                {pasoGoogleOnboarding === 1 
+                  ? 'Personaliza los datos de tu tienda para que tus comprobantes y reportes queden listos.'
+                  : 'Prueba todas las funciones avanzadas por 14 días sin costo ni tarjeta de crédito.'}
+              </p>
+
+              {/* Indicador visual de 2 Pasos */}
+              <div className="flex items-center justify-center gap-2 mt-4">
+                <button
+                  type="button"
+                  onClick={() => setPasoGoogleOnboarding(1)}
+                  className={`h-2 rounded-full transition-all cursor-pointer ${pasoGoogleOnboarding === 1 ? 'w-10 bg-blue-600' : 'w-4 bg-slate-200 dark:bg-slate-700'}`}
+                  title="Paso 1: Datos del Negocio"
+                />
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (formGoogleOnboarding.nombreNegocio.trim() && formGoogleOnboarding.telefonoNegocio.trim()) {
+                      setPasoGoogleOnboarding(2);
+                      setErrorGoogleOnboarding("");
+                    } else {
+                      setErrorGoogleOnboarding("Por favor completa el nombre del negocio y tu WhatsApp antes de continuar.");
+                    }
+                  }}
+                  className={`h-2 rounded-full transition-all cursor-pointer ${pasoGoogleOnboarding === 2 ? 'w-10 bg-blue-600' : 'w-4 bg-slate-200 dark:bg-slate-700'}`}
+                  title="Paso 2: Selección de Plan"
+                />
+              </div>
+            </div>
+
+            {errorGoogleOnboarding && (
+              <div className="bg-rose-50 dark:bg-rose-500/10 text-rose-600 dark:text-rose-400 p-3.5 rounded-2xl text-xs font-bold text-center border border-rose-200 dark:border-rose-500/20 mb-4 flex items-center justify-center gap-2 animate-in fade-in">
+                <AlertCircle size={15}/> {errorGoogleOnboarding}
+              </div>
+            )}
+
+            <form onSubmit={completarOnboardingGoogle} className="space-y-4">
+              {/* ===================== PASO 1: DATOS DEL COMERCIO ===================== */}
+              {pasoGoogleOnboarding === 1 && (
+                <div className="space-y-4 animate-in fade-in duration-200">
+                  {/* Nombre de la persona */}
+                  <div>
+                    <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1.5">
+                      Tu Nombre Completo
+                    </label>
+                    <input 
+                      type="text" 
+                      required
+                      placeholder="Ej. Johan Escobar" 
+                      value={formGoogleOnboarding.nombreUsuario} 
+                      onChange={e => {
+                        setFormGoogleOnboarding({...formGoogleOnboarding, nombreUsuario: e.target.value});
+                        setErrorGoogleOnboarding("");
+                      }} 
+                      className="w-full p-3.5 bg-slate-50 dark:bg-[#020617] border border-slate-200 dark:border-slate-800 rounded-2xl outline-none focus:border-blue-500 dark:text-white font-bold text-sm transition-all focus:ring-2 focus:ring-blue-500/20" 
+                    />
+                  </div>
+
+                  {/* Nombre del Negocio */}
+                  <div>
+                    <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1.5">
+                      Nombre de tu Negocio / Tienda <span className="text-rose-500">*</span>
+                    </label>
+                    <div className="relative">
+                      <Store size={18} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"/>
+                      <input 
+                        type="text" 
+                        required
+                        placeholder="Ej. Minimarket Central, Boutique Glamour..." 
+                        value={formGoogleOnboarding.nombreNegocio} 
+                        onChange={e => {
+                          setFormGoogleOnboarding({...formGoogleOnboarding, nombreNegocio: e.target.value});
+                          setErrorGoogleOnboarding("");
+                        }} 
+                        className="w-full pl-10 pr-4 py-3.5 bg-slate-50 dark:bg-[#020617] border border-slate-200 dark:border-slate-800 rounded-2xl outline-none focus:border-blue-500 dark:text-white font-bold text-sm transition-all focus:ring-2 focus:ring-blue-500/20" 
+                      />
+                    </div>
+                  </div>
+
+                  {/* Tipo / Categoría del Negocio */}
+                  <div>
+                    <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1.5">
+                      Tipo de Negocio
+                    </label>
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                      {[
+                        { id: "Moda y Calzado", icon: Shirt, label: "Moda / Ropa", usaSepare: true },
+                        { id: "Tienda de Barrio / Minimarket", icon: ShoppingBag, label: "Tienda / Mini", usaSepare: false },
+                        { id: "Cosméticos y Belleza", icon: Sparkles, label: "Belleza", usaSepare: true },
+                        { id: "Ferretería / Papelería / Otro", icon: Briefcase, label: "Otro Comercio", usaSepare: false },
+                      ].map(t => {
+                        const Icono = t.icon;
+                        const activo = formGoogleOnboarding.tipoNegocio === t.id;
+                        return (
+                          <button
+                            key={t.id}
+                            type="button"
+                            onClick={() => setFormGoogleOnboarding({
+                              ...formGoogleOnboarding, 
+                              tipoNegocio: t.id,
+                              moduloSepare: t.usaSepare
+                            })}
+                            className={`p-2.5 rounded-2xl border text-center transition-all cursor-pointer flex flex-col items-center gap-1 ${
+                              activo 
+                                ? 'border-blue-600 bg-blue-50/80 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 font-bold shadow-sm' 
+                                : 'border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50 text-slate-600 dark:text-slate-400 hover:border-slate-300'
+                            }`}
+                          >
+                            <Icono size={16} className={activo ? 'text-blue-600 dark:text-blue-400' : 'text-slate-400'}/>
+                            <span className="text-[11px] leading-tight">{t.label}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Pregunta Explícita de Plan Separe */}
+                  <div className="p-3 rounded-2xl bg-slate-50 dark:bg-[#020617] border border-slate-200/80 dark:border-slate-800/90">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-[11px] font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+                        <Bookmark size={14} className="text-violet-600 dark:text-violet-400"/>
+                        ¿Deseas activar el Plan Separe?
+                      </span>
+                      <span className="text-[10px] text-slate-400">
+                        {formGoogleOnboarding.moduloSepare ? 'Activo en Inicio' : 'Oculto en Inicio'}
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setFormGoogleOnboarding({...formGoogleOnboarding, moduloSepare: true})}
+                        className={`py-2 px-3 rounded-xl border text-xs font-bold transition-all cursor-pointer text-center ${
+                          formGoogleOnboarding.moduloSepare
+                            ? 'border-violet-600 bg-violet-50 dark:bg-violet-950/40 text-violet-700 dark:text-violet-300 shadow-xs'
+                            : 'border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-500 hover:border-slate-300'
+                        }`}
+                      >
+                        ✓ Sí, apartar con abonos
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setFormGoogleOnboarding({...formGoogleOnboarding, moduloSepare: false})}
+                        className={`py-2 px-3 rounded-xl border text-xs font-bold transition-all cursor-pointer text-center ${
+                          !formGoogleOnboarding.moduloSepare
+                            ? 'border-blue-600 bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 shadow-xs'
+                            : 'border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-500 hover:border-slate-300'
+                        }`}
+                      >
+                        ✕ No, solo ventas y fiados
+                      </button>
+                    </div>
+                    <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-1.5">
+                      Podrás cambiar esto en cualquier momento desde tu Perfil.
+                    </p>
+                  </div>
+
+                  {/* Teléfono / WhatsApp OBLIGATORIO */}
+                  <div>
+                    <div className="flex items-center justify-between mb-1.5">
+                      <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                        WhatsApp del Negocio <span className="text-rose-500">* (Obligatorio)</span>
+                      </label>
+                      <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
+                        <MessageCircle size={12}/> Para envío de comprobantes
+                      </span>
+                    </div>
+                    <div className="relative">
+                      <Phone size={18} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"/>
+                      <input 
+                        type="tel" 
+                        required
+                        placeholder="Ej. 312 345 6789 ó +57 312 345 6789" 
+                        value={formGoogleOnboarding.telefonoNegocio} 
+                        onChange={e => {
+                          setFormGoogleOnboarding({...formGoogleOnboarding, telefonoNegocio: e.target.value});
+                          setErrorGoogleOnboarding("");
+                        }} 
+                        className="w-full pl-10 pr-4 py-3.5 bg-slate-50 dark:bg-[#020617] border border-slate-200 dark:border-slate-800 rounded-2xl outline-none focus:border-blue-500 dark:text-white font-bold text-sm transition-all focus:ring-2 focus:ring-blue-500/20" 
+                      />
+                    </div>
+                    <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-1">
+                      Tus clientes recibirán sus recibos de abonos y ventas a través de este canal.
+                    </p>
+                  </div>
+
+                  {/* Botón Siguiente */}
+                  <button 
+                    type="button" 
+                    onClick={() => {
+                      if (!formGoogleOnboarding.nombreNegocio.trim()) {
+                        setErrorGoogleOnboarding("Por favor ingresa el nombre de tu negocio.");
+                        return;
+                      }
+                      if (!formGoogleOnboarding.telefonoNegocio.trim()) {
+                        setErrorGoogleOnboarding("El número de WhatsApp es obligatorio para activar el envío de comprobantes y recordatorios.");
+                        return;
+                      }
+                      setErrorGoogleOnboarding("");
+                      setPasoGoogleOnboarding(2);
+                    }}
+                    className="w-full flex items-center justify-center gap-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-black text-sm py-4 rounded-2xl shadow-lg shadow-blue-600/25 transition-all transform active:scale-95 cursor-pointer mt-3"
+                  >
+                    <span>Continuar al siguiente paso</span>
+                    <ArrowRight size={18}/>
+                  </button>
+                </div>
+              )}
+
+              {/* ===================== PASO 2: SELECCIÓN DE PLAN ===================== */}
+              {pasoGoogleOnboarding === 2 && (
+                <div className="space-y-4 animate-in fade-in duration-200">
+                  <div className="bg-blue-50/70 dark:bg-blue-950/30 border border-blue-200/60 dark:border-blue-900/40 p-3.5 rounded-2xl flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-blue-600 text-white flex items-center justify-center shrink-0">
+                      <Sparkles size={20}/>
+                    </div>
+                    <div>
+                      <div className="text-xs font-black text-blue-950 dark:text-blue-200">
+                        {formGoogleOnboarding.nombreNegocio}
+                      </div>
+                      <div className="text-[11px] text-blue-700 dark:text-blue-300">
+                        {formGoogleOnboarding.tipoNegocio} • WhatsApp: {formGoogleOnboarding.telefonoNegocio}
+                      </div>
+                    </div>
+                  </div>
+
+                  <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                    Selecciona tu Plan de Inicio
+                  </label>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    {/* Plan Comercio */}
+                    <button
+                      type="button"
+                      onClick={() => setFormGoogleOnboarding({...formGoogleOnboarding, plan: 'comercio'})}
+                      className={`p-3.5 rounded-2xl border-2 text-left transition-all cursor-pointer relative flex flex-col justify-between ${
+                        formGoogleOnboarding.plan === 'comercio'
+                          ? 'border-blue-600 bg-blue-50/70 dark:bg-blue-950/40 text-blue-900 dark:text-blue-100 shadow-md ring-2 ring-blue-500/20'
+                          : 'border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400 hover:border-slate-300'
+                      }`}
+                    >
+                      <div>
+                        <span className="text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full bg-blue-600 text-white inline-block mb-1.5">
+                          14 Días Gratis
+                        </span>
+                        <div className="font-black text-sm text-slate-900 dark:text-white">Plan Comercio</div>
+                        <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">
+                          Comprobantes WhatsApp, ventas y 1 caja.
+                        </div>
+                      </div>
+                      <div className="text-[10px] font-bold text-blue-600 dark:text-blue-400 mt-3 flex items-center gap-1">
+                        <Check size={12}/> Recomendado
+                      </div>
+                    </button>
+
+                    {/* Plan PRO */}
+                    <button
+                      type="button"
+                      onClick={() => setFormGoogleOnboarding({...formGoogleOnboarding, plan: 'pro'})}
+                      className={`p-3.5 rounded-2xl border-2 text-left transition-all cursor-pointer relative flex flex-col justify-between ${
+                        formGoogleOnboarding.plan === 'pro'
+                          ? 'border-purple-600 bg-purple-50/70 dark:bg-purple-950/40 text-purple-900 dark:text-purple-100 shadow-md ring-2 ring-purple-500/20'
+                          : 'border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400 hover:border-slate-300'
+                      }`}
+                    >
+                      <div>
+                        <span className="text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full bg-purple-600 text-white inline-block mb-1.5">
+                          14 Días Gratis
+                        </span>
+                        <div className="font-black text-sm text-slate-900 dark:text-white">Plan PRO</div>
+                        <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">
+                          Plan Separe con fotos, hasta 4 cajeros y reportes top.
+                        </div>
+                      </div>
+                      <div className="text-[10px] font-bold text-purple-600 dark:text-purple-400 mt-3 flex items-center gap-1">
+                        <Crown size={12}/> Más Completo
+                      </div>
+                    </button>
+
+                    {/* Plan Gratuito */}
+                    <button
+                      type="button"
+                      onClick={() => setFormGoogleOnboarding({...formGoogleOnboarding, plan: 'gratis'})}
+                      className={`p-3.5 rounded-2xl border-2 text-left transition-all cursor-pointer relative flex flex-col justify-between ${
+                        formGoogleOnboarding.plan === 'gratis'
+                          ? 'border-slate-700 bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-white shadow-md'
+                          : 'border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400 hover:border-slate-300'
+                      }`}
+                    >
+                      <div>
+                        <span className="text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 inline-block mb-1.5">
+                          Sin costo
+                        </span>
+                        <div className="font-black text-sm text-slate-900 dark:text-white">Plan Básico</div>
+                        <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">
+                          Registro de cuentas y fiados esenciales.
+                        </div>
+                      </div>
+                      <div className="text-[10px] font-bold text-slate-500 mt-3">
+                        Siempre gratis
+                      </div>
+                    </button>
+                  </div>
+
+                  <p className="text-[11px] text-slate-400 dark:text-slate-500 text-center italic">
+                    * Puedes cambiar de plan o cancelar en cualquier momento sin cargos ocultos.
+                  </p>
+
+                  <div className="flex items-center gap-2 pt-2">
+                    <button
+                      type="button"
+                      onClick={() => setPasoGoogleOnboarding(1)}
+                      className="px-4 py-4 rounded-2xl border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-300 font-bold text-sm hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+                    >
+                      Atrás
+                    </button>
+
+                    <button 
+                      type="submit" 
+                      disabled={guardandoGoogleOnboarding}
+                      className="flex-1 flex items-center justify-center gap-2 bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 hover:opacity-95 text-white font-black text-sm py-4 rounded-2xl shadow-xl shadow-blue-600/30 transition-all transform active:scale-95 cursor-pointer disabled:opacity-50"
+                    >
+                      {guardandoGoogleOnboarding ? (
+                        <>
+                          <div className="w-5 h-5 border-2 border-white/40 border-t-white rounded-full animate-spin" />
+                          <span>Creando tu tienda...</span>
+                        </>
+                      ) : (
+                        <>
+                          <PartyPopper size={18}/>
+                          <span>Crear mi Negocio y Comenzar</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              <div className="text-center pt-2">
+                <button
+                  type="button"
+                  onClick={cancelarGoogleOnboarding}
+                  className="text-xs font-bold text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors cursor-pointer"
+                >
+                  Cancelar e iniciar con otra cuenta
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

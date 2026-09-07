@@ -735,7 +735,7 @@ function FiarContenido() {
     };
 
     const guardarClienteNuevo = async () => {
-        if (!nombreNuevo.trim()) return alert("El nombre del cliente es obligatorio.");
+        if (!nombreNuevo.trim()) return toast.error("El nombre del cliente es obligatorio.");
         setGuardandoCliente(true);
         try {
             const docRef = await addDoc(collection(db, "clientes"), { nombre: nombreNuevo.trim(), celular: celularNuevo.trim(), deudaTotal: 0, usuarioId: cuentaPrincipalId, fecha_creacion: new Date() });
@@ -745,7 +745,7 @@ function FiarContenido() {
             setClienteTransaccion(nuevoObj);
             setMostrarResultadosBuscador(false);
             setModalFaltaCliente(false);
-        } catch (error) { alert("Error al guardar cliente."); } finally { setGuardandoCliente(false); }
+        } catch (error) { toast.error("Error al guardar cliente."); } finally { setGuardandoCliente(false); }
     };
 
     const formatearMonedaInput = (valor: string) => {
@@ -910,7 +910,7 @@ function FiarContenido() {
         }
 
         const filasValidas = filasRegistro.filter(f => parseFloat(f.valor) > 0);
-        if (filasValidas.length === 0) return alert("Ingresa al menos un monto válido en los artículos.");
+        if (filasValidas.length === 0) return toast.error("Ingresa al menos un monto válido en los artículos.");
 
         for (const fila of filasValidas) {
             const item = inventario.find(p => p.nombre.toLowerCase() === fila.descripcion.toLowerCase());

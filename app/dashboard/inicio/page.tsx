@@ -3,11 +3,12 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { collection, addDoc, getDocs, query, where, onSnapshot } from "firebase/firestore";
 import { db } from "../../../firebase";
-import { Search, ShoppingBag, Banknote, Users, CheckCircle2, ChevronRight, X, MessageCircle, UserCog, ShoppingCart, Star, Clock, Store, Printer, Edit3, Trash2, Receipt, Bookmark } from 'lucide-react';
+import { Search, ShoppingBag, Banknote, Users, CheckCircle2, ChevronRight, X, MessageCircle, UserCog, ShoppingCart, Star, Clock, Store, Printer, Edit3, Trash2, Receipt, Bookmark, Sparkles } from 'lucide-react';
 import toast from "react-hot-toast";
 import { useAuth } from "../../../hooks/AuthContext";
 import TicketFacturaModal, { DatosFacturaProps } from "@/components/TicketFacturaModal";
 import ModalGestionCliente from "@/components/ModalGestionCliente";
+import ModalTourBienvenida from "@/components/ModalTourBienvenida";
 
 export default function InicioPage() {
   const { datosSesion } = useAuth();
@@ -19,10 +20,10 @@ export default function InicioPage() {
   const nombreNegocio = datosSesion?.nombreNegocio;
   const puedeVerDirectorio = datosSesion?.rol !== 'cajero' || datosSesion?.permisos?.verDirectorio === true;
   const puedeAbonar: boolean = datosSesion?.puedeAbonar ?? true;
-  const puedeSepare: boolean = datosSesion?.puedeSepare ?? true;
+  const moduloSepareActivo: boolean = datosSesion?.moduloSepareActivo !== false;
+  const puedeSepare: boolean = (datosSesion?.puedeSepare ?? true) && moduloSepareActivo;
 
   const [clientes, setClientes] = useState<any[]>([]);
-  const [todosMovimientos, setTodosMovimientos] = useState<any[]>([]);
   const [ordenesPendientes, setOrdenesPendientes] = useState<any[]>([]);
   const [busqueda, setBusqueda] = useState("");
   const [busquedaDirectorio, setBusquedaDirectorio] = useState("");
@@ -42,6 +43,21 @@ export default function InicioPage() {
     modo: 'editar' | 'eliminar';
     cliente: any | null;
   }>({ visible: false, modo: 'editar', cliente: null });
+  const [modalTourBienvenida, setModalTourBienvenida] = useState(false);
+  const [mostrarBotonTour, setMostrarBotonTour] = useState(false);
+
+  // Detectar si el usuario recién completó el registro para desplegar el Tour de Bienvenida
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const debeMostrar = localStorage.getItem('fiabono_mostrar_tour');
+      const yaCompletado = localStorage.getItem('fiabono_tour_completado') === 'true';
+      if (debeMostrar === 'true') {
+        setModalTourBienvenida(true);
+        localStorage.removeItem('fiabono_mostrar_tour');
+      }
+      setMostrarBotonTour(!yaCompletado);
+    }
+  }, []);
 
   const handleGestionClienteSuccess = (clienteActualizado?: any, fueEliminado?: boolean) => {
     if (fueEliminado) {
@@ -116,17 +132,6 @@ export default function InicioPage() {
       snapC.forEach((doc) => listaC.push({ id: doc.id, ...doc.data() }));
       listaC.sort((a, b) => a.nombre.localeCompare(b.nombre));
       setClientes(listaC);
-
-      const qM = query(collection(db, "movimientos"), where("usuarioId", "==", uid));
-      const snapM = await getDocs(qM);
-      const listaM: any[] = [];
-      snapM.forEach((doc) => listaM.push({ id: doc.id, ...doc.data() }));
-      listaM.sort((a, b) => {
-        const tA = a.fecha?.toMillis ? a.fecha.toMillis() : (a.fecha ? new Date(a.fecha).getTime() : 0);
-        const tB = b.fecha?.toMillis ? b.fecha.toMillis() : (b.fecha ? new Date(b.fecha).getTime() : 0);
-        return tB - tA;
-      });
-      setTodosMovimientos(listaM);
     } catch (error) { console.error(error); }
   };
 
@@ -157,7 +162,7 @@ export default function InicioPage() {
   const abrirUpsell = (titulo: string, mensaje: string) => { setModalSuscripcion({ visible: true, titulo, mensaje }); };
 
   const guardarClienteNuevo = async () => {
-    if (!nombreNuevo.trim()) return alert("El nombre del cliente es obligatorio.");
+    if (!nombreNuevo.trim()) return toast.error("El nombre del cliente es obligatorio.");
     const esGratis = datosSesion?.esGratis ?? (planActual === 'gratis' || planActual === 'basico');
     if (esGratis && clientes.length >= 15) {
       setModalNuevoCliente(false);
@@ -172,7 +177,7 @@ export default function InicioPage() {
       setModalNuevoCliente(false); setNombreNuevo(""); setCelularNuevo("");
       await cargarDatosGlobales(cuentaPrincipalId!);
       toast.success("Cliente guardado con éxito");
-    } catch (error) { alert("Error al guardar cliente."); } finally { setGuardandoCliente(false); }
+    } catch (error) { toast.error("Error al guardar cliente."); } finally { setGuardandoCliente(false); }
   };
 
   const normalizarMensajeWhatsApp = (texto: string) => {
@@ -316,6 +321,17 @@ Quedamos pendientes para revisar detalles o responder cualquier duda.
               <span className="bg-blue-100 dark:bg-blue-500/20 text-blue-700 dark:text-blue-400 text-[10px] md:text-xs font-black uppercase tracking-wider px-2 py-1 rounded-md shrink-0">
                 {datosSesion?.rol === 'cajero' ? 'Colaborador' : 'Administrador'}
               </span>
+              {mostrarBotonTour && (
+                <button
+                  type="button"
+                  onClick={() => setModalTourBienvenida(true)}
+                  className="bg-amber-50 dark:bg-amber-500/10 hover:bg-amber-100 dark:hover:bg-amber-500/20 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-500/30 text-[10px] md:text-xs font-black uppercase tracking-wider px-2.5 py-1 rounded-md shrink-0 flex items-center gap-1 transition-colors cursor-pointer shadow-xs"
+                  title="Ver tour interactivo de bienvenida"
+                >
+                  <Sparkles size={12} className="text-amber-500" />
+                  <span>Tour Rápido</span>
+                </button>
+              )}
             </div>
           </div>
         </header>
@@ -429,14 +445,14 @@ Quedamos pendientes para revisar detalles o responder cualquier duda.
                 ruta: '/dashboard/abonar',
                 gradiente: 'from-blue-500 to-blue-700 dark:from-blue-600 dark:to-blue-800 hover:from-blue-600 hover:to-blue-700 border-blue-400/30 dark:border-blue-500/20'
               }] : []),
-              {
+              ...(moduloSepareActivo ? [{
                 id: 'separe',
                 nombre: 'SEPARE',
                 icono: Bookmark,
                 ruta: '/dashboard/separes',
                 esProOnly: !datosSesion?.esPro,
                 gradiente: 'from-violet-600 to-purple-800 hover:from-violet-700 hover:to-purple-900 border-violet-400/30 dark:border-violet-500/20'
-              }
+              }] : [])
             ];
             const gridColsClass = botonesSecundarios.length === 3 
               ? 'grid grid-cols-3 gap-2 sm:gap-4 lg:gap-5'
@@ -921,6 +937,18 @@ Quedamos pendientes para revisar detalles o responder cualquier duda.
         cliente={modalGestionCliente.cliente}
         onClose={() => setModalGestionCliente({ visible: false, modo: 'editar', cliente: null })}
         onSuccess={handleGestionClienteSuccess}
+      />
+
+      {/* MODAL DE TOUR INTERACTIVO DE BIENVENIDA */}
+      <ModalTourBienvenida
+        isOpen={modalTourBienvenida}
+        onClose={() => {
+          setModalTourBienvenida(false);
+          setMostrarBotonTour(false);
+        }}
+        nombreUsuario={datosSesion?.nombreUsuario || ''}
+        nombreNegocio={nombreNegocio || ''}
+        plan={planActual || 'comercio'}
       />
 
     </>

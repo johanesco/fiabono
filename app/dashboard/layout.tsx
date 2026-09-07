@@ -23,8 +23,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const cuentaPrincipalId = datosSesion?.cuentaPrincipalId;
   const esAdmin = datosSesion?.tipoUsuario === 'principal' || datosSesion?.esAdmin === true || (datosSesion?.rol !== 'cajero');
   const puedeAbonar = esAdmin || (datosSesion?.permisos?.abonar === true);
-  const puedeSepare = datosSesion?.puedeSepare ?? (datosSesion?.esPro === true);
-  const puedeGestionarSepares = esAdmin === true && datosSesion?.esPro === true;
+  const moduloSepareActivo = datosSesion?.moduloSepareActivo !== false;
+  const puedeSepare = (datosSesion?.puedeSepare ?? (datosSesion?.esPro === true)) && moduloSepareActivo;
+  const puedeGestionarSepares = esAdmin === true && datosSesion?.esPro === true && moduloSepareActivo;
   // Función para reproducir sonido sutil de campana POS (Web Audio API)
   const reproducirSonidoOrden = () => {
     try {

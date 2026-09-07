@@ -7,6 +7,7 @@ export interface PermisosColaborador {
   ventaDirecta: boolean;   // Puede confirmar venta/fiado sin aprobación del admin
   abonar: boolean;         // Puede registrar abonos
   editarInventario: boolean; // Puede editar/agregar productos en inventario
+  ingresoInventario?: boolean; // Puede editar/agregar productos en inventario
   terminalMultivendedor?: boolean; // Permite seleccionar vendedor y cambiar turnos en una misma terminal
   modificarPrecios?: boolean; // Permite cambiar precios de productos ya registrados en inventario
   aplicarDescuentos?: boolean; // Permite aplicar descuentos comerciales a ventas/fiados
@@ -116,6 +117,8 @@ export interface UsuarioBD {
   cicloPlan?: CicloPlan;
   permisos?: PermisosColaborador;
   activo?: boolean;
+  tipoNegocio?: string;
+  moduloSepareActivo?: boolean;
 }
 
 export interface Cliente {
@@ -185,6 +188,8 @@ export interface DatosSesionContext {
   avisoExpiracion: boolean;
   enPeriodoGracia: boolean;
   datosUsuarioOriginales: UsuarioBD;
+  tipoNegocio?: string;
+  moduloSepareActivo: boolean;
 
   // Helpers derivados
   esAdmin: boolean;
@@ -208,3 +213,20 @@ export interface DatosSesionContext {
   limiteProductos: number;
   limiteTransaccionesMes: number;
 }
+
+// -------------------------------------------------------
+// BANDEJA DE RECEPCIÓN / INGRESO DE INVENTARIO
+// -------------------------------------------------------
+export interface ItemTandaIngreso {
+  idTemporal: string;
+  esExistente: boolean;
+  productoId?: string;
+  nombre: string;
+  codigo: string;
+  stockActual: number;
+  cantidadAIngresar: number;
+  precioVenta: number;
+  categoria: string;
+  tipoProducto?: 'producto' | 'servicio';
+  inventariable?: boolean;
+}

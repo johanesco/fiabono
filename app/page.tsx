@@ -10,10 +10,21 @@ export default function Home() {
 
   useEffect(() => {
     // Escuchamos si Firebase detecta una sesión activa
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
       if (user) {
-        // Si inició sesión con éxito, lo mandamos al panel seguro
-        router.push('/dashboard/inicio');
+        // Solo redirigir al dashboard si ya tiene negocio/cuenta creada en Firestore.
+        // Si no tiene negocio aún, el usuario se queda en la landing completando el onboarding.
+        try {
+          const { doc, getDoc } = await import("firebase/firestore");
+          const { db } = await import("../firebase");
+          const userDoc = await getDoc(doc(db, "usuarios", user.uid));
+          if (userDoc.exists()) {
+            router.push('/dashboard/inicio');
+          }
+        } catch (e) {
+          // Si hay error de lectura, no forzar redirección
+          console.error("Error verificando usuario:", e);
+        }
       }
     });
     return () => unsubscribe();

@@ -36,7 +36,17 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
       try {
         const userDoc = await getDoc(doc(db, "usuarios", user.uid));
-        if (!userDoc.exists()) throw new Error("No existe");
+        if (!userDoc.exists()) {
+          // Si estamos fuera del dashboard (ej. en la landing completando el registro con Google),
+          // simplemente dejamos la sesión local limpia para que el onboarding fluya.
+          setDatosSesion(null);
+          setCargando(false);
+          if (pathname?.includes('/dashboard')) {
+            await signOut(auth);
+            router.push('/');
+          }
+          return;
+        }
         
         const data = userDoc.data();
         if (data.rol === 'cajero' && data.activo === false) throw new Error("Inactivo");
@@ -167,6 +177,8 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
           diasRestantesPlan,
           avisoExpiracion,
           enPeriodoGracia,
+          tipoNegocio: adminData.tipoNegocio || "Comercio",
+          moduloSepareActivo: adminData.moduloSepareActivo !== false,
           datosUsuarioOriginales: data as UsuarioBD
         });
       } catch (e: any) {

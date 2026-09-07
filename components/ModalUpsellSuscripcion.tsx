@@ -69,7 +69,10 @@ export default function ModalUpsellSuscripcion({
               <div className="flex items-center gap-1.5 text-blue-600 dark:text-blue-400 font-black text-xs uppercase mb-1">
                 <Store size={14} /> Plan Comercio
               </div>
-              <p className="text-xl font-black text-slate-900 dark:text-white">$19.900 <span className="text-xs font-normal text-slate-500">/mes</span></p>
+              <div className="flex items-baseline gap-2 mb-1">
+                <span className="text-lg font-black text-slate-900 dark:text-white">Próximamente</span>
+                <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-500/10 px-2 py-0.5 rounded-full">14 Días Gratis</span>
+              </div>
               <ul className="mt-3 space-y-1.5 text-xs font-medium text-slate-600 dark:text-slate-300">
                 <li className="flex items-center gap-1.5"><CheckCircle2 size={13} className="text-emerald-500 shrink-0" /> Clientes e Inv. Ilimitados</li>
                 <li className="flex items-center gap-1.5"><CheckCircle2 size={13} className="text-emerald-500 shrink-0" /> Factura Imprimible (58/80mm)</li>
@@ -87,7 +90,10 @@ export default function ModalUpsellSuscripcion({
               <div className="flex items-center gap-1.5 text-purple-600 dark:text-purple-400 font-black text-xs uppercase mb-1">
                 <Crown size={14} className="text-amber-500" /> Plan PRO Almacén
               </div>
-              <p className="text-xl font-black text-slate-900 dark:text-white">$44.900 <span className="text-xs font-normal text-slate-500">/mes</span></p>
+              <div className="flex items-baseline gap-2 mb-1">
+                <span className="text-lg font-black text-slate-900 dark:text-white">Próximamente</span>
+                <span className="text-[10px] font-bold text-purple-600 dark:text-purple-400 bg-purple-50 dark:bg-purple-500/10 px-2 py-0.5 rounded-full">14 Días Gratis</span>
+              </div>
               <ul className="mt-3 space-y-1.5 text-xs font-medium text-slate-600 dark:text-slate-300">
                 <li className="flex items-center gap-1.5"><CheckCircle2 size={13} className="text-purple-500 shrink-0" /> Módulo PLAN SEPARE Completo</li>
                 <li className="flex items-center gap-1.5"><CheckCircle2 size={13} className="text-purple-500 shrink-0" /> Etiquetas Adhesivas QR</li>

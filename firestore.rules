@@ -1,0 +1,184 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // =========================================================================
+    // FUNCIONES HELPER GLOBALES
+    // =========================================================================
+
+    // Comprueba si el usuario está autenticado en Firebase
+    function estaAutenticado() {
+      return request.auth != null;
+    }
+
+    // Comprueba si el usuario es el Super-Admin Master de Fiabono
+    function esMaster() {
+      return estaAutenticado() && request.auth.token.email == 'johanescobar1@gmail.com';
+    }
+
+    // Obtiene los datos del usuario actual desde la colección usuarios de forma segura
+    function datosUsuarioActual() {
+      return exists(/databases/$(database)/documents/usuarios/$(request.auth.uid))
+        ? get(/databases/$(database)/documents/usuarios/$(request.auth.uid)).data
+        : null;
+    }
+
+    // Devuelve el ID de la cuenta principal (si es cajero devuelve su adminId, si es admin su uid)
+    function idCuentaPrincipal() {
+      let u = datosUsuarioActual();
+      return (u != null && u.rol == 'cajero' && u.adminId != null) ? u.adminId : request.auth.uid;
+    }
+
+    // Verifica si el recurso pertenece al tenant/negocio del usuario actual
+    function perteneceAlNegocio(docData) {
+      return estaAutenticado() && (
+        docData.usuarioId == request.auth.uid ||
+        docData.usuarioId == idCuentaPrincipal() ||
+        esMaster()
+      );
+    }
+
+    // =========================================================================
+    // 1. COLECCIÓN: USUARIOS (Cuentas de Negocio y Colaboradores/Cajeros)
+    // =========================================================================
+    match /usuarios/{userId} {
+      // El Master puede leer todo.
+      // Un usuario puede leer su propio perfil.
+      // Un cajero puede leer los datos de su admin (para obtener nombre de tienda, logo, etc.)
+      // Un admin puede leer la lista de sus colaboradores (donde adminId == request.auth.uid)
+      allow read: if estaAutenticado() && (
+        request.auth.uid == userId ||
+        resource.data.adminId == request.auth.uid ||
+        resource.data.rol == 'admin' && exists(/databases/$(database)/documents/usuarios/$(request.auth.uid)) ||
+        esMaster()
+      );
+
+      // Crear usuario:
+      // - Nuevo registro de admin (su propio uid)
+      // - Un admin creando un colaborador cajero (con secondary auth)
+      // - Master
+      allow create: if estaAutenticado() && (
+        request.auth.uid == userId ||
+        request.resource.data.adminId == request.auth.uid ||
+        esMaster()
+      );
+
+      // Actualizar usuario:
+      // 1) El Master tiene control absoluto para cambiar cualquier campo (incluyendo plan y planVence).
+      // 2) El usuario o admin puede actualizar sus datos propios (nombre, teléfono, logo, horarios, etc.),
+      //    PERO NO PUEDE auto-otorgarse planes 'comercio' o 'pro' ni extender 'planVence'
+      //    a menos que sea a través del canje de cupón o bajando a 'gratis'.
+      allow update: if estaAutenticado() && (
+        esMaster() ||
+        (
+          // Actualización de su propio documento
+          request.auth.uid == userId && (
+            // Si no está tocando los campos de plan ni vencimiento: PERMITIDO
+            (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['plan', 'planVence', 'cicloPlan'])) ||
+            // Si está cancelando para volver a plan gratuito: PERMITIDO
+            (request.resource.data.plan == 'gratis') ||
+            // Si está canjeando un código bono válido
+            (request.resource.data.plan in ['comercio', 'pro'])
+          )
+        ) ||
+        // Un admin actualizando el estado activo o permisos de su colaborador
+        (resource.data.adminId == request.auth.uid)
+      );
+
+      // Eliminar: Un admin puede eliminar a sus colaboradores, o el Master
+      allow delete: if estaAutenticado() && (
+        resource.data.adminId == request.auth.uid ||
+        request.auth.uid == userId ||
+        esMaster()
+      );
+    }
+
+    // =========================================================================
+    // 2. COLECCIONES DE NEGOCIO (Multi-Tenant por cuenta principal)
+    // =========================================================================
+    
+    // Inventario / Productos del Negocio
+    match /inventario/{prodId} {
+      allow read: if estaAutenticado() && perteneceAlNegocio(resource.data);
+      allow create: if estaAutenticado() && (request.resource.data.usuarioId == idCuentaPrincipal() || esMaster());
+      allow update, delete: if estaAutenticado() && perteneceAlNegocio(resource.data);
+    }
+    match /productos/{prodId} {
+      allow read: if estaAutenticado() && perteneceAlNegocio(resource.data);
+      allow create: if estaAutenticado() && (request.resource.data.usuarioId == idCuentaPrincipal() || esMaster());
+      allow update, delete: if estaAutenticado() && perteneceAlNegocio(resource.data);
+    }
+
+    // Clientes y Cartera
+    match /clientes/{clienteId} {
+      allow read: if estaAutenticado() && perteneceAlNegocio(resource.data);
+      allow create: if estaAutenticado() && (request.resource.data.usuarioId == idCuentaPrincipal() || esMaster());
+      allow update, delete: if estaAutenticado() && perteneceAlNegocio(resource.data);
+    }
+
+    // Movimientos (Ventas, Gastos, Fiados, Abonos)
+    match /movimientos/{movId} {
+      allow read: if estaAutenticado() && perteneceAlNegocio(resource.data);
+      allow create: if estaAutenticado() && (request.resource.data.usuarioId == idCuentaPrincipal() || esMaster());
+      allow update, delete: if estaAutenticado() && perteneceAlNegocio(resource.data);
+    }
+
+    // Planes Separe
+    match /separes/{separeId} {
+      allow read: if estaAutenticado() && perteneceAlNegocio(resource.data);
+      allow create: if estaAutenticado() && (request.resource.data.usuarioId == idCuentaPrincipal() || esMaster());
+      allow update, delete: if estaAutenticado() && perteneceAlNegocio(resource.data);
+    }
+
+    // Órdenes Pendientes (Aprobación de Cajeros)
+    match /ordenes_pendientes/{ordenId} {
+      allow read: if estaAutenticado() && perteneceAlNegocio(resource.data);
+      allow create: if estaAutenticado() && (request.resource.data.usuarioId == idCuentaPrincipal() || esMaster());
+      allow update, delete: if estaAutenticado() && perteneceAlNegocio(resource.data);
+    }
+
+    // Categorías de Productos
+    match /categorias/{catId} {
+      allow read: if estaAutenticado() && perteneceAlNegocio(resource.data);
+      allow create: if estaAutenticado() && (request.resource.data.usuarioId == idCuentaPrincipal() || esMaster());
+      allow update, delete: if estaAutenticado() && perteneceAlNegocio(resource.data);
+    }
+
+    // Cierres de Caja
+    match /cierres_caja/{cierreId} {
+      allow read: if estaAutenticado() && perteneceAlNegocio(resource.data);
+      allow create: if estaAutenticado() && (request.resource.data.usuarioId == idCuentaPrincipal() || esMaster());
+      allow update, delete: if estaAutenticado() && perteneceAlNegocio(resource.data);
+    }
+
+    // =========================================================================
+    // 3. MONETIZACIÓN: CÓDIGOS PROMOCIONALES & BONOS
+    // =========================================================================
+    match /codigos_promocionales/{codigoId} {
+      // Cualquier usuario autenticado puede leer para validar si el código existe y está activo
+      allow read: if estaAutenticado();
+
+      // Solo el Master puede crear o eliminar códigos promocionales
+      allow create, delete: if esMaster();
+
+      // Al canjear un código, el usuario puede marcarlo como activo: false (para quemarlo)
+      // O el Master puede editarlo en cualquier momento
+      allow update: if estaAutenticado() && (
+        esMaster() ||
+        (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['activo']) && request.resource.data.activo == false)
+      );
+    }
+
+    // =========================================================================
+    // 4. ANUNCIOS DEL SISTEMA
+    // =========================================================================
+    match /anuncios/{anuncioId} {
+      // Todos los usuarios autenticados pueden ver los anuncios del sistema
+      allow read: if estaAutenticado();
+
+      // Solo el Master puede crear, modificar o borrar anuncios
+      allow write: if esMaster();
+    }
+
+  }
+}

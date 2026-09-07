@@ -6,6 +6,7 @@ import { db } from "../../../firebase";
 import { Search, ShoppingCart, CheckCircle2, ChevronRight, X, AlertCircle, UserCog, Plus, Minus, ArrowLeft, MessageCircle, Banknote, Package, QrCode, Volume2, Printer, Smartphone, CreditCard, Zap, Receipt, ChevronDown, ChevronUp, Tag, Percent, Pause, FolderOpen, User, Trash2 } from 'lucide-react';
 import { useAuth } from "@/hooks/AuthContext";
 import toast from "react-hot-toast";
+import { customConfirm } from "@/utils/customConfirm";
 import { Html5Qrcode } from "html5-qrcode";
 import { API_DB } from "../../../servicios/db";
 import TicketFacturaModal from "@/components/TicketFacturaModal";
@@ -785,7 +786,7 @@ function VenderContenido() {
   };
 
   const guardarClienteNuevo = async () => {
-    if (!nombreNuevo.trim()) return alert("El nombre del cliente es obligatorio.");
+    if (!nombreNuevo.trim()) return toast.error("El nombre del cliente es obligatorio.");
     setGuardandoCliente(true);
     try {
       const docRef = await addDoc(collection(db, "clientes"), { nombre: nombreNuevo.trim(), celular: celularNuevo.trim(), deudaTotal: 0, usuarioId: cuentaPrincipalId, fecha_creacion: new Date() });
@@ -794,7 +795,7 @@ function VenderContenido() {
       await cargarDatosGlobales(cuentaPrincipalId!);
       setClienteTransaccion(nuevoObj); 
       setMostrarResultadosBuscador(false);
-    } catch (error) { alert("Error al guardar cliente."); } finally { setGuardandoCliente(false); }
+    } catch (error) { toast.error("Error al guardar cliente."); } finally { setGuardandoCliente(false); }
   };
 
   const formatearMonedaInput = (valor: string) => {
@@ -962,12 +963,12 @@ function VenderContenido() {
     }
   };
 
-  const procesarRegistro = () => {
+  const procesarRegistro = async () => {
     // Si el colaborador no puede hacer venta directa, enviar como orden pendiente
     if (!puedeVentaDirecta) { enviarOrden(); return; }
 
     const filasValidas = filasRegistro.filter(f => parseFloat(f.valor) > 0);
-    if (filasValidas.length === 0) return alert("Ingresa al menos un monto válido en los artículos.");
+    if (filasValidas.length === 0) return toast.error("Ingresa al menos un monto válido en los artículos.");
 
     for (const fila of filasValidas) {
       const item = inventario.find(p => p.nombre.toLowerCase() === fila.descripcion.toLowerCase());
@@ -992,8 +993,8 @@ function VenderContenido() {
     // CORRECCIÓN A-7: Si el campo de pago está vacío y el método es efectivo,
     // advertir explícitamente antes de crear un fiado por el monto completo
     if (pagadoRaw === "" && metodoPago === 'efectivo' && totalFilasRegistro > 0) {
-      const confirmar = window.confirm(
-        `⚠️ No ingresaste ningún monto de pago.\n\n¿Confirmas fiar el total completo de $${totalFilasRegistro.toLocaleString('es-CO')} a ${clienteTransaccion?.nombre || 'este cliente'}?\n\nPresiona "Aceptar" para continuar o "Cancelar" para ingresar el monto.`
+      const confirmar = await customConfirm(
+        `⚠️ No ingresaste ningún monto de pago.\n\n¿Confirmas fiar el total completo de $${totalFilasRegistro.toLocaleString('es-CO')} a ${clienteTransaccion?.nombre || 'este cliente'}?\n\nPresiona "Confirmar" para continuar o "Cancelar" para ingresar el monto.`
       );
       if (!confirmar) return;
     }

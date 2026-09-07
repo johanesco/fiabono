@@ -2,6 +2,7 @@
 import { useState, useEffect } from "react";
 import { X, Sparkles, ShieldCheck, Ticket, CheckCircle2, Store, Crown, MessageCircle, Lock } from "lucide-react";
 import toast from "react-hot-toast";
+import { customConfirm } from "@/utils/customConfirm";
 import { API_DB } from "../servicios/db";
 import { doc, updateDoc, collection, getDocs, query, where, writeBatch } from "firebase/firestore";
 import { db } from "../firebase";
@@ -41,32 +42,7 @@ export default function ModalSuscripcion({ isOpen, onClose, cuentaPrincipalId, p
     onClose();
   };
 
-  const activarPlanDirecto = async (tipo: 'comercio' | 'pro') => {
-    if (!cuentaPrincipalId) return;
-    setCargando(true);
-    try {
-      const fechaVencimiento = new Date();
-      if (ciclo === 'anual') {
-        fechaVencimiento.setFullYear(fechaVencimiento.getFullYear() + 1);
-      } else {
-        fechaVencimiento.setMonth(fechaVencimiento.getMonth() + 1);
-      }
 
-      await updateDoc(doc(db, "usuarios", cuentaPrincipalId), {
-        plan: tipo,
-        planVence: fechaVencimiento,
-        cicloPlan: ciclo
-      });
-
-      toast.success(`¡Excelente! Plan ${tipo === 'pro' ? 'PRO Almacén' : 'Comercio'} activado correctamente 🚀`);
-      handleClose();
-      window.location.reload();
-    } catch (e) {
-      toast.error("Error al actualizar el plan.");
-    } finally {
-      setCargando(false);
-    }
-  };
 
   const volverAPlanGratuito = async () => {
     if (!cuentaPrincipalId) return;
@@ -215,36 +191,9 @@ export default function ModalSuscripcion({ isOpen, onClose, cuentaPrincipalId, p
               Desbloquea clientes e inventario ilimitados, colaboradores y herramientas profesionales.
             </p>
 
-            {/* Selector de Ciclo */}
-            <div className="inline-flex items-center bg-slate-100 dark:bg-[#020617] p-1 rounded-xl mt-4 border border-slate-200 dark:border-slate-800">
-              <button
-                type="button"
-                onClick={() => setCiclo('mensual')}
-                className={`px-4 py-1.5 rounded-lg text-xs font-black transition-all cursor-pointer ${
-                  ciclo === 'mensual' ? 'bg-white dark:bg-[#0f172a] text-slate-900 dark:text-white shadow-sm' : 'text-slate-500'
-                }`}
-              >
-                Mensual
-              </button>
-              <button
-                type="button"
-                onClick={() => setCiclo('trimestral')}
-                className={`px-4 py-1.5 rounded-lg text-xs font-black transition-all cursor-pointer ${
-                  ciclo === 'trimestral' ? 'bg-white dark:bg-[#0f172a] text-slate-900 dark:text-white shadow-sm' : 'text-slate-500'
-                }`}
-              >
-                Trimestral
-              </button>
-              <button
-                type="button"
-                onClick={() => setCiclo('anual')}
-                className={`px-4 py-1.5 rounded-lg text-xs font-black flex items-center gap-1 transition-all cursor-pointer ${
-                  ciclo === 'anual' ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-500'
-                }`}
-              >
-                <span>Anual</span>
-                <span className="text-[10px] bg-emerald-400 text-slate-900 px-1 rounded font-black">Ahorra 20%</span>
-              </button>
+            {/* Banner de Precios */}
+            <div className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 text-xs font-black uppercase tracking-wider mt-4 border border-emerald-200/60 dark:border-emerald-500/20">
+              <Sparkles size={13} className="fill-current" /> Tarifas de lanzamiento próximamente disponibles
             </div>
           </div>
 
@@ -266,9 +215,12 @@ export default function ModalSuscripcion({ isOpen, onClose, cuentaPrincipalId, p
                   </span>
                   {planSeleccionado === 'comercio' && <CheckCircle2 size={16} className="text-blue-600 dark:text-blue-400" />}
                 </div>
-                <p className="text-2xl font-black text-slate-900 dark:text-white">
-                  {ciclo === 'anual' ? '$199.000' : ciclo === 'trimestral' ? '$59.700' : '$19.900'} <span className="text-xs font-normal text-slate-500">COP/{ciclo === 'anual' ? 'año' : ciclo === 'trimestral' ? 'trimestre' : 'mes'}</span>
-                </p>
+                <div className="my-1">
+                  <p className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white">
+                    Próximamente
+                  </p>
+                  <span className="text-[11px] font-bold text-emerald-600 dark:text-emerald-400">14 días de prueba gratis</span>
+                </div>
                 <ul className="mt-3 space-y-1 text-xs text-slate-600 dark:text-slate-300">
                   <li className="flex items-center gap-1.5"><CheckCircle2 size={12} className="text-emerald-500 shrink-0" /> Clientes e Inv. ILIMITADOS</li>
                   <li className="flex items-center gap-1.5"><CheckCircle2 size={12} className="text-emerald-500 shrink-0" /> 1 Usuario Colaborador con permisos</li>
@@ -295,9 +247,12 @@ export default function ModalSuscripcion({ isOpen, onClose, cuentaPrincipalId, p
                   </span>
                   {planSeleccionado === 'pro' && <CheckCircle2 size={16} className="text-purple-600 dark:text-purple-400" />}
                 </div>
-                <p className="text-2xl font-black text-slate-900 dark:text-white">
-                  {ciclo === 'anual' ? '$449.000' : ciclo === 'trimestral' ? '$134.700' : '$44.900'} <span className="text-xs font-normal text-slate-500">COP/{ciclo === 'anual' ? 'año' : ciclo === 'trimestral' ? 'trimestre' : 'mes'}</span>
-                </p>
+                <div className="my-1">
+                  <p className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white">
+                    Próximamente
+                  </p>
+                  <span className="text-[11px] font-bold text-purple-600 dark:text-purple-400">14 días de prueba gratis</span>
+                </div>
                 <ul className="mt-3 space-y-1 text-xs text-slate-600 dark:text-slate-300">
                   <li className="flex items-center gap-1.5"><CheckCircle2 size={12} className="text-purple-500 shrink-0" /> Módulo PLAN SEPARE Completo</li>
                   <li className="flex items-center gap-1.5"><CheckCircle2 size={12} className="text-purple-500 shrink-0" /> 4 Usuarios Colaboradores</li>

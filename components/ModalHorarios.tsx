@@ -56,7 +56,8 @@ export default function ModalHorarios({
       setFin('18:00');
       setMostrarFormNuevoTurno(!tieneHorarios);
     }
-  }, [isOpen, horariosIniciales]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen]);
 
   if (!isOpen) return null;
 
@@ -188,7 +189,10 @@ export default function ModalHorarios({
         <div className="p-5 sm:p-6 overflow-y-auto space-y-5 flex-1">
 
           {/* INTERRUPTOR PRINCIPAL: ACTIVAR / DESACTIVAR RESTRICCIÓN */}
-          <div className="p-4 rounded-2xl bg-slate-50 dark:bg-[#020617] border border-slate-200/80 dark:border-slate-800/80 flex items-center justify-between gap-4">
+          <div 
+            className="p-4 rounded-2xl bg-slate-50 dark:bg-[#020617] border border-slate-200/80 dark:border-slate-800/80 flex items-center justify-between gap-4 cursor-pointer"
+            onClick={() => setRestringirPorHorario(!restringirPorHorario)}
+          >
             <div className="flex items-start gap-3">
               <div className={`p-2 rounded-xl mt-0.5 shrink-0 ${restringirPorHorario ? 'bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-300' : 'bg-slate-200 text-slate-600 dark:bg-slate-800 dark:text-slate-400'}`}>
                 <ShieldCheck size={20} />
@@ -205,15 +209,17 @@ export default function ModalHorarios({
               </div>
             </div>
 
-            <label className="relative inline-flex items-center cursor-pointer shrink-0">
+            <div className="relative inline-flex items-center shrink-0">
               <input 
                 type="checkbox" 
                 checked={restringirPorHorario} 
-                onChange={e => setRestringirPorHorario(e.target.checked)} 
-                className="sr-only peer" 
+                readOnly
+                className="sr-only" 
               />
-              <div className="w-12 h-6.5 bg-slate-200 peer-focus:outline-none rounded-full peer dark:bg-slate-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5.5 after:w-5.5 after:transition-all dark:border-slate-600 peer-checked:bg-blue-600 shadow-inner"></div>
-            </label>
+              <div className={`w-11 h-6 rounded-full shadow-inner transition-colors ${restringirPorHorario ? 'bg-blue-600' : 'bg-slate-200 dark:bg-slate-700'}`}>
+                <div className={`absolute top-[2px] left-[2px] bg-white border border-slate-300 rounded-full h-5 w-5 transition-transform ${restringirPorHorario ? 'translate-x-full border-transparent' : ''}`}></div>
+              </div>
+            </div>
           </div>
 
           {/* SI LA RESTRICCIÓN ESTÁ ACTIVADA */}

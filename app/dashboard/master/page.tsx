@@ -5,6 +5,7 @@ import { collection, getDocs, query, where, updateDoc, doc, setDoc, deleteDoc, T
 import { db } from "../../../firebase";
 import { useAuth } from "@/hooks/AuthContext";
 import toast from "react-hot-toast";
+import { customConfirm } from "@/utils/customConfirm";
 import { Crown, Search, Edit2, ShieldAlert, CheckCircle2, Ticket, X, Calendar, Plus, Trash2, Power } from 'lucide-react';
 
 export default function MasterPage() {
@@ -100,19 +101,49 @@ export default function MasterPage() {
   const guardarCambioPlan = async () => {
     if (!modalPlan.usuario) return;
     try {
-      const nuevaFecha = new Date();
-      nuevaFecha.setDate(nuevaFecha.getDate() + formPlan.dias);
+      if (formPlan.plan === 'gratis') {
+        await updateDoc(doc(db, "usuarios", modalPlan.usuario.id), {
+          plan: 'gratis',
+          planVence: null,
+          cicloPlan: 'mensual'
+        });
+        // Desactivar cajeros si baja a gratis
+        const qCajeros = query(
+          collection(db, "usuarios"),
+          where("adminId", "==", modalPlan.usuario.id),
+          where("rol", "==", "cajero")
+        );
+        const snapC = await getDocs(qCajeros);
+        const batchDesact = snapC.docs.map(d =>
+          updateDoc(doc(db, "usuarios", d.id), { activo: false })
+        );
+        await Promise.all(batchDesact);
+      } else {
+        let baseDate = new Date();
+        if (modalPlan.usuario?.planVence) {
+          const timeVence = modalPlan.usuario.planVence.toDate 
+            ? modalPlan.usuario.planVence.toDate().getTime() 
+            : new Date(modalPlan.usuario.planVence).getTime();
+          // Si aún tiene días activos futuros, sumamos a partir de esa fecha
+          if (timeVence > baseDate.getTime()) {
+            baseDate = new Date(timeVence);
+          }
+        }
+        const nuevaFecha = new Date(baseDate);
+        nuevaFecha.setDate(nuevaFecha.getDate() + Number(formPlan.dias || 30));
+
+        await updateDoc(doc(db, "usuarios", modalPlan.usuario.id), {
+          plan: formPlan.plan,
+          planVence: nuevaFecha,
+          cicloPlan: formPlan.dias >= 365 ? 'anual' : 'mensual'
+        });
+      }
       
-      await updateDoc(doc(db, "usuarios", modalPlan.usuario.id), {
-        plan: formPlan.plan,
-        planVence: nuevaFecha,
-        cicloPlan: formPlan.dias >= 365 ? 'anual' : 'mensual'
-      });
-      
-      toast.success("Plan forzado exitosamente");
+      toast.success("Plan asignado exitosamente");
       setModalPlan({ visible: false, usuario: null });
       cargarDatos();
     } catch (e) {
+      console.error(e);
       toast.error("Error al cambiar plan.");
     }
   };
@@ -140,7 +171,7 @@ export default function MasterPage() {
   };
 
   const eliminarBono = async (id: string) => {
-    if (confirm("¿Seguro que deseas eliminar este código?")) {
+    if (await customConfirm("¿Seguro que deseas eliminar este código?")) {
       await deleteDoc(doc(db, "codigos_promocionales", id));
       cargarDatos();
     }
@@ -175,7 +206,7 @@ export default function MasterPage() {
   };
 
   const eliminarAnuncio = async (id: string) => {
-    if (confirm("¿Seguro que deseas eliminar este anuncio?")) {
+    if (await customConfirm("¿Seguro que deseas eliminar este anuncio?")) {
       await deleteDoc(doc(db, "anuncios", id));
       cargarDatos();
     }

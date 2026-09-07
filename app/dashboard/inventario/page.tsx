@@ -1,7 +1,7 @@
 "use client";
 import { useState, useEffect, useMemo, useRef } from "react";
 import { useRouter } from "next/navigation";
-import { collection, getDocs, query, doc, updateDoc, deleteDoc, where, addDoc, writeBatch } from "firebase/firestore";
+import { collection, getDocs, query, doc, updateDoc, deleteDoc, where, addDoc, writeBatch, increment } from "firebase/firestore";
 import { db } from "../../../firebase";
 import { 
   Package, 
@@ -14,6 +14,7 @@ import {
   CheckCircle2, 
   LayoutList, 
   QrCode, 
+  ScanLine,
   Sliders,
   ArrowUpDown,
   ArrowUp,
@@ -44,10 +45,14 @@ import {
   MoreVertical,
   Bookmark,
   Crown,
-  Lock
+  Lock,
+  ListCheck,
+  Minus
 } from 'lucide-react';
 import { useAuth } from "@/hooks/AuthContext";
 import toast from "react-hot-toast";
+import EscanerInventarioModal from "@/components/EscanerInventarioModal";
+import { ItemTandaIngreso } from "@/types";
 import { QRCodeSVG } from 'qrcode.react';
 import jsPDF from 'jspdf';
 import * as XLSX from 'xlsx';
@@ -70,6 +75,8 @@ export default function InventarioPage() {
   const cuentaPrincipalId = datosSesion?.cuentaPrincipalId;
   const esAdmin = datosSesion?.rol !== 'cajero';
   const puedeEditarInventario = esAdmin || datosSesion?.permisos?.editarInventario === true || datosSesion?.puedeEditarInventario === true;
+  const puedeIngresarInventario = esAdmin || datosSesion?.permisos?.ingresoInventario === true;
+  const moduloSepareActivo = datosSesion?.moduloSepareActivo !== false;
 
   const [inventario, setInventario] = useState<any[]>([]);
   const [cargando, setCargando] = useState(true);
@@ -122,6 +129,7 @@ export default function InventarioPage() {
 
   // Estados para el modal de configuración de exportación QR inteligente y Térmica
   const [modalExportarQR, setModalExportarQR] = useState(false);
+  const [modalEscanerInventario, setModalEscanerInventario] = useState(false);
   const [tipoImpresoraQR, setTipoImpresoraQR] = useState<TipoImpresoraQR>('termica');
   const [tamanoTermicoQR, setTamanoTermicoQR] = useState<TamanoTermicoQR>('40x30');
   const [anchoPersonalizadoMM, setAnchoPersonalizadoMM] = useState<number>(50);
@@ -155,6 +163,11 @@ export default function InventarioPage() {
   const [nombreCategoriaEditada, setNombreCategoriaEditada] = useState('');
   const [mensajeCategoria, setMensajeCategoria] = useState<{ tipo: 'success' | 'danger' | 'info'; titulo: string; detalle: string } | null>(null);
   const [productosEnCarga, setProductosEnCarga] = useState<any[]>([]);
+  const [modalConfirmarDescarteCarga, setModalConfirmarDescarteCarga] = useState(false);
+  const [productoRecienGuardadoId, setProductoRecienGuardadoId] = useState<string | null>(null);
+  const [busquedaModalInventario, setBusquedaModalInventario] = useState("");
+  const [filtroStockModal, setFiltroStockModal] = useState<'todos' | 'en_stock' | 'bajo_stock' | 'sin_stock'>('todos');
+  const [tabMovilModal, setTabMovilModal] = useState<'formulario' | 'lista'>('formulario');
   const [errores, setErrores] = useState({ nombre: '', categoria: '', stock: '', precio: '' });
   const [categoriasDisponibles, setCategoriasDisponibles] = useState([
     'General', 'Varios', 'Servicios', 'Ropa hombre', 'Ropa dama', 'Ropa interior', 'Hogar', 'Joyería',
@@ -163,6 +176,34 @@ export default function InventarioPage() {
   ]);
 
   const [limiteRender, setLimiteRender] = useState(20);
+
+  // Recuperar borrador de productos en carga al iniciar sesión
+  useEffect(() => {
+    if (cuentaPrincipalId && typeof window !== 'undefined') {
+      try {
+        const guardado = sessionStorage.getItem(`fiabono_productos_en_carga_${cuentaPrincipalId}`);
+        if (guardado) {
+          const items = JSON.parse(guardado);
+          if (Array.isArray(items) && items.length > 0) {
+            setProductosEnCarga(items);
+          }
+        }
+      } catch (e) {}
+    }
+  }, [cuentaPrincipalId]);
+
+  // Respaldar en sessionStorage automáticamente al haber cambios en la lista
+  useEffect(() => {
+    if (cuentaPrincipalId && typeof window !== 'undefined') {
+      try {
+        if (productosEnCarga.length > 0) {
+          sessionStorage.setItem(`fiabono_productos_en_carga_${cuentaPrincipalId}`, JSON.stringify(productosEnCarga));
+        } else {
+          sessionStorage.removeItem(`fiabono_productos_en_carga_${cuentaPrincipalId}`);
+        }
+      } catch (e) {}
+    }
+  }, [productosEnCarga, cuentaPrincipalId]);
 
   useEffect(() => {
     if (cuentaPrincipalId) {
@@ -174,7 +215,8 @@ export default function InventarioPage() {
     setLimiteRender(20);
   }, [busqueda, filtrosCategoria, filtrosStock]);
 
-  const cargarInventario = async (uid: string) => {
+  const cargarInventario = async (uid: string, reintento = 0) => {
+    if (!uid) return;
     try {
       setCargando(true);
       const q = query(collection(db, "inventario"), where("usuarioId", "==", uid));
@@ -182,9 +224,15 @@ export default function InventarioPage() {
       const lista: any[] = [];
       snap.forEach((doc) => lista.push({ id: doc.id, ...doc.data() }));
       setInventario(lista);
-    } catch (error) {
-      console.error(error);
-      toast.error("Error al cargar inventario.");
+    } catch (error: any) {
+      console.error("Error cargando inventario:", error);
+      if (reintento === 0) {
+        setTimeout(() => {
+          if (uid) cargarInventario(uid, 1);
+        }, 1000);
+      } else {
+        toast.error("No se pudo cargar el inventario. Por favor recarga la página.");
+      }
     } finally {
       setCargando(false);
     }
@@ -230,6 +278,29 @@ export default function InventarioPage() {
     });
     return Array.from(setCat).sort((a, b) => a.localeCompare(b, 'es'));
   }, [inventario]);
+
+  // Lista filtrada en tiempo real para el catálogo dentro del modal expandido
+  const productosFiltradosModal = useMemo(() => {
+    return inventario.filter((prod) => {
+      if (busquedaModalInventario.trim()) {
+        const q = busquedaModalInventario.toLowerCase().trim();
+        const coincideNombre = (prod.nombre || "").toLowerCase().includes(q);
+        const coincideSku = (prod.sku || "").toLowerCase().includes(q);
+        const coincideCat = (prod.categoria || "").toLowerCase().includes(q);
+        if (!coincideNombre && !coincideSku && !coincideCat) return false;
+      }
+      if (filtroStockModal === 'en_stock') {
+        return prod.tipoProducto === 'servicio' || (Number(prod.stock) > 0);
+      }
+      if (filtroStockModal === 'bajo_stock') {
+        return prod.tipoProducto !== 'servicio' && prod.inventariable !== false && Number(prod.stock) > 0 && Number(prod.stock) <= 5;
+      }
+      if (filtroStockModal === 'sin_stock') {
+        return prod.tipoProducto !== 'servicio' && prod.inventariable !== false && Number(prod.stock) <= 0;
+      }
+      return true;
+    });
+  }, [inventario, busquedaModalInventario, filtroStockModal]);
 
   // Helper para validar si un producto se puede vender/fiar (servicios o con stock > 0)
   const tieneStockDisponible = (prod: any) => {
@@ -553,26 +624,109 @@ export default function InventarioPage() {
       return;
     }
 
-    const productoTmp = {
-      id: Date.now().toString(),
-      nombre: nombre.trim(),
-      sku: (sku.trim() || `SKU-${Math.floor(1000 + Math.random() * 9000)}`).toUpperCase(),
-      stock: esInventariable ? Math.max(0, Number(stock) || 0) : 0,
-      precioVenta: Number(precioVenta.replace(/\D/g, '')) || 0,
-      tipoProducto,
-      categoria: categoria.trim() || 'General',
-      inventariable: esInventariable,
-      enCarga: true,
-    };
+    const skuLimpio = sku.trim().toUpperCase();
+    const skuNormalizado = skuLimpio.replace(/^(SKU|REF|COD)[-_ ]*/i, '');
 
-    setProductosEnCarga(prev => [...prev, productoTmp]);
+    // Buscar si ya existe en catálogo
+    const prodExistente = inventario.find(p => {
+      const pSku = (p.sku || '').trim().toUpperCase();
+      const pBar = (p.codigoBarras || '').trim().toUpperCase();
+      const pSkuNorm = pSku.replace(/^(SKU|REF|COD)[-_ ]*/i, '');
+      const pBarNorm = pBar.replace(/^(SKU|REF|COD)[-_ ]*/i, '');
+
+      return (
+        (skuLimpio && (pSku === skuLimpio || pBar === skuLimpio)) ||
+        (skuNormalizado && (pSkuNorm === skuNormalizado || pBarNorm === skuNormalizado)) ||
+        (nombre.trim().toLowerCase() === p.nombre.trim().toLowerCase())
+      );
+    });
+
+    const cantAgregada = esInventariable ? Math.max(1, Number(stock) || 1) : 0;
+
+    if (prodExistente) {
+      // Si el producto ya existe en inventario, se agrega como existente
+      agregarOActualizarProductoEnCarga({
+        id: `carga_${prodExistente.id}`,
+        esExistente: true,
+        productoId: prodExistente.id,
+        nombre: prodExistente.nombre,
+        sku: prodExistente.sku || prodExistente.codigoBarras || skuLimpio,
+        stock: cantAgregada,
+        precioVenta: Number(precioVenta.replace(/\D/g, '')) || prodExistente.precioVenta || 0,
+        tipoProducto: prodExistente.tipoProducto || tipoProducto,
+        categoria: prodExistente.categoria || categoria || 'General',
+        inventariable: prodExistente.inventariable !== false,
+        enCarga: true,
+      });
+      toast.success(`"${prodExistente.nombre}" sumado a la lista (+${cantAgregada} un.)`, { icon: '📦' });
+    } else {
+      const productoTmp = {
+        id: `manual_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+        esExistente: false,
+        nombre: nombre.trim(),
+        sku: (skuLimpio || `SKU-${Math.floor(1000 + Math.random() * 9000)}`).toUpperCase(),
+        stock: esInventariable ? Math.max(0, Number(stock) || 0) : 0,
+        precioVenta: Number(precioVenta.replace(/\D/g, '')) || 0,
+        tipoProducto,
+        categoria: categoria.trim() || 'General',
+        inventariable: esInventariable,
+        enCarga: true,
+      };
+
+      setProductosEnCarga(prev => [productoTmp, ...prev]);
+      toast.success(`"${nombre.trim()}" agregado a la lista de carga`, { icon: '➕' });
+    }
+
     setNombre('');
     setSku('');
     setStock('');
     setPrecioVenta('');
     setCategoria('');
     setErrores({ nombre: '', categoria: '', stock: '', precio: '' });
-    toast.success('Producto agregado a la carga rápida');
+  };
+
+  const agregarOActualizarProductoEnCarga = (prod: any) => {
+    setProductosEnCarga(prev => {
+      if (prod.esExistente && prod.productoId) {
+        const index = prev.findIndex(p => p.esExistente && p.productoId === prod.productoId);
+        if (index >= 0) {
+          const copia = [...prev];
+          copia[index] = {
+            ...copia[index],
+            stock: (Number(copia[index].stock) || 0) + (Number(prod.stock) || 1)
+          };
+          return copia;
+        }
+      }
+      return [prod, ...prev];
+    });
+  };
+
+  const modificarCantidadProductoEnCarga = (id: string, delta: number) => {
+    setProductosEnCarga(prev => {
+      return prev.map(p => {
+        if (p.id === id) {
+          const nuevaCant = Math.max(1, (Number(p.stock) || 0) + delta);
+          return { ...p, stock: nuevaCant };
+        }
+        return p;
+      });
+    });
+  };
+
+  const quitarProductoEnCarga = (id: string) => {
+    setProductosEnCarga(prev => prev.filter(p => p.id !== id));
+  };
+
+  const descartarCargaCompleta = () => {
+    setProductosEnCarga([]);
+    if (typeof window !== 'undefined' && cuentaPrincipalId) {
+      sessionStorage.removeItem(`fiabono_productos_en_carga_${cuentaPrincipalId}`);
+    }
+    limpiarFormulario();
+    setModalConfirmarDescarteCarga(false);
+    setModalProducto(false);
+    toast.success("Lista de productos descartada. El inventario se mantuvo intacto.");
   };
 
   const crearProductoDesdeFormulario = () => {
@@ -595,26 +749,76 @@ export default function InventarioPage() {
   const guardarProductosEnCarga = async (productos: any[] = productosEnCarga) => {
     if (!productos.length) return 0;
 
-    const productosAguardar = productos.map((prod) => ({
-      usuarioId: cuentaPrincipalId,
-      nombre: prod.nombre,
-      sku: prod.sku,
-      stock: prod.inventariable !== false && prod.tipoProducto !== 'servicio' ? (Number(prod.stock) || 0) : 0,
-      precioVenta: Number(prod.precioVenta) || 0,
-      tipoProducto: prod.tipoProducto || 'producto',
-      categoria: prod.categoria || 'General',
-      inventariable: prod.inventariable !== false && prod.tipoProducto !== 'servicio',
-      fechaCreacion: new Date(),
-      fechaActualizacion: new Date()
-    }));
+    let actualizados = 0;
+    let creados = 0;
 
-    const batchInsert = productosAguardar.map((producto) => addDoc(collection(db, "inventario"), producto));
-    await Promise.all(batchInsert);
+    for (const prod of productos) {
+      if (prod.esExistente && prod.productoId) {
+        // Producto existente: sumar unidades en BD
+        const prodRef = doc(db, "inventario", prod.productoId);
+        const cant = Number(prod.stock) || 0;
+        await updateDoc(prodRef, {
+          stock: increment(cant),
+          fechaActualizacion: new Date()
+        });
+
+        await addDoc(collection(db, "movimientos"), {
+          usuarioId: cuentaPrincipalId,
+          tipo: 'ingreso_inventario',
+          categoria: 'recepcion_mercancia',
+          monto: 0,
+          descripcion: `Recepción: +${cant} unidades de ${prod.nombre} (SKU: ${prod.sku})`,
+          fecha: new Date(),
+          registradoPor: datosSesion?.nombreUsuario || "Usuario",
+          idProducto: prod.productoId,
+          nombreProducto: prod.nombre,
+          cantidadAgregada: cant
+        });
+        actualizados++;
+      } else {
+        // Producto nuevo: crear en inventario
+        const esInv = prod.inventariable !== false && prod.tipoProducto !== 'servicio';
+        const cantInicial = esInv ? (Number(prod.stock) || 0) : 0;
+        const docRef = await addDoc(collection(db, "inventario"), {
+          usuarioId: cuentaPrincipalId,
+          nombre: prod.nombre.trim(),
+          sku: prod.sku,
+          codigoBarras: prod.sku,
+          stock: cantInicial,
+          precioVenta: Number(prod.precioVenta) || 0,
+          tipoProducto: prod.tipoProducto || 'producto',
+          categoria: prod.categoria || 'General',
+          inventariable: esInv,
+          fechaCreacion: new Date(),
+          fechaActualizacion: new Date()
+        });
+
+        if (cantInicial > 0) {
+          await addDoc(collection(db, "movimientos"), {
+            usuarioId: cuentaPrincipalId,
+            tipo: 'ingreso_inventario',
+            categoria: 'recepcion_mercancia',
+            monto: 0,
+            descripcion: `Creación y recepción: +${cantInicial} unidades de ${prod.nombre.trim()}`,
+            fecha: new Date(),
+            registradoPor: datosSesion?.nombreUsuario || "Usuario",
+            idProducto: docRef.id,
+            nombreProducto: prod.nombre.trim(),
+            cantidadAgregada: cantInicial
+          });
+        }
+        creados++;
+      }
+    }
+
     setProductosEnCarga([]);
-    return productosAguardar.length;
+    if (typeof window !== 'undefined') {
+      sessionStorage.removeItem(`fiabono_productos_en_carga_${cuentaPrincipalId}`);
+    }
+    return actualizados + creados;
   };
 
-  const guardarProducto = async () => {
+  const guardarProducto = async (cerrarAlFinal: boolean = true) => {
     const hayProductosEnCola = !editandoId && productosEnCarga.length > 0;
     const formularioTieneDatos = Boolean(nombre.trim() || precioVenta || (tipoProducto === 'producto' && stock.trim() !== ''));
 
@@ -648,7 +852,7 @@ export default function InventarioPage() {
 
     // Validación de límite para Plan Gratuito (máximo 30 productos)
     if (!editandoId && datosSesion?.esGratis) {
-      const productosNuevosTotales = productosEnCarga.length + (nombre.trim() && precioVenta ? 1 : 0);
+      const productosNuevosTotales = productosEnCarga.filter(p => !p.esExistente).length + (nombre.trim() && precioVenta ? 1 : 0);
       if ((inventario.length + productosNuevosTotales) > 30) {
         setModalUpsell({
           visible: true,
@@ -664,39 +868,53 @@ export default function InventarioPage() {
     try {
       if (editandoId) {
         const esInventariable = tipoProducto === 'producto' && inventariable;
+        const cantStock = esInventariable ? Math.max(0, Number(stock) || 0) : 0;
+        const precioNum = Number(precioVenta.replace(/\D/g, '')) || 0;
+        const nombreGuardar = nombre.trim();
         const docRef = doc(db, "inventario", editandoId);
         await updateDoc(docRef, {
-          nombre: nombre.trim(),
+          nombre: nombreGuardar,
           sku: sku.trim() || `SKU-${Math.floor(1000 + Math.random() * 9000)}`,
-          stock: esInventariable ? Math.max(0, Number(stock) || 0) : 0,
-          precioVenta: Number(precioVenta.replace(/\D/g, '')) || 0,
+          stock: cantStock,
+          precioVenta: precioNum,
           tipoProducto,
           categoria: categoria.trim() || 'General',
           inventariable: esInventariable,
           fechaActualizacion: new Date()
         });
-        toast.success("Producto actualizado con éxito.");
+        setProductoRecienGuardadoId(editandoId);
+        toast.success(`"${nombreGuardar}" actualizado en la lista.`, { icon: '✅' });
       } else {
+        // Guardar todos los productos en la lista unificada
         const totalGuardados = await guardarProductosEnCarga();
         let totalExtra = 0;
+        let nuevoId: string | null = null;
         
         // Si el usuario además completó válidamente el formulario superior, lo guardamos también
         if (nombre.trim() && precioVenta) {
           const docRef = await addDoc(collection(db, "inventario"), crearProductoDesdeFormulario());
-          if (docRef.id) totalExtra = 1;
+          if (docRef.id) {
+            totalExtra = 1;
+            nuevoId = docRef.id;
+          }
         }
 
         const totalFinal = totalGuardados + totalExtra;
+        if (nuevoId) {
+          setProductoRecienGuardadoId(nuevoId);
+        }
         if (totalFinal > 1) {
-          toast.success(`¡Se guardaron ${totalFinal} productos en el catálogo! 🎉`);
+          toast.success(`¡Se guardaron ${totalFinal} productos en el inventario! 🎉`, { duration: 4000 });
         } else if (totalFinal === 1) {
-          toast.success("Producto creado con éxito.");
+          toast.success(`"${nombre.trim()}" guardado y visible en la lista.`, { icon: '✨' });
         }
       }
 
-      setModalProducto(false);
       limpiarFormulario();
-      if (cuentaPrincipalId) cargarInventario(cuentaPrincipalId);
+      if (cuentaPrincipalId) await cargarInventario(cuentaPrincipalId);
+      if (cerrarAlFinal) {
+        setModalProducto(false);
+      }
     } catch (error) {
       console.error(error);
       toast.error("Error al guardar en el inventario.");
@@ -1987,10 +2205,6 @@ export default function InventarioPage() {
     mostrarMensajeCategoria('success', 'Categoría agregada', `La categoría "${valor}" quedó disponible para usar.`);
   };
 
-  const quitarProductoEnCarga = (id: string) => {
-    setProductosEnCarga((prev) => prev.filter((item) => item.id !== id));
-  };
-
   const guardarEdicionCategoria = () => {
     const valor = nombreCategoriaEditada.trim();
     if (!valor || valor === 'General') return;
@@ -2935,18 +3149,20 @@ export default function InventarioPage() {
                                 >
                                   <Receipt size={12} /> <span>Fiar</span>
                                 </button>
-                                <button 
-                                  onClick={() => despacharASepare([prod])} 
-                                  disabled={!disponible}
-                                  title={disponible ? "Registrar Plan Separe con este producto" : "Producto agotado (Sin stock)"}
-                                  className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-black transition-all shadow-sm ${
-                                    !disponible 
-                                      ? 'bg-slate-100 text-slate-400 dark:bg-slate-800 dark:text-slate-600 cursor-not-allowed opacity-50' 
-                                      : 'bg-violet-50 hover:bg-violet-600 text-violet-700 hover:text-white dark:bg-violet-500/10 dark:text-violet-300 dark:hover:bg-violet-600 dark:hover:text-white active:scale-95'
-                                  }`}
-                                >
-                                  <Bookmark size={12} /> <span>Separe</span>
-                                </button>
+                                {moduloSepareActivo && (
+                                  <button 
+                                    onClick={() => despacharASepare([prod])} 
+                                    disabled={!disponible}
+                                    title={disponible ? "Registrar Plan Separe con este producto" : "Producto agotado (Sin stock)"}
+                                    className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-black transition-all shadow-sm ${
+                                      !disponible 
+                                        ? 'bg-slate-100 text-slate-400 dark:bg-slate-800 dark:text-slate-600 cursor-not-allowed opacity-50' 
+                                        : 'bg-violet-50 hover:bg-violet-600 text-violet-700 hover:text-white dark:bg-violet-500/10 dark:text-violet-300 dark:hover:bg-violet-600 dark:hover:text-white active:scale-95'
+                                    }`}
+                                  >
+                                    <Bookmark size={12} /> <span>Separe</span>
+                                  </button>
+                                )}
 
                                 {(esAdmin || puedeEditarInventario) && (
                                   <>
@@ -3051,13 +3267,15 @@ export default function InventarioPage() {
                 >
                   <Receipt size={14} /> <span>Fiar ({productosSeleccionados.length})</span>
                 </button>
-                <button
-                  onClick={() => despacharASepare(productosSeleccionadosObj)}
-                  className="flex-1 sm:flex-none inline-flex items-center justify-center gap-1 bg-violet-600 hover:bg-violet-500 text-white font-black px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl text-xs uppercase tracking-wider transition-all shadow-md active:scale-95 cursor-pointer"
-                >
-                  <Bookmark size={14} /> <span>Separar ({productosSeleccionados.length})</span>
-                  {!datosSesion?.esPro && <Crown size={12} className="text-amber-300 ml-0.5" />}
-                </button>
+                {moduloSepareActivo && (
+                  <button
+                    onClick={() => despacharASepare(productosSeleccionadosObj)}
+                    className="flex-1 sm:flex-none inline-flex items-center justify-center gap-1 bg-violet-600 hover:bg-violet-500 text-white font-black px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl text-xs uppercase tracking-wider transition-all shadow-md active:scale-95 cursor-pointer"
+                  >
+                    <Bookmark size={14} /> <span>Separar ({productosSeleccionados.length})</span>
+                    {!datosSesion?.esPro && <Crown size={12} className="text-amber-300 ml-0.5" />}
+                  </button>
+                )}
                 <button
                   onClick={() => setProductosSeleccionados([])}
                   className="hidden sm:inline-flex p-2 hover:bg-slate-800 text-slate-400 hover:text-white rounded-xl transition-colors shrink-0"
@@ -3529,7 +3747,30 @@ export default function InventarioPage() {
         </div>
       )}
 
-      {/* MODAL CONFIGURAR EXPORTACIÓN QR INTELIGENTE Y TÉRMICA */}
+      {/* MODAL ESCÁNER DE INVENTARIO CON CÁMARA (ALIMENTADOR DEL FORMULARIO) */}
+      <EscanerInventarioModal 
+        isOpen={modalEscanerInventario} 
+        onClose={() => {
+          setModalEscanerInventario(false);
+          setModalProducto(true);
+        }} 
+        cuentaPrincipalId={cuentaPrincipalId || ""} 
+        nombreUsuario={datosSesion?.nombreUsuario || "Usuario"} 
+        categoriasDisponibles={categoriasDisponibles}
+        inventario={inventario}
+        productosEnCarga={productosEnCarga}
+        onAgregarOActualizarProducto={agregarOActualizarProductoEnCarga}
+        onRemoverProducto={quitarProductoEnCarga}
+        onModificarCantidad={modificarCantidadProductoEnCarga}
+        onVolverAlFormulario={(codigoPrecargado) => {
+          setModalEscanerInventario(false);
+          if (codigoPrecargado) {
+            setSku(codigoPrecargado);
+            toast.success(`Código "${codigoPrecargado}" cargado en el formulario.`, { icon: '🏷️' });
+          }
+          setModalProducto(true);
+        }}
+      />
       {esAdmin && modalExportarQR && (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center p-3 sm:p-4 z-[950] animate-in fade-in duration-200">
           <div className="bg-white dark:bg-[#0f172a] rounded-[2.5rem] w-full max-w-3xl shadow-2xl border border-slate-100 dark:border-slate-800 animate-in zoom-in-95 duration-200 overflow-hidden flex flex-col max-h-[92dvh]">
@@ -4257,43 +4498,252 @@ export default function InventarioPage() {
       {/* MODAL CREAR / EDITAR PRODUCTO (BLINDADO PARA MÓVIL Y ESCRITORIO) */}
       {(esAdmin || puedeEditarInventario) && modalProducto && (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center p-2 sm:p-4 z-[950]">
-          <div className="bg-white dark:bg-[#0f172a] rounded-3xl sm:rounded-[2.5rem] w-full max-w-5xl shadow-2xl border border-slate-100 dark:border-slate-800 flex flex-col max-h-[94dvh] sm:max-h-[90dvh] overflow-hidden animate-in zoom-in-95 duration-200">
+          <div className="bg-white dark:bg-[#0f172a] rounded-3xl sm:rounded-[2.5rem] w-full max-w-[98vw] 2xl:max-w-[1650px] h-[96dvh] sm:h-[92dvh] shadow-2xl border border-slate-100 dark:border-slate-800 flex flex-col overflow-hidden animate-in zoom-in-95 duration-200">
             
             {/* Encabezado Fijo del Modal */}
-            <div className="flex items-center justify-between gap-3 border-b border-slate-200 bg-slate-50 px-4 sm:px-6 py-3 sm:py-4 dark:border-slate-800 dark:bg-slate-900/60 shrink-0 z-10">
-              <h3 className="text-base sm:text-2xl font-black text-slate-900 dark:text-white flex items-center gap-2 truncate">
-                <Package size={22} className="text-emerald-600 dark:text-emerald-400 shrink-0" /> {editandoId ? 'Editar Producto' : 'Agregar Productos'}
-              </h3>
-              <button
-                type="button"
-                onClick={() => setModalProducto(false)}
-                className="rounded-xl sm:rounded-full bg-white px-3 py-1.5 text-xs sm:text-sm font-bold text-slate-600 shadow-sm transition hover:bg-slate-100 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700 shrink-0"
-              >
-                Cerrar
-              </button>
+            <div className="flex items-center justify-between gap-3 border-b border-slate-200 bg-slate-50 px-4 sm:px-6 py-3 sm:py-3.5 dark:border-slate-800 dark:bg-slate-900/60 shrink-0 z-10">
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="w-10 h-10 rounded-2xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0 shadow-inner">
+                  <Package size={22} />
+                </div>
+                <div className="min-w-0">
+                  <h3 className="text-base sm:text-xl font-black text-slate-900 dark:text-white flex items-center gap-2 truncate">
+                    {editandoId ? 'Editar Producto' : 'Gestión & Ingreso de Inventario'}
+                  </h3>
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate">
+                    {editandoId ? `Modificando referencia seleccionada` : `${inventario.length} referencias registradas en el catálogo`}
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2 shrink-0">
+                {/* Selector de pestañas para pantallas móviles */}
+                <div className="flex lg:hidden bg-slate-200 dark:bg-slate-800 p-1 rounded-xl text-xs font-bold">
+                  <button
+                    type="button"
+                    onClick={() => setTabMovilModal('formulario')}
+                    className={`px-3 py-1 rounded-lg transition cursor-pointer ${tabMovilModal === 'formulario' ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs' : 'text-slate-500 hover:text-slate-900 dark:hover:text-white'}`}
+                  >
+                    Formulario
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setTabMovilModal('lista')}
+                    className={`px-3 py-1 rounded-lg transition cursor-pointer flex items-center gap-1.5 ${tabMovilModal === 'lista' ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs' : 'text-slate-500 hover:text-slate-900 dark:hover:text-white'}`}
+                  >
+                    Cola ({productosEnCarga.length})
+                    {productosEnCarga.length > 0 && (
+                      <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                    )}
+                  </button>
+                </div>
+
+                {!editandoId && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setModalProducto(false);
+                      setModalEscanerInventario(true);
+                    }}
+                    className="flex items-center gap-1.5 px-3 py-2 rounded-xl sm:rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/20 text-xs font-bold transition cursor-pointer"
+                    title="Alternar al escáner de cámara"
+                  >
+                    <ScanLine size={16} /> <span className="hidden sm:inline">Modo Escáner</span>
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (productosEnCarga.length > 0) {
+                      setModalConfirmarDescarteCarga(true);
+                    } else {
+                      limpiarFormulario();
+                      setModalProducto(false);
+                    }
+                  }}
+                  className="rounded-xl sm:rounded-full bg-white px-3 py-2 text-xs sm:text-sm font-bold text-slate-600 shadow-sm transition hover:bg-slate-100 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700 shrink-0 cursor-pointer"
+                >
+                  Cerrar
+                </button>
+              </div>
             </div>
 
-            {/* Cuerpo con Scroll Fluido */}
-            <div className="flex-1 overflow-y-auto p-3.5 sm:p-6 space-y-4">
-              <div className="grid grid-cols-1 xl:grid-cols-[1.25fr_0.75fr] gap-4 sm:gap-6">
-                <div className="space-y-4">
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3 sm:gap-4">
-                    <div className="md:col-span-2 rounded-2xl border border-slate-200 bg-slate-50 p-3.5 sm:p-4 dark:border-slate-800 dark:bg-slate-900/40">
+            {/* Cuerpo del Modal: Doble Columna en Escritorio */}
+            <div className="flex-1 overflow-hidden grid grid-cols-1 lg:grid-cols-[1.15fr_0.85fr] xl:grid-cols-[1.2fr_0.8fr]">
+              
+              {/* COLUMNA IZQUIERDA: FORMULARIO DE INGRESO Y EDICIÓN */}
+              <div className={`flex flex-col h-full overflow-y-auto p-3 sm:p-5 space-y-3 ${tabMovilModal === 'formulario' ? 'flex' : 'hidden lg:flex'}`}>
+                
+                {/* Banner de Modo Edición Activo */}
+                {editandoId && (
+                  <div className="p-3 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/50 rounded-2xl flex items-center justify-between gap-3 shadow-xs">
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <div className="w-8 h-8 rounded-xl bg-amber-500 text-white flex items-center justify-center shrink-0">
+                        <Edit3 size={16} />
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-xs font-black text-amber-900 dark:text-amber-200 truncate">
+                          Editando producto: "{nombre || 'Sin nombre'}"
+                        </p>
+                        <p className="text-[10px] text-amber-700 dark:text-amber-400">
+                          Ajusta los datos y presiona "Actualizar en Catálogo".
+                        </p>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={limpiarFormulario}
+                      className="px-3 py-1.5 text-xs font-bold bg-white dark:bg-slate-800 border border-amber-300 dark:border-amber-700 text-amber-800 dark:text-amber-300 rounded-xl hover:bg-amber-100 dark:hover:bg-slate-700 transition shrink-0 cursor-pointer"
+                    >
+                      Cancelar edición
+                    </button>
+                  </div>
+                )}
+
+                {/* Campos del Formulario */}
+                <div className="space-y-3.5">
+                  
+                  {/* Fila: Nombre y SKU */}
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <div className="sm:col-span-2 rounded-2xl border border-slate-200 bg-slate-50 p-3.5 dark:border-slate-800 dark:bg-slate-900/40">
                       <label className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1 block">Nombre del Producto</label>
-                      <input type="text" value={nombre} onChange={(e) => { setNombre(e.target.value); setErrores(prev => ({ ...prev, nombre: '' })); }} placeholder="Ej. Camisa Polo" className="w-full p-3 sm:p-4 bg-white dark:bg-[#020617] border border-slate-200 dark:border-slate-700 rounded-2xl outline-none font-bold text-sm sm:text-base focus:border-emerald-500 text-slate-900 dark:text-white" />
+                      <input 
+                        type="text" 
+                        value={nombre} 
+                        onChange={(e) => { setNombre(e.target.value); setErrores(prev => ({ ...prev, nombre: '' })); }} 
+                        placeholder="Ej. Camisa Polo" 
+                        className="w-full p-2.5 sm:p-3 bg-white dark:bg-[#020617] border border-slate-200 dark:border-slate-700 rounded-xl outline-none font-bold text-sm sm:text-base focus:border-emerald-500 text-slate-900 dark:text-white" 
+                      />
                       {errores.nombre && <p className="mt-1 text-[11px] text-rose-500 font-medium">{errores.nombre}</p>}
+                      
+                      {/* Detector de productos existentes para evitar duplicados y actualizar rápido */}
+                      {!editandoId && nombre.trim().length >= 2 && (
+                        (() => {
+                          const coincidencias = inventario.filter(p => 
+                            p.nombre.toLowerCase().includes(nombre.trim().toLowerCase())
+                          ).slice(0, 3);
+
+                          if (coincidencias.length === 0) return null;
+
+                          return (
+                            <div className="mt-2 p-2.5 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/40 rounded-xl space-y-1.5 animate-in fade-in duration-150">
+                              <p className="text-[11px] font-bold text-amber-800 dark:text-amber-300 flex items-center gap-1.5">
+                                <AlertTriangle size={13} className="shrink-0" /> 
+                                Ya tienes productos similares registrados. ¿Deseas actualizar alguno?
+                              </p>
+                              <div className="space-y-1">
+                                {coincidencias.map((prodSim) => (
+                                  <div key={prodSim.id} className="flex items-center justify-between p-1.5 bg-white dark:bg-slate-900 rounded-lg border border-amber-100 dark:border-slate-800 text-xs">
+                                    <div className="min-w-0 pr-2">
+                                      <span className="font-bold text-slate-800 dark:text-slate-100 truncate block">{prodSim.nombre}</span>
+                                      <div className="flex items-center gap-1.5 text-[10px] text-slate-400">
+                                        <span>Stock: <strong className="text-emerald-600">{prodSim.stock ?? 0}</strong></span>
+                                        <span>•</span>
+                                        <span>${Number(prodSim.precioVenta || 0).toLocaleString('es-CO')}</span>
+                                      </div>
+                                    </div>
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        abrirEdicion(prodSim);
+                                        toast.success(`Cargado "${prodSim.nombre}" para actualizar`, { icon: '✏️' });
+                                      }}
+                                      className="px-2 py-1 bg-amber-500 hover:bg-amber-600 text-white font-bold rounded-lg text-[10px] shrink-0 transition-colors cursor-pointer"
+                                    >
+                                      Actualizar este
+                                    </button>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          );
+                        })()
+                      )}
                     </div>
 
-                    <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3.5 sm:p-4 dark:border-slate-800 dark:bg-slate-900/40">
-                      <label className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1 block">SKU / Código</label>
-                      <input type="text" value={sku} onChange={(e) => setSku(e.target.value)} placeholder="Ej. CAM-001" className="w-full p-3 sm:p-4 bg-white dark:bg-[#020617] border border-slate-200 dark:border-slate-700 rounded-2xl outline-none font-bold text-sm sm:text-base focus:border-emerald-500 text-slate-900 dark:text-white" />
+                    <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3.5 dark:border-slate-800 dark:bg-slate-900/40">
+                      <div className="flex items-center justify-between mb-1">
+                        <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block">SKU / Código</label>
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const nuevoSku = `SKU-${Math.floor(1000 + Math.random() * 9000)}`;
+                              setSku(nuevoSku);
+                              toast.success(`Código: ${nuevoSku}`, { icon: '✨' });
+                            }}
+                            className="text-[10px] font-bold text-indigo-600 dark:text-indigo-400 hover:underline flex items-center gap-1 cursor-pointer"
+                            title="Auto-generar código aleatorio"
+                          >
+                            <Sparkles size={11} /> Auto
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setModalProducto(false);
+                              setModalEscanerInventario(true);
+                            }}
+                            className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 hover:underline flex items-center gap-1 cursor-pointer"
+                            title="Escanear con cámara"
+                          >
+                            <ScanLine size={11} /> Escanear
+                          </button>
+                        </div>
+                      </div>
+                      <input 
+                        type="text" 
+                        value={sku} 
+                        onChange={(e) => setSku(e.target.value)} 
+                        placeholder="Ej. CAM-001" 
+                        className="w-full p-2.5 sm:p-3 bg-white dark:bg-[#020617] border border-slate-200 dark:border-slate-700 rounded-xl outline-none font-bold text-sm sm:text-base focus:border-emerald-500 text-slate-900 dark:text-white" 
+                      />
+
+                      {/* Detector inteligente de coincidencia por SKU / Código */}
+                      {!editandoId && sku.trim().length >= 2 && (
+                        (() => {
+                          const sNorm = sku.trim().toUpperCase().replace(/^(SKU|REF|COD)[-_ ]*/i, '');
+                          const coincidenciaSku = inventario.find(p => {
+                            const pSku = (p.sku || '').trim().toUpperCase();
+                            const pBar = (p.codigoBarras || '').trim().toUpperCase();
+                            const pSkuNorm = pSku.replace(/^(SKU|REF|COD)[-_ ]*/i, '');
+                            const pBarNorm = pBar.replace(/^(SKU|REF|COD)[-_ ]*/i, '');
+                            return pSku === sku.trim().toUpperCase() || pBar === sku.trim().toUpperCase() || (sNorm && (pSkuNorm === sNorm || pBarNorm === sNorm));
+                          });
+
+                          if (!coincidenciaSku) return null;
+
+                          return (
+                            <div className="mt-2 p-2 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-300 dark:border-emerald-800/60 rounded-xl flex items-center justify-between gap-2 animate-in fade-in duration-150">
+                              <div className="min-w-0">
+                                <p className="text-[11px] font-bold text-emerald-800 dark:text-emerald-300 truncate">
+                                  ✓ Coincide con "{coincidenciaSku.nombre}"
+                                </p>
+                                <p className="text-[10px] text-emerald-600 dark:text-emerald-400">
+                                  Stock actual: {coincidenciaSku.stock ?? 0} • ${(Number(coincidenciaSku.precioVenta) || 0).toLocaleString('es-CO')}
+                                </p>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  abrirEdicion(coincidenciaSku);
+                                  toast.success(`Cargado "${coincidenciaSku.nombre}"`, { icon: '✏️' });
+                                }}
+                                className="px-2 py-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-lg text-[10px] shrink-0 cursor-pointer shadow-xs"
+                              >
+                                Cargar
+                              </button>
+                            </div>
+                          );
+                        })()
+                      )}
                     </div>
                   </div>
 
-                  <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3.5 sm:p-4 dark:border-slate-800 dark:bg-slate-900/40">
+                  {/* Fila: Categoría */}
+                  <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3.5 dark:border-slate-800 dark:bg-slate-900/40">
                     <label className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1 block">Categoría</label>
                     <div className="relative">
-                      <div className="flex items-center gap-2 rounded-2xl border border-slate-200 bg-white p-1.5 shadow-sm shadow-slate-200/50 transition-all focus-within:border-emerald-500 focus-within:shadow-lg focus-within:shadow-emerald-500/10 dark:border-slate-700 dark:bg-[#020617] dark:shadow-slate-950/30">
+                      <div className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white p-1 shadow-xs transition-all focus-within:border-emerald-500 dark:border-slate-700 dark:bg-[#020617]">
                         <input
                           value={categoria}
                           onFocus={() => setCategoriaFoco(true)}
@@ -4317,44 +4767,44 @@ export default function InventarioPage() {
                             setCategoriaFoco(true);
                           }}
                           placeholder="Escribe o busca una categoría"
-                          className="w-full bg-transparent px-3 py-2 sm:py-3 text-sm font-semibold text-slate-800 outline-none placeholder:text-slate-400 dark:text-slate-100"
+                          className="w-full bg-transparent px-3 py-2 text-sm font-semibold text-slate-800 outline-none placeholder:text-slate-400 dark:text-slate-100"
                         />
                         <button
                           type="button"
                           onMouseDown={(e) => e.preventDefault()}
                           onClick={() => setCategoriaFoco((prev) => !prev)}
-                          className="flex h-9 sm:h-10 w-9 sm:w-10 items-center justify-center rounded-xl border border-slate-200 bg-slate-50 text-slate-600 transition hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800 shrink-0"
+                          className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-slate-50 text-slate-600 transition hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 shrink-0 cursor-pointer"
                           aria-label="Mostrar categorías"
                         >
                           ▾
                         </button>
                       </div>
 
-                      <div className="mt-2 flex items-center justify-between gap-2">
-                        <span className="text-[10px] font-bold uppercase tracking-[0.12em] text-slate-400">Administrar categorías</span>
+                      <div className="mt-1.5 flex items-center justify-between gap-2">
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Administrar categorías</span>
                         <button
                           type="button"
                           onClick={() => setGestionCategoriasHabilitada((prev) => !prev)}
-                          className={`relative flex h-6 w-12 items-center rounded-full transition ${gestionCategoriasHabilitada ? 'bg-emerald-500' : 'bg-slate-300 dark:bg-slate-700'}`}
+                          className={`relative flex h-5 w-10 items-center rounded-full transition cursor-pointer ${gestionCategoriasHabilitada ? 'bg-emerald-500' : 'bg-slate-300 dark:bg-slate-700'}`}
                           aria-label="Habilitar administración de categorías"
                         >
-                          <span className={`absolute h-5 w-5 rounded-full bg-white shadow-sm transition ${gestionCategoriasHabilitada ? 'translate-x-6' : 'translate-x-1'}`} />
+                          <span className={`absolute h-4 w-4 rounded-full bg-white shadow-xs transition ${gestionCategoriasHabilitada ? 'translate-x-5' : 'translate-x-1'}`} />
                         </button>
                       </div>
 
                       {mensajeCategoria && (
-                        <div className={`mt-2 rounded-2xl border px-3 py-2 text-left ${
+                        <div className={`mt-2 rounded-xl border px-3 py-1.5 text-left ${
                           mensajeCategoria.tipo === 'danger'
                             ? 'border-rose-200 bg-rose-50 text-rose-700 dark:border-rose-500/30 dark:bg-rose-500/10 dark:text-rose-200'
                             : 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-200'
                         }`}>
-                          <p className="text-[10px] font-black uppercase tracking-[0.12em]">{mensajeCategoria.titulo}</p>
-                          <p className="mt-1 text-xs font-medium">{mensajeCategoria.detalle}</p>
+                          <p className="text-[10px] font-black uppercase tracking-wider">{mensajeCategoria.titulo}</p>
+                          <p className="text-xs font-medium">{mensajeCategoria.detalle}</p>
                         </div>
                       )}
 
                       {menuCategoriasVisible && (
-                        <div className="absolute left-0 right-0 top-[calc(100%+8px)] z-20 max-h-72 overflow-y-auto rounded-2xl border border-slate-200 bg-white p-2 shadow-xl shadow-slate-200/70 scrollbar-thin scrollbar-thumb-slate-300 scrollbar-track-transparent dark:border-slate-700 dark:bg-[#0f172a] dark:shadow-slate-950/60 dark:scrollbar-thumb-slate-700">
+                        <div className="absolute left-0 right-0 top-[calc(100%+6px)] z-20 max-h-60 overflow-y-auto rounded-2xl border border-slate-200 bg-white p-2 shadow-xl dark:border-slate-700 dark:bg-[#0f172a] scrollbar-thin">
                           {categoriasFiltradas.map((item) => (
                             <div key={item} className="flex items-center gap-2 rounded-xl px-2 py-1.5 text-left transition hover:bg-slate-100 dark:hover:bg-slate-800">
                               <button
@@ -4366,7 +4816,7 @@ export default function InventarioPage() {
                                   setCategoriaFoco(false);
                                   setErrores(prev => ({ ...prev, categoria: '' }));
                                 }}
-                                className={`flex-1 text-left text-sm font-medium text-slate-700 transition dark:text-slate-200 ${Boolean(categoriaEditando && categoriaEditando !== item) ? 'cursor-not-allowed opacity-40' : ''}`}
+                                className={`flex-1 text-left text-xs font-medium text-slate-700 transition dark:text-slate-200 cursor-pointer ${Boolean(categoriaEditando && categoriaEditando !== item) ? 'cursor-not-allowed opacity-40' : ''}`}
                               >
                                 {item}
                               </button>
@@ -4381,7 +4831,7 @@ export default function InventarioPage() {
                                       setCategoriaEditando(item);
                                       setNombreCategoriaEditada(item);
                                     }}
-                                    className={`rounded-lg bg-slate-100 px-2 py-1 text-[10px] font-bold uppercase tracking-[0.08em] text-slate-600 transition hover:bg-slate-200 dark:bg-slate-700 dark:text-slate-200 dark:hover:bg-slate-600 ${Boolean(categoriaEditando && categoriaEditando !== item) ? 'cursor-not-allowed opacity-40' : ''}`}
+                                    className={`rounded-lg bg-slate-100 px-2 py-0.5 text-[10px] font-bold text-slate-600 transition hover:bg-slate-200 dark:bg-slate-700 dark:text-slate-200 cursor-pointer ${Boolean(categoriaEditando && categoriaEditando !== item) ? 'cursor-not-allowed opacity-40' : ''}`}
                                   >
                                     Editar
                                   </button>
@@ -4390,7 +4840,7 @@ export default function InventarioPage() {
                                     disabled={Boolean(categoriaEditando && categoriaEditando !== item)}
                                     onMouseDown={(e) => e.preventDefault()}
                                     onClick={() => eliminarCategoria(item)}
-                                    className={`rounded-lg bg-rose-50 px-2 py-1 text-[10px] font-bold uppercase tracking-[0.08em] text-rose-600 transition hover:bg-rose-100 dark:bg-rose-500/10 dark:text-rose-300 dark:hover:bg-rose-500/20 ${Boolean(categoriaEditando && categoriaEditando !== item) ? 'cursor-not-allowed opacity-40' : ''}`}
+                                    className={`rounded-lg bg-rose-50 px-2 py-0.5 text-[10px] font-bold text-rose-600 transition hover:bg-rose-100 dark:bg-rose-500/10 dark:text-rose-300 cursor-pointer ${Boolean(categoriaEditando && categoriaEditando !== item) ? 'cursor-not-allowed opacity-40' : ''}`}
                                   >
                                     Borrar
                                   </button>
@@ -4401,18 +4851,18 @@ export default function InventarioPage() {
 
                           {gestionCategoriasHabilitada && categoriaEditando && (
                             <div className="mt-2 rounded-xl border border-slate-200 bg-slate-50 p-2 dark:border-slate-700 dark:bg-slate-900">
-                              <label className="mb-1 block text-[10px] font-bold uppercase tracking-[0.12em] text-slate-500 dark:text-slate-300">Editar categoría</label>
+                              <label className="mb-1 block text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-300">Editar categoría</label>
                               <input
                                 value={nombreCategoriaEditada}
                                 onChange={(e) => setNombreCategoriaEditada(e.target.value)}
-                                className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-800 outline-none focus:border-emerald-500 dark:border-slate-700 dark:bg-[#020617] dark:text-slate-100"
+                                className="w-full rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-800 outline-none focus:border-emerald-500 dark:border-slate-700 dark:bg-[#020617] dark:text-slate-100"
                               />
                               <div className="mt-2 flex gap-2">
                                 <button
                                   type="button"
                                   onMouseDown={(e) => e.preventDefault()}
                                   onClick={guardarEdicionCategoria}
-                                  className="flex-1 rounded-xl bg-emerald-600 px-3 py-2 text-[10px] font-black uppercase tracking-[0.12em] text-white"
+                                  className="flex-1 rounded-xl bg-emerald-600 px-3 py-1.5 text-[10px] font-black uppercase tracking-wider text-white"
                                 >
                                   Guardar
                                 </button>
@@ -4423,7 +4873,7 @@ export default function InventarioPage() {
                                     setCategoriaEditando(null);
                                     setNombreCategoriaEditada('');
                                   }}
-                                  className="flex-1 rounded-xl bg-slate-200 px-3 py-2 text-[10px] font-black uppercase tracking-[0.12em] text-slate-600 dark:bg-slate-700 dark:text-slate-200"
+                                  className="flex-1 rounded-xl bg-slate-200 px-3 py-1.5 text-[10px] font-black uppercase tracking-wider text-slate-600 dark:bg-slate-700 dark:text-slate-200"
                                 >
                                   Cancelar
                                 </button>
@@ -4436,9 +4886,9 @@ export default function InventarioPage() {
                             disabled={Boolean(categoriaEditando)}
                             onMouseDown={(e) => e.preventDefault()}
                             onClick={agregarCategoria}
-                            className={`mt-1 flex w-full items-center justify-center rounded-xl bg-emerald-50 px-3 py-2 text-[10px] font-black uppercase tracking-[0.12em] text-emerald-700 transition hover:bg-emerald-100 dark:bg-emerald-500/10 dark:text-emerald-300 dark:hover:bg-emerald-500/15 ${Boolean(categoriaEditando) ? 'cursor-not-allowed opacity-40' : ''}`}
+                            className={`mt-1 flex w-full items-center justify-center rounded-xl bg-emerald-50 px-3 py-1.5 text-[10px] font-black uppercase tracking-wider text-emerald-700 transition hover:bg-emerald-100 dark:bg-emerald-500/10 dark:text-emerald-300 ${Boolean(categoriaEditando) ? 'cursor-not-allowed opacity-40' : ''}`}
                           >
-                            Nueva categoría
+                            + Nueva categoría
                           </button>
                         </div>
                       )}
@@ -4446,168 +4896,369 @@ export default function InventarioPage() {
                     {errores.categoria && <p className="mt-1 text-[11px] text-rose-500 font-medium">{errores.categoria}</p>}
                   </div>
 
-                  {productosEnCarga.length > 0 && (
-                    <div className="rounded-2xl border border-sky-200 bg-sky-50 p-3.5 sm:p-4 dark:border-sky-500/20 dark:bg-sky-500/5">
-                      <div className="mb-2 flex items-center justify-between gap-2">
-                        <h4 className="text-xs sm:text-sm font-black uppercase tracking-[0.12em] text-sky-700 dark:text-sky-300">Productos en esta carga</h4>
-                        <span className="rounded-full bg-sky-600 px-2 py-0.5 text-[10px] font-black uppercase tracking-[0.12em] text-white">{productosEnCarga.length}</span>
-                      </div>
-                      <div className="max-h-48 overflow-y-auto pr-1 scrollbar-thin scrollbar-thumb-sky-300 scrollbar-track-transparent dark:scrollbar-thumb-sky-700">
-                        <div className="space-y-2">
-                          {productosEnCarga.map((prod) => (
-                            <div key={prod.id} className="flex items-start justify-between gap-3 rounded-xl border border-sky-100 bg-white px-3 py-2 dark:border-sky-500/10 dark:bg-slate-900/70">
-                              <div className="min-w-0 flex-1">
-                                <p className="truncate text-xs sm:text-sm font-bold text-slate-800 dark:text-slate-100">{prod.nombre}</p>
-                                <p className="mt-0.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-slate-400">{prod.sku || 'SIN SKU'} • {prod.categoria || 'General'}</p>
-                                <div className="mt-1 flex items-center gap-2 text-[10px] text-slate-500 dark:text-slate-300">
-                                  <span>Stock: {prod.stock}</span>
-                                  <span>•</span>
-                                  <span>Precio: ${Number(prod.precioVenta || 0).toLocaleString('es-CO')}</span>
-                                </div>
-                              </div>
-                              <button
-                                type="button"
-                                onClick={() => quitarProductoEnCarga(prod.id)}
-                                className="mt-0.5 rounded-lg bg-rose-50 px-2 py-1 text-[10px] font-black uppercase tracking-[0.08em] text-rose-600 transition hover:bg-rose-100 dark:bg-rose-500/10 dark:text-rose-300 dark:hover:bg-rose-500/20"
-                              >
-                                Quitar
-                              </button>
-                            </div>
-                          ))}
+                  {/* Fila: Tipo, Inventariable, Stock y Precio */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3.5 dark:border-slate-800 dark:bg-slate-900/40">
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <label className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1 block">Tipo</label>
+                          <select 
+                            value={tipoProducto} 
+                            onChange={(e) => {
+                              const val = e.target.value as 'producto' | 'servicio';
+                              setTipoProducto(val);
+                              if (val === 'servicio') {
+                                setInventariable(false);
+                                setStock('0');
+                                setErrores(prev => ({ ...prev, stock: '' }));
+                              } else {
+                                setInventariable(true);
+                              }
+                            }} 
+                            className="w-full p-2.5 bg-white dark:bg-[#020617] border border-slate-200 dark:border-slate-700 rounded-xl outline-none font-bold text-xs sm:text-sm focus:border-emerald-500 text-slate-900 dark:text-white"
+                          >
+                            <option value="producto">Producto</option>
+                            <option value="servicio">Servicio</option>
+                          </select>
+                        </div>
+                        <div>
+                          <label className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1 block">¿Inventariable?</label>
+                          <select 
+                            value={inventariable ? 'si' : 'no'} 
+                            onChange={(e) => {
+                              const esInv = e.target.value === 'si';
+                              setInventariable(esInv);
+                              if (!esInv) {
+                                setStock('0');
+                                setErrores(prev => ({ ...prev, stock: '' }));
+                              }
+                            }} 
+                            className="w-full p-2.5 bg-white dark:bg-[#020617] border border-slate-200 dark:border-slate-700 rounded-xl outline-none font-bold text-xs sm:text-sm focus:border-emerald-500 text-slate-900 dark:text-white"
+                          >
+                            <option value="si">Sí (Stock)</option>
+                            <option value="no">No (Ilimitado)</option>
+                          </select>
                         </div>
                       </div>
                     </div>
+
+                    <div className="grid grid-cols-2 gap-2">
+                      {tipoProducto === 'producto' && inventariable ? (
+                        <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3.5 dark:border-slate-800 dark:bg-slate-900/40">
+                          <label className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1 block">Stock</label>
+                          <input 
+                            type="number" 
+                            min="0" 
+                            value={stock} 
+                            onChange={(e) => { 
+                              const valor = Number(e.target.value); 
+                              setStock(String(Math.max(0, valor))); 
+                              setErrores(prev => ({ ...prev, stock: '' })); 
+                            }} 
+                            placeholder="0" 
+                            className="w-full p-2.5 bg-white dark:bg-[#020617] border border-slate-200 dark:border-slate-700 rounded-xl outline-none font-black text-sm sm:text-base focus:border-emerald-500 text-slate-900 dark:text-white" 
+                          />
+                          {errores.stock && <p className="mt-1 text-[11px] text-rose-500 font-medium">{errores.stock}</p>}
+                        </div>
+                      ) : (
+                        <div className="rounded-2xl border border-dashed border-indigo-200 bg-indigo-50/60 dark:border-indigo-900/50 dark:bg-indigo-950/20 p-3.5 flex flex-col justify-center">
+                          <label className="text-xs font-bold text-indigo-500 uppercase tracking-wider mb-0.5 block">Stock</label>
+                          <span className="text-indigo-700 dark:text-indigo-300 font-black text-xs sm:text-sm">🛠️ Ilimitado</span>
+                        </div>
+                      )}
+
+                      <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3.5 dark:border-slate-800 dark:bg-slate-900/40">
+                        <label className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1 block">Precio Venta</label>
+                        <input 
+                          type="text" 
+                          inputMode="numeric" 
+                          value={formatearMonedaInput(precioVenta)} 
+                          onChange={(e) => { 
+                            setPrecioVenta(e.target.value.replace(/\D/g, '')); 
+                            setErrores(prev => ({ ...prev, precio: '' })); 
+                          }} 
+                          placeholder="0" 
+                          className="w-full p-2.5 bg-white dark:bg-[#020617] border border-slate-200 dark:border-slate-700 rounded-xl outline-none font-black text-sm sm:text-base focus:border-emerald-500 text-slate-900 dark:text-white" 
+                        />
+                        {errores.precio && <p className="mt-1 text-[11px] text-rose-500 font-medium">{errores.precio}</p>}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Vista Previa Compacta */}
+                  <div className="rounded-2xl border border-emerald-200/80 bg-emerald-50/60 p-3 dark:border-emerald-500/20 dark:bg-emerald-500/5 text-xs text-slate-700 dark:text-slate-200 flex flex-wrap items-center justify-between gap-2">
+                    <span className="font-bold text-emerald-800 dark:text-emerald-300">Resumen:</span>
+                    <span>Tipo: <strong>{tipoProducto === 'servicio' ? 'Servicio' : 'Producto'}</strong></span>
+                    <span>Categoría: <strong>{categoria || 'General'}</strong></span>
+                    <span>Stock: <strong>{stock || '0'} un.</strong></span>
+                    <span>Precio: <strong className="text-emerald-600 dark:text-emerald-400 font-black">${formatearMonedaInput(precioVenta) || '0'}</strong></span>
+                  </div>
+
+                </div>
+
+                {/* Botones de Acción de la Columna Izquierda */}
+                <div className="mt-auto pt-3 border-t border-slate-200 dark:border-slate-800 space-y-2">
+                  {editandoId ? (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-3">
+                      <button
+                        type="button"
+                        onClick={limpiarFormulario}
+                        className="py-3 px-4 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-700 dark:text-slate-300 font-bold rounded-xl text-xs sm:text-sm transition cursor-pointer"
+                      >
+                        Cancelar Edición
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => guardarProducto(false)}
+                        disabled={guardando}
+                        className="py-3 px-4 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-black rounded-xl shadow-lg shadow-emerald-600/25 flex items-center justify-center gap-1.5 text-xs sm:text-sm transition active:scale-95 cursor-pointer"
+                      >
+                        {guardando ? 'Actualizando...' : <>✓ Actualizar en Catálogo</>}
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={agregarProductoALaCarga}
+                      disabled={guardando}
+                      className="w-full py-3.5 px-4 bg-sky-600 hover:bg-sky-700 disabled:opacity-50 text-white font-black rounded-xl shadow-md text-xs sm:text-sm flex items-center justify-center gap-2 active:scale-98 transition cursor-pointer"
+                      title="Encola este producto a la lista en vivo de la derecha y limpia los campos para seguir agregando"
+                    >
+                      ➕ Encolar y Seguir Agregando
+                    </button>
                   )}
                 </div>
 
-                <div className="space-y-4">
-                  <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3.5 sm:p-4 dark:border-slate-800 dark:bg-slate-900/40">
-                    <div className="grid grid-cols-2 gap-3 sm:gap-4">
-                      <div>
-                        <label className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1 block">Tipo</label>
-                        <select 
-                          value={tipoProducto} 
-                          onChange={(e) => {
-                            const val = e.target.value as 'producto' | 'servicio';
-                            setTipoProducto(val);
-                            if (val === 'servicio') {
-                              setInventariable(false);
-                              setStock('0');
-                              setErrores(prev => ({ ...prev, stock: '' }));
-                            } else {
-                              setInventariable(true);
-                            }
-                          }} 
-                          className="w-full p-3 sm:p-4 bg-white dark:bg-[#020617] border border-slate-200 dark:border-slate-700 rounded-2xl outline-none font-bold text-sm sm:text-base focus:border-emerald-500 text-slate-900 dark:text-white"
-                        >
-                          <option value="producto">Producto</option>
-                          <option value="servicio">Servicio</option>
-                        </select>
-                      </div>
-                      <div>
-                        <label className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1 block">¿Inventariable?</label>
-                        <select 
-                          value={inventariable ? 'si' : 'no'} 
-                          onChange={(e) => {
-                            const esInv = e.target.value === 'si';
-                            setInventariable(esInv);
-                            if (!esInv) {
-                              setStock('0');
-                              setErrores(prev => ({ ...prev, stock: '' }));
-                            }
-                          }} 
-                          className="w-full p-3 sm:p-4 bg-white dark:bg-[#020617] border border-slate-200 dark:border-slate-700 rounded-2xl outline-none font-bold text-sm sm:text-base focus:border-emerald-500 text-slate-900 dark:text-white"
-                        >
-                          <option value="si">Sí (Maneja Stock)</option>
-                          <option value="no">No (Ilimitado / Servicio)</option>
-                        </select>
-                      </div>
+              </div>
+
+              {/* COLUMNA DERECHA: COLA DE CARGA EN VIVO (PRODUCTOS EN ESTA SESIÓN) */}
+              <div className={`flex flex-col h-full overflow-hidden p-3 sm:p-4 bg-slate-50/70 dark:bg-slate-900/40 border-t lg:border-t-0 lg:border-l border-slate-200 dark:border-slate-800 ${tabMovilModal === 'lista' ? 'flex' : 'hidden lg:flex'}`}>
+                
+                {/* Cabecera de la Cola */}
+                <div className="flex items-center justify-between gap-2 pb-2.5 border-b border-slate-200 dark:border-slate-800 shrink-0">
+                  <div className="flex items-center gap-2">
+                    <div className="w-7 h-7 rounded-lg bg-sky-500/10 text-sky-600 dark:text-sky-400 flex items-center justify-center shrink-0">
+                      <LayoutList size={15} />
+                    </div>
+                    <div>
+                      <h4 className="text-xs sm:text-sm font-black text-slate-900 dark:text-white flex items-center gap-1.5">
+                        Cola de Recepción / Carga
+                        {productosEnCarga.length > 0 && (
+                          <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                        )}
+                      </h4>
+                      <p className="text-[10px] text-slate-500 dark:text-slate-400">
+                        {productosEnCarga.length} producto(s) encolados • {productosEnCarga.reduce((acc, it) => acc + (Number(it.stock) || 0), 0)} unidades en total
+                      </p>
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
-                    {tipoProducto === 'producto' && inventariable ? (
-                      <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3.5 sm:p-4 dark:border-slate-800 dark:bg-slate-900/40">
-                        <label className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1 block">Stock Disponible</label>
-                        <input 
-                          type="number" 
-                          min="0" 
-                          value={stock} 
-                          onChange={(e) => { 
-                            const valor = Number(e.target.value); 
-                            setStock(String(Math.max(0, valor))); 
-                            setErrores(prev => ({ ...prev, stock: '' })); 
-                          }} 
-                          placeholder="0" 
-                          className="w-full p-3 sm:p-4 bg-white dark:bg-[#020617] border border-slate-200 dark:border-slate-700 rounded-2xl outline-none font-black text-base sm:text-lg focus:border-emerald-500 text-slate-900 dark:text-white" 
-                        />
-                        {errores.stock && <p className="mt-1 text-[11px] text-rose-500 font-medium">{errores.stock}</p>}
-                      </div>
-                    ) : (
-                      <div className="rounded-2xl border border-dashed border-indigo-200 bg-indigo-50/60 dark:border-indigo-900/50 dark:bg-indigo-950/20 p-3.5 sm:p-4 flex flex-col justify-center">
-                        <label className="text-xs font-bold text-indigo-500 uppercase tracking-wider mb-1 block">Stock</label>
-                        <div className="flex items-center gap-1.5 text-indigo-700 dark:text-indigo-300 font-black text-sm sm:text-base">
-                          <span>🛠️ Ilimitado</span>
-                        </div>
-                        <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-0.5">No requiere control de unidades</p>
-                      </div>
-                    )}
-
-                    <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3.5 sm:p-4 dark:border-slate-800 dark:bg-slate-900/40">
-                      <label className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1 block">Precio Venta</label>
-                      <input 
-                        type="text" 
-                        inputMode="numeric" 
-                        value={formatearMonedaInput(precioVenta)} 
-                        onChange={(e) => { 
-                          setPrecioVenta(e.target.value.replace(/\D/g, '')); 
-                          setErrores(prev => ({ ...prev, precio: '' })); 
-                        }} 
-                        placeholder="0" 
-                        className="w-full p-3 sm:p-4 bg-white dark:bg-[#020617] border border-slate-200 dark:border-slate-700 rounded-2xl outline-none font-black text-base sm:text-lg focus:border-emerald-500 text-slate-900 dark:text-white" 
-                      />
-                      {errores.precio && <p className="mt-1 text-[11px] text-rose-500 font-medium">{errores.precio}</p>}
-                    </div>
-                  </div>
-
-                  <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-3.5 sm:p-4 dark:border-emerald-500/20 dark:bg-emerald-500/5">
-                    <h4 className="text-xs sm:text-sm font-black uppercase tracking-[0.12em] text-emerald-700 dark:text-emerald-300 mb-2">Vista previa</h4>
-                    <div className="space-y-1.5 text-xs sm:text-sm text-slate-700 dark:text-slate-200">
-                      <div className="flex items-center justify-between"><span>Tipo</span><strong>{tipoProducto === 'servicio' ? 'Servicio' : 'Producto'}</strong></div>
-                      <div className="flex items-center justify-between"><span>Categoría</span><strong>{categoria || 'Sin categoría'}</strong></div>
-                      <div className="flex items-center justify-between"><span>Stock</span><strong>{stock || '0'}</strong></div>
-                      <div className="flex items-center justify-between"><span>Precio</span><strong>${formatearMonedaInput(precioVenta) || '0'}</strong></div>
-                    </div>
-                  </div>
+                  {productosEnCarga.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => setModalConfirmarDescarteCarga(true)}
+                      className="px-2 py-1 text-[11px] font-bold text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/30 rounded-lg transition cursor-pointer flex items-center gap-1"
+                      title="Descartar todos los productos encolados"
+                    >
+                      <Trash2 size={12} />
+                      <span className="hidden sm:inline">Descartar cola</span>
+                    </button>
+                  )}
                 </div>
+
+                {/* Lista Scrollable de la Cola de Carga */}
+                <div className="flex-1 overflow-y-auto space-y-1.5 py-2.5 pr-1 scrollbar-thin scrollbar-thumb-slate-300 dark:scrollbar-thumb-slate-700">
+                  {productosEnCarga.length === 0 ? (
+                    <div className="h-full flex flex-col items-center justify-center text-center p-6 space-y-3">
+                      <div className="w-14 h-14 rounded-3xl bg-slate-200/60 dark:bg-slate-800/60 text-slate-400 dark:text-slate-500 flex items-center justify-center shadow-inner">
+                        <Package size={28} />
+                      </div>
+                      <div className="max-w-xs space-y-1">
+                        <p className="text-xs font-black text-slate-700 dark:text-slate-200">
+                          Tu cola de carga está vacía
+                        </p>
+                        <p className="text-[11px] text-slate-400 leading-relaxed">
+                          Diligencia el formulario a la izquierda y presiona <strong className="text-sky-600 dark:text-sky-400">"Encolar y Seguir Agregando"</strong> o usa el <strong className="text-emerald-600 dark:text-emerald-400">Escáner</strong>. Aquí irás viendo todo en tiempo real antes de guardarlo en tu inventario.
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setModalProducto(false);
+                          setModalEscanerInventario(true);
+                        }}
+                        className="mt-2 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 text-xs font-bold transition cursor-pointer"
+                      >
+                        <ScanLine size={14} /> Abrir Escáner de Códigos
+                      </button>
+                    </div>
+                  ) : (
+                    productosEnCarga.map((item, idx) => {
+                      const cant = Number(item.stock) || 0;
+                      const precio = Number(item.precioVenta) || 0;
+                      const subtotal = cant * precio;
+
+                      return (
+                        <div
+                          key={item.id}
+                          className="px-3 py-2 rounded-xl bg-white dark:bg-[#0b1329] border border-slate-200/90 dark:border-slate-800 shadow-xs hover:border-slate-300 dark:hover:border-slate-700 transition-all flex flex-col gap-1.5 group"
+                        >
+                          {/* Fila 1: Nombre completo del producto y Badge */}
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="font-bold text-xs sm:text-sm text-slate-900 dark:text-white leading-snug break-words flex-1">
+                              {item.nombre}
+                            </span>
+                            {item.esExistente ? (
+                              <span className="text-[9px] font-black px-1.5 py-0.2 rounded-md bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 shrink-0">
+                                +stock
+                              </span>
+                            ) : (
+                              <span className="text-[9px] font-black px-1.5 py-0.2 rounded-md bg-sky-100 text-sky-800 dark:bg-sky-950/60 dark:text-sky-300 shrink-0">
+                                Nuevo
+                              </span>
+                            )}
+                          </div>
+
+                          {/* Fila 2: SKU / Precio unitario + Stepper + Subtotal + Papelera */}
+                          <div className="flex items-center justify-between gap-2 pt-0.5 border-t border-slate-100 dark:border-slate-800/60">
+                            {/* SKU y Precio unitario */}
+                            <div className="flex items-center gap-1.5 text-[10px] text-slate-400 min-w-0">
+                              <span className="font-mono font-bold text-slate-600 dark:text-slate-300">
+                                {item.sku || 'SIN SKU'}
+                              </span>
+                              <span>•</span>
+                              <span className="text-slate-500 dark:text-slate-400 font-medium">
+                                ${precio.toLocaleString('es-CO')} c/u
+                              </span>
+                            </div>
+
+                            {/* Controles: Stepper + Subtotal + Papelera */}
+                            <div className="flex items-center gap-2 shrink-0">
+                              {/* Stepper de Cantidad */}
+                              <div className="flex items-center gap-0.5 bg-slate-100 dark:bg-slate-800 p-0.5 rounded-lg">
+                                <button
+                                  type="button"
+                                  onClick={() => modificarCantidadProductoEnCarga(item.id, -1)}
+                                  className="w-5 h-5 rounded bg-white dark:bg-slate-700 hover:bg-rose-50 hover:text-rose-600 text-slate-700 dark:text-slate-200 font-black text-xs flex items-center justify-center transition shadow-xs cursor-pointer"
+                                  title="Restar una unidad"
+                                >
+                                  -
+                                </button>
+                                <span className="font-mono font-black text-xs text-slate-900 dark:text-white px-1.5 min-w-[22px] text-center">
+                                  {cant}
+                                </span>
+                                <button
+                                  type="button"
+                                  onClick={() => modificarCantidadProductoEnCarga(item.id, 1)}
+                                  className="w-5 h-5 rounded bg-white dark:bg-slate-700 hover:bg-emerald-50 hover:text-emerald-600 text-slate-700 dark:text-slate-200 font-black text-xs flex items-center justify-center transition shadow-xs cursor-pointer"
+                                  title="Sumar una unidad"
+                                >
+                                  +
+                                </button>
+                              </div>
+
+                              {/* Subtotal */}
+                              <span className="text-xs font-black text-emerald-600 dark:text-emerald-400 min-w-[65px] text-right">
+                                ${subtotal.toLocaleString('es-CO')}
+                              </span>
+
+                              {/* Botón Eliminar */}
+                              <button
+                                type="button"
+                                onClick={() => quitarProductoEnCarga(item.id)}
+                                className="p-1 text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/30 rounded-lg transition cursor-pointer"
+                                title="Remover de la cola"
+                              >
+                                <Trash2 size={13} />
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+
+                {/* Resumen Final de la Cola & Botón de Guardado */}
+                {productosEnCarga.length > 0 && (
+                  <div className="pt-3 border-t border-slate-200 dark:border-slate-800 space-y-2.5 shrink-0 bg-white/50 dark:bg-slate-900/50 p-2 rounded-2xl">
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="text-slate-500 dark:text-slate-400 font-bold">
+                        Referencias en cola:
+                      </span>
+                      <strong className="text-slate-900 dark:text-white font-black">
+                        {productosEnCarga.length} refs
+                      </strong>
+                    </div>
+
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="text-slate-500 dark:text-slate-400 font-bold">
+                        Total unidades a ingresar:
+                      </span>
+                      <strong className="text-sky-600 dark:text-sky-400 font-black">
+                        {productosEnCarga.reduce((acc, it) => acc + (Number(it.stock) || 0), 0)} unidades
+                      </strong>
+                    </div>
+
+                    <div className="flex items-center justify-between text-xs pt-1 border-t border-slate-200 dark:border-slate-800">
+                      <span className="text-slate-700 dark:text-slate-300 font-black">
+                        Valor total de la carga:
+                      </span>
+                      <strong className="text-emerald-600 dark:text-emerald-400 font-black text-sm">
+                        ${productosEnCarga.reduce((acc, it) => acc + ((Number(it.stock) || 0) * (Number(it.precioVenta) || 0)), 0).toLocaleString('es-CO')}
+                      </strong>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => guardarProducto(true)}
+                      disabled={guardando}
+                      className="w-full py-3 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-black rounded-xl text-xs sm:text-sm flex items-center justify-center gap-1.5 shadow-lg shadow-emerald-600/25 transition active:scale-95 cursor-pointer"
+                    >
+                      {guardando ? 'Guardando en inventario...' : (
+                        <>✓ Guardar Todo en Inventario ({productosEnCarga.reduce((acc, it) => acc + (Number(it.stock) || 0), 0)} un.)</>
+                      )}
+                    </button>
+                  </div>
+                )}
+
               </div>
+
             </div>
 
-            {/* Pie de Página Fijo con Botones de Acción Accesibles en Móvil */}
-            <div className="border-t border-slate-200 bg-white px-4 sm:px-6 py-3 sm:py-4 dark:border-slate-800 dark:bg-[#0f172a] shrink-0 z-10 shadow-lg">
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-3">
-                <button 
-                  onClick={() => setModalProducto(false)} 
-                  className="bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-700 dark:text-slate-300 font-bold py-2.5 sm:py-3.5 rounded-xl sm:rounded-2xl text-xs sm:text-sm transition-colors order-3 sm:order-1"
-                >
-                  Cancelar
-                </button>
-                <button 
-                  onClick={agregarProductoALaCarga} 
-                  className="bg-sky-600 hover:bg-sky-700 text-white font-bold py-2.5 sm:py-3.5 rounded-xl sm:rounded-2xl shadow-md text-xs sm:text-sm order-2 active:scale-95 transition-all"
-                >
-                  Agregar otro producto
-                </button>
-                <button 
-                  onClick={guardarProducto} 
-                  disabled={guardando} 
-                  className="bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-black py-2.5 sm:py-3.5 rounded-xl sm:rounded-2xl shadow-lg shadow-emerald-600/25 flex justify-center items-center gap-1.5 text-xs sm:text-sm order-1 sm:order-3 active:scale-95 transition-all"
-                >
-                  Guardar <CheckCircle2 size={16}/>
-                </button>
-              </div>
-            </div>
+          </div>
+        </div>
+      )}
 
+      {/* MODAL DE CONFIRMACIÓN PARA DESCARTAR CARGA DE PRODUCTOS */}
+      {modalConfirmarDescarteCarga && (
+        <div className="fixed inset-0 bg-black/85 backdrop-blur-md flex items-center justify-center p-4 z-[1060] animate-in zoom-in-95 duration-200">
+          <div className="bg-white dark:bg-[#0f172a] rounded-3xl w-full max-w-sm border border-rose-200 dark:border-rose-900/50 p-6 text-center space-y-4 shadow-2xl">
+            <div className="w-12 h-12 rounded-2xl bg-rose-100 dark:bg-rose-500/20 text-rose-600 dark:text-rose-400 flex items-center justify-center mx-auto">
+              <AlertTriangle size={24} />
+            </div>
+            <div>
+              <h4 className="text-base font-black text-slate-900 dark:text-white">¿Descartar productos de la lista?</h4>
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                Tienes <strong className="text-slate-900 dark:text-white">{productosEnCarga.length} producto(s)</strong> en la lista de carga. Si sales sin guardar, tu base de datos quedará <strong className="text-emerald-600 dark:text-emerald-400">100% intacta</strong>.
+              </p>
+            </div>
+            <div className="flex gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setModalConfirmarDescarteCarga(false)}
+                className="flex-1 py-2.5 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-bold rounded-xl text-xs hover:bg-slate-200 dark:hover:bg-slate-700 cursor-pointer transition-colors"
+              >
+                Seguir en formulario
+              </button>
+              <button
+                type="button"
+                onClick={descartarCargaCompleta}
+                className="flex-1 py-2.5 bg-rose-600 hover:bg-rose-700 text-white font-bold rounded-xl text-xs shadow-md shadow-rose-600/20 cursor-pointer transition-colors"
+              >
+                Sí, descartar
+              </button>
+            </div>
           </div>
         </div>
       )}
