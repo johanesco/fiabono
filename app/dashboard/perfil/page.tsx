@@ -690,6 +690,24 @@ export default function PerfilPage() {
                         </div>
 
                         <div className="flex flex-wrap gap-1.5 mt-1 border-t border-slate-200 dark:border-slate-800 pt-3">
+                          {c.horariosActividad && c.horariosActividad.length > 0 ? (
+                            <span className="text-[10px] bg-blue-50 text-blue-700 dark:bg-blue-500/20 dark:text-blue-300 font-bold px-2 py-0.5 rounded-md flex items-center gap-1 border border-blue-200/60 dark:border-blue-500/30">
+                              <Clock size={11} className="text-blue-500 shrink-0" />
+                              <span>
+                                {c.horariosActividad[0]?.dias?.length === 7 
+                                  ? 'Todos los días' 
+                                  : (c.horariosActividad[0]?.dias?.length === 5 && !c.horariosActividad[0]?.dias?.includes('Sab') && !c.horariosActividad[0]?.dias?.includes('Dom'))
+                                    ? 'Lun-Vie'
+                                    : c.horariosActividad[0]?.dias?.join(', ')} 
+                                {' '}({c.horariosActividad[0]?.inicio} - {c.horariosActividad[0]?.fin})
+                                {c.horariosActividad.length > 1 ? ` +${c.horariosActividad.length - 1}` : ''}
+                              </span>
+                            </span>
+                          ) : (
+                            <span className="text-[10px] bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400 font-medium px-2 py-0.5 rounded-md flex items-center gap-1">
+                              <Clock size={11} className="text-slate-400 shrink-0" /> Sin límite de horario
+                            </span>
+                          )}
                           {c.permisos?.ventaDirecta ? <span className="text-[10px] bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-400 font-bold px-2 py-0.5 rounded-md">Venta directa</span> : <span className="text-[10px] bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-400 font-bold px-2 py-0.5 rounded-md">Solo Órdenes</span>}
                           {c.permisos?.terminalMultivendedor ? <span className="text-[10px] bg-indigo-100 text-indigo-700 dark:bg-indigo-500/20 dark:text-indigo-400 font-bold px-2 py-0.5 rounded-md">Terminal Multi</span> : null}
                           {c.permisos?.modificarPrecios ? <span className="text-[10px] bg-cyan-100 text-cyan-700 dark:bg-cyan-500/20 dark:text-cyan-400 font-bold px-2 py-0.5 rounded-md">Editar Precios</span> : null}
@@ -1094,7 +1112,17 @@ export default function PerfilPage() {
                 </button>
               </div>
 
-              <ModalHorarios isOpen={modalHorariosOpen} onClose={() => { setModalHorariosOpen(false); setColabParaHorarios(null); cargarListaColaboradores(adminId!); }} usuarioId={colabParaHorarios ? colabParaHorarios.id : ""} horariosIniciales={colabParaHorarios ? (colabParaHorarios.horariosActividad || []) : []} />
+              <ModalHorarios 
+                isOpen={modalHorariosOpen} 
+                onClose={() => { 
+                  setModalHorariosOpen(false); 
+                  setColabParaHorarios(null); 
+                  cargarListaColaboradores(adminId!); 
+                }} 
+                usuarioId={colabParaHorarios ? colabParaHorarios.id : ""} 
+                nombreColaborador={colabParaHorarios ? colabParaHorarios.nombreUsuario : "Colaborador"}
+                horariosIniciales={colabParaHorarios ? (colabParaHorarios.horariosActividad || []) : []} 
+              />
             </div>
             
             {mostrarPerfilNegocio && (

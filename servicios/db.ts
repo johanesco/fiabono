@@ -283,12 +283,20 @@ export const API_DB = {
       const data = snap.data() || {};
       const updateData: any = { horariosActividad: horarios };
 
-      if (data.manualOverride !== true) {
-        updateData.activo = calcularActivoPorHorarios(horarios);
+      // Si se configuraron horarios válidos y no hay override manual, calcular estado activo en base al horario
+      if (Array.isArray(horarios) && horarios.length > 0) {
+        if (data.manualOverride !== true) {
+          updateData.activo = calcularActivoPorHorarios(horarios);
+        }
+      } else {
+        // Si se eliminan todos los horarios (acceso libre), habilitar al colaborador
+        if (data.activo === false && data.manualOverride !== true) {
+          updateData.activo = true;
+        }
       }
 
       await updateDoc(ref, updateData);
-      return { ok: true, activo: updateData.activo ?? data.activo ?? false };
+      return { ok: true, activo: updateData.activo ?? data.activo ?? true };
     } catch (error) {
       console.error("Error al actualizar horarios:", error);
       return { ok: false, error };
