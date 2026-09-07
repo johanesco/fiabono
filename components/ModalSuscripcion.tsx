@@ -5,6 +5,7 @@ import toast from "react-hot-toast";
 import { API_DB } from "../servicios/db";
 import { doc, updateDoc, collection, getDocs, query, where } from "firebase/firestore";
 import { db } from "../firebase";
+import { useAuth } from "@/hooks/AuthContext";
 
 interface ModalSuscripcionProps {
   isOpen: boolean;
@@ -20,6 +21,7 @@ export default function ModalSuscripcion({ isOpen, onClose, cuentaPrincipalId, p
   const [codigoBono, setCodigoBono] = useState("");
   const [cargando, setCargando] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const { datosSesion } = useAuth();
 
   // CORRECCIÓN A-3: Sincronizar planSeleccionado cuando el modal abre o cambia planInicial.
   // El modal siempre está montado (no se destruye), entonces useState(planInicial) solo se
@@ -105,7 +107,7 @@ export default function ModalSuscripcion({ isOpen, onClose, cuentaPrincipalId, p
     const nombrePlan = tipo === 'pro' ? 'Plan PRO Almacén ($44.900/mes)' : 'Plan Comercio ($19.900/mes)';
     const cicloTexto = ciclo === 'anual' ? 'Anual' : 'Mensual';
     const texto = `Hola equipo Fiabono 👋 Quiero activar mi suscripción al *${nombrePlan}* en ciclo *${cicloTexto}*. Mi ID de negocio es: ${cuentaPrincipalId}.`;
-    const url = `https://wa.me/573001234567?text=${encodeURIComponent(texto)}`;
+    const url = `https://wa.me/573128018444?text=${encodeURIComponent(texto)}`;
     window.open(url, '_blank');
   };
 
@@ -323,18 +325,20 @@ export default function ModalSuscripcion({ isOpen, onClose, cuentaPrincipalId, p
               <ShieldCheck size={14} className="text-emerald-500" /> Activación segura e inmediata en tu cuenta
             </div>
 
-            <button
-              type="button"
-              disabled={cargando}
-              onClick={() => {
-                if (window.confirm("¿Deseas cancelar tu suscripción y volver al Plan Gratuito ($0)?\n\nTodos tus datos, clientes e historial se conservarán intactos.")) {
-                  volverAPlanGratuito();
-                }
-              }}
-              className="text-[11px] font-bold text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 transition-colors underline cursor-pointer"
-            >
-              Cancelar suscripción y volver al Plan Gratuito ($0)
-            </button>
+            {(!datosSesion || datosSesion.planActual !== 'gratis' && datosSesion.planActual !== 'basico') && (
+              <button
+                type="button"
+                disabled={cargando}
+                onClick={() => {
+                  if (window.confirm("¿Deseas cancelar tu suscripción y volver al Plan Gratuito ($0)?\n\nTodos tus datos, clientes e historial se conservarán intactos.")) {
+                    volverAPlanGratuito();
+                  }
+                }}
+                className="text-[11px] font-bold text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 transition-colors underline cursor-pointer"
+              >
+                Cancelar suscripción y volver al Plan Gratuito ($0)
+              </button>
+            )}
           </div>
         </div>
       </div>
