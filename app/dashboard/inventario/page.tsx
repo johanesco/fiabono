@@ -161,11 +161,17 @@ export default function InventarioPage() {
     'Tienda del Peluquero', 'Bebe accesorios', 'Bienestar', 'Buzos', 'Cacharro', 'Colegial'
   ]);
 
+  const [limiteRender, setLimiteRender] = useState(20);
+
   useEffect(() => {
     if (cuentaPrincipalId) {
       cargarInventario(cuentaPrincipalId);
     }
   }, [cuentaPrincipalId]);
+
+  useEffect(() => {
+    setLimiteRender(20);
+  }, [busqueda, filtrosCategoria, filtrosStock]);
 
   const cargarInventario = async (uid: string) => {
     try {
@@ -2632,7 +2638,7 @@ export default function InventarioPage() {
               
               {/* --- A. VISTA TARJETAS MÓVILES (< sm) : COMPACTAS DE ALTA DENSIDAD (2 FILAS) --- */}
               <div className="block sm:hidden space-y-2">
-                {inventarioProcesado.map(prod => {
+                {inventarioProcesado.slice(0, limiteRender).map(prod => {
                   const estaSeleccionado = productosSeleccionados.includes(prod.id);
                   const disponible = tieneStockDisponible(prod);
                   return (
@@ -2835,7 +2841,7 @@ export default function InventarioPage() {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100 dark:divide-slate-800/80 text-xs sm:text-sm font-medium">
-                      {inventarioProcesado.map(prod => {
+                      {inventarioProcesado.slice(0, limiteRender).map(prod => {
                         const estaSeleccionado = productosSeleccionados.includes(prod.id);
                         const disponible = tieneStockDisponible(prod);
                         return (
@@ -2991,6 +2997,17 @@ export default function InventarioPage() {
                   </table>
                 </div>
               </div>
+              
+              {limiteRender < inventarioProcesado.length && (
+                <div className="mt-4 flex justify-center pb-6">
+                  <button 
+                    onClick={() => setLimiteRender(prev => prev + 20)}
+                    className="px-6 py-3 bg-white dark:bg-slate-800 text-emerald-600 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800 hover:bg-emerald-50 dark:hover:bg-emerald-900/30 rounded-xl font-bold text-sm transition-colors flex items-center gap-2 shadow-sm"
+                  >
+                    Cargar más productos...
+                  </button>
+                </div>
+              )}
 
             </div>
           )}

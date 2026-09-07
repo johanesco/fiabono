@@ -17,7 +17,8 @@ import {
   ChevronRight, 
   Bookmark, 
   ArrowUpRight,
-  Info
+  Info,
+  X
 } from 'lucide-react';
 import toast from "react-hot-toast";
 import { collection, query, where, onSnapshot } from "firebase/firestore";
@@ -867,74 +868,79 @@ export default function ReportesPage() {
           </div>
         </div>
 
-        {/* BANNER DE INSPECCIÓN ACTIVA (LIVE DATA INSPECTOR) */}
-        {itemInspeccionado ? (
-          <div className="p-4 sm:p-5 bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white rounded-2xl border border-indigo-500/40 shadow-xl flex flex-col md:flex-row items-start md:items-center justify-between gap-4 animate-in fade-in">
-            <div className="flex items-center gap-3">
-              <div className="p-3 bg-indigo-600/30 border border-indigo-400/40 rounded-xl text-indigo-300">
-                <Calendar size={22} />
+        {/* PANEL DE DATOS SELECCIONADOS (ESTABLE) */}
+        <div className="w-full bg-slate-900 dark:bg-black rounded-3xl border border-slate-800 p-4 sm:p-6 min-h-[140px] flex flex-col justify-center relative overflow-hidden transition-all shadow-xl">
+          {itemInspeccionado ? (
+            <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 sm:gap-6 relative z-10 animate-in fade-in">
+              {/* Info del Día/Mes */}
+              <div className="flex items-center gap-3 w-full md:w-auto border-b md:border-b-0 border-slate-800 pb-4 md:pb-0">
+                <div className="p-3 sm:p-4 bg-indigo-500/20 rounded-2xl text-indigo-400 shrink-0">
+                  <Calendar size={24} />
+                </div>
+                <div className="flex-1">
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="text-[10px] sm:text-xs font-black text-indigo-400 uppercase tracking-widest">
+                      {itemInspeccionado.label}
+                    </span>
+                    {mejorDiaPeriodo && itemInspeccionado.ventas === mejorDiaPeriodo.ventas && itemInspeccionado.ventas > 0 && (
+                      <span className="bg-amber-500/20 text-amber-400 text-[9px] font-black px-2 py-0.5 rounded-md border border-amber-500/30 flex items-center gap-1 uppercase tracking-wider">
+                        <Crown size={10} className="fill-current" /> Récord
+                      </span>
+                    )}
+                  </div>
+                  <h4 className="text-lg sm:text-xl font-black text-white capitalize leading-tight">
+                    {itemInspeccionado.fechaFormato || itemInspeccionado.label}
+                  </h4>
+                </div>
               </div>
-              <div>
-                <div className="flex items-center gap-2">
-                  <span className="text-xs font-bold text-indigo-300 uppercase tracking-wider">
-                    {itemInspeccionado.label}
+
+              {/* Métricas */}
+              <div className="flex flex-row flex-wrap md:flex-nowrap items-center justify-between w-full md:w-auto gap-4 sm:gap-8">
+                <div className="flex-1 min-w-[30%]">
+                  <span className="text-[10px] sm:text-xs uppercase font-black text-emerald-400 block mb-0.5">Ventas</span>
+                  <span className="text-lg sm:text-xl font-black text-white block">
+                    ${Math.round(itemInspeccionado.ventas).toLocaleString('es-CO')}
                   </span>
-                  {mejorDiaPeriodo && itemInspeccionado.ventas === mejorDiaPeriodo.ventas && itemInspeccionado.ventas > 0 && (
-                    <span className="bg-amber-500/20 text-amber-300 text-[10px] font-black px-2 py-0.5 rounded-full border border-amber-500/40 flex items-center gap-1">
-                      <Crown size={11} className="fill-current" /> Mejor Día
+                  {itemInspeccionado.countVentas !== undefined && (
+                    <span className="text-[10px] text-slate-500 font-bold">
+                      {itemInspeccionado.countVentas} transacciones
                     </span>
                   )}
                 </div>
-                <h4 className="text-base sm:text-lg font-black text-white capitalize">
-                  {itemInspeccionado.fechaFormato || itemInspeccionado.label}
-                </h4>
-              </div>
-            </div>
 
-            <div className="flex flex-wrap items-center gap-4 sm:gap-6">
-              <div className="text-left md:text-right">
-                <span className="text-[10px] uppercase font-bold text-emerald-400 block">Ventas de Contado</span>
-                <span className="text-base sm:text-lg font-black text-white">
-                  ${Math.round(itemInspeccionado.ventas).toLocaleString('es-CO')}
-                </span>
-                {itemInspeccionado.countVentas !== undefined && (
-                  <span className="text-[11px] text-slate-400 block font-medium">
-                    {itemInspeccionado.countVentas} transacciones
+                <div className="flex-1 min-w-[25%]">
+                  <span className="text-[10px] sm:text-xs uppercase font-black text-rose-400 block mb-0.5">Fiados</span>
+                  <span className="text-base sm:text-xl font-black text-white block">
+                    ${Math.round(itemInspeccionado.fiados).toLocaleString('es-CO')}
                   </span>
-                )}
-              </div>
+                </div>
 
-              <div className="text-left md:text-right">
-                <span className="text-[10px] uppercase font-bold text-rose-400 block">Fiados</span>
-                <span className="text-sm sm:text-base font-black text-white">
-                  ${Math.round(itemInspeccionado.fiados).toLocaleString('es-CO')}
-                </span>
+                <div className="flex-1 min-w-[25%]">
+                  <span className="text-[10px] sm:text-xs uppercase font-black text-blue-400 block mb-0.5">Abonos</span>
+                  <span className="text-base sm:text-xl font-black text-white block">
+                    ${Math.round(itemInspeccionado.abonos).toLocaleString('es-CO')}
+                  </span>
+                </div>
               </div>
-
-              <div className="text-left md:text-right">
-                <span className="text-[10px] uppercase font-bold text-blue-400 block">Abonos</span>
-                <span className="text-sm sm:text-base font-black text-white">
-                  ${Math.round(itemInspeccionado.abonos).toLocaleString('es-CO')}
-                </span>
-              </div>
-
+              
+              {/* Botón cerrar */}
               <button
-                type="button"
                 onClick={() => setItemInspeccionado(null)}
-                className="px-3 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 text-slate-300 text-xs font-bold transition-colors cursor-pointer"
-                title="Volver al resumen general"
+                className="absolute top-0 right-0 md:relative md:top-auto md:right-auto p-2 md:px-4 md:py-2 md:bg-white/10 md:hover:bg-white/20 rounded-xl text-slate-400 hover:text-white text-xs font-bold transition-colors cursor-pointer"
+                title="Cerrar y ver total"
               >
-                ✕ Ver Total
+                <span className="hidden md:inline">Ver Total</span>
+                <X size={20} className="md:hidden" />
               </button>
             </div>
-          </div>
-        ) : (
-          <div className="p-3 bg-slate-50 dark:bg-slate-900/50 rounded-2xl border border-slate-200/60 dark:border-slate-800 text-center">
-            <span className="text-xs font-medium text-slate-500 dark:text-slate-400">
-              💡 Toca o pasa el cursor sobre cualquier barra para ver el desglose detallado en el panel
-            </span>
-          </div>
-        )}
+          ) : (
+            <div className="flex flex-col items-center justify-center text-center text-slate-500 h-full animate-in fade-in">
+              <BarChart3 size={32} className="opacity-20 mb-3" />
+              <p className="text-sm sm:text-base font-bold">Resumen Interactivo</p>
+              <p className="text-xs font-medium mt-1">Toca cualquier barra de la gráfica para ver su desglose exacto aquí.</p>
+            </div>
+          )}
+        </div>
 
         {/* Visualización de Barras Responsive Táctil */}
         <div className="w-full overflow-x-auto pb-4 scrollbar-thin scrollbar-thumb-slate-200 dark:scrollbar-thumb-slate-800">

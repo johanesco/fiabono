@@ -596,9 +596,15 @@ ${detalleTexto}*TOTAL: $${orden.total.toLocaleString('es-CO')}*
 
   // Abrir Modal de Edición (Administrador o Colaborador para su propia orden pendiente)
   const abrirModalEdicion = (orden: OrdenPendiente) => {
-    if (!esAdmin && orden.estado !== 'pendiente') {
-      toast.error("Solo puedes modificar tus órdenes mientras estén pendientes.");
-      return;
+    if (!esAdmin) {
+      if (orden.estado !== 'pendiente') {
+        toast.error("Solo puedes modificar órdenes mientras estén pendientes.");
+        return;
+      }
+      if (orden.creadoPor && orden.creadoPor !== datosSesion?.uid) {
+        toast.error("No puedes modificar las órdenes creadas por otro colaborador.");
+        return;
+      }
     }
     const esFiado = orden.tipo === 'fiado';
     const esSepare = orden.tipo === 'separe';

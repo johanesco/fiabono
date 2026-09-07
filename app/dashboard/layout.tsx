@@ -8,6 +8,7 @@ import { useAuth } from "@/hooks/AuthContext";
 import BottomNav from "../../components/BottomNav";
 import ScrollIndicator from "../../components/ScrollIndicator";
 import GlobalExpirationWarning from "@/components/GlobalExpirationWarning";
+import GlobalAnnouncements from "@/components/GlobalAnnouncements";
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const auth = useAuth();
@@ -283,6 +284,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       {/* CONTENEDOR PRINCIPAL */}
       <main className="flex-1 flex flex-col h-full relative p-0 md:p-4 lg:p-6 pb-16 md:pb-0 overflow-hidden">
         <GlobalExpirationWarning />
+        <GlobalAnnouncements />
         {/* Desplazamiento fluido sin solapamiento con BottomNav */}
         <div id="dashboard-scroll-container" className="flex-1 h-full w-full overflow-y-auto flex flex-col min-h-0">
           {children}

@@ -179,7 +179,7 @@ function FiarContenido() {
                         mostrarDescuento: mostrarDescuento,
                         tipoDescuento: tipoDescuento,
                         valorDescuento: valorDescuento,
-                        nombre: p.nombre.startsWith('Fiado #') && clienteTransaccion?.nombre ? clienteTransaccion.nombre : p.nombre
+                        nombre: clienteTransaccion?.nombre ? clienteTransaccion.nombre : (p.nombre.startsWith('Fiado #') ? p.nombre : `Fiado #${prev.findIndex(x=>x.id===pestanaActivaId)+1}`)
                     };
                 }
                 return p;
@@ -210,7 +210,7 @@ function FiarContenido() {
                         mostrarDescuento: mostrarDescuento,
                         tipoDescuento: tipoDescuento,
                         valorDescuento: valorDescuento,
-                        nombre: p.nombre.startsWith('Fiado #') && clienteTransaccion?.nombre ? clienteTransaccion.nombre : p.nombre
+                        nombre: clienteTransaccion?.nombre ? clienteTransaccion.nombre : (p.nombre.startsWith('Fiado #') ? p.nombre : `Fiado #${prev.findIndex(x=>x.id===idActual)+1}`)
                     };
                 }
                 return p;

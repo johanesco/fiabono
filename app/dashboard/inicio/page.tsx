@@ -702,12 +702,12 @@ Quedamos pendientes para revisar detalles o responder cualquier duda.
 
                 {/* BOTONES DE ACCIÓN: VENDER, FIAR, ABONAR Y WHATSAPP */}
                 <div className="p-4 md:p-6 bg-slate-50 dark:bg-[#020617] border-b border-slate-100 dark:border-slate-800 flex flex-col gap-3 shrink-0">
-                  <div className="flex gap-2 sm:gap-3">
-                    <button onClick={() => router.push(`/dashboard/vender?clienteId=${clienteActivo.id}`)} className="flex-1 bg-emerald-500 hover:bg-emerald-600 text-white font-bold py-3 rounded-xl text-xs md:text-sm uppercase shadow-sm transition-all active:scale-95 cursor-pointer">Vender</button>
-                    <button onClick={() => router.push(`/dashboard/fiar?clienteId=${clienteActivo.id}`)} className="flex-1 bg-rose-500 hover:bg-rose-600 text-white font-bold py-3 rounded-xl text-xs md:text-sm uppercase shadow-sm transition-all active:scale-95 cursor-pointer">Fiar</button>
-                    <button onClick={() => router.push(`/dashboard/abonar?clienteId=${clienteActivo.id}`)} className="flex-1 bg-blue-500 hover:bg-blue-600 text-white font-bold py-3 rounded-xl text-xs md:text-sm uppercase shadow-sm transition-all active:scale-95 cursor-pointer">Abonar</button>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3">
+                    <button onClick={() => router.push(`/dashboard/vender?clienteId=${clienteActivo.id}`)} className="bg-emerald-500 hover:bg-emerald-600 text-white font-bold py-3 rounded-xl text-[11px] sm:text-xs md:text-sm uppercase shadow-sm transition-all active:scale-95 cursor-pointer">Vender</button>
+                    <button onClick={() => router.push(`/dashboard/fiar?clienteId=${clienteActivo.id}`)} className="bg-rose-500 hover:bg-rose-600 text-white font-bold py-3 rounded-xl text-[11px] sm:text-xs md:text-sm uppercase shadow-sm transition-all active:scale-95 cursor-pointer">Fiar</button>
+                    <button onClick={() => router.push(`/dashboard/abonar?clienteId=${clienteActivo.id}`)} className="bg-blue-500 hover:bg-blue-600 text-white font-bold py-3 rounded-xl text-[11px] sm:text-xs md:text-sm uppercase shadow-sm transition-all active:scale-95 cursor-pointer">Abonar</button>
                     {puedeSepare && (
-                      <button onClick={() => router.push(`/dashboard/separe?clienteId=${clienteActivo.id}`)} className="flex-1 bg-violet-600 hover:bg-violet-700 text-white font-bold py-3 rounded-xl text-xs md:text-sm uppercase shadow-sm transition-all active:scale-95 cursor-pointer">Separe</button>
+                      <button onClick={() => router.push(`/dashboard/separe?clienteId=${clienteActivo.id}`)} className="bg-violet-600 hover:bg-violet-700 text-white font-bold py-3 rounded-xl text-[11px] sm:text-xs md:text-sm uppercase shadow-sm transition-all active:scale-95 cursor-pointer">Separe</button>
                     )}
                   </div>
 

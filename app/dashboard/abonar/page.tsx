@@ -7,6 +7,7 @@ import { Search, CheckCircle2, ChevronRight, X, AlertCircle, UserCog, ArrowLeft,
 import { useAuth } from "../../../hooks/AuthContext";
 import { API_DB } from "../../../servicios/db";
 import TicketFacturaModal from "@/components/TicketFacturaModal";
+import toast from 'react-hot-toast';
 
 export default function AbonarPage() {
   return (
@@ -42,6 +43,7 @@ function AbonarContenido() {
   const [modalNuevoCliente, setModalNuevoCliente] = useState(false);
   const [modalExito, setModalExito] = useState<{ visible: boolean, cliente: any, montoTotal: number, ticketDatos?: any, esSepare?: boolean, saldoRestanteSepare?: number } | null>(null);
   const [modalTicketFactura, setModalTicketFactura] = useState<{ visible: boolean; datos: any | null }>({ visible: false, datos: null });
+  const [modalConfirmacionExceso, setModalConfirmacionExceso] = useState<{ visible: boolean; abonoReal: number } | null>(null);
   
   const [nombreNuevo, setNombreNuevo] = useState("");
   const [celularNuevo, setCelularNuevo] = useState("");
@@ -152,7 +154,7 @@ function AbonarContenido() {
       setModalNuevoCliente(false); setNombreNuevo(""); setCelularNuevo(""); setBusquedaRegistro("");
       await cargarDatosGlobales(cuentaPrincipalId!);
       setClienteTransaccion(nuevoObj); 
-    } catch (error) { alert("Error al guardar cliente."); } finally { setGuardandoCliente(false); }
+    } catch (error) { toast.error("Error al guardar cliente."); } finally { setGuardandoCliente(false); }
   };
 
   const formatearMonedaInput = (valor: string) => {
@@ -166,8 +168,8 @@ function AbonarContenido() {
     const pagoRaw = montoAbono.replace(/\D/g, '');
     const abonoReal = pagoRaw === "" ? 0 : parseFloat(pagoRaw);
 
-    if (!clienteTransaccion) return alert("Debes seleccionar un cliente para registrar un abono.");
-    if (abonoReal <= 0) return alert("Ingresa un monto mayor a $0 para abonar.");
+    if (!clienteTransaccion) { toast.error("Debes seleccionar un cliente para registrar un abono."); return; }
+    if (abonoReal <= 0) { toast.error("Ingresa un monto mayor a $0 para abonar."); return; }
 
     const refPagoCompleta = [subMetodoPago, referenciaPago.trim()].filter(Boolean).join(' — ');
     const labelsMetodos: Record<string, string> = {
@@ -182,7 +184,8 @@ function AbonarContenido() {
       // 1. SI ES ABONO A PLAN SEPARE
       if (destinoAbono === 'separe' && separeSeleccionado) {
         if (abonoReal > (separeSeleccionado.saldoPendiente || 0)) {
-          return alert(`El abono no puede superar el saldo pendiente del separe ($${(separeSeleccionado.saldoPendiente || 0).toLocaleString('es-CO')}).`);
+          toast.error(`El abono no puede superar el saldo pendiente del separe ($${(separeSeleccionado.saldoPendiente || 0).toLocaleString('es-CO')}).`, { duration: 4000 });
+          return;
         }
 
         const nuevoAbono: any = {
@@ -266,6 +269,32 @@ function AbonarContenido() {
       }
 
       // 2. SI ES ABONO A DEUDA GENERAL DE FIADOS
+      if (abonoReal > (clienteTransaccion.deudaTotal || 0)) {
+        setModalConfirmacionExceso({ visible: true, abonoReal });
+        return;
+      }
+      
+      await ejecutarAbonoCartera(abonoReal);
+      
+    } catch (error) { 
+      console.error(error);
+      toast.error("Error al procesar el abono."); 
+    }
+  };
+
+  const ejecutarAbonoCartera = async (abonoReal: number) => {
+    if (!clienteTransaccion) return;
+
+    try {
+      const refPagoCompleta = [subMetodoPago, referenciaPago.trim()].filter(Boolean).join(' — ');
+      const labelsMetodos: Record<string, string> = {
+        efectivo: 'Efectivo',
+        transferencia: subMetodoPago ? `Transf. (${subMetodoPago})` : 'Transferencia',
+        datafono: 'Datáfono',
+        credito_externo: subMetodoPago ? `Crédito (${subMetodoPago})` : 'Crédito Externo'
+      };
+      const metodoPagoLabel = labelsMetodos[metodoPago] || 'Efectivo';
+
       const resAbono = await API_DB.registrarMovimientoConTransaccion(
         {
           clienteId: clienteTransaccion.id,
@@ -274,7 +303,7 @@ function AbonarContenido() {
           monto: abonoReal,
           descripcion: `Abono a cuenta (${metodoPagoLabel})`,
           fecha: new Date(),
-          registradoPor: nombreUsuario,
+          registradoPor: nombreUsuario || "Vendedor",
           metodoPago: metodoPago,
           referenciaPago: refPagoCompleta,
           detalles: []
@@ -323,7 +352,7 @@ function AbonarContenido() {
       
     } catch (error) { 
       console.error(error);
-      alert("Error al procesar el abono."); 
+      toast.error("Error al guardar abono."); 
     }
   };
 
@@ -840,24 +869,63 @@ Estamos atentos para cualquier consulta.
             )}
 
             {modalExito.cliente.celular && modalExito.cliente.celular.trim() !== "" && datosSesion?.rol !== 'cajero' && (
-              <button onClick={() => abrirWhatsApp(modalExito.cliente)} className="w-full mb-3 bg-[#25D366] hover:bg-[#1ebd5a] text-white font-bold py-4 rounded-2xl shadow-lg flex justify-center items-center gap-2 text-lg">
-                <MessageCircle size={24} /> Enviar Comprobante
+              <button
+                onClick={() => abrirWhatsApp(modalExito.cliente)}
+                className="w-full bg-[#25D366]/10 hover:bg-[#25D366]/20 text-[#1ebd5a] font-bold py-4 rounded-2xl flex justify-center items-center gap-2 text-lg mb-3"
+              >
+                <MessageCircle size={22} /> Enviar Comprobante
               </button>
             )}
-            
-            <button onClick={() => { setModalExito(null); router.push('/dashboard/inicio'); }} className="w-full bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold py-4 rounded-2xl text-lg">
-              Volver al inicio
-            </button>
+
+            <button onClick={() => { setModalExito(null); setMontoAbono(""); if(destinoAbono === 'separe') setSepareSeleccionado(null); }} className="w-full bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold py-4 rounded-2xl text-lg">Cerrar Ventana</button>
           </div>
         </div>
       )}
 
-      {/* MODAL DE IMPRESIÓN DE TICKET TÉRMICO */}
-      <TicketFacturaModal
-        isOpen={modalTicketFactura.visible}
-        onClose={() => setModalTicketFactura({ visible: false, datos: null })}
-        datos={modalTicketFactura.datos}
-      />
+      {/* MODAL DE CONFIRMACIÓN DE EXCESO DE ABONO */}
+      {modalConfirmacionExceso?.visible && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 z-[950] animate-in zoom-in duration-200">
+          <div className="bg-white dark:bg-[#0f172a] p-8 rounded-[2.5rem] w-full max-w-sm shadow-2xl text-center border border-slate-100 dark:border-slate-800">
+            <div className="w-20 h-20 bg-amber-100 dark:bg-amber-500/20 text-amber-600 dark:text-amber-400 rounded-full flex items-center justify-center mx-auto mb-5 shadow-inner">
+              <AlertCircle size={40} />
+            </div>
+            <h2 className="text-2xl font-black text-slate-900 dark:text-white mb-3 leading-tight">Abono Superior <br/>a la Deuda</h2>
+            
+            <div className="mb-8 text-slate-500 dark:text-slate-400 text-sm flex flex-col gap-3">
+              <p>Estás intentando registrar un abono por <strong>${modalConfirmacionExceso.abonoReal.toLocaleString('es-CO')}</strong>, pero la deuda total del cliente es de solo <strong>${(clienteTransaccion?.deudaTotal || 0).toLocaleString('es-CO')}</strong>.</p>
+              <div className="bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/30 p-3 rounded-xl text-amber-800 dark:text-amber-300">
+                Al confirmar, la cuenta quedará con un <strong className="font-black text-amber-900 dark:text-amber-400">saldo a favor</strong> (negativo).
+              </div>
+            </div>
+            
+            <div className="grid grid-cols-2 gap-3">
+              <button 
+                onClick={() => setModalConfirmacionExceso(null)} 
+                className="bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold py-4 rounded-2xl text-base transition-colors"
+              >
+                Cancelar
+              </button>
+              <button 
+                onClick={() => {
+                  ejecutarAbonoCartera(modalConfirmacionExceso.abonoReal);
+                  setModalConfirmacionExceso(null);
+                }} 
+                className="bg-amber-500 hover:bg-amber-600 active:scale-95 text-white font-bold py-4 rounded-2xl shadow-lg flex justify-center items-center gap-1.5 text-base transition-all"
+              >
+                Confirmar <CheckCircle2 size={18} />
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {modalTicketFactura.visible && modalTicketFactura.datos && (
+        <TicketFacturaModal 
+          isOpen={modalTicketFactura.visible} 
+          onClose={() => setModalTicketFactura({ visible: false, datos: null })} 
+          datos={modalTicketFactura.datos}
+        />
+      )}
     </div>
   );
 }
