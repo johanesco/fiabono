@@ -89,7 +89,7 @@ export default function GlobalExpirationWarning() {
               <p className="text-slate-500 dark:text-slate-400 font-medium mb-8 leading-relaxed">
                 {enGracia 
                   ? `Estás utilizando tus últimos ${2 + dias} días de gracia. Renueva ahora para no perder el acceso a tu información.`
-                  : `Te quedan solo ${dias} ${dias === 1 ? 'día' : 'días'} de suscripción. Asegura la continuidad de tu negocio renovando hoy mismo.`
+                  : `Te quedan solo ${dias} ${dias === 1 ? 'día' : 'días'} de suscripción. Asegura la continuidad de tu negocio renovando hoy mismo. ¡No te preocupes! Los ${dias} ${dias === 1 ? 'día que te queda se sumará' : 'días que te quedan se sumarán'} automáticamente a tu nuevo plan.`
                 }
               </p>
 
