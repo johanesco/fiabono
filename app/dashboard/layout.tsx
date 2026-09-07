@@ -256,7 +256,18 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           </button>
         </nav>
 
-        <div className="p-3 border-t border-slate-100 dark:border-slate-800/60">
+        <div className="p-3 border-t border-slate-100 dark:border-slate-800/60 flex flex-col gap-1.5">
+          {datosSesion?.correoNegocio === 'johanescobar1@gmail.com' && (
+            <button
+              onClick={() => router.push('/dashboard/master')}
+              title="Panel Maestro"
+              className={`w-full flex items-center gap-3.5 p-3 rounded-2xl font-black transition-all active:scale-95 ${menuColapsado ? 'justify-center' : ''} ${rutaActiva('/dashboard/master') ? 'bg-amber-500 text-white shadow-md' : 'text-amber-500 bg-amber-50 dark:bg-amber-500/10 hover:bg-amber-100 dark:hover:bg-amber-500/20'}`}
+            >
+              <span className="shrink-0 text-xl">👑</span>
+              {!menuColapsado && <span>Master</span>}
+            </button>
+          )}
+
           <button
             onClick={cerrarSesion}
             title="Cerrar Sesión"
