@@ -249,7 +249,7 @@ export default function MasterPage() {
     if (!digitos) return null;
     const telLimpio = digitos.startsWith('57') && digitos.length > 10 ? digitos : `57${digitos}`;
     const nombre = u.nombreNegocio || u.nombreUsuario || 'Comerciante';
-    const texto = `Hola ${nombre}, te contacto desde la administración de Fiabono. ¿En qué podemos apoyarte hoy?`;
+    const texto = `Hola ${nombre}, te escribe Johan del equipo de Fiabono 👋 Esperamos que todo marche excelente con tu negocio. Te contacto para saludarte, saber cómo te ha parecido la plataforma y verificar si tienes alguna duda o necesitas apoyo con tu cuenta o funciones. ¡Quedamos muy atentos!`;
     return `https://wa.me/${telLimpio}?text=${encodeURIComponent(texto)}`;
   };
 

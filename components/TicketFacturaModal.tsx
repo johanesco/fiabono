@@ -1,7 +1,7 @@
 "use client";
 import React, { useRef, useState, useEffect } from "react";
 import { createPortal } from "react-dom";
-import { X, Printer, Receipt, Crown } from "lucide-react";
+import { X, Printer, Receipt, Crown, MessageCircle } from "lucide-react";
 import { useAuth } from "@/hooks/AuthContext";
 import ModalUpsellSuscripcion from "./ModalUpsellSuscripcion";
 
@@ -103,6 +103,109 @@ export default function TicketFacturaModal({ isOpen, onClose, datos }: TicketFac
     if (datos.tipo === 'entrega_separe') return 'ENTREGA DE PLAN SEPARE';
     if (datos.tipo === 'egreso') return 'COMPROBANTE DE EGRESO / DEVOLUCIÓN';
     return 'COMPROBANTE DE CAJA';
+  };
+
+  const generarTextoTicketWhatsApp = () => {
+    const lineas: string[] = [];
+    const nombreNegocio = datos.nombreNegocio || "MI NEGOCIO";
+    const titulo = (() => {
+      if (datos.tipo === 'venta') return '🧾 *COMPROBANTE DE VENTA*';
+      if (datos.tipo === 'fiado') return '📋 *COMPROBANTE DE FIADO / CRÉDITO*';
+      if (datos.tipo === 'abono') return '💵 *COMPROBANTE DE ABONO*';
+      if (datos.tipo === 'separe') return '📦 *PLAN SEPARE REGISTRADO*';
+      if (datos.tipo === 'abono_separe') return '💵 *ABONO A PLAN SEPARE*';
+      if (datos.tipo === 'entrega_separe') return '🎉 *ENTREGA DE PLAN SEPARE*';
+      if (datos.tipo === 'egreso') return '↩️ *COMPROBANTE DE DEVOLUCIÓN*';
+      return '🧾 *COMPROBANTE DE CAJA*';
+    })();
+
+    lineas.push(titulo);
+    lineas.push(`🏬 *${nombreNegocio.toUpperCase()}*`);
+    if (datos.nitNegocio) lineas.push(`NIT/RUT: ${datos.nitNegocio}`);
+    if (datos.direccionNegocio) lineas.push(`📍 ${datos.direccionNegocio}`);
+    if (datos.telefonoNegocio) lineas.push(`📱 Tel: ${datos.telefonoNegocio}`);
+    lineas.push(`────────────────────`);
+
+    lineas.push(`📅 *Fecha:* ${formatearFecha(datos.fecha)} - ${formatearHora(datos.fecha)}`);
+    lineas.push(`👤 *Cliente:* ${datos.nombreCliente || "Venta de Mostrador"}`);
+    if (datos.registradoPor) lineas.push(`💼 *Atendido por:* ${datos.registradoPor}`);
+    if (datos.idTransaccion) lineas.push(`🔢 *Ticket:* #${datos.idTransaccion.slice(0, 8).toUpperCase()}`);
+    lineas.push(`────────────────────`);
+
+    if (datos.detalles && datos.detalles.length > 0) {
+      lineas.push(`🛍️ *DETALLE:*`);
+      datos.detalles.forEach(item => {
+        const cant = item.cantidad || 1;
+        const vUnit = item.valorUnitario || (cant > 0 ? (item.valor || 0) / cant : item.valor || 0);
+        const vTotal = item.valor || (cant * vUnit);
+        lineas.push(`• *${cant}x* ${item.descripcion || "Artículo"}`);
+        if (cant > 1 || item.valorUnitario) {
+          lineas.push(`   $${vUnit.toLocaleString('es-CO')} c/u → *$${vTotal.toLocaleString('es-CO')}*`);
+        } else {
+          lineas.push(`   Subtotal: *$${vTotal.toLocaleString('es-CO')}*`);
+        }
+      });
+    } else if (datos.descripcionGeneral) {
+      lineas.push(`🛍️ *DETALLE:*`);
+      lineas.push(datos.descripcionGeneral);
+    }
+    lineas.push(`────────────────────`);
+
+    if (datos.montoDescuento && datos.montoDescuento > 0) {
+      lineas.push(`🏷️ Descuento: -$${datos.montoDescuento.toLocaleString('es-CO')}`);
+    }
+    if (datos.valorIva && datos.valorIva > 0) {
+      lineas.push(`🏛️ IVA (${datos.porcentajeIva || 19}%): $${datos.valorIva.toLocaleString('es-CO')}`);
+    }
+    lineas.push(`💰 *TOTAL:* *$${(datos.montoTotal || 0).toLocaleString('es-CO')}*`);
+
+    if (datos.metodoPago) {
+      const metodosTexto: Record<string, string> = {
+        efectivo: 'Efectivo',
+        transferencia: 'Transferencia / Nequi',
+        datafono: 'Datáfono / Tarjeta',
+        credito_externo: 'Crédito Addi / Sistecrédito',
+        fiado: 'Crédito Directo (Fiado)'
+      };
+      lineas.push(`💳 *Forma de Pago:* ${metodosTexto[datos.metodoPago] || datos.metodoPago}`);
+      if (datos.referenciaPago) lineas.push(`🔖 *Ref. Pago:* #${datos.referenciaPago}`);
+    }
+
+    if (datos.pagoRecibido !== undefined && datos.pagoRecibido > 0) {
+      lineas.push(`💵 *Recibido:* $${datos.pagoRecibido.toLocaleString('es-CO')}`);
+    }
+    if (datos.devuelta !== undefined && datos.devuelta > 0) {
+      lineas.push(`🪙 *Devuelta:* $${datos.devuelta.toLocaleString('es-CO')}`);
+    }
+
+    if (datos.saldoNuevo !== undefined && datos.nombreCliente !== "Venta de Mostrador") {
+      lineas.push(`────────────────────`);
+      if (datos.saldoNuevo === 0) {
+        lineas.push(`✅ *Estado de Cuenta:* Al día ($0 pendiente)`);
+      } else if (datos.saldoNuevo < 0) {
+        lineas.push(`🟢 *Saldo a Favor:* $${Math.abs(datos.saldoNuevo).toLocaleString('es-CO')}`);
+      } else {
+        lineas.push(`⚠️ *Saldo Pendiente:* *$${datos.saldoNuevo.toLocaleString('es-CO')}*`);
+      }
+    }
+
+    lineas.push(`────────────────────`);
+    lineas.push(`${datos.mensajePieTicket || "¡Muchas gracias por su preferencia! 🙌"}`);
+
+    return lineas.join('\n');
+  };
+
+  const compartirPorWhatsApp = () => {
+    const texto = generarTextoTicketWhatsApp();
+    const celRaw = (datos.celularCliente || '').toString().replace(/\D/g, '');
+    const celLimpio = celRaw.startsWith('57') && celRaw.length > 10 ? celRaw : (celRaw ? `57${celRaw}` : '');
+    const url = celLimpio
+      ? `https://wa.me/${celLimpio}?text=${encodeURIComponent(texto)}`
+      : `https://wa.me/?text=${encodeURIComponent(texto)}`;
+
+    if (typeof window !== 'undefined') {
+      window.open(url, '_blank');
+    }
   };
 
   const contenidoModal = (
@@ -487,14 +590,28 @@ export default function TicketFacturaModal({ isOpen, onClose, datos }: TicketFac
           </div>
 
           {/* BOTONES DE ACCIÓN */}
-          <div className="ticket-print-hide p-3 sm:p-4 border-t border-slate-100 dark:border-slate-800 bg-white dark:bg-[#0f172a] flex gap-2 sm:gap-3 shrink-0">
+          <div className="ticket-print-hide p-3 sm:p-4 border-t border-slate-100 dark:border-slate-800 bg-white dark:bg-[#0f172a] flex flex-wrap gap-2 sm:gap-3 shrink-0">
             <button
               type="button"
               onClick={onClose}
-              className="flex-1 py-2.5 sm:py-3.5 px-3 sm:px-4 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold rounded-xl sm:rounded-2xl transition-colors text-xs sm:text-sm text-center cursor-pointer"
+              className="py-2.5 sm:py-3.5 px-3 sm:px-4 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold rounded-xl sm:rounded-2xl transition-colors text-xs sm:text-sm text-center cursor-pointer"
             >
               Cerrar
             </button>
+
+            {/* BOTÓN COMPARTIR / ENVIAR POR WHATSAPP (Valor agregado sin costo de papel) */}
+            <button
+              type="button"
+              onClick={compartirPorWhatsApp}
+              className="flex-1 min-w-[130px] py-2.5 sm:py-3.5 px-3 sm:px-4 bg-[#25D366] hover:bg-[#20bd5a] text-white font-black rounded-xl sm:rounded-2xl shadow-md sm:shadow-lg shadow-[#25D366]/25 flex items-center justify-center gap-1.5 sm:gap-2 transition-transform transform active:scale-95 text-xs sm:text-sm text-center cursor-pointer"
+              title={datos.celularCliente ? `Enviar al WhatsApp de ${datos.nombreCliente} (${datos.celularCliente})` : "Compartir por WhatsApp"}
+            >
+              <MessageCircle size={16} className="shrink-0 fill-white/20" />
+              <span className="truncate">
+                {datos.celularCliente ? 'Enviar al WhatsApp' : 'Compartir Factura'}
+              </span>
+            </button>
+
             <button
               type="button"
               onClick={() => {
@@ -504,11 +621,11 @@ export default function TicketFacturaModal({ isOpen, onClose, datos }: TicketFac
                 }
                 manejarImprimir();
               }}
-              className="flex-1 py-2.5 sm:py-3.5 px-3 sm:px-4 bg-blue-600 hover:bg-blue-700 text-white font-black rounded-xl sm:rounded-2xl shadow-md sm:shadow-lg shadow-blue-600/30 flex items-center justify-center gap-1.5 sm:gap-2 transition-transform transform active:scale-95 text-xs sm:text-sm text-center cursor-pointer"
+              className="flex-1 min-w-[120px] py-2.5 sm:py-3.5 px-3 sm:px-4 bg-blue-600 hover:bg-blue-700 text-white font-black rounded-xl sm:rounded-2xl shadow-md sm:shadow-lg shadow-blue-600/30 flex items-center justify-center gap-1.5 sm:gap-2 transition-transform transform active:scale-95 text-xs sm:text-sm text-center cursor-pointer"
             >
               <Printer size={16} className="shrink-0" /> 
               <span className="truncate">
-                {datosSesion?.esGratis ? 'Factura Imprimible (Comercio)' : 'Imprimir Factura'}
+                {datosSesion?.esGratis ? 'Factura Imprimible' : 'Imprimir'}
               </span>
               {datosSesion?.esGratis && <Crown size={13} className="text-amber-300 shrink-0" />}
             </button>
