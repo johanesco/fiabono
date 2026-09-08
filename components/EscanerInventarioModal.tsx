@@ -1,7 +1,7 @@
 "use client";
 import { useState, useEffect, useRef } from "react";
 import { Html5Qrcode, Html5QrcodeSupportedFormats } from "html5-qrcode";
-import { collection, getDocs, query, where } from "firebase/firestore";
+import { collection, getDocs, query, where, addDoc } from "firebase/firestore";
 import { db } from "../firebase";
 import { 
   X, CheckCircle2, Zap, Package, Plus, RefreshCw, Sparkles, 
@@ -237,7 +237,30 @@ export default function EscanerInventarioModal({
     const codSinPrefijo = codLower.replace(/^(sku|ref|cod)[-_ ]*/i, '');
     const codSoloDigitos = cod.replace(/\D/g, '');
 
-    // 1. Buscar en memoria local de inventario
+    // 1. Buscar en productos ya cargados en la sesión actual
+    if (productosEnCarga && productosEnCarga.length > 0) {
+      const matchCarga = productosEnCarga.find(p => 
+        (p.sku && p.sku.trim().toLowerCase() === codLower) ||
+        (p.sku && p.sku.trim().toLowerCase().replace(/^(sku|ref|cod)[-_ ]*/i, '') === codSinPrefijo) ||
+        p.id === cod ||
+        (p.productoId && p.productoId === cod)
+      );
+      if (matchCarga) {
+        return {
+          id: matchCarga.productoId || matchCarga.id,
+          nombre: matchCarga.nombre,
+          sku: matchCarga.sku,
+          codigoBarras: matchCarga.sku,
+          stock: matchCarga.stockActual ?? matchCarga.stock,
+          precioVenta: matchCarga.precioVenta,
+          tipoProducto: matchCarga.tipoProducto || 'producto',
+          categoria: matchCarga.categoria || 'General',
+          inventariable: matchCarga.inventariable !== false
+        };
+      }
+    }
+
+    // 2. Buscar en memoria local de inventario
     if (inventario && inventario.length > 0) {
       let match = inventario.find(p => 
         (p.codigoBarras && p.codigoBarras.trim().toLowerCase() === codLower) ||
@@ -388,7 +411,7 @@ export default function EscanerInventarioModal({
     procesandoRef.current = false;
   };
 
-  const agregarNuevoProductoAlFormulario = () => {
+  const agregarNuevoProductoAlFormulario = async () => {
     if (!codigoNoRegistrado) return;
     if (!nuevoNombre.trim()) {
       toast.error("El nombre del producto es obligatorio.");
@@ -400,37 +423,100 @@ export default function EscanerInventarioModal({
       return;
     }
     const cantInicial = parseInt(nuevoStock) || 1;
+    const catFinal = nuevaCategoria.trim() || 'General';
+    const codigoGuardar = codigoNoRegistrado.trim().toUpperCase();
 
-    const nuevoItem: ItemCargaInventario = {
-      id: `carga_nuevo_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
-      esExistente: false,
-      nombre: nuevoNombre.trim(),
-      sku: codigoNoRegistrado,
-      stock: Math.max(1, cantInicial),
-      stockActual: 0,
-      precioVenta: precioLimpio,
-      categoria: nuevaCategoria.trim() || 'General',
-      tipoProducto: 'producto',
-      inventariable: true
-    };
+    setProcesando(true);
+    procesandoRef.current = true;
 
-    onAgregarOActualizarProducto(nuevoItem);
+    try {
+      // 1. Guardar de forma inmediata en la base de datos Firestore
+      let nuevoId = `prod_${Date.now()}`;
+      if (cuentaPrincipalId) {
+        const docRef = await addDoc(collection(db, "inventario"), {
+          usuarioId: cuentaPrincipalId,
+          nombre: nuevoNombre.trim(),
+          sku: codigoGuardar,
+          codigoBarras: codigoGuardar,
+          stock: cantInicial,
+          precioVenta: precioLimpio,
+          tipoProducto: 'producto',
+          categoria: catFinal,
+          inventariable: true,
+          fechaCreacion: new Date(),
+          fechaActualizacion: new Date()
+        });
+        nuevoId = docRef.id;
 
-    dispararFlash();
-    reproducirSonidoExito();
-    toast.success(`¡"${nuevoNombre.trim()}" sumado al formulario (+${cantInicial} un.)!`, { 
-      icon: '✨', 
-      duration: 3500 
-    });
+        // Registrar movimiento de ingreso
+        await addDoc(collection(db, "movimientos"), {
+          usuarioId: cuentaPrincipalId,
+          tipo: 'ingreso_inventario',
+          categoria: 'recepcion_mercancia',
+          monto: 0,
+          descripcion: `Creación y recepción: +${cantInicial} unidades de ${nuevoNombre.trim()} (Código: ${codigoGuardar})`,
+          fecha: new Date(),
+          registradoPor: _nombreUsuario || "Usuario",
+          idProducto: nuevoId,
+          nombreProducto: nuevoNombre.trim(),
+          cantidadAgregada: cantInicial
+        });
+      }
 
-    setNuevoNombre("");
-    setNuevoPrecio("");
-    setNuevoStock("1");
-    setNuevaCategoria("General");
-    setMostrarDropdownCategorias(false);
-    setCodigoNoRegistrado(null);
-    procesandoRef.current = false;
-    setProcesando(false);
+      // 2. Registrar en la memoria del escáner para que si se escanea nuevamente, lo detecte como EXISTENTE
+      const prodCreadoMemoria = {
+        id: nuevoId,
+        nombre: nuevoNombre.trim(),
+        sku: codigoGuardar,
+        codigoBarras: codigoGuardar,
+        stock: cantInicial,
+        precioVenta: precioLimpio,
+        tipoProducto: 'producto',
+        categoria: catFinal,
+        inventariable: true
+      };
+
+      if (inventario) {
+        inventario.push(prodCreadoMemoria);
+      }
+
+      // 3. Crear item para la lista / formulario
+      const nuevoItem: ItemCargaInventario = {
+        id: `carga_${nuevoId}`,
+        esExistente: true,
+        productoId: nuevoId,
+        nombre: nuevoNombre.trim(),
+        sku: codigoGuardar,
+        stock: Math.max(1, cantInicial),
+        stockActual: cantInicial,
+        precioVenta: precioLimpio,
+        categoria: catFinal,
+        tipoProducto: 'producto',
+        inventariable: true
+      };
+
+      onAgregarOActualizarProducto(nuevoItem);
+
+      dispararFlash();
+      reproducirSonidoExito();
+      toast.success(`¡"${nuevoNombre.trim()}" guardado en base de datos (+${cantInicial} un.)!`, { 
+        icon: '✨', 
+        duration: 3500 
+      });
+
+      setNuevoNombre("");
+      setNuevoPrecio("");
+      setNuevoStock("1");
+      setNuevaCategoria("General");
+      setMostrarDropdownCategorias(false);
+      setCodigoNoRegistrado(null);
+    } catch (err: any) {
+      console.error("Error al guardar producto en Firestore:", err);
+      toast.error("Error al guardar en base de datos. Intenta nuevamente.");
+    } finally {
+      procesandoRef.current = false;
+      setProcesando(false);
+    }
   };
 
   const cancelarCodigoNoRegistrado = () => {
