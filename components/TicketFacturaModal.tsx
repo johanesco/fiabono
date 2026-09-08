@@ -318,45 +318,50 @@ export default function TicketFacturaModal({ isOpen, onClose, datos }: TicketFac
     const toastId = toast.loading("Preparando descarga...");
 
     try {
-      const node = ticketRef.current;
-      const rect = node.getBoundingClientRect();
-      const anchoReal = Math.max(Math.ceil(rect.width || 0), node.scrollWidth, 360);
-      const altoReal = Math.max(Math.ceil(rect.height || 0), node.scrollHeight);
-
-      const dataUrl = await toPng(node, {
-        width: anchoReal,
-        height: altoReal,
-        pixelRatio: 2.5,
-        backgroundColor: '#ffffff',
-        cacheBust: true,
-        style: {
-          margin: '0px',
-          marginLeft: '0px',
-          marginRight: '0px',
-          marginTop: '0px',
-          marginBottom: '0px',
-          transform: 'none',
-          left: '0px',
-          top: '0px',
-          maxWidth: 'none',
-          width: `${anchoReal}px`,
-          boxSizing: 'border-box',
-        }
-      });
+      const blob = await capturarBlobTicket();
+      if (!blob) throw new Error("No se pudo generar la imagen");
 
       const nombreArchivo = `Ticket-${datos.idTransaccion ? datos.idTransaccion.slice(0, 8).toUpperCase() : Date.now()}.png`;
+      const archivo = new File([blob], nombreArchivo, { type: 'image/png' });
+
+      const esIOS = typeof navigator !== 'undefined' && /iPhone|iPad|iPod/i.test(navigator.userAgent);
+
+      // En iOS Safari, las descargas automáticas por enlace están bloqueadas por el navegador.
+      // La única vía oficial para guardar en Fotos de iPhone es la opción nativa "Guardar imagen".
+      if (esIOS && typeof navigator !== 'undefined' && navigator.canShare && navigator.canShare({ files: [archivo] })) {
+        toast.dismiss(toastId);
+        await navigator.share({
+          files: [archivo],
+          title: `Guardar ${nombreArchivo}`,
+        });
+        toast.success("¡Selecciona 'Guardar imagen' para tenerla en tus Fotos!");
+        return;
+      }
+
+      // En Android y Computadores: Descarga mediante Blob URL sin bloqueos
+      const urlDescarga = URL.createObjectURL(blob);
       const enlace = document.createElement('a');
-      enlace.href = dataUrl;
+      enlace.href = urlDescarga;
       enlace.download = nombreArchivo;
+      enlace.style.display = 'none';
       document.body.appendChild(enlace);
       enlace.click();
-      document.body.removeChild(enlace);
+
+      setTimeout(() => {
+        if (document.body.contains(enlace)) {
+          document.body.removeChild(enlace);
+        }
+        URL.revokeObjectURL(urlDescarga);
+      }, 3000);
+
       toast.dismiss(toastId);
-      toast.success("¡Ticket descargado como imagen PNG!");
-    } catch (error) {
-      console.error("Error al descargar imagen:", error);
+      toast.success("¡Ticket descargado en imagen PNG!");
+    } catch (error: any) {
       toast.dismiss(toastId);
-      toast.error("Error al descargar la imagen.");
+      if (error?.name !== 'AbortError') {
+        console.error("Error al descargar imagen:", error);
+        toast.error("Error al descargar la imagen.");
+      }
     } finally {
       setGenerandoImagen(false);
     }
@@ -749,42 +754,30 @@ export default function TicketFacturaModal({ isOpen, onClose, datos }: TicketFac
             
             {/* VISTA MÓVIL: 2 FILAS ORGANIZADAS */}
             <div className="sm:hidden flex flex-col gap-2 w-full">
-              {/* Fila 1 en móvil: WhatsApp (Foto prioritaria y Texto opcional) */}
-              <div className="flex gap-2 w-full">
-                <button
-                  type="button"
-                  disabled={generandoImagen}
-                  onClick={manejarEnviarImagenWhatsApp}
-                  className="flex-[2] py-2.5 px-3 bg-[#25D366] hover:bg-[#20bd5a] text-white font-black rounded-xl shadow-xs flex items-center justify-center gap-1.5 transition active:scale-95 text-xs text-center cursor-pointer disabled:opacity-60"
-                  title="Compartir foto real del tíquet a WhatsApp"
-                >
-                  {generandoImagen ? (
-                    <Loader2 size={15} className="animate-spin shrink-0" />
-                  ) : (
-                    <MessageCircle size={15} className="shrink-0 fill-white/20" />
-                  )}
-                  <span className="truncate">
-                    {generandoImagen ? 'Generando...' : 'Foto a WhatsApp 📷'}
-                  </span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={compartirPorWhatsApp}
-                  className="flex-1 py-2.5 px-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold rounded-xl border border-slate-200 dark:border-slate-700 flex items-center justify-center gap-1 transition active:scale-95 text-xs text-center cursor-pointer"
-                  title="Enviar solo texto a WhatsApp"
-                >
-                  <FileText size={14} className="shrink-0" />
-                  <span className="truncate">Texto</span>
-                </button>
-              </div>
+              {/* Fila 1 en móvil: WhatsApp con foto a ancho completo */}
+              <button
+                type="button"
+                disabled={generandoImagen}
+                onClick={manejarEnviarImagenWhatsApp}
+                className="w-full py-3 px-4 bg-[#25D366] hover:bg-[#20bd5a] text-white font-black rounded-xl shadow-xs flex items-center justify-center gap-2 transition active:scale-95 text-xs text-center cursor-pointer disabled:opacity-60"
+                title="Compartir foto real del tíquet a WhatsApp"
+              >
+                {generandoImagen ? (
+                  <Loader2 size={16} className="animate-spin shrink-0" />
+                ) : (
+                  <MessageCircle size={16} className="shrink-0 fill-white/20" />
+                )}
+                <span className="truncate">
+                  {generandoImagen ? 'Generando foto...' : 'Foto a WhatsApp 📷'}
+                </span>
+              </button>
 
               {/* Fila 2 en móvil: Cerrar, Guardar en galería e Imprimir */}
               <div className="flex gap-2 w-full">
                 <button
                   type="button"
                   onClick={onClose}
-                  className="py-2 px-3 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold rounded-xl text-xs text-center cursor-pointer"
+                  className="flex-1 py-2.5 px-3 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold rounded-xl text-xs text-center cursor-pointer"
                 >
                   Cerrar
                 </button>
@@ -793,10 +786,10 @@ export default function TicketFacturaModal({ isOpen, onClose, datos }: TicketFac
                   type="button"
                   disabled={generandoImagen}
                   onClick={manejarDescargarImagenDirecta}
-                  className="flex-1 py-2 px-2 bg-violet-50 dark:bg-violet-950/40 hover:bg-violet-100 dark:hover:bg-violet-900/40 text-violet-700 dark:text-violet-300 border border-violet-200 dark:border-violet-800/60 font-bold rounded-xl flex items-center justify-center gap-1 text-xs text-center cursor-pointer disabled:opacity-60"
+                  className="flex-1 py-2.5 px-2 bg-violet-50 dark:bg-violet-950/40 hover:bg-violet-100 dark:hover:bg-violet-900/40 text-violet-700 dark:text-violet-300 border border-violet-200 dark:border-violet-800/60 font-bold rounded-xl flex items-center justify-center gap-1.5 text-xs text-center cursor-pointer disabled:opacity-60"
                   title="Descargar imagen en la galería"
                 >
-                  <Download size={13} />
+                  <Download size={14} />
                   <span>Guardar</span>
                 </button>
 
@@ -809,10 +802,10 @@ export default function TicketFacturaModal({ isOpen, onClose, datos }: TicketFac
                     }
                     manejarImprimir();
                   }}
-                  className="flex-1 py-2 px-2 bg-blue-600 hover:bg-blue-700 text-white font-black rounded-xl flex items-center justify-center gap-1 text-xs text-center cursor-pointer"
+                  className="flex-1 py-2.5 px-2 bg-blue-600 hover:bg-blue-700 text-white font-black rounded-xl flex items-center justify-center gap-1.5 text-xs text-center cursor-pointer"
                   title="Imprimir en impresora térmica"
                 >
-                  <Printer size={13} />
+                  <Printer size={14} />
                   <span>Imprimir</span>
                   {datosSesion?.esGratis && <Crown size={12} className="text-amber-300 shrink-0" />}
                 </button>
@@ -839,16 +832,6 @@ export default function TicketFacturaModal({ isOpen, onClose, datos }: TicketFac
                 >
                   {generandoImagen ? <Loader2 size={15} className="animate-spin shrink-0" /> : <MessageCircle size={15} className="shrink-0 fill-white/20" />}
                   <span>Foto a WhatsApp</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={compartirPorWhatsApp}
-                  className="py-2.5 px-3 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold rounded-xl border border-slate-200 dark:border-slate-700 flex items-center justify-center gap-1.5 transition active:scale-95 text-xs text-center cursor-pointer"
-                  title="Enviar por WhatsApp en formato texto"
-                >
-                  <FileText size={14} className="shrink-0" />
-                  <span>Texto</span>
                 </button>
 
                 <button
