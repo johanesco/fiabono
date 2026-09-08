@@ -625,6 +625,8 @@ export default function InventarioPage() {
     setErrores(erroresNuevos);
 
     if (erroresNuevos.nombre || erroresNuevos.categoria || erroresNuevos.stock || erroresNuevos.precio) {
+      const primerError = erroresNuevos.nombre || erroresNuevos.precio || erroresNuevos.stock || erroresNuevos.categoria;
+      toast.error(primerError, { icon: '⚠️' });
       return;
     }
 
@@ -849,6 +851,8 @@ export default function InventarioPage() {
       if (erroresNuevos.nombre || erroresNuevos.categoria || erroresNuevos.stock || erroresNuevos.precio) {
         if (!hayProductosEnCola || nombre.trim()) {
           setErrores(erroresNuevos);
+          const primerError = erroresNuevos.nombre || erroresNuevos.precio || erroresNuevos.stock || erroresNuevos.categoria;
+          toast.error(primerError, { icon: '⚠️' });
           return;
         }
       }
@@ -4501,8 +4505,20 @@ export default function InventarioPage() {
 
       {/* MODAL CREAR / EDITAR PRODUCTO (BLINDADO PARA MÓVIL Y ESCRITORIO CON PORTAL) */}
       {(esAdmin || puedeEditarInventario) && modalProducto && mounted && createPortal(
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-end sm:items-center justify-center p-0 sm:p-4 z-[99999] overflow-hidden">
-          <div className="bg-white dark:bg-[#0f172a] rounded-t-3xl sm:rounded-[2.5rem] w-full max-w-[98vw] 2xl:max-w-[1650px] h-full sm:h-[92dvh] max-h-[100dvh] sm:max-h-[92dvh] shadow-2xl border border-slate-100 dark:border-slate-800 flex flex-col overflow-hidden animate-in slide-in-from-bottom-4 sm:zoom-in-95 duration-200">
+        <div 
+          onClick={(e) => {
+            if (e.target === e.currentTarget) {
+              if (productosEnCarga.length > 0) {
+                setModalConfirmarDescarteCarga(true);
+              } else {
+                limpiarFormulario();
+                setModalProducto(false);
+              }
+            }
+          }}
+          className="fixed inset-x-0 top-0 bottom-16 sm:bottom-0 sm:inset-0 bg-black/80 backdrop-blur-md flex items-end sm:items-center justify-center p-0 sm:p-4 z-[90] overflow-hidden"
+        >
+          <div className="bg-white dark:bg-[#0f172a] rounded-t-3xl sm:rounded-[2.5rem] w-full max-w-[98vw] 2xl:max-w-[1650px] h-full sm:h-[92dvh] shadow-2xl border border-slate-100 dark:border-slate-800 flex flex-col overflow-hidden animate-in slide-in-from-bottom-4 sm:zoom-in-95 duration-200">
             
             {/* Encabezado Fijo del Modal (Línea única compacta en móvil) */}
             <div className="flex items-center justify-between gap-2 border-b border-slate-200 bg-slate-50 px-3 sm:px-6 py-2 sm:py-3.5 dark:border-slate-800 dark:bg-slate-900/60 shrink-0 z-10">
@@ -4620,9 +4636,9 @@ export default function InventarioPage() {
                       value={nombre} 
                       onChange={(e) => { setNombre(e.target.value); setErrores(prev => ({ ...prev, nombre: '' })); }} 
                       placeholder="Ej. Camisa Polo Manga Corta" 
-                      className="w-full p-2 sm:p-3 bg-white dark:bg-[#020617] border border-slate-200 dark:border-slate-700 rounded-xl outline-none font-bold text-xs sm:text-base focus:border-emerald-500 text-slate-900 dark:text-white transition-all shadow-xs" 
+                      className={`w-full p-2 sm:p-3 bg-white dark:bg-[#020617] border rounded-xl outline-none font-bold text-xs sm:text-base text-slate-900 dark:text-white transition-all shadow-xs ${errores.nombre ? 'border-rose-500 ring-2 ring-rose-500/30 bg-rose-50/20' : 'border-slate-200 dark:border-slate-700 focus:border-emerald-500'}`} 
                     />
-                    {errores.nombre && <p className="mt-0.5 text-[10px] sm:text-[11px] text-rose-500 font-medium">{errores.nombre}</p>}
+                    {errores.nombre && <p className="mt-0.5 text-[10px] sm:text-[11px] text-rose-500 font-bold flex items-center gap-1">⚠️ {errores.nombre}</p>}
                     
                     {/* Detector de productos similares para evitar duplicados */}
                     {!editandoId && nombre.trim().length >= 2 && (
@@ -4755,7 +4771,7 @@ export default function InventarioPage() {
                       Categoría
                     </label>
                     <div className="relative">
-                      <div className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white p-0.5 sm:p-1 shadow-xs transition-all focus-within:border-emerald-500 dark:border-slate-700 dark:bg-[#020617]">
+                      <div className={`flex items-center gap-2 rounded-xl border ${errores.categoria ? 'border-rose-500 ring-2 ring-rose-500/30 bg-rose-50/20' : 'border-slate-200 dark:border-slate-700 focus-within:border-emerald-500'} bg-white p-0.5 sm:p-1 shadow-xs transition-all dark:bg-[#020617]`}>
                         <input
                           value={categoria}
                           onFocus={() => setCategoriaFoco(true)}
@@ -4874,7 +4890,7 @@ export default function InventarioPage() {
                         </div>
                       )}
                     </div>
-                    {errores.categoria && <p className="mt-1 text-[11px] text-rose-500 font-medium">{errores.categoria}</p>}
+                    {errores.categoria && <p className="mt-1 text-[11px] text-rose-500 font-bold flex items-center gap-1">⚠️ {errores.categoria}</p>}
                   </div>
 
                   {/* Fila 4 (Móvil): Tipo, Stock y Precio en 3 columnas compactas sin scroll */}
@@ -4920,13 +4936,14 @@ export default function InventarioPage() {
                             setErrores(prev => ({ ...prev, stock: '' })); 
                           }} 
                           placeholder="0" 
-                          className="w-full p-1.5 bg-white dark:bg-[#020617] border border-slate-200 dark:border-slate-700 rounded-lg outline-none font-black text-xs focus:border-emerald-500 text-slate-900 dark:text-white" 
+                          className={`w-full p-1.5 bg-white dark:bg-[#020617] border rounded-lg outline-none font-black text-xs text-slate-900 dark:text-white transition-colors ${errores.stock ? 'border-rose-500 ring-1 ring-rose-500 bg-rose-50/20' : 'border-slate-200 dark:border-slate-700 focus:border-emerald-500'}`} 
                         />
                       ) : (
                         <div className="w-full p-1.5 bg-indigo-50 dark:bg-indigo-950/30 border border-indigo-200 dark:border-indigo-900/50 rounded-lg text-center">
                           <span className="text-indigo-600 dark:text-indigo-300 font-bold text-[10px]">Ilimitado</span>
                         </div>
                       )}
+                      {errores.stock && <p className="text-[9px] text-rose-500 font-bold leading-tight mt-0.5">⚠️ Requerido</p>}
                     </div>
 
                     {/* Precio Venta */}
@@ -4943,8 +4960,9 @@ export default function InventarioPage() {
                           setErrores(prev => ({ ...prev, precio: '' })); 
                         }} 
                         placeholder="$0" 
-                        className="w-full p-1.5 bg-white dark:bg-[#020617] border border-slate-200 dark:border-slate-700 rounded-lg outline-none font-black text-xs focus:border-emerald-500 text-slate-900 dark:text-white" 
+                        className={`w-full p-1.5 bg-white dark:bg-[#020617] border rounded-lg outline-none font-black text-xs text-slate-900 dark:text-white transition-colors ${errores.precio ? 'border-rose-500 ring-1 ring-rose-500 bg-rose-50/20' : 'border-slate-200 dark:border-slate-700 focus:border-emerald-500'}`} 
                       />
+                      {errores.precio && <p className="text-[9px] text-rose-500 font-bold leading-tight mt-0.5">⚠️ Requerido</p>}
                     </div>
                   </div>
 
@@ -5013,9 +5031,9 @@ export default function InventarioPage() {
                               setErrores(prev => ({ ...prev, stock: '' })); 
                             }} 
                             placeholder="0" 
-                            className="w-full p-2.5 sm:p-3 bg-white dark:bg-[#020617] border border-slate-200 dark:border-slate-700 rounded-xl outline-none font-black text-sm sm:text-base focus:border-emerald-500 text-slate-900 dark:text-white" 
+                            className={`w-full p-2.5 sm:p-3 bg-white dark:bg-[#020617] border rounded-xl outline-none font-black text-sm sm:text-base text-slate-900 dark:text-white ${errores.stock ? 'border-rose-500 ring-2 ring-rose-500/30 bg-rose-50/20' : 'border-slate-200 dark:border-slate-700 focus:border-emerald-500'}`} 
                           />
-                          {errores.stock && <p className="mt-1 text-[11px] text-rose-500 font-medium">{errores.stock}</p>}
+                          {errores.stock && <p className="mt-1 text-[11px] text-rose-500 font-bold flex items-center gap-1">⚠️ {errores.stock}</p>}
                         </div>
                       ) : (
                         <div className="rounded-2xl border border-dashed border-indigo-200 bg-indigo-50/60 dark:border-indigo-900/50 dark:bg-indigo-950/20 p-3 flex flex-col justify-center">
@@ -5037,9 +5055,9 @@ export default function InventarioPage() {
                             setErrores(prev => ({ ...prev, precio: '' })); 
                           }} 
                           placeholder="$0" 
-                          className="w-full p-2.5 sm:p-3 bg-white dark:bg-[#020617] border border-slate-200 dark:border-slate-700 rounded-xl outline-none font-black text-sm sm:text-base focus:border-emerald-500 text-slate-900 dark:text-white" 
+                          className={`w-full p-2.5 sm:p-3 bg-white dark:bg-[#020617] border rounded-xl outline-none font-black text-sm sm:text-base text-slate-900 dark:text-white ${errores.precio ? 'border-rose-500 ring-2 ring-rose-500/30 bg-rose-50/20' : 'border-slate-200 dark:border-slate-700 focus:border-emerald-500'}`} 
                         />
-                        {errores.precio && <p className="mt-1 text-[11px] text-rose-500 font-medium">{errores.precio}</p>}
+                        {errores.precio && <p className="mt-1 text-[11px] text-rose-500 font-bold flex items-center gap-1">⚠️ {errores.precio}</p>}
                       </div>
                     </div>
                   </div>
@@ -5290,9 +5308,9 @@ export default function InventarioPage() {
         document.body
       )}
 
-      {/* MODAL DE CONFIRMACIÓN PARA DESCARTAR CARGA DE PRODUCTOS */}
-      {modalConfirmarDescarteCarga && (
-        <div className="fixed inset-0 bg-black/85 backdrop-blur-md flex items-center justify-center p-4 z-[1060] animate-in zoom-in-95 duration-200">
+      {/* MODAL DE CONFIRMACIÓN PARA DESCARTAR CARGA DE PRODUCTOS (PORTAL CON Z-INDEX MÁXIMO) */}
+      {modalConfirmarDescarteCarga && mounted && createPortal(
+        <div className="fixed inset-0 bg-black/85 backdrop-blur-md flex items-center justify-center p-4 z-[100050] animate-in zoom-in-95 duration-200">
           <div className="bg-white dark:bg-[#0f172a] rounded-3xl w-full max-w-sm border border-rose-200 dark:border-rose-900/50 p-6 text-center space-y-4 shadow-2xl">
             <div className="w-12 h-12 rounded-2xl bg-rose-100 dark:bg-rose-500/20 text-rose-600 dark:text-rose-400 flex items-center justify-center mx-auto">
               <AlertTriangle size={24} />
@@ -5320,7 +5338,8 @@ export default function InventarioPage() {
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* MODAL CONFIRMAR ELIMINACIÓN DE PRODUCTO */}

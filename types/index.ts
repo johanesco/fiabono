@@ -141,10 +141,10 @@ export type TipoMetodoPago = 'efectivo' | 'transferencia' | 'datafono' | 'credit
 
 export interface Movimiento {
   id: string;
-  clienteId: string;
+  clienteId?: string;
   clienteNombre?: string;
   usuarioId: string;
-  tipo: 'fiado' | 'abono' | 'venta' | 'egreso' | 'entrega_separe';
+  tipo: 'fiado' | 'abono' | 'venta' | 'egreso' | 'entrega_separe' | 'ingreso_inventario';
   subtipo?: string;
   origen?: string;
   monto: number;
@@ -165,6 +165,9 @@ export interface Movimiento {
   montoDescuento?: number;
   separeId?: string;
   idSepareOrigen?: string;
+  idProducto?: string;
+  nombreProducto?: string;
+  cantidadAgregada?: number;
 }
 
 export interface DatosSesionContext {

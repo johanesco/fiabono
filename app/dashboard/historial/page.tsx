@@ -25,12 +25,13 @@ export default function HistorialPage() {
   const nombreNegocio = datosSesion?.nombreNegocio;
   const puedeVerReportes = datosSesion?.rol !== 'cajero' || datosSesion?.permisos?.verReportes === true;
   const puedeSepare = datosSesion?.puedeSepare;
+  const esAdmin = datosSesion?.rol !== 'cajero';
 
   const [clientes, setClientes] = useState<Cliente[]>([]);
   const [todosMovimientos, setTodosMovimientos] = useState<Movimiento[]>([]);
   const [busquedaHistorial, setBusquedaHistorial] = useState("");
   const [filtroTiempoHistorial, setFiltroTiempoHistorial] = useState<'hoy' | 'semana' | 'mes' | 'todos'>('hoy');
-  const [filtroTipoHistorial, setFiltroTipoHistorial] = useState<'todos' | 'venta' | 'abono' | 'fiado'>('todos');
+  const [filtroTipoHistorial, setFiltroTipoHistorial] = useState<'todos' | 'venta' | 'abono' | 'fiado' | 'ingreso_inventario'>('todos');
   
   const [ultimoDocSnapshot, setUltimoDocSnapshot] = useState<any>(null);
   const [hayMasMovimientos, setHayMasMovimientos] = useState(false);
@@ -121,6 +122,8 @@ export default function HistorialPage() {
   };
 
   const abrirTicketDeMovimiento = (mov: Movimiento) => {
+    if (mov.tipo === 'ingreso_inventario') return;
+
     const clienteEncontrado = clientes.find(c => c.id === mov.clienteId);
     const nombreCli = mov.clienteId === 'mostrador' ? 'Venta de Mostrador' : (clienteEncontrado?.nombre || 'Cliente');
     const celularCli = clienteEncontrado?.celular || '';
@@ -137,7 +140,7 @@ export default function HistorialPage() {
       celularCliente: celularCli,
       registradoPor: mov.registradoPor || '',
       fecha: mov.fecha,
-      tipo: mov.tipo,
+      tipo: mov.tipo as any,
       detalles: mov.detalles && mov.detalles.length > 0 ? mov.detalles : undefined,
       descripcionGeneral: mov.descripcion,
       montoTotal: mov.monto,
@@ -153,12 +156,15 @@ export default function HistorialPage() {
     setModalTicketFactura({ visible: true, datos: datosTicket });
   };
 
-  const getNombreCliente = (id: string) => {
+  const getNombreCliente = (id?: string, tipo?: string) => {
+    if (tipo === 'ingreso_inventario') return 'Entrada de Mercancía';
+    if (!id) return 'Entrada de Stock';
     if (id === 'mostrador') return 'Venta de Mostrador';
     return clientes.find(c => c.id === id)?.nombre || "Cliente Eliminado";
   };
 
-  const abrirHistorialCliente = async (clienteId: string) => {
+  const abrirHistorialCliente = async (clienteId?: string) => {
+    if (!clienteId) return;
     if (clienteId === 'mostrador') {
       setModalMostrador(true);
       return;
@@ -306,13 +312,21 @@ Quedamos pendientes para revisar detalles o responder cualquier duda.
   const historialFiltrado = todosMovimientos.filter(mov => {
     const filtroForzado = (!puedeVerReportes || planActual === 'basico') ? 'hoy' : filtroTiempoHistorial;
     
+    // Regla de privacidad: Movimientos de inventario solo son visibles para el Administrador
+    if (!esAdmin && mov.tipo === 'ingreso_inventario') return false;
+
+    const esIngresoInv = mov.tipo === 'ingreso_inventario';
     const clienteMov = clientes.find(c => c.id === mov.clienteId);
-    const nombreCliente = clienteMov?.nombre || (mov.clienteId === 'mostrador' ? 'Venta de Mostrador' : 'Cliente Eliminado');
+    const nombreCliente = esIngresoInv 
+      ? 'Entrada de Mercancía' 
+      : (clienteMov?.nombre || (mov.clienteId === 'mostrador' ? 'Venta de Mostrador' : 'Cliente Eliminado'));
     const celularCliente = clienteMov?.celular || '';
     
     const matchBusqueda = 
       nombreCliente.toLowerCase().includes(busquedaHistorial.toLowerCase()) ||
-      celularCliente.toString().includes(busquedaHistorial);
+      celularCliente.toString().includes(busquedaHistorial) ||
+      Boolean(mov.nombreProducto && mov.nombreProducto.toLowerCase().includes(busquedaHistorial.toLowerCase())) ||
+      Boolean(mov.descripcion && mov.descripcion.toLowerCase().includes(busquedaHistorial.toLowerCase()));
 
     if (busquedaHistorial && !matchBusqueda) return false;
     if (filtroTipoHistorial !== 'todos' && mov.tipo !== filtroTipoHistorial) return false;
@@ -371,9 +385,17 @@ Quedamos pendientes para revisar detalles o responder cualquier duda.
             </div>
           )}
           <div className="flex flex-wrap gap-2 w-full mt-1">
-            {['todos', 'venta', 'abono', 'fiado'].map((tipo) => (
-              <button key={tipo} onClick={() => setFiltroTipoHistorial(tipo as any)} className={`flex-1 text-xs sm:text-sm font-bold py-3 rounded-xl transition-all ${filtroTipoHistorial === tipo ? 'bg-slate-800 text-white dark:bg-slate-200 dark:text-slate-900 shadow-sm' : 'bg-white dark:bg-[#020617] text-slate-500 border border-slate-200 dark:border-slate-800/80'}`}>
-                {tipo.toUpperCase()}
+            {(esAdmin ? ['todos', 'venta', 'abono', 'fiado', 'ingreso_inventario'] : ['todos', 'venta', 'abono', 'fiado']).map((tipo) => (
+              <button 
+                key={tipo} 
+                onClick={() => setFiltroTipoHistorial(tipo as any)} 
+                className={`flex-1 min-w-[75px] text-xs sm:text-sm font-bold py-2.5 sm:py-3 rounded-xl transition-all ${
+                  filtroTipoHistorial === tipo 
+                    ? (tipo === 'ingreso_inventario' ? 'bg-sky-600 text-white shadow-sm' : 'bg-slate-800 text-white dark:bg-slate-200 dark:text-slate-900 shadow-sm') 
+                    : 'bg-white dark:bg-[#020617] text-slate-500 border border-slate-200 dark:border-slate-800/80'
+                }`}
+              >
+                {tipo === 'ingreso_inventario' ? '📦 INVENTARIO' : tipo.toUpperCase()}
               </button>
             ))}
           </div>
@@ -384,52 +406,91 @@ Quedamos pendientes para revisar detalles o responder cualquier duda.
         
         {/* VISTA MÓVIL */}
         <div className="md:hidden">
-          {historialFiltrado.map((mov) => (
-            <div 
-              key={mov.id} 
-              onClick={() => abrirHistorialCliente(mov.clienteId)} 
-              className="p-5 mx-2 my-3 rounded-2xl flex flex-col gap-3 bg-white dark:bg-[#0f172a] border border-slate-100 dark:border-slate-800/60 shadow-sm relative cursor-pointer hover:border-slate-300 dark:hover:border-slate-600 transition-colors active:scale-[0.98]"
-            >
-              <div className={`absolute left-0 top-0 bottom-0 w-1.5 ${mov.tipo === 'fiado' ? 'bg-rose-500' : (mov.tipo === 'venta' ? 'bg-emerald-500' : 'bg-blue-500')}`}></div>
-              <div className="flex justify-between items-start gap-3 pl-2">
-                <div className="flex flex-col min-w-0 flex-1">
-                  <p className="font-bold text-lg text-slate-900 dark:text-slate-200 truncate">{getNombreCliente(mov.clienteId)}</p>
-                  <p className="text-sm text-slate-500 dark:text-slate-400 truncate mt-0.5">{mov.descripcion}</p>
-                  
-                  <div className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5 mt-2 text-[10px] font-bold uppercase">
-                    {mov.registradoPor && (
-                      <span className="text-slate-500 dark:text-slate-400 whitespace-nowrap">
-                        👤 {mov.registradoPor}
-                      </span>
+          {historialFiltrado.map((mov) => {
+            const esIngresoInv = mov.tipo === 'ingreso_inventario';
+
+            return (
+              <div 
+                key={mov.id} 
+                onClick={() => {
+                  if (esIngresoInv) {
+                    toast(`Entrada de inventario: +${mov.cantidadAgregada || 1} un. de ${mov.nombreProducto || 'producto'}`, { icon: '📦' });
+                    return;
+                  }
+                  abrirHistorialCliente(mov.clienteId);
+                }} 
+                className="p-5 mx-2 my-3 rounded-2xl flex flex-col gap-3 bg-white dark:bg-[#0f172a] border border-slate-100 dark:border-slate-800/60 shadow-sm relative cursor-pointer hover:border-slate-300 dark:hover:border-slate-600 transition-colors active:scale-[0.98]"
+              >
+                <div className={`absolute left-0 top-0 bottom-0 w-1.5 ${
+                  esIngresoInv ? 'bg-sky-500' :
+                  mov.tipo === 'fiado' ? 'bg-rose-500' : 
+                  (mov.tipo === 'venta' ? 'bg-emerald-500' : 'bg-blue-500')
+                }`}></div>
+                <div className="flex justify-between items-start gap-3 pl-2">
+                  <div className="flex flex-col min-w-0 flex-1">
+                    {esIngresoInv ? (
+                      <div className="flex items-center gap-1.5 min-w-0">
+                        <span className="px-1.5 py-0.5 rounded-md bg-sky-100 text-sky-700 dark:bg-sky-950/50 dark:text-sky-300 text-[10px] font-black shrink-0">
+                          📦 INVENTARIO
+                        </span>
+                        <p className="font-bold text-base text-slate-900 dark:text-slate-200 truncate">
+                          {mov.nombreProducto || 'Recepción de Mercancía'}
+                        </p>
+                      </div>
+                    ) : (
+                      <p className="font-bold text-lg text-slate-900 dark:text-slate-200 truncate">{getNombreCliente(mov.clienteId, mov.tipo)}</p>
                     )}
-                    {mov.registradoPor && <span className="text-slate-300 dark:text-slate-600 whitespace-nowrap">•</span>}
-                    <span className="text-slate-400 whitespace-nowrap">
-                      {mov.fecha?.toDate ? mov.fecha.toDate().toLocaleDateString('es-CO', { day:'2-digit', month:'short', hour:'2-digit', minute:'2-digit' }) : (mov.fecha instanceof Date ? mov.fecha.toLocaleDateString('es-CO', { day:'2-digit', month:'short', hour:'2-digit', minute:'2-digit' }) : '')}
+                    <p className="text-sm text-slate-500 dark:text-slate-400 truncate mt-0.5">{mov.descripcion}</p>
+                    
+                    <div className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5 mt-2 text-[10px] font-bold uppercase">
+                      {mov.registradoPor && (
+                        <span className="text-slate-500 dark:text-slate-400 whitespace-nowrap">
+                          👤 {esIngresoInv ? `Recibido: ${mov.registradoPor}` : mov.registradoPor}
+                        </span>
+                      )}
+                      {mov.registradoPor && <span className="text-slate-300 dark:text-slate-600 whitespace-nowrap">•</span>}
+                      <span className="text-slate-400 whitespace-nowrap">
+                        {mov.fecha?.toDate ? mov.fecha.toDate().toLocaleDateString('es-CO', { day:'2-digit', month:'short', hour:'2-digit', minute:'2-digit' }) : (mov.fecha instanceof Date ? mov.fecha.toLocaleDateString('es-CO', { day:'2-digit', month:'short', hour:'2-digit', minute:'2-digit' }) : '')}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="flex flex-col items-end gap-1.5 shrink-0">
+                    <div className="flex items-center gap-2">
+                      {!esIngresoInv && (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            abrirTicketDeMovimiento(mov);
+                          }}
+                          title="Imprimir Factura / Ticket"
+                          className="p-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-blue-50 dark:hover:bg-blue-500/20 hover:text-blue-600 dark:hover:text-blue-400 transition-colors cursor-pointer"
+                        >
+                          <Printer size={15} />
+                        </button>
+                      )}
+                      {esIngresoInv ? (
+                        <span className="font-black text-sm text-sky-600 dark:text-sky-400 px-2 py-1 bg-sky-50 dark:bg-sky-950/40 rounded-xl">
+                          +{mov.cantidadAgregada || 1} un.
+                        </span>
+                      ) : (
+                        <p className={`font-black text-xl text-right ${mov.tipo === 'fiado' ? 'text-rose-500' : (mov.tipo === 'venta' ? 'text-emerald-500' : 'text-blue-500')}`}>
+                          {mov.tipo === 'fiado' ? '-' : '+'}${mov.monto.toLocaleString('es-CO')}
+                        </p>
+                      )}
+                    </div>
+                    <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded-md ${
+                      esIngresoInv ? 'bg-sky-100 text-sky-700 dark:bg-sky-950/40 dark:text-sky-300' :
+                      mov.tipo === 'fiado' ? 'bg-rose-100 text-rose-700 dark:bg-rose-500/20 dark:text-rose-300' : 
+                      (mov.tipo === 'venta' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300' : 'bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-300')
+                    }`}>
+                      {esIngresoInv ? '+STOCK' : mov.tipo}
                     </span>
                   </div>
                 </div>
-                <div className="flex flex-col items-end gap-1.5 shrink-0">
-                  <div className="flex items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        abrirTicketDeMovimiento(mov);
-                      }}
-                      title="Imprimir Factura / Ticket"
-                      className="p-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-blue-50 dark:hover:bg-blue-500/20 hover:text-blue-600 dark:hover:text-blue-400 transition-colors cursor-pointer"
-                    >
-                      <Printer size={15} />
-                    </button>
-                    <p className={`font-black text-xl text-right ${mov.tipo === 'fiado' ? 'text-rose-500' : (mov.tipo === 'venta' ? 'text-emerald-500' : 'text-blue-500')}`}>
-                      {mov.tipo === 'fiado' ? '-' : '+'}${mov.monto.toLocaleString('es-CO')}
-                    </p>
-                  </div>
-                  <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded-md ${mov.tipo === 'fiado' ? 'bg-rose-100 text-rose-700 dark:bg-rose-500/20 dark:text-rose-300' : (mov.tipo === 'venta' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300' : 'bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-300')}`}>{mov.tipo}</span>
-                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
 
         {/* VISTA ESCRITORIO */}
@@ -570,7 +631,7 @@ Quedamos pendientes para revisar detalles o responder cualquier duda.
                 <div className="flex items-center justify-between gap-2 min-w-0">
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-1.5 min-w-0">
-                      <h2 className="text-base font-black text-slate-900 dark:text-white truncate">{clienteActivo.nombre}</h2>
+                      <h2 className="text-lg font-black text-slate-900 dark:text-white truncate tracking-tight">{clienteActivo.nombre}</h2>
                       {datosSesion?.rol !== 'cajero' && (
                         <div className="flex items-center gap-1 shrink-0">
                           <button
@@ -677,16 +738,19 @@ Quedamos pendientes para revisar detalles o responder cualquier duda.
                       Separe
                     </button>
                   )}
-                  {clienteActivo.celular && datosSesion?.rol !== 'cajero' && (
-                    <button 
-                      onClick={() => abrirWhatsApp(generarTextoComprobante('estado', clienteActivo), clienteActivo.celular)} 
-                      title="Enviar estado de cuenta por WhatsApp"
-                      className="p-1.5 bg-[#25D366]/15 hover:bg-[#25D366]/25 text-[#1ebd5a] dark:text-[#25D366] font-bold rounded-lg border border-[#25D366]/30 transition active:scale-95 cursor-pointer shrink-0"
-                    >
-                      <MessageCircle size={16} />
-                    </button>
-                  )}
                 </div>
+
+                {/* Fila 4: Botón de WhatsApp con texto visible y claro */}
+                {clienteActivo.celular && datosSesion?.rol !== 'cajero' && (
+                  <button 
+                    type="button"
+                    onClick={() => abrirWhatsApp(generarTextoComprobante('estado', clienteActivo), clienteActivo.celular)} 
+                    className="w-full py-1.5 px-3 bg-[#25D366]/15 hover:bg-[#25D366]/25 text-[#128C7E] dark:text-[#25D366] font-bold rounded-xl border border-[#25D366]/40 transition active:scale-98 cursor-pointer flex items-center justify-center gap-1.5 text-xs shadow-xs"
+                  >
+                    <MessageCircle size={14} className="text-[#25D366] fill-[#25D366]/30" />
+                    <span>Enviar estado de cuenta por WhatsApp</span>
+                  </button>
+                )}
               </div>
 
               {/* HISTORIAL INTERNO DEL PERFIL */}

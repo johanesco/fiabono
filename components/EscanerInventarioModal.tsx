@@ -183,9 +183,10 @@ export default function EscanerInventarioModal({
 
   const handleCerrarYVolverAlFormulario = async (codigoOpcional?: string) => {
     await detenerCamaraCompleta();
-    onClose();
     if (onVolverAlFormulario) {
       onVolverAlFormulario(codigoOpcional);
+    } else {
+      onClose();
     }
   };
 
