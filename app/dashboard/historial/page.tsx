@@ -453,14 +453,16 @@ Quedamos pendientes para revisar detalles o responder cualquier duda.
                         </p>
                       </div>
                     ) : (
-                      <p className="font-bold text-lg text-slate-900 dark:text-slate-200 truncate">{getNombreCliente(mov.clienteId, mov.tipo)}</p>
+                      <>
+                        <p className="font-bold text-lg text-slate-900 dark:text-slate-200 truncate">{getNombreCliente(mov.clienteId, mov.tipo)}</p>
+                        <p className="text-sm text-slate-500 dark:text-slate-400 truncate mt-0.5">{mov.descripcion}</p>
+                      </>
                     )}
-                    <p className="text-sm text-slate-500 dark:text-slate-400 truncate mt-0.5">{mov.descripcion}</p>
                     
                     <div className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5 mt-2 text-[10px] font-bold uppercase">
                       {mov.registradoPor && (
                         <span className="text-slate-500 dark:text-slate-400 whitespace-nowrap">
-                          👤 {esIngresoInv ? `Recibido: ${mov.registradoPor}` : mov.registradoPor}
+                          👤 {esIngresoInv ? `Inventariado: ${mov.registradoPor}` : mov.registradoPor}
                         </span>
                       )}
                       {mov.registradoPor && <span className="text-slate-300 dark:text-slate-600 whitespace-nowrap">•</span>}
@@ -658,10 +660,13 @@ Quedamos pendientes para revisar detalles o responder cualquier duda.
                   <X size={18} />
                 </button>
 
-                {/* Fila 1: Nombre del cliente centrado + opciones de edición */}
-                <div className="pt-1 px-8 text-center">
+                {/* Fila 1: Nombre del cliente centrado + badge distinguido + opciones de edición */}
+                <div className="pt-1 px-6 text-center">
+                  <span className="inline-flex items-center gap-1 text-[10px] font-black uppercase tracking-widest text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/50 px-2.5 py-0.5 rounded-full mb-1">
+                    👤 CLIENTE
+                  </span>
                   <div className="flex items-center justify-center gap-2 flex-wrap">
-                    <h2 className="text-2xl font-black text-slate-900 dark:text-white tracking-tight leading-snug break-words">
+                    <h2 className="text-[26px] sm:text-3xl font-black text-slate-900 dark:text-white tracking-tight leading-tight break-words">
                       {clienteActivo.nombre}
                     </h2>
                     {datosSesion?.rol !== 'cajero' && (
@@ -685,7 +690,7 @@ Quedamos pendientes para revisar detalles o responder cualquier duda.
                       </div>
                     )}
                   </div>
-                  <p className="text-slate-500 dark:text-slate-400 text-xs font-medium mt-1">
+                  <p className="text-slate-500 dark:text-slate-400 text-xs font-semibold mt-1">
                     {clienteActivo.celular ? `📱 ${clienteActivo.celular}` : "Sin celular registrado"}
                   </p>
                 </div>

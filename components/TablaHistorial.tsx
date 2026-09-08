@@ -66,7 +66,11 @@ export default function TablaHistorial({ movimientos, getNombreCliente, onRowCli
                 </td>
                 <td className="p-6 text-slate-600 dark:text-slate-300">
                   <div className="truncate max-w-[200px] xl:max-w-[300px]">
-                    {esIngresoInv ? ((mov as any).nombreProducto ? `${(mov as any).nombreProducto} • ${mov.descripcion}` : mov.descripcion) : mov.descripcion}
+                    {esIngresoInv ? (
+                      <span className="font-bold text-slate-800 dark:text-slate-200">
+                        {(mov as any).nombreProducto || 'Recepción de Mercancía'}
+                      </span>
+                    ) : mov.descripcion}
                   </div>
                 </td>
                 <td className="p-6">

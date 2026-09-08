@@ -86,7 +86,12 @@ export default function TicketFacturaModal({ isOpen, onClose, datos }: TicketFac
   };
 
   const manejarImprimir = () => {
-    window.print();
+    // Breve delay con requestAnimationFrame para asegurar que el DOM esté listo antes de abrir el diálogo de impresión nativo
+    requestAnimationFrame(() => {
+      setTimeout(() => {
+        window.print();
+      }, 50);
+    });
   };
 
   const getTituloTipo = () => {
@@ -105,26 +110,72 @@ export default function TicketFacturaModal({ isOpen, onClose, datos }: TicketFac
       {/* ESTILOS DE IMPRESIÓN EXCLUSIVOS PARA IMPRESORAS POS / TÉRMICAS (80mm / 58mm) */}
       <style jsx global>{`
         @media print {
-          body * {
-            visibility: hidden !important;
+          html, body {
+            background: #ffffff !important;
+            color: #000000 !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            width: 100% !important;
+            height: auto !important;
+            overflow: visible !important;
           }
-          #seccion-ticket-impresion, #seccion-ticket-impresion * {
-            visibility: visible !important;
+          body > * {
+            display: none !important;
+          }
+          /* Mostrar únicamente el contenedor del modal donde reside el ticket */
+          body > .ticket-print-portal {
+            display: block !important;
+            position: absolute !important;
+            left: 0 !important;
+            top: 0 !important;
+            width: 100% !important;
+            height: auto !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            background: transparent !important;
+          }
+          .ticket-print-portal > div {
+            background: transparent !important;
+            backdrop-filter: none !important;
+            padding: 0 !important;
+            margin: 0 !important;
+            position: static !important;
+            height: auto !important;
+            display: block !important;
+          }
+          .ticket-print-modal-card {
+            background: transparent !important;
+            border: none !important;
+            box-shadow: none !important;
+            padding: 0 !important;
+            margin: 0 !important;
+            max-width: 100% !important;
+            height: auto !important;
+            overflow: visible !important;
+          }
+          /* Ocultar header y footer del modal en la impresión */
+          .ticket-print-hide {
+            display: none !important;
           }
           #seccion-ticket-impresion {
+            display: block !important;
+            visibility: visible !important;
             position: absolute !important;
             left: 0 !important;
             top: 0 !important;
             width: 100% !important;
             max-width: 80mm !important;
-            margin: 0 !important;
-            padding: 3mm 4mm !important;
+            margin: 0 auto !important;
+            padding: 2mm 3mm !important;
             background: #ffffff !important;
             color: #000000 !important;
             font-size: 11px !important;
             line-height: 1.25 !important;
             box-shadow: none !important;
             border: none !important;
+          }
+          #seccion-ticket-impresion * {
+            visibility: visible !important;
           }
           @page {
             margin: 0;
@@ -134,11 +185,11 @@ export default function TicketFacturaModal({ isOpen, onClose, datos }: TicketFac
       `}</style>
 
       {/* MODAL EN PANTALLA (SIEMPRE EN PRIMER PLANO ABSOLUTO) */}
-      <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-md flex items-center justify-center p-2 sm:p-4 z-[999999] animate-in fade-in duration-200">
-        <div className="bg-white dark:bg-[#0f172a] rounded-3xl sm:rounded-[2rem] w-full max-w-lg shadow-2xl border border-slate-100 dark:border-slate-800 flex flex-col h-[80dvh] sm:h-auto sm:max-h-[86dvh] overflow-hidden my-auto">
+      <div className="ticket-print-portal fixed inset-0 bg-slate-900/80 backdrop-blur-md flex items-center justify-center p-2 sm:p-4 z-[999999] animate-in fade-in duration-200">
+        <div className="ticket-print-modal-card bg-white dark:bg-[#0f172a] rounded-3xl sm:rounded-[2rem] w-full max-w-lg shadow-2xl border border-slate-100 dark:border-slate-800 flex flex-col h-[80dvh] sm:h-auto sm:max-h-[86dvh] overflow-hidden my-auto">
           
           {/* HEADER DEL MODAL */}
-          <div className="p-3 sm:p-4 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center bg-slate-50 dark:bg-slate-900/60 shrink-0">
+          <div className="ticket-print-hide p-3 sm:p-4 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center bg-slate-50 dark:bg-slate-900/60 shrink-0">
             <div className="flex items-center gap-2">
               <div className="p-1.5 sm:p-2 bg-blue-100 dark:bg-blue-500/20 text-blue-600 dark:text-blue-400 rounded-xl">
                 <Receipt size={18} className="sm:w-5 sm:h-5" />
@@ -436,7 +487,7 @@ export default function TicketFacturaModal({ isOpen, onClose, datos }: TicketFac
           </div>
 
           {/* BOTONES DE ACCIÓN */}
-          <div className="p-3 sm:p-4 border-t border-slate-100 dark:border-slate-800 bg-white dark:bg-[#0f172a] flex gap-2 sm:gap-3 shrink-0">
+          <div className="ticket-print-hide p-3 sm:p-4 border-t border-slate-100 dark:border-slate-800 bg-white dark:bg-[#0f172a] flex gap-2 sm:gap-3 shrink-0">
             <button
               type="button"
               onClick={onClose}

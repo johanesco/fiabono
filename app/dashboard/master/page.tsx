@@ -6,7 +6,7 @@ import { db } from "../../../firebase";
 import { useAuth } from "@/hooks/AuthContext";
 import toast from "react-hot-toast";
 import { customConfirm } from "@/utils/customConfirm";
-import { Crown, Search, Edit2, ShieldAlert, CheckCircle2, Ticket, X, Calendar, Plus, Trash2, Power, Users, Phone } from 'lucide-react';
+import { Crown, Search, Edit2, ShieldAlert, CheckCircle2, Ticket, X, Calendar, Plus, Trash2, Power, Users, Phone, MessageCircle } from 'lucide-react';
 
 export default function MasterPage() {
   const { datosSesion } = useAuth();
@@ -242,6 +242,17 @@ export default function MasterPage() {
     }
   };
 
+  const getWhatsAppUrl = (u: any) => {
+    const rawTel = u.telefonoNegocio || u.celular;
+    if (!rawTel) return null;
+    const digitos = rawTel.toString().replace(/\D/g, '');
+    if (!digitos) return null;
+    const telLimpio = digitos.startsWith('57') && digitos.length > 10 ? digitos : `57${digitos}`;
+    const nombre = u.nombreNegocio || u.nombreUsuario || 'Comerciante';
+    const texto = `Hola ${nombre}, te contacto desde la administración de Fiabono. ¿En qué podemos apoyarte hoy?`;
+    return `https://wa.me/${telLimpio}?text=${encodeURIComponent(texto)}`;
+  };
+
   const calcularEstadoPlan = (u: any) => {
     if (u.plan === 'gratis' || !u.planVence) return { label: 'Gratis', color: 'bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300' };
     const timeVence = u.planVence.toDate ? u.planVence.toDate().getTime() : new Date(u.planVence).getTime();
@@ -324,15 +335,27 @@ export default function MasterPage() {
                       <p className="text-slate-600 dark:text-slate-300 truncate">
                         ✉️ {u.email || 'Sin correo'}
                       </p>
-                      {u.telefonoNegocio && (
+                      {(u.telefonoNegocio || u.celular) && (
                         <p className="text-slate-600 dark:text-slate-300">
-                          📱 {u.telefonoNegocio}
+                          📱 {u.telefonoNegocio || u.celular}
                         </p>
                       )}
                     </div>
 
                     {/* Botones de acción táctiles para móvil */}
                     <div className="flex items-center gap-2 pt-1">
+                      {getWhatsAppUrl(u) && (
+                        <a
+                          href={getWhatsAppUrl(u)!}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="py-2 px-2.5 bg-[#25D366]/15 hover:bg-[#25D366]/25 text-[#128C7E] dark:text-[#25D366] font-black rounded-xl text-xs flex items-center justify-center gap-1.5 border border-[#25D366]/30 transition active:scale-98 shrink-0"
+                          title="Escribir por WhatsApp"
+                        >
+                          <MessageCircle size={15} className="text-[#25D366] fill-[#25D366]/30" />
+                          <span>WhatsApp</span>
+                        </a>
+                      )}
                       <button 
                         onClick={() => verCajeros(u.id, u.nombreNegocio || u.nombreUsuario)}
                         className="flex-1 py-2 px-3 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-black rounded-xl text-xs flex items-center justify-center gap-1.5 transition active:scale-98 cursor-pointer"
@@ -392,7 +415,7 @@ export default function MasterPage() {
                         <td className="p-4">
                           <p className="font-bold text-slate-700 dark:text-slate-300">{u.nombreUsuario}</p>
                           <p className="text-xs text-slate-500 font-medium">{u.email}</p>
-                          <p className="text-xs text-slate-500 font-medium">{u.telefonoNegocio}</p>
+                          <p className="text-xs text-slate-500 font-medium">{u.telefonoNegocio || u.celular}</p>
                         </td>
                         <td className="p-4">
                           <span className={`px-3 py-1 rounded-lg text-[10px] font-black uppercase ${isPro ? 'bg-purple-100 text-purple-700 dark:bg-purple-500/20 dark:text-purple-400' : (u.plan==='comercio' ? 'bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-400' : 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400')}`}>
@@ -406,6 +429,18 @@ export default function MasterPage() {
                         </td>
                         <td className="p-4 text-right">
                           <div className="flex justify-end gap-2">
+                            {getWhatsAppUrl(u) && (
+                              <a
+                                href={getWhatsAppUrl(u)!}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="px-3 py-2 bg-[#25D366]/15 hover:bg-[#25D366]/25 text-[#128C7E] dark:text-[#25D366] rounded-xl transition-colors font-bold text-xs inline-flex items-center gap-1.5 border border-[#25D366]/30 cursor-pointer"
+                                title="Escribir por WhatsApp"
+                              >
+                                <MessageCircle size={14} className="text-[#25D366] fill-[#25D366]/30" />
+                                <span>WhatsApp</span>
+                              </a>
+                            )}
                             <button 
                               onClick={() => verCajeros(u.id, u.nombreNegocio || u.nombreUsuario)}
                               className="px-3 py-2 bg-slate-100 dark:bg-slate-800 hover:bg-emerald-100 dark:hover:bg-emerald-500/20 text-slate-600 dark:text-slate-400 hover:text-emerald-600 dark:hover:text-emerald-400 rounded-xl transition-colors font-bold text-xs cursor-pointer"
