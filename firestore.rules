@@ -117,15 +117,20 @@ service cloud.firestore {
     }
 
     // Movimientos (Ventas, Gastos, Fiados, Abonos)
+    // Permite lectura pública get (individual por ID) para consultar el comprobante digital /t/[id]
+    // La lista completa (list) sigue protegida y restringida al negocio
     match /movimientos/{movId} {
-      allow read: if estaAutenticado() && perteneceAlNegocio(resource.data);
+      allow get: if true;
+      allow list: if estaAutenticado() && perteneceAlNegocio(resource.data);
       allow create: if estaAutenticado() && (request.resource.data.usuarioId == idCuentaPrincipal() || esMaster());
       allow update, delete: if estaAutenticado() && perteneceAlNegocio(resource.data);
     }
 
     // Planes Separe
+    // Permite lectura pública get (individual por ID) para consultar el comprobante digital /t/[id]
     match /separes/{separeId} {
-      allow read: if estaAutenticado() && perteneceAlNegocio(resource.data);
+      allow get: if true;
+      allow list: if estaAutenticado() && perteneceAlNegocio(resource.data);
       allow create: if estaAutenticado() && (request.resource.data.usuarioId == idCuentaPrincipal() || esMaster());
       allow update, delete: if estaAutenticado() && perteneceAlNegocio(resource.data);
     }
