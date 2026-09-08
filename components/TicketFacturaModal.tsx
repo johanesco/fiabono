@@ -1,5 +1,6 @@
 "use client";
-import React, { useRef, useState } from "react";
+import React, { useRef, useState, useEffect } from "react";
+import { createPortal } from "react-dom";
 import { X, Printer, Receipt, Crown } from "lucide-react";
 import { useAuth } from "@/hooks/AuthContext";
 import ModalUpsellSuscripcion from "./ModalUpsellSuscripcion";
@@ -53,6 +54,11 @@ export default function TicketFacturaModal({ isOpen, onClose, datos }: TicketFac
   const { datosSesion } = useAuth() || {};
   const ticketRef = useRef<HTMLDivElement>(null);
   const [modalUpsell, setModalUpsell] = useState(false);
+  const [montado, setMontado] = useState(false);
+
+  useEffect(() => {
+    setMontado(true);
+  }, []);
 
   if (!isOpen || !datos) return null;
 
@@ -94,7 +100,7 @@ export default function TicketFacturaModal({ isOpen, onClose, datos }: TicketFac
     return 'COMPROBANTE DE CAJA';
   };
 
-  return (
+  const contenidoModal = (
     <>
       {/* ESTILOS DE IMPRESIÓN EXCLUSIVOS PARA IMPRESORAS POS / TÉRMICAS (80mm / 58mm) */}
       <style jsx global>{`
@@ -127,8 +133,8 @@ export default function TicketFacturaModal({ isOpen, onClose, datos }: TicketFac
         }
       `}</style>
 
-      {/* MODAL EN PANTALLA */}
-      <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-md flex items-center justify-center p-2 sm:p-4 z-[9999] animate-in fade-in duration-200">
+      {/* MODAL EN PANTALLA (SIEMPRE EN PRIMER PLANO ABSOLUTO) */}
+      <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-md flex items-center justify-center p-2 sm:p-4 z-[999999] animate-in fade-in duration-200">
         <div className="bg-white dark:bg-[#0f172a] rounded-3xl sm:rounded-[2rem] w-full max-w-lg shadow-2xl border border-slate-100 dark:border-slate-800 flex flex-col h-[80dvh] sm:h-auto sm:max-h-[86dvh] overflow-hidden my-auto">
           
           {/* HEADER DEL MODAL */}
@@ -470,4 +476,10 @@ export default function TicketFacturaModal({ isOpen, onClose, datos }: TicketFac
       />
     </>
   );
+
+  if (montado && typeof document !== "undefined") {
+    return createPortal(contenidoModal, document.body);
+  }
+
+  return contenidoModal;
 }

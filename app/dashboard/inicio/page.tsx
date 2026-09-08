@@ -640,51 +640,50 @@ Quedamos pendientes para revisar detalles o responder cualquier duda.
                   </div>
                 </div>
 
-                {/* HEADER MÓVIL OPTIMIZADO (Nombre prominente, saldo destacado, acciones claras) */}
-                <div className="md:hidden bg-slate-50 dark:bg-[#020617] border-b border-slate-200 dark:border-slate-800 shrink-0 px-4 py-3 space-y-2.5">
-                  {/* Fila 1: Nombre del cliente en fila completa con opciones y botón cerrar */}
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <h2 className="text-2xl font-black text-slate-900 dark:text-white tracking-tight leading-snug break-words">
-                          {clienteActivo.nombre}
-                        </h2>
-                        {datosSesion?.rol !== 'cajero' && (
-                          <div className="flex items-center gap-1 shrink-0">
-                            <button
-                              type="button"
-                              onClick={() => setModalGestionCliente({ visible: true, modo: 'editar', cliente: clienteActivo })}
-                              title="Modificar Cliente"
-                              className="p-1 rounded-lg bg-white dark:bg-slate-800 text-slate-500 hover:text-blue-600 shadow-xs border border-slate-200 dark:border-slate-700 cursor-pointer"
-                            >
-                              <Edit3 size={14} />
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => setModalGestionCliente({ visible: true, modo: 'eliminar', cliente: clienteActivo })}
-                              title="Eliminar Cliente"
-                              className="p-1 rounded-lg bg-white dark:bg-slate-800 text-slate-500 hover:text-rose-600 shadow-xs border border-slate-200 dark:border-slate-700 cursor-pointer"
-                            >
-                              <Trash2 size={14} />
-                            </button>
-                          </div>
-                        )}
-                      </div>
-                      <p className="text-slate-500 dark:text-slate-400 text-xs font-medium mt-0.5">
-                        {clienteActivo.celular ? `📱 ${clienteActivo.celular}` : "Sin celular registrado"}
-                      </p>
-                    </div>
+                {/* HEADER MÓVIL OPTIMIZADO (Nombre centrado y prominente, saldo destacado, acciones claras) */}
+                <div className="md:hidden bg-slate-50 dark:bg-[#020617] border-b border-slate-200 dark:border-slate-800 shrink-0 px-4 py-3 space-y-2.5 relative">
+                  {/* Botón cerrar en esquina superior derecha */}
+                  <button 
+                    onClick={() => {
+                      setVerTodosClientes(false);
+                      setClienteActivo(null);
+                    }} 
+                    className="absolute top-3 right-3 p-2 rounded-full bg-white dark:bg-slate-800 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-700 shadow-xs border border-slate-200 dark:border-slate-700 transition cursor-pointer z-10"
+                    aria-label="Cerrar perfil"
+                  >
+                    <X size={18} />
+                  </button>
 
-                    <button 
-                      onClick={() => {
-                        setVerTodosClientes(false);
-                        setClienteActivo(null);
-                      }} 
-                      className="p-2 rounded-full bg-white dark:bg-slate-800 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-700 shadow-xs border border-slate-200 dark:border-slate-700 transition cursor-pointer shrink-0 mt-0.5"
-                      aria-label="Cerrar perfil"
-                    >
-                      <X size={18} />
-                    </button>
+                  {/* Fila 1: Nombre del cliente centrado + opciones de edición */}
+                  <div className="pt-1 px-8 text-center">
+                    <div className="flex items-center justify-center gap-2 flex-wrap">
+                      <h2 className="text-2xl font-black text-slate-900 dark:text-white tracking-tight leading-snug break-words">
+                        {clienteActivo.nombre}
+                      </h2>
+                      {datosSesion?.rol !== 'cajero' && (
+                        <div className="inline-flex items-center gap-1 shrink-0">
+                          <button
+                            type="button"
+                            onClick={() => setModalGestionCliente({ visible: true, modo: 'editar', cliente: clienteActivo })}
+                            title="Modificar Cliente"
+                            className="p-1 rounded-lg bg-white dark:bg-slate-800 text-slate-500 hover:text-blue-600 shadow-xs border border-slate-200 dark:border-slate-700 cursor-pointer"
+                          >
+                            <Edit3 size={14} />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setModalGestionCliente({ visible: true, modo: 'eliminar', cliente: clienteActivo })}
+                            title="Eliminar Cliente"
+                            className="p-1 rounded-lg bg-white dark:bg-slate-800 text-slate-500 hover:text-rose-600 shadow-xs border border-slate-200 dark:border-slate-700 cursor-pointer"
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                    <p className="text-slate-500 dark:text-slate-400 text-xs font-medium mt-1">
+                      {clienteActivo.celular ? `📱 ${clienteActivo.celular}` : "Sin celular registrado"}
+                    </p>
                   </div>
 
                   {/* Fila 2: Saldo Destacado en tarjeta compacta */}

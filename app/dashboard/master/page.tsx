@@ -100,6 +100,14 @@ export default function MasterPage() {
 
   const guardarCambioPlan = async () => {
     if (!modalPlan.usuario) return;
+    const nombreNeg = modalPlan.usuario.nombreNegocio || modalPlan.usuario.nombreUsuario || 'este negocio';
+    const detalleAccion = formPlan.plan === 'gratis' 
+      ? `¿Confirmas bajar a ${nombreNeg} al PLAN GRATIS? (Se desactivarán los cajeros registrados)`
+      : `¿Confirmas asignar el plan ${formPlan.plan.toUpperCase()} por ${formPlan.dias} días a ${nombreNeg}?`;
+
+    const confirmado = await customConfirm(detalleAccion);
+    if (!confirmado) return;
+
     try {
       if (formPlan.plan === 'gratis') {
         await updateDoc(doc(db, "usuarios", modalPlan.usuario.id), {
@@ -152,6 +160,11 @@ export default function MasterPage() {
     e.preventDefault();
     if (!formBono.codigo.trim()) return;
     
+    const confirmado = await customConfirm(
+      `¿Confirmas crear el código promocional "${formBono.codigo.trim().toUpperCase()}" con ${formBono.diasOtorgados} días de plan ${formBono.planOtorgado.toUpperCase()}?`
+    );
+    if (!confirmado) return;
+
     try {
       await setDoc(doc(db, "codigos_promocionales", formBono.codigo.trim().toUpperCase()), {
         activo: true,
@@ -171,20 +184,29 @@ export default function MasterPage() {
   };
 
   const eliminarBono = async (id: string) => {
-    if (await customConfirm("¿Seguro que deseas eliminar este código?")) {
+    if (await customConfirm(`¿Seguro que deseas ELIMINAR permanentemente el código "${id}"?`)) {
       await deleteDoc(doc(db, "codigos_promocionales", id));
       cargarDatos();
     }
   };
 
   const alternarBono = async (id: string, estadoActual: boolean) => {
-    await updateDoc(doc(db, "codigos_promocionales", id), { activo: !estadoActual });
-    cargarDatos();
+    const accion = estadoActual ? 'DESACTIVAR' : 'ACTIVAR';
+    if (await customConfirm(`¿Confirmas ${accion} el código promocional "${id}"?`)) {
+      await updateDoc(doc(db, "codigos_promocionales", id), { activo: !estadoActual });
+      cargarDatos();
+    }
   };
 
   const crearAnuncio = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formAnuncio.titulo.trim() || !formAnuncio.mensaje.trim()) return;
+
+    const confirmado = await customConfirm(
+      `¿Confirmas publicar el anuncio "${formAnuncio.titulo.trim()}" para ${formAnuncio.emailObjetivo ? formAnuncio.emailObjetivo : 'TODOS los usuarios'}?`
+    );
+    if (!confirmado) return;
+
     try {
       const nuevoRef = doc(collection(db, "anuncios"));
       await setDoc(nuevoRef, {
@@ -206,15 +228,18 @@ export default function MasterPage() {
   };
 
   const eliminarAnuncio = async (id: string) => {
-    if (await customConfirm("¿Seguro que deseas eliminar este anuncio?")) {
+    if (await customConfirm("¿Seguro que deseas eliminar este anuncio permanentemente?")) {
       await deleteDoc(doc(db, "anuncios", id));
       cargarDatos();
     }
   };
 
   const alternarAnuncio = async (id: string, estadoActual: boolean) => {
-    await updateDoc(doc(db, "anuncios", id), { activo: !estadoActual });
-    cargarDatos();
+    const accion = estadoActual ? 'DESACTIVAR' : 'ACTIVAR';
+    if (await customConfirm(`¿Confirmas ${accion} este anuncio?`)) {
+      await updateDoc(doc(db, "anuncios", id), { activo: !estadoActual });
+      cargarDatos();
+    }
   };
 
   const calcularEstadoPlan = (u: any) => {

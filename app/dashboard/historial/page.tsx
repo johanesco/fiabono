@@ -647,48 +647,47 @@ Quedamos pendientes para revisar detalles o responder cualquier duda.
                 })()}
               </div>
 
-              {/* HEADER MÓVIL OPTIMIZADO (Nombre prominente, saldo destacado, acciones claras) */}
-              <div className="md:hidden bg-slate-50 dark:bg-[#020617] border-b border-slate-200 dark:border-slate-800 shrink-0 px-4 py-3 space-y-2.5">
-                {/* Fila 1: Nombre del cliente en fila completa con opciones y botón cerrar */}
-                <div className="flex items-start justify-between gap-2">
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <h2 className="text-2xl font-black text-slate-900 dark:text-white tracking-tight leading-snug break-words">
-                        {clienteActivo.nombre}
-                      </h2>
-                      {datosSesion?.rol !== 'cajero' && (
-                        <div className="flex items-center gap-1 shrink-0">
-                          <button
-                            type="button"
-                            onClick={() => setModalGestionCliente({ visible: true, modo: 'editar', cliente: clienteActivo })}
-                            title="Modificar Cliente"
-                            className="p-1 rounded-lg bg-white dark:bg-slate-800 text-slate-500 hover:text-blue-600 shadow-xs border border-slate-200 dark:border-slate-700 cursor-pointer"
-                          >
-                            <Edit3 size={14} />
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => setModalGestionCliente({ visible: true, modo: 'eliminar', cliente: clienteActivo })}
-                            title="Eliminar Cliente"
-                            className="p-1 rounded-lg bg-white dark:bg-slate-800 text-slate-500 hover:text-rose-600 shadow-xs border border-slate-200 dark:border-slate-700 cursor-pointer"
-                          >
-                            <Trash2 size={14} />
-                          </button>
-                        </div>
-                      )}
-                    </div>
-                    <p className="text-slate-500 dark:text-slate-400 text-xs font-medium mt-0.5">
-                      {clienteActivo.celular ? `📱 ${clienteActivo.celular}` : "Sin celular registrado"}
-                    </p>
-                  </div>
+              {/* HEADER MÓVIL OPTIMIZADO (Nombre centrado y prominente, saldo destacado, acciones claras) */}
+              <div className="md:hidden bg-slate-50 dark:bg-[#020617] border-b border-slate-200 dark:border-slate-800 shrink-0 px-4 py-3 space-y-2.5 relative">
+                {/* Botón cerrar en esquina superior derecha */}
+                <button 
+                  onClick={() => setClienteActivo(null)} 
+                  className="absolute top-3 right-3 p-2 rounded-full bg-white dark:bg-slate-800 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-700 shadow-xs border border-slate-200 dark:border-slate-700 transition cursor-pointer z-10"
+                  aria-label="Cerrar perfil"
+                >
+                  <X size={18} />
+                </button>
 
-                  <button 
-                    onClick={() => setClienteActivo(null)} 
-                    className="p-2 rounded-full bg-white dark:bg-slate-800 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-700 shadow-xs border border-slate-200 dark:border-slate-700 transition cursor-pointer shrink-0 mt-0.5"
-                    aria-label="Cerrar perfil"
-                  >
-                    <X size={18} />
-                  </button>
+                {/* Fila 1: Nombre del cliente centrado + opciones de edición */}
+                <div className="pt-1 px-8 text-center">
+                  <div className="flex items-center justify-center gap-2 flex-wrap">
+                    <h2 className="text-2xl font-black text-slate-900 dark:text-white tracking-tight leading-snug break-words">
+                      {clienteActivo.nombre}
+                    </h2>
+                    {datosSesion?.rol !== 'cajero' && (
+                      <div className="inline-flex items-center gap-1 shrink-0">
+                        <button
+                          type="button"
+                          onClick={() => setModalGestionCliente({ visible: true, modo: 'editar', cliente: clienteActivo })}
+                          title="Modificar Cliente"
+                          className="p-1 rounded-lg bg-white dark:bg-slate-800 text-slate-500 hover:text-blue-600 shadow-xs border border-slate-200 dark:border-slate-700 cursor-pointer"
+                        >
+                          <Edit3 size={14} />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setModalGestionCliente({ visible: true, modo: 'eliminar', cliente: clienteActivo })}
+                          title="Eliminar Cliente"
+                          className="p-1 rounded-lg bg-white dark:bg-slate-800 text-slate-500 hover:text-rose-600 shadow-xs border border-slate-200 dark:border-slate-700 cursor-pointer"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                  <p className="text-slate-500 dark:text-slate-400 text-xs font-medium mt-1">
+                    {clienteActivo.celular ? `📱 ${clienteActivo.celular}` : "Sin celular registrado"}
+                  </p>
                 </div>
 
                 {/* Fila 2: Saldo Destacado en tarjeta compacta */}
@@ -981,35 +980,23 @@ Quedamos pendientes para revisar detalles o responder cualquier duda.
                 <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 block mb-1">
                   Producto Ingresado
                 </span>
-                <p className="font-black text-slate-900 dark:text-white text-base leading-snug">
+                <p className="font-black text-slate-900 dark:text-white text-lg leading-snug">
                   {movimientoInventarioDetalle.nombreProducto || 'Producto sin nombre'}
                 </p>
-                <div className="mt-2.5 flex items-center gap-2 flex-wrap">
-                  <span className="inline-flex items-center gap-1 font-black text-xs px-2.5 py-1 rounded-xl bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300">
+                <div className="mt-3 flex items-center gap-2 flex-wrap">
+                  <span className="inline-flex items-center gap-1 font-black text-xs px-3 py-1.5 rounded-xl bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300">
                     +{movimientoInventarioDetalle.cantidadAgregada || 1} unidades añadidas
                   </span>
                   {movimientoInventarioDetalle.monto > 0 && (
-                    <span className="text-xs font-bold text-slate-600 dark:text-slate-300 bg-white dark:bg-slate-800 px-2.5 py-1 rounded-xl border border-slate-200 dark:border-slate-700">
+                    <span className="text-xs font-bold text-slate-600 dark:text-slate-300 bg-white dark:bg-slate-800 px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700">
                       Costo: ${movimientoInventarioDetalle.monto.toLocaleString('es-CO')}
                     </span>
                   )}
                 </div>
               </div>
 
-              {/* Bloque independiente de Detalle y Notas */}
-              {movimientoInventarioDetalle.descripcion && (
-                <div className="p-3.5 bg-slate-50 dark:bg-[#020617] rounded-2xl border border-slate-200/70 dark:border-slate-800">
-                  <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 block mb-1">
-                    Detalle y Observaciones
-                  </span>
-                  <p className="font-medium text-slate-700 dark:text-slate-300 text-xs leading-relaxed whitespace-pre-wrap">
-                    {movimientoInventarioDetalle.descripcion}
-                  </p>
-                </div>
-              )}
-
               {/* Registro y Auditoría */}
-              <div className="p-3 bg-sky-50/50 dark:bg-sky-950/20 rounded-2xl border border-sky-100 dark:border-sky-900/40 text-xs text-slate-600 dark:text-slate-300 space-y-1.5">
+              <div className="p-3.5 bg-sky-50/50 dark:bg-sky-950/20 rounded-2xl border border-sky-100 dark:border-sky-900/40 text-xs text-slate-600 dark:text-slate-300 space-y-2">
                 {movimientoInventarioDetalle.registradoPor && (
                   <div className="flex items-center justify-between">
                     <span className="text-slate-400 font-bold">Inventariado por:</span>
@@ -1025,26 +1012,13 @@ Quedamos pendientes para revisar detalles o responder cualquier duda.
               </div>
             </div>
 
-            <div className="mt-5 flex gap-2.5">
+            <div className="mt-5">
               <button
                 type="button"
                 onClick={() => setMovimientoInventarioDetalle(null)}
-                className="flex-1 py-3 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-bold rounded-xl text-sm transition cursor-pointer"
+                className="w-full py-3.5 bg-slate-900 hover:bg-slate-800 dark:bg-slate-800 dark:hover:bg-slate-700 text-white font-black rounded-xl text-sm transition cursor-pointer text-center"
               >
-                Cerrar
-              </button>
-
-              <button
-                type="button"
-                onClick={() => {
-                  const nombreBuscado = movimientoInventarioDetalle.nombreProducto || '';
-                  setMovimientoInventarioDetalle(null);
-                  router.push(`/dashboard/inventario?busqueda=${encodeURIComponent(nombreBuscado)}`);
-                }}
-                className="flex-1 py-3 bg-sky-600 hover:bg-sky-700 text-white font-black rounded-xl text-sm transition flex items-center justify-center gap-1.5 shadow-md shadow-sky-600/20 cursor-pointer"
-              >
-                <span>Ver en Inventario</span>
-                <ArrowRight size={15} />
+                Cerrar Detalle
               </button>
             </div>
           </div>
