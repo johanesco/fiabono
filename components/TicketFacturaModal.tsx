@@ -272,16 +272,48 @@ export default function TicketFacturaModal({ isOpen, onClose, datos }: TicketFac
                         </div>
                       );
                     })
-                  ) : (
-                    <div className="flex justify-between items-center text-[11px]">
-                      <span className="font-bold text-slate-800">
-                        {datos.descripcionGeneral || (datos.tipo === 'abono' ? 'Abono a cuenta' : (datos.tipo === 'fiado' ? 'Fiado de mercancía' : 'Venta directa'))}
-                      </span>
-                      <span className="font-black text-slate-900">
-                        ${(datos.montoTotal || 0).toLocaleString('es-CO')}
-                      </span>
-                    </div>
-                  )}
+                  ) : (() => {
+                    const desc = (datos.descripcionGeneral || '').trim();
+                    const prefijoMatch = desc.match(/^(Saldo pendiente de venta|Saldo pendiente|Venta de|Venta|Fiado de|Fiado):\s*(.+)$/i);
+                    const prefijoTexto = prefijoMatch ? prefijoMatch[1] : null;
+                    const cuerpoItems = prefijoMatch ? prefijoMatch[2] : desc;
+                    const partes = cuerpoItems.includes(',') ? cuerpoItems.split(',').map(s => s.trim()).filter(Boolean) : [];
+
+                    if (partes.length > 1) {
+                      return (
+                        <div className="space-y-1.5">
+                          {prefijoTexto && (
+                            <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider pb-0.5">
+                              {prefijoTexto}:
+                            </p>
+                          )}
+                          {partes.map((p, idx) => {
+                            const matchCant = p.match(/^(\d+)[xX]\s*(.+)$/);
+                            const cant = matchCant ? parseInt(matchCant[1], 10) : 1;
+                            const nombreArt = matchCant ? matchCant[2].trim() : p;
+                            return (
+                              <div key={idx} className="flex justify-between items-start text-[11px] leading-tight border-b border-dashed border-slate-100 last:border-none pb-1">
+                                <div className="flex-1 pr-2">
+                                  <p className="font-bold text-slate-900">{cant}x {nombreArt}</p>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      );
+                    }
+
+                    return (
+                      <div className="flex justify-between items-center text-[11px]">
+                        <span className="font-bold text-slate-800">
+                          {datos.descripcionGeneral || (datos.tipo === 'abono' ? 'Abono a cuenta' : (datos.tipo === 'fiado' ? 'Fiado de mercancía' : 'Venta directa'))}
+                        </span>
+                        <span className="font-black text-slate-900">
+                          ${(datos.montoTotal || 0).toLocaleString('es-CO')}
+                        </span>
+                      </div>
+                    );
+                  })()}
                 </div>
               </div>
 

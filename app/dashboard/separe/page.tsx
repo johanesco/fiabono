@@ -75,6 +75,7 @@ function SepareContenido() {
           const snapAdmin = await getDocs(qAdmin);
           snapAdmin.forEach(d => {
             const u = d.data();
+            if (u.activo === false) return;
             const nom = u.nombreUsuario || u.nombre || u.nombreColaborador;
             if (nom && !nombres.includes(nom)) {
               nombres.push(nom);
@@ -88,25 +89,13 @@ function SepareContenido() {
           const snapU = await getDocs(qUsers);
           snapU.forEach(d => {
             const u = d.data();
+            if (u.activo === false) return;
             const nom = u.nombreUsuario || u.nombre || u.nombreColaborador;
             if (nom && !nombres.includes(nom)) {
               nombres.push(nom);
             }
           });
         } catch (e) {}
-
-        // 3. Vendedores guardados en localStorage
-        const guardadosLocales = localStorage.getItem(`fiabono_vendedores_${cuentaPrincipalId || 'local'}`) || localStorage.getItem('fiabono_vendedores_rapidos');
-        if (guardadosLocales) {
-          try {
-            const parseados: string[] = JSON.parse(guardadosLocales);
-            if (Array.isArray(parseados)) {
-              parseados.forEach(n => {
-                if (n && !nombres.includes(n)) nombres.push(n);
-              });
-            }
-          } catch (e) {}
-        }
 
         setListaVendedores(nombres.length > 0 ? nombres : [nombreUsuario || "Vendedor"]);
       } catch (e) {
@@ -1407,6 +1396,37 @@ function SepareContenido() {
         esOrdenPendiente: !puedeVentaDirecta
       });
 
+      // Limpiar formulario y persistir de inmediato para que el próximo separe sea nuevo y limpio
+      const reiniciada: PestanaSepare = {
+        id: '1',
+        nombre: 'Separe #1',
+        vendedor: vendedorActivo || nombreUsuario || "Vendedor",
+        filas: [{ id: "1", descripcion: "", valor: "", cantidad: 1, fotoUrl: null, esDeInventario: false }],
+        cliente: null,
+        descuentoTipo: null,
+        descuentoValor: "",
+        fechaLimite: "",
+        notas: "",
+        abonoInicial: "",
+        metodoPago: 'efectivo',
+        subMetodoPago: "",
+        referenciaPago: ""
+      };
+
+      if (pestanas.length <= 1) {
+        setPestanas([reiniciada]);
+        persistirPestanas([reiniciada], vendedorActivo);
+        setPestanaActivaId('1');
+        cargarDatosDePestana(reiniciada);
+      } else {
+        const restantes = pestanas.filter(p => p.id !== pestanaActivaId);
+        const siguiente = restantes[0] || reiniciada;
+        setPestanas(restantes.length > 0 ? restantes : [reiniciada]);
+        persistirPestanas(restantes.length > 0 ? restantes : [reiniciada], vendedorActivo);
+        setPestanaActivaId(siguiente.id);
+        cargarDatosDePestana(siguiente);
+      }
+
     } catch (e) {
       console.error("Error al registrar separe:", e);
       toast.error("Error al registrar el plan separe");
@@ -1425,18 +1445,23 @@ function SepareContenido() {
 
   // Enviar mensaje de WhatsApp estructurado y limpio
   const enviarWhatsApp = () => {
-    if (!clienteSeleccionado) return;
+    const cli = modalExito?.separe ? { nombre: modalExito.separe.nombreCliente, celular: modalExito.separe.celularCliente } : clienteSeleccionado;
+    if (!cli) return;
 
     let itemsTexto = "";
-    filas
-      .filter(f => f.descripcion.trim() !== "" && (parseFloat(f.valor) || 0) > 0)
-      .forEach(f => {
+    const itemsFuente = (modalExito?.separe?.items && modalExito.separe.items.length > 0)
+      ? modalExito.separe.items.map((it: any) => ({ descripcion: it.descripcion, valor: String(it.precio), cantidad: it.cantidad }))
+      : filas;
+
+    itemsFuente
+      .filter((f: any) => f.descripcion.trim() !== "" && (parseFloat(f.valor) || 0) > 0)
+      .forEach((f: any) => {
         const precio = parseFloat(f.valor) || 0;
         const subtotal = precio * f.cantidad;
         itemsTexto += `• ${f.cantidad}x ${f.descripcion.trim()}\n  Precio unitario: *$${precio.toLocaleString('es-CO')}*\n  Total: *$${subtotal.toLocaleString('es-CO')}*\n\n`;
       });
 
-    let texto = `¡Hola, *${clienteSeleccionado.nombre}*! Gracias por separar con nosotros en *${nombreNegocio}*.
+    let texto = `¡Hola, *${cli.nombre}*! Gracias por separar con nosotros en *${nombreNegocio}*.
 
 ===================
 *COMPROBANTE DE PLAN SEPARE*
@@ -1520,13 +1545,7 @@ Estamos atentos para cualquier consulta.
               <User size={14} className="text-white/80 mr-1.5 shrink-0" />
               <select
                 value={vendedorActivo}
-                onChange={(e) => {
-                  if (e.target.value === '__nuevo__') {
-                    setModalNuevoVendedor(true);
-                  } else {
-                    setVendedorActivo(e.target.value);
-                  }
-                }}
+                onChange={(e) => setVendedorActivo(e.target.value)}
                 className="bg-transparent text-white font-bold text-xs outline-none cursor-pointer pr-1"
               >
                 {listaVendedores.map((v) => (
@@ -1534,11 +1553,6 @@ Estamos atentos para cualquier consulta.
                     {v}
                   </option>
                 ))}
-                {esAdmin && (
-                  <option value="__nuevo__" className="bg-slate-900 text-amber-300 font-bold">
-                    + Agregar otro vendedor...
-                  </option>
-                )}
               </select>
             </div>
           ) : (
@@ -2666,50 +2680,6 @@ Estamos atentos para cualquier consulta.
               >
                 <span>Listo ({filas.filter(f => f.descripcion.trim()).length} artículos • ${totalBruto.toLocaleString('es-CO')})</span>
                 <CheckCircle2 size={16}/>
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* MODAL PARA AGREGAR NUEVO VENDEDOR RÁPIDO */}
-      {modalNuevoVendedor && (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 z-[999] animate-in fade-in duration-200">
-          <div className="bg-white dark:bg-[#0f172a] p-6 rounded-[2rem] w-full max-w-md shadow-2xl border border-slate-100 dark:border-slate-800 animate-in zoom-in-95 duration-200">
-            <div className="w-14 h-14 bg-violet-500/20 text-violet-600 dark:text-violet-400 rounded-full flex items-center justify-center mx-auto mb-4">
-              <User size={28} />
-            </div>
-            <h3 className="text-xl font-black text-slate-900 dark:text-white text-center mb-1">
-              Agregar Vendedor
-            </h3>
-            <p className="text-xs text-slate-500 text-center mb-4">
-              Ingresa el nombre de quien atenderá este plan separe.
-            </p>
-
-            <input
-              type="text"
-              value={nombreNuevoVendedor}
-              onChange={(e) => setNombreNuevoVendedor(e.target.value)}
-              onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); registrarVendedorRapido(); } }}
-              placeholder="Ej: Laura Turno Tarde, Andrés..."
-              className="w-full p-3.5 bg-slate-50 dark:bg-[#020617] border border-slate-200 dark:border-slate-700 rounded-xl text-sm font-bold outline-none focus:border-violet-500 text-slate-900 dark:text-white mb-5"
-              autoFocus
-            />
-
-            <div className="grid grid-cols-2 gap-2">
-              <button
-                type="button"
-                onClick={() => { setModalNuevoVendedor(false); setNombreNuevoVendedor(""); }}
-                className="py-3 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-bold rounded-xl text-xs hover:bg-slate-200 transition-colors cursor-pointer"
-              >
-                Cancelar
-              </button>
-              <button
-                type="button"
-                onClick={registrarVendedorRapido}
-                className="py-3 bg-violet-600 hover:bg-violet-700 active:scale-95 text-white font-black rounded-xl text-xs shadow-md transition-all flex items-center justify-center gap-1.5 cursor-pointer"
-              >
-                <CheckCircle2 size={16} /> Guardar y Asignar
               </button>
             </div>
           </div>

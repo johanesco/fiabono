@@ -78,7 +78,17 @@ function FiarContenido() {
 
     const [modalFaltaCliente, setModalFaltaCliente] = useState(false);
     const [modalNuevoCliente, setModalNuevoCliente] = useState(false);
-    const [modalExito, setModalExito] = useState<{ visible: boolean, cliente: any, montoTotal: number, ticketDatos?: any } | null>(null);
+    const [modalExito, setModalExito] = useState<{ 
+        visible: boolean; 
+        cliente: any; 
+        montoTotal: number; 
+        ticketDatos?: any;
+        filasGuardadas?: { descripcion: string; valor: string; cantidad: number }[];
+        montoDescuentoTotal?: number;
+        subtotalBruto?: number;
+        tipoDescuento?: 'porcentaje' | 'fijo';
+        valorDescuento?: string;
+    } | null>(null);
     const [modalTicketFactura, setModalTicketFactura] = useState<{ visible: boolean; datos: any | null }>({ visible: false, datos: null });
 
     const esTerminalMultivendedor: boolean = datosSesion?.esTerminalMultivendedor ?? false;
@@ -384,6 +394,7 @@ function FiarContenido() {
                     const snapAdmin = await getDocs(qAdmin);
                     snapAdmin.forEach(d => {
                         const u = d.data();
+                        if (u.activo === false) return;
                         const nom = u.nombreUsuario || u.nombre || u.nombreColaborador;
                         if (nom && !nombres.includes(nom)) {
                             nombres.push(nom);
@@ -397,25 +408,13 @@ function FiarContenido() {
                     const snapU = await getDocs(qUsers);
                     snapU.forEach(d => {
                         const u = d.data();
+                        if (u.activo === false) return;
                         const nom = u.nombreUsuario || u.nombre || u.nombreColaborador;
                         if (nom && !nombres.includes(nom)) {
                             nombres.push(nom);
                         }
                     });
                 } catch (e) {}
-
-                // 3. Vendedores guardados en localStorage
-                const guardadosLocales = localStorage.getItem(`fiabono_vendedores_${cuentaPrincipalId || 'local'}`) || localStorage.getItem('fiabono_vendedores_rapidos');
-                if (guardadosLocales) {
-                    try {
-                        const parseados: string[] = JSON.parse(guardadosLocales);
-                        if (Array.isArray(parseados)) {
-                            parseados.forEach(n => {
-                                if (n && !nombres.includes(n)) nombres.push(n);
-                            });
-                        }
-                    } catch (e) {}
-                }
 
                 setListaVendedores(nombres.length > 0 ? nombres : [nombreUsuario || "Vendedor"]);
             } catch (e) {
@@ -1041,8 +1040,39 @@ function FiarContenido() {
                 visible: true,
                 cliente: clienteFinalActualizado,
                 montoTotal: faltante,
-                ticketDatos
+                ticketDatos,
+                filasGuardadas: [...filasRegistro],
+                montoDescuentoTotal,
+                subtotalBruto,
+                tipoDescuento,
+                valorDescuento
             });
+
+            // Limpiar formulario y persistir de inmediato para que el próximo fiado sea nuevo y limpio
+            const reiniciada: PestanaFiado = {
+                id: '1',
+                nombre: 'Fiado #1',
+                vendedor: vendedorActivo || nombreUsuario || "Vendedor",
+                filas: [{ descripcion: "", valor: "", cantidad: 1 }],
+                cliente: null,
+                mostrarDescuento: false,
+                tipoDescuento: 'porcentaje',
+                valorDescuento: ''
+            };
+
+            if (pestanas.length <= 1) {
+                setPestanas([reiniciada]);
+                persistirPestanas([reiniciada], vendedorActivo);
+                setPestanaActivaId('1');
+                cargarDatosDePestana(reiniciada);
+            } else {
+                const restantes = pestanas.filter(p => p.id !== pestanaActivaId);
+                const siguiente = restantes[0] || reiniciada;
+                setPestanas(restantes.length > 0 ? restantes : [reiniciada]);
+                persistirPestanas(restantes.length > 0 ? restantes : [reiniciada], vendedorActivo);
+                setPestanaActivaId(siguiente.id);
+                cargarDatosDePestana(siguiente);
+            }
 
         } catch (error) { 
             console.error(error);
@@ -1059,7 +1089,8 @@ function FiarContenido() {
     };
 
     const abrirWhatsApp = (cliente: any) => {
-        const filasValidas = filasRegistro.filter(f => parseFloat(f.valor) > 0);
+        const filasParaMsg = modalExito?.filasGuardadas || filasRegistro;
+        const filasValidas = filasParaMsg.filter(f => parseFloat(f.valor) > 0);
         let detalleTexto = "";
         filasValidas.forEach(f => {
             const unitario = parseFloat(f.valor);
@@ -1068,11 +1099,17 @@ function FiarContenido() {
             detalleTexto += `• ${f.cantidad}x ${desc}\n  Precio unitario: *$${unitario.toLocaleString('es-CO')}*\n  Total: *$${subtotal.toLocaleString('es-CO')}*\n\n`;
         });
 
-        if (montoDescuentoTotal > 0) {
-            detalleTexto += `*Subtotal:* $${subtotalBruto.toLocaleString('es-CO')}\n*Descuento (${tipoDescuento === 'porcentaje' ? `${valorDescuento}%` : `$${Number(valorDescuento).toLocaleString('es-CO')}`}):* -$${montoDescuentoTotal.toLocaleString('es-CO')}\n*TOTAL DE ESTE FIADO: $${totalFilasRegistro.toLocaleString('es-CO')}*\n\n`;
+        const dMonto = modalExito?.montoDescuentoTotal ?? montoDescuentoTotal;
+        const dSubtotal = modalExito?.subtotalBruto ?? subtotalBruto;
+        const dTipo = modalExito?.tipoDescuento ?? tipoDescuento;
+        const dValor = modalExito?.valorDescuento ?? valorDescuento;
+        const dTotal = modalExito?.montoTotal ?? totalFilasRegistro;
+
+        if (dMonto > 0) {
+            detalleTexto += `*Subtotal:* $${dSubtotal.toLocaleString('es-CO')}\n*Descuento (${dTipo === 'porcentaje' ? `${dValor}%` : `$${Number(dValor).toLocaleString('es-CO')}`}):* -$${dMonto.toLocaleString('es-CO')}\n*TOTAL DE ESTE FIADO: $${dTotal.toLocaleString('es-CO')}*\n\n`;
         }
 
-        const saldoEsteFiado = totalFilasRegistro;
+        const saldoEsteFiado = dTotal;
         const saldoCreditoTotal = Number.isFinite(Number(cliente.deudaTotal)) ? Number(cliente.deudaTotal) : saldoEsteFiado;
         const texto = `¡Hola, *${cliente.nombre}*! Gracias por tu confianza en *${nombreNegocio || 'nuestra tienda'}*.
 
@@ -1169,13 +1206,7 @@ Estamos atentos para cualquier consulta.
                             <User size={14} className="text-white/80 mr-1.5 shrink-0" />
                             <select
                                 value={vendedorActivo}
-                                onChange={(e) => {
-                                    if (e.target.value === '__nuevo__') {
-                                        setModalNuevoVendedor(true);
-                                    } else {
-                                        cambiarVendedor(e.target.value);
-                                    }
-                                }}
+                                onChange={(e) => cambiarVendedor(e.target.value)}
                                 className="bg-transparent text-white font-bold text-xs outline-none cursor-pointer pr-1"
                             >
                                 {listaVendedores.map((v) => (
@@ -1183,11 +1214,6 @@ Estamos atentos para cualquier consulta.
                                         {v}
                                     </option>
                                 ))}
-                                {esAdmin && (
-                                    <option value="__nuevo__" className="bg-slate-900 text-amber-300 font-bold">
-                                        + Agregar otro vendedor...
-                                    </option>
-                                )}
                             </select>
                         </div>
                     ) : (
@@ -1932,54 +1958,18 @@ Estamos atentos para cualquier consulta.
                             </button>
                         )}
 
-                        <button 
-                            onClick={() => { setModalExito(null); router.push('/dashboard/inicio'); }} 
-                            className="w-full bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 font-bold py-4 rounded-2xl text-lg transition-colors cursor-pointer"
-                        >
-                            Volver al inicio
-                        </button>
-                    </div>
-                </div>
-            )}
-
-            {/* MODAL PARA AGREGAR NUEVO VENDEDOR RÁPIDO */}
-            {modalNuevoVendedor && (
-                <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 z-[999] animate-in fade-in duration-200">
-                    <div className="bg-white dark:bg-[#0f172a] p-6 rounded-[2rem] w-full max-w-md shadow-2xl border border-slate-100 dark:border-slate-800 animate-in zoom-in-95 duration-200">
-                        <div className="w-14 h-14 bg-rose-500/20 text-rose-600 dark:text-rose-400 rounded-full flex items-center justify-center mx-auto mb-4">
-                            <User size={28} />
-                        </div>
-                        <h3 className="text-xl font-black text-slate-900 dark:text-white text-center mb-1">
-                            Agregar Vendedor
-                        </h3>
-                        <p className="text-xs text-slate-500 text-center mb-4">
-                            Ingresa el nombre de quien atenderá ventas en esta estación.
-                        </p>
-
-                        <input
-                            type="text"
-                            value={nombreNuevoVendedor}
-                            onChange={(e) => setNombreNuevoVendedor(e.target.value)}
-                            onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); registrarVendedorRapido(); } }}
-                            placeholder="Ej: Laura Turno Tarde, Andrés..."
-                            className="w-full p-3.5 bg-slate-50 dark:bg-[#020617] border border-slate-200 dark:border-slate-700 rounded-xl text-sm font-bold outline-none focus:border-rose-500 text-slate-900 dark:text-white mb-5"
-                            autoFocus
-                        />
-
-                        <div className="grid grid-cols-2 gap-2">
-                            <button
-                                type="button"
-                                onClick={() => { setModalNuevoVendedor(false); setNombreNuevoVendedor(""); }}
-                                className="py-3 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-bold rounded-xl text-xs hover:bg-slate-200 transition-colors"
+                        <div className="grid grid-cols-2 gap-3 mt-2">
+                            <button 
+                                onClick={() => setModalExito(null)} 
+                                className="w-full bg-rose-600 hover:bg-rose-700 active:scale-95 text-white font-black py-4 rounded-2xl shadow-lg flex justify-center items-center gap-1.5 text-base transition-transform cursor-pointer"
                             >
-                                Cancelar
+                                + Nuevo Fiado
                             </button>
-                            <button
-                                type="button"
-                                onClick={registrarVendedorRapido}
-                                className="py-3 bg-rose-600 hover:bg-rose-700 active:scale-95 text-white font-black rounded-xl text-xs shadow-md transition-all flex items-center justify-center gap-1.5"
+                            <button 
+                                onClick={() => { setModalExito(null); router.push('/dashboard/inicio'); }} 
+                                className="w-full bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 font-bold py-4 rounded-2xl text-base transition-colors cursor-pointer"
                             >
-                                <CheckCircle2 size={16} /> Guardar y Asignar
+                                Volver al inicio
                             </button>
                         </div>
                     </div>

@@ -385,13 +385,13 @@ export default function LandingPage() {
       </div>
 
       {/* 2. HEADER NAVEGACIÓN GLASSOVERLAY */}
-      <header className="sticky top-0 bg-white/85 dark:bg-[#0f172a]/85 backdrop-blur-2xl border-b border-slate-200/60 dark:border-slate-800/60 z-[500] px-4 sm:px-8 py-3.5 transition-all shadow-sm">
-        <div className="max-w-7xl mx-auto flex justify-between items-center">
-          <div className="flex items-center gap-2.5 cursor-pointer" onClick={() => { setMenuMovilAbierto(false); window.scrollTo({ top: 0, behavior: 'smooth' }); }}>
-            <div className="w-9 h-9 bg-gradient-to-tr from-blue-600 to-indigo-600 rounded-xl flex items-center justify-center shadow-lg shadow-blue-500/25">
-              <Receipt size={20} className="text-white"/>
+      <header className="sticky top-0 bg-white/85 dark:bg-[#0f172a]/85 backdrop-blur-2xl border-b border-slate-200/60 dark:border-slate-800/60 z-[500] px-3 sm:px-8 py-2.5 sm:py-3.5 transition-all shadow-sm">
+        <div className="max-w-7xl mx-auto flex justify-between items-center gap-2">
+          <div className="flex items-center gap-2 cursor-pointer shrink-0" onClick={() => { setMenuMovilAbierto(false); window.scrollTo({ top: 0, behavior: 'smooth' }); }}>
+            <div className="w-8 h-8 sm:w-9 sm:h-9 bg-gradient-to-tr from-blue-600 to-indigo-600 rounded-xl flex items-center justify-center shadow-lg shadow-blue-500/25">
+              <Receipt size={18} className="text-white sm:w-5 sm:h-5"/>
             </div>
-            <span className="text-xl font-black tracking-tight text-slate-900 dark:text-white">
+            <span className="text-lg sm:text-xl font-black tracking-tight text-slate-900 dark:text-white">
               Fiabono<span className="text-blue-600 dark:text-blue-400">.com</span>
             </span>
           </div>
@@ -406,26 +406,27 @@ export default function LandingPage() {
             <button onClick={() => document.getElementById('faq')?.scrollIntoView({behavior: 'smooth'})} className="hover:text-blue-600 dark:hover:text-blue-400 transition-colors cursor-pointer">Preguntas</button>
           </nav>
 
-          <div className="flex items-center gap-1.5 sm:gap-3 shrink-0">
+          <div className="flex items-center gap-1 sm:gap-3 shrink-0">
             <button 
               type="button" 
               onClick={() => { setMenuMovilAbierto(false); setModalLandingInfo({ visible: true, tipo: 'login' }); }} 
-              className="text-xs sm:text-sm font-black text-slate-700 dark:text-slate-200 hover:text-blue-600 dark:hover:text-blue-400 transition-colors px-2.5 sm:px-3 py-2 cursor-pointer"
+              className="text-xs sm:text-sm font-black text-slate-700 dark:text-slate-200 hover:text-blue-600 dark:hover:text-blue-400 transition-colors px-2 sm:px-3 py-1.5 sm:py-2 cursor-pointer"
             >
-              Iniciar Sesión
+              <span className="hidden sm:inline">Iniciar Sesión</span>
+              <span className="sm:hidden">Ingresar</span>
             </button>
             <button 
               type="button" 
               onClick={() => { setMenuMovilAbierto(false); abrirRegistroConPlan('gratis'); }} 
-              className="bg-blue-600 hover:bg-blue-700 text-white text-xs sm:text-sm font-black py-2.5 px-3 sm:px-5 rounded-xl shadow-md shadow-blue-600/25 transition-transform active:scale-95 cursor-pointer whitespace-nowrap"
+              className="bg-blue-600 hover:bg-blue-700 text-white text-xs sm:text-sm font-black py-1.5 sm:py-2.5 px-2.5 sm:px-5 rounded-xl shadow-md shadow-blue-600/25 transition-transform active:scale-95 cursor-pointer whitespace-nowrap"
             >
               <span className="hidden sm:inline">Empezar Gratis</span>
-              <span className="sm:hidden">Registrarse</span>
+              <span className="sm:hidden">Registro</span>
             </button>
             <button
               type="button"
               onClick={() => setMenuMovilAbierto(!menuMovilAbierto)}
-              className="md:hidden p-2 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-colors cursor-pointer"
+              className="md:hidden p-1.5 sm:p-2 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-colors cursor-pointer"
               aria-label="Abrir menú"
             >
               {menuMovilAbierto ? <X size={20} /> : <Menu size={20} />}
@@ -460,6 +461,20 @@ export default function LandingPage() {
                 {item.label}
               </button>
             ))}
+            <div className="pt-2 border-t border-slate-200/60 dark:border-slate-800/60 grid grid-cols-2 gap-2 mt-2">
+              <button
+                onClick={() => { setMenuMovilAbierto(false); setModalLandingInfo({ visible: true, tipo: 'login' }); }}
+                className="w-full text-center py-2.5 rounded-xl text-xs font-black bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-slate-200"
+              >
+                Iniciar Sesión
+              </button>
+              <button
+                onClick={() => { setMenuMovilAbierto(false); abrirRegistroConPlan('gratis'); }}
+                className="w-full text-center py-2.5 rounded-xl text-xs font-black bg-blue-600 text-white shadow-md hover:bg-blue-700"
+              >
+                Crear Cuenta Gratis
+              </button>
+            </div>
           </div>
         )}
       </header>
