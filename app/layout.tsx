@@ -49,16 +49,21 @@ export default function RootLayout({
         <InstallPrompt />
         <Toaster
           position="top-right"
+          gutter={10}
           toastOptions={{
             duration: 3500,
-            style: {
-              borderRadius: "18px",
-              padding: "0",
-              background: "rgba(255,255,255,0.96)",
-              border: "1px solid rgba(148, 163, 184, 0.24)",
-              boxShadow: "0 20px 45px -18px rgba(15, 23, 42, 0.35)",
-              maxWidth: "420px",
-              color: "#0f172a",
+            className: "border border-slate-200/80 dark:border-slate-800 bg-white/95 dark:bg-[#0f172a]/95 text-slate-800 dark:text-slate-100 shadow-xl shadow-slate-900/10 dark:shadow-slate-950/60 backdrop-blur-xl font-bold text-xs sm:text-sm rounded-2xl py-3 px-4",
+            success: {
+              iconTheme: {
+                primary: '#10b981',
+                secondary: '#ffffff',
+              },
+            },
+            error: {
+              iconTheme: {
+                primary: '#f43f5e',
+                secondary: '#ffffff',
+              },
             },
           }}
         />

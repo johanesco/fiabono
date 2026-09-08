@@ -6,6 +6,7 @@ import { db } from "../../../firebase";
 import { Search, ShoppingCart, CheckCircle2, ChevronRight, X, AlertCircle, UserCog, Plus, Minus, ArrowLeft, MessageCircle, Banknote, Package, QrCode, Volume2, Printer, Smartphone, CreditCard, Zap, Receipt, ChevronDown, ChevronUp, Tag, Percent, Pause, FolderOpen, User, Trash2 } from 'lucide-react';
 import { useAuth } from "@/hooks/AuthContext";
 import toast from "react-hot-toast";
+import { notificar } from "@/utils/notificaciones";
 import { customConfirm } from "@/utils/customConfirm";
 import { Html5Qrcode } from "html5-qrcode";
 import { API_DB } from "../../../servicios/db";
@@ -401,7 +402,10 @@ function VenderContenido() {
       persistirPestanas([reiniciada], vendedorActivo);
       setPestanaActivaId('1');
       cargarDatosDePestana(reiniciada);
-      toast.success("Venta limpiada con éxito", { icon: '🧹' });
+      notificar.info("El formulario de venta quedó listo y en blanco para un nuevo registro.", {
+        titulo: "Venta reiniciada",
+        icono: <span>🧹</span>
+      });
       return;
     }
 

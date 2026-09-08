@@ -6,6 +6,7 @@ import { db } from "../../../firebase";
 import { Search, ShoppingBag, CheckCircle2, ChevronRight, X, AlertCircle, UserCog, Plus, Minus, ArrowLeft, MessageCircle, Package, QrCode, Volume2, Printer, ChevronDown, ChevronUp, Tag, Receipt, Pause, FolderOpen, User, Trash2 } from 'lucide-react';
 import { useAuth } from "@/hooks/AuthContext";
 import toast from "react-hot-toast";
+import { notificar } from "@/utils/notificaciones";
 import { Html5Qrcode } from "html5-qrcode";
 import { API_DB } from "../../../servicios/db";
 import TicketFacturaModal from "@/components/TicketFacturaModal";
@@ -348,7 +349,10 @@ function FiarContenido() {
             persistirPestanas([reiniciada], vendedorActivo);
             setPestanaActivaId('1');
             cargarDatosDePestana(reiniciada);
-            toast.success("Fiado limpiado con éxito", { icon: '🧹' });
+            notificar.info("El formulario de fiado quedó en blanco y listo para una nueva cuenta.", {
+              titulo: "Fiado reiniciado",
+              icono: <span>🧹</span>
+            });
             return;
         }
 

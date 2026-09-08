@@ -6,6 +6,7 @@ import { auth } from "../firebase";
 import { API_DB } from "../servicios/db";
 import { Cliente } from "../types";
 import toast from "react-hot-toast";
+import { notificar } from "@/utils/notificaciones";
 import { 
   Lock, 
   User, 
@@ -122,7 +123,9 @@ export default function ModalGestionCliente({
       };
 
       await API_DB.actualizarCliente(cliente.id, datosActualizados);
-      toast.success("Cliente actualizado exitosamente.");
+      notificar.exito("Los datos del cliente se guardaron correctamente.", {
+        titulo: "Cliente actualizado"
+      });
       
       const clienteFinal: Cliente = {
         ...cliente,
@@ -132,7 +135,9 @@ export default function ModalGestionCliente({
       onClose();
     } catch (error) {
       console.error("Error al actualizar cliente:", error);
-      toast.error("Error al guardar cambios del cliente.");
+      notificar.error("No se pudieron guardar los cambios en la cuenta del cliente.", {
+        titulo: "Error al actualizar"
+      });
     } finally {
       setProcesando(false);
     }
@@ -145,11 +150,15 @@ export default function ModalGestionCliente({
 
     if (tieneDeuda) {
       if (textoConfirmacion.trim().toUpperCase() !== 'ELIMINAR') {
-        toast.error("Debes escribir la palabra ELIMINAR para confirmar.");
+        notificar.advertencia("Debes escribir la palabra ELIMINAR para continuar.", {
+          titulo: "Confirmación requerida"
+        });
         return;
       }
       if (!checkboxResponsabilidad) {
-        toast.error("Debes marcar la casilla de confirmación de saldo.");
+        notificar.advertencia("Debes marcar la casilla de confirmación de saldo.", {
+          titulo: "Aceptación requerida"
+        });
         return;
       }
     }
@@ -190,7 +199,10 @@ export default function ModalGestionCliente({
       }
 
       await API_DB.eliminarCliente(cliente.id);
-      toast.success("Cliente eliminado exitosamente.");
+      notificar.exito(`El cliente "${cliente.nombre}" ha sido eliminado del sistema.`, {
+        titulo: "Cliente eliminado",
+        icono: <span>🗑️</span>
+      });
       onSuccess(undefined, true);
       onClose();
     } catch (error: any) {

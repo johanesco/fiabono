@@ -333,8 +333,17 @@ export default function ModalSuscripcion({ isOpen, onClose, cuentaPrincipalId, p
               <button
                 type="button"
                 disabled={cargando}
-                onClick={() => {
-                  if (window.confirm("¿Deseas cancelar tu suscripción y volver al Plan Gratuito ($0)?\n\nTodos tus datos, clientes e historial se conservarán intactos.")) {
+                onClick={async () => {
+                  const confirmado = await customConfirm(
+                    "¿Deseas cancelar tu suscripción y volver al Plan Gratuito ($0)?\n\nTodos tus datos, clientes e historial se conservarán intactos.",
+                    {
+                      titulo: "Cancelar suscripción",
+                      textoConfirmar: "Volver a Plan Gratis",
+                      textoCancelar: "Mantener mi Plan",
+                      tipo: "peligro"
+                    }
+                  );
+                  if (confirmado) {
                     volverAPlanGratuito();
                   }
                 }}
