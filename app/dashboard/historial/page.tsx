@@ -4,7 +4,7 @@ import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import { collection, getDocs, query, where } from "firebase/firestore";
 import { db } from "../../../firebase";
-import { Search, X, Clock, MessageCircle, Star, Users, Store, Printer, Edit3, Trash2, Bookmark, ChevronRight, Package, ArrowRight } from 'lucide-react';
+import { Search, X, Clock, MessageCircle, Star, Users, Store, Printer, Edit3, Trash2, Bookmark, ChevronRight, Package, ArrowRight, User } from 'lucide-react';
 import toast from "react-hot-toast";
 
 import { useAuth } from "../../../hooks/AuthContext";
@@ -32,6 +32,7 @@ export default function HistorialPage() {
   const [busquedaHistorial, setBusquedaHistorial] = useState("");
   const [filtroTiempoHistorial, setFiltroTiempoHistorial] = useState<'hoy' | 'semana' | 'mes' | 'todos'>('hoy');
   const [filtroTipoHistorial, setFiltroTipoHistorial] = useState<'todos' | 'venta' | 'abono' | 'fiado' | 'ingreso_inventario'>('todos');
+  const [filtroVendedorHistorial, setFiltroVendedorHistorial] = useState<string>('todos');
   
   const [movimientoInventarioDetalle, setMovimientoInventarioDetalle] = useState<Movimiento | null>(null);
   const [ultimoDocSnapshot, setUltimoDocSnapshot] = useState<any>(null);
@@ -313,6 +314,15 @@ Quedamos pendientes para revisar detalles o responder cualquier duda.
   // Permiso para gestionar y consultar ingresos de inventario
   const puedeGestionarInventario = esAdmin || Boolean(datosSesion?.permisos?.editarInventario || datosSesion?.permisos?.ingresoInventario);
 
+  // Lista de vendedores únicos presentes en los movimientos
+  const listaVendedores = Array.from(
+    new Set(
+      todosMovimientos
+        .map(m => m.registradoPor || (m as any).vendedor)
+        .filter((v): v is string => Boolean(v && typeof v === 'string' && v.trim().length > 0))
+    )
+  ).sort((a, b) => a.localeCompare(b));
+
   const historialFiltrado = todosMovimientos.filter(mov => {
     const filtroForzado = (!puedeVerReportes || planActual === 'basico') ? 'hoy' : filtroTiempoHistorial;
     
@@ -336,15 +346,23 @@ Quedamos pendientes para revisar detalles o responder cualquier duda.
       ? 'Entrada de Mercancía' 
       : (clienteMov?.nombre || (mov.clienteId === 'mostrador' ? 'Venta de Mostrador' : 'Cliente Eliminado'));
     const celularCliente = clienteMov?.celular || '';
+    const vendedorMov = (mov.registradoPor || (mov as any).vendedor || '').toString();
     
     const matchBusqueda = 
       nombreCliente.toLowerCase().includes(busquedaHistorial.toLowerCase()) ||
       celularCliente.toString().includes(busquedaHistorial) ||
+      vendedorMov.toLowerCase().includes(busquedaHistorial.toLowerCase()) ||
       Boolean(mov.nombreProducto && mov.nombreProducto.toLowerCase().includes(busquedaHistorial.toLowerCase())) ||
       Boolean(mov.descripcion && mov.descripcion.toLowerCase().includes(busquedaHistorial.toLowerCase()));
 
     if (busquedaHistorial && !matchBusqueda) return false;
     if (filtroTipoHistorial !== 'todos' && mov.tipo !== filtroTipoHistorial) return false;
+
+    // Filtro desplegable por vendedor (Admin o usuario con permisos)
+    if (filtroVendedorHistorial !== 'todos') {
+      const matchVendedor = vendedorMov.trim().toLowerCase() === filtroVendedorHistorial.trim().toLowerCase();
+      if (!matchVendedor) return false;
+    }
 
     // Regla de privacidad para ventas/abonos/fiados: Colaborador solo ve sus propios movimientos
     const esColaborador = datosSesion?.rol === 'cajero' || datosSesion?.tipoUsuario === 'colaborador';
@@ -373,7 +391,7 @@ Quedamos pendientes para revisar detalles o responder cualquier duda.
     <div className="flex flex-col animate-in fade-in slide-in-from-bottom-4 duration-500 bg-white dark:bg-[#0f172a] rounded-[2rem] shadow-sm border border-slate-100 dark:border-slate-800/60 overflow-hidden h-full">
       <div className="bg-slate-50 dark:bg-[#0f172a] p-4 md:py-3 md:px-5 border-b border-slate-100 dark:border-slate-800/60 flex flex-col gap-3 md:gap-2.5 sticky top-0 z-10 shrink-0">
         
-        {/* FILA SUPERIOR: BUSCADOR Y SELECTOR DE TIEMPO */}
+        {/* FILA SUPERIOR: BUSCADOR, SELECTOR DE VENDEDOR Y SELECTOR DE TIEMPO */}
         <div className="flex flex-col md:flex-row md:items-center gap-2.5 sm:gap-3 w-full">
           {/* BUSCADOR */}
           <div className="relative flex-1 min-w-0">
@@ -382,10 +400,35 @@ Quedamos pendientes para revisar detalles o responder cualquier duda.
               type="text" 
               value={busquedaHistorial} 
               onChange={(e) => setBusquedaHistorial(e.target.value)} 
-              placeholder="Buscar por nombre o celular..." 
+              placeholder="Buscar por cliente, celular, vendedor o producto..." 
               className="w-full py-2.5 md:py-2 pl-10 pr-4 bg-white dark:bg-[#020617] border border-slate-200 dark:border-slate-800/80 rounded-xl outline-none focus:border-blue-500 text-sm transition-all shadow-xs dark:text-slate-200 placeholder:text-xs sm:placeholder:text-sm placeholder:text-slate-400" 
             />
           </div>
+
+          {/* FILTRO DESPLEGABLE POR VENDEDOR (VISIBLE SI HAY VENDEDORES Y ES ADMIN) */}
+          {esAdmin && listaVendedores.length > 0 && (
+            <div className="relative flex items-center shrink-0">
+              <div className="absolute left-2.5 pointer-events-none text-slate-400">
+                <User size={13} />
+              </div>
+              <select
+                value={filtroVendedorHistorial}
+                onChange={(e) => setFiltroVendedorHistorial(e.target.value)}
+                className="py-2.5 md:py-2 pl-7 pr-7 bg-white dark:bg-[#020617] border border-slate-200 dark:border-slate-800/80 text-slate-700 dark:text-slate-300 font-bold text-xs rounded-xl outline-none focus:border-blue-500 shadow-xs cursor-pointer appearance-none"
+                title="Filtrar por vendedor o cajero"
+              >
+                <option value="todos">Todos los vendedores</option>
+                {listaVendedores.map((vendedor) => (
+                  <option key={vendedor} value={vendedor}>
+                    {vendedor}
+                  </option>
+                ))}
+              </select>
+              <div className="absolute right-2.5 pointer-events-none text-slate-400 text-[10px]">
+                ▼
+              </div>
+            </div>
+          )}
 
           {/* FILTRO DE TIEMPO (EN LA MISMA FILA EN PC) */}
           {puedeVerReportes && (
