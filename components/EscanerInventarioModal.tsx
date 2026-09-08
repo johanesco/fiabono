@@ -119,44 +119,17 @@ export default function EscanerInventarioModal({
       const el = document.getElementById(scannerId);
       if (!el) return;
 
-      const formatsToSupport = [
-        Html5QrcodeSupportedFormats.EAN_13,
-        Html5QrcodeSupportedFormats.EAN_8,
-        Html5QrcodeSupportedFormats.CODE_128,
-        Html5QrcodeSupportedFormats.CODE_39,
-        Html5QrcodeSupportedFormats.UPC_A,
-        Html5QrcodeSupportedFormats.UPC_E,
-        Html5QrcodeSupportedFormats.QR_CODE,
-        Html5QrcodeSupportedFormats.CODABAR,
-        Html5QrcodeSupportedFormats.ITF
-      ];
-
-      const html5Qr = new Html5Qrcode(scannerId, {
-        formatsToSupport,
-        verbose: false,
-        experimentalFeatures: {
-          useBarCodeDetectorIfSupported: true
-        }
-      });
+      const html5Qr = new Html5Qrcode(scannerId);
       html5QrCodeRef.current = html5Qr;
-
-      const esMobile = typeof navigator !== 'undefined' && /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-      const camaraInicial: any = esMobile ? { facingMode: "environment" } : { facingMode: "user" };
 
       const qrConfig = {
         fps: 20,
         qrbox: (viewfinderWidth: number, viewfinderHeight: number) => {
           const edge = Math.min(viewfinderWidth, viewfinderHeight);
-          const size = Math.floor(edge * 0.72);
+          const size = Math.floor(edge * 0.75);
           return { width: size, height: size };
         },
-        aspectRatio: 1.0,
-        videoConstraints: {
-          facingMode: camaraInicial.facingMode,
-          width: { ideal: 1280 },
-          height: { ideal: 720 },
-          focusMode: "continuous"
-        }
+        aspectRatio: 1.0
       };
 
       const onScanSuccess = (decodedText: string) => {
@@ -166,9 +139,20 @@ export default function EscanerInventarioModal({
       };
 
       try {
-        await html5Qr.start(camaraInicial, qrConfig, onScanSuccess, () => {});
+        await html5Qr.start(
+          { facingMode: "environment" },
+          qrConfig,
+          onScanSuccess,
+          () => {} // Ignorar errores de frames continuos para evitar sobrecarga
+        );
       } catch (errPrimario) {
-        await html5Qr.start({ facingMode: esMobile ? "user" : "environment" }, qrConfig, onScanSuccess, () => {});
+        // Fallback a cámara disponible
+        await html5Qr.start(
+          { facingMode: "user" },
+          qrConfig,
+          onScanSuccess,
+          () => {}
+        );
       }
 
       if (mounted) {
@@ -178,7 +162,7 @@ export default function EscanerInventarioModal({
       console.error("Error al iniciar cámara:", err);
       if (mounted) {
         setErrorCamara(
-          "No se pudo acceder a la cámara. Por favor asegúrate de permitir los permisos de cámara en tu navegador."
+          "No se pudo acceder a la cámara trasera. Por favor asegúrate de otorgar los permisos de cámara en tu navegador."
         );
       }
     }
@@ -463,8 +447,8 @@ export default function EscanerInventarioModal({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black/90 backdrop-blur-md flex items-center justify-center p-2 sm:p-4 z-[999] animate-in fade-in duration-200 overflow-y-auto">
-      <div className="bg-[#0f172a] text-white p-3.5 sm:p-5 rounded-[2.5rem] w-full max-w-md shadow-2xl border border-slate-800 flex flex-col items-center relative my-auto max-h-[96dvh] overflow-y-auto scrollbar-none">
+    <div className="fixed inset-0 bg-black/90 backdrop-blur-md flex items-center justify-center p-2 sm:p-4 z-[9999] animate-in fade-in duration-200">
+      <div className="bg-[#0f172a] text-white p-3.5 sm:p-5 rounded-3xl sm:rounded-[2.5rem] w-full max-w-md shadow-2xl border border-slate-800 flex flex-col items-center relative my-auto max-h-[96dvh] h-full sm:h-auto overflow-hidden">
         
         {/* Cabecera del Modal */}
         <div className="flex justify-between items-center w-full mb-2 shrink-0">
@@ -513,219 +497,224 @@ export default function EscanerInventarioModal({
           </div>
         </div>
 
-        {/* VISOR DE CÁMARA CUADRADO CON BARRIDO LÁSER */}
-        <div className="w-full max-w-[260px] sm:max-w-[280px] relative rounded-2xl overflow-hidden bg-black aspect-square flex items-center justify-center border border-slate-800 shadow-inner shrink-0">
+        {/* ÁREA SCROLLABLE CENTRAL (CÁMARA + INGRESO + LISTA) */}
+        <div className="flex-1 overflow-y-auto w-full flex flex-col items-center py-1 px-0.5 space-y-2.5 scrollbar-thin scrollbar-thumb-slate-700">
           
-          <div id="qr-reader-inbound" className="w-full h-full [&_video]:object-cover [&_video]:w-full [&_video]:h-full"></div>
+          {/* VISOR DE CÁMARA CUADRADO CON BARRIDO LÁSER */}
+          <div className="w-full max-w-[240px] sm:max-w-[270px] relative rounded-2xl overflow-hidden bg-black aspect-square flex items-center justify-center border border-slate-800 shadow-inner shrink-0">
+            
+            <div id="qr-reader-inbound" className="w-full h-full [&_video]:object-cover [&_video]:w-full [&_video]:h-full"></div>
 
-          {flashExito && (
-            <div className="absolute inset-0 bg-emerald-500/40 pointer-events-none z-30 animate-in fade-in duration-100"></div>
-          )}
+            {flashExito && (
+              <div className="absolute inset-0 bg-emerald-500/40 pointer-events-none z-30 animate-in fade-in duration-100"></div>
+            )}
 
-          {!errorCamara && (
-            <div className="absolute inset-0 pointer-events-none flex items-center justify-center z-20">
-              <div className="w-[72%] h-[72%] border-2 border-dashed border-emerald-400/70 rounded-2xl relative flex items-center justify-center">
-                <div className="absolute -top-1 -left-1 w-4 h-4 border-t-4 border-l-4 border-emerald-400 rounded-tl-md"></div>
-                <div className="absolute -top-1 -right-1 w-4 h-4 border-t-4 border-r-4 border-emerald-400 rounded-tr-md"></div>
-                <div className="absolute -bottom-1 -left-1 w-4 h-4 border-b-4 border-l-4 border-emerald-400 rounded-bl-md"></div>
-                <div className="absolute -bottom-1 -right-1 w-4 h-4 border-b-4 border-r-4 border-emerald-400 rounded-br-md"></div>
-                
-                <div className="absolute left-0 right-0 h-0.5 bg-gradient-to-r from-transparent via-emerald-400 to-transparent shadow-[0_0_12px_#34d399] animate-laser-sweep"></div>
+            {!errorCamara && (
+              <div className="absolute inset-0 pointer-events-none flex items-center justify-center z-20">
+                <div className="w-[72%] h-[72%] border-2 border-dashed border-emerald-400/70 rounded-2xl relative flex items-center justify-center">
+                  <div className="absolute -top-1 -left-1 w-4 h-4 border-t-4 border-l-4 border-emerald-400 rounded-tl-md"></div>
+                  <div className="absolute -top-1 -right-1 w-4 h-4 border-t-4 border-r-4 border-emerald-400 rounded-tr-md"></div>
+                  <div className="absolute -bottom-1 -left-1 w-4 h-4 border-b-4 border-l-4 border-emerald-400 rounded-bl-md"></div>
+                  <div className="absolute -bottom-1 -right-1 w-4 h-4 border-b-4 border-r-4 border-emerald-400 rounded-br-md"></div>
+                  
+                  <div className="absolute left-0 right-0 h-0.5 bg-gradient-to-r from-transparent via-emerald-400 to-transparent shadow-[0_0_12px_#34d399] animate-laser-sweep"></div>
+                </div>
               </div>
-            </div>
-          )}
+            )}
 
-          {!camaraIniciada && !errorCamara && (
-            <div className="absolute inset-0 bg-slate-950 flex flex-col items-center justify-center gap-2.5 z-10 p-4">
-              <div className="w-8 h-8 border-3 border-emerald-500 border-t-transparent rounded-full animate-spin"></div>
-              <span className="text-xs font-bold text-slate-400">Iniciando cámara...</span>
-            </div>
-          )}
-
-          {errorCamara && (
-            <div className="absolute inset-0 flex flex-col items-center justify-center text-center p-4 bg-slate-950 space-y-2 z-10">
-              <div className="w-10 h-10 rounded-full bg-rose-500/20 text-rose-500 flex items-center justify-center">
-                <X size={22} />
+            {!camaraIniciada && !errorCamara && (
+              <div className="absolute inset-0 bg-slate-950 flex flex-col items-center justify-center gap-2.5 z-10 p-4">
+                <div className="w-8 h-8 border-3 border-emerald-500 border-t-transparent rounded-full animate-spin"></div>
+                <span className="text-xs font-bold text-slate-400">Iniciando cámara...</span>
               </div>
-              <p className="text-white text-xs font-bold max-w-xs">{errorCamara}</p>
-              <button
-                onClick={() => iniciarCamara("qr-reader-inbound", true)}
-                className="px-3.5 py-1.5 bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-bold rounded-xl flex items-center gap-1.5 cursor-pointer shadow-md transition-all active:scale-95"
-              >
-                <RefreshCw size={13} /> Reintentar Conexión
-              </button>
-            </div>
-          )}
+            )}
 
-          {/* OVERLAY: MODO LOTE */}
-          {productoEncontrado && (
-            <div className="absolute inset-0 bg-[#0f172a]/95 backdrop-blur-md p-4 flex flex-col justify-between z-30 animate-in fade-in text-left">
-              <div className="space-y-3">
-                <div className="flex items-center gap-2.5">
-                  <div className="p-2 bg-indigo-500/20 text-indigo-400 rounded-xl">
-                    <Package size={20} />
+            {errorCamara && (
+              <div className="absolute inset-0 flex flex-col items-center justify-center text-center p-4 bg-slate-950 space-y-2 z-10">
+                <div className="w-10 h-10 rounded-full bg-rose-500/20 text-rose-500 flex items-center justify-center">
+                  <X size={22} />
+                </div>
+                <p className="text-white text-xs font-bold max-w-xs">{errorCamara}</p>
+                <button
+                  onClick={() => iniciarCamara("qr-reader-inbound", true)}
+                  className="px-3.5 py-1.5 bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-bold rounded-xl flex items-center gap-1.5 cursor-pointer shadow-md transition-all active:scale-95"
+                >
+                  <RefreshCw size={13} /> Reintentar Conexión
+                </button>
+              </div>
+            )}
+
+            {/* OVERLAY: MODO LOTE */}
+            {productoEncontrado && (
+              <div className="absolute inset-0 bg-[#0f172a]/95 backdrop-blur-md p-4 flex flex-col justify-between z-30 animate-in fade-in text-left">
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2.5">
+                    <div className="p-2 bg-indigo-500/20 text-indigo-400 rounded-xl">
+                      <Package size={20} />
+                    </div>
+                    <div>
+                      <h3 className="font-black text-white text-sm truncate">{productoEncontrado.nombre}</h3>
+                      <p className="text-slate-400 text-xs">Stock actual en BD: <strong className="text-indigo-400">{productoEncontrado.stock || 0}</strong></p>
+                    </div>
                   </div>
+
                   <div>
-                    <h3 className="font-black text-white text-sm truncate">{productoEncontrado.nombre}</h3>
-                    <p className="text-slate-400 text-xs">Stock actual en BD: <strong className="text-indigo-400">{productoEncontrado.stock || 0}</strong></p>
+                    <label className="block text-xs font-bold text-slate-300 mb-1">¿Cuántas unidades sumar al formulario?</label>
+                    <input 
+                      type="number" 
+                      min="1"
+                      value={cantidadManual}
+                      onChange={(e) => setCantidadManual(e.target.value)}
+                      className="input-dark w-full bg-[#020617] border-2 border-indigo-500 outline-none p-2.5 rounded-xl text-xl font-black text-center text-white transition-colors"
+                      style={{ color: '#ffffff', WebkitTextFillColor: '#ffffff' }}
+                      autoFocus
+                    />
                   </div>
                 </div>
 
-                <div>
-                  <label className="block text-xs font-bold text-slate-300 mb-1">¿Cuántas unidades sumar al formulario?</label>
-                  <input 
-                    type="number" 
-                    min="1"
-                    value={cantidadManual}
-                    onChange={(e) => setCantidadManual(e.target.value)}
-                    className="input-dark w-full bg-[#020617] border-2 border-indigo-500 outline-none p-2.5 rounded-xl text-xl font-black text-center text-white transition-colors"
-                    style={{ color: '#ffffff', WebkitTextFillColor: '#ffffff' }}
-                    autoFocus
-                  />
+                <div className="flex gap-2">
+                  <button 
+                    onClick={cancelarLote}
+                    disabled={procesando}
+                    className="flex-1 py-2.5 bg-slate-800 text-slate-300 font-bold rounded-xl transition-colors disabled:opacity-50 cursor-pointer text-xs"
+                  >
+                    Cancelar
+                  </button>
+                  <button 
+                    onClick={confirmarCantidadManual}
+                    disabled={procesando}
+                    className="flex-[2] py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl shadow-lg transition-colors flex items-center justify-center gap-2 disabled:opacity-50 cursor-pointer text-xs"
+                  >
+                    {procesando ? 'Sumando...' : '➕ Sumar al Formulario'}
+                  </button>
                 </div>
               </div>
-
-              <div className="flex gap-2">
-                <button 
-                  onClick={cancelarLote}
-                  disabled={procesando}
-                  className="flex-1 py-2.5 bg-slate-800 text-slate-300 font-bold rounded-xl transition-colors disabled:opacity-50 cursor-pointer text-xs"
-                >
-                  Cancelar
-                </button>
-                <button 
-                  onClick={confirmarCantidadManual}
-                  disabled={procesando}
-                  className="flex-[2] py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl shadow-lg transition-colors flex items-center justify-center gap-2 disabled:opacity-50 cursor-pointer text-xs"
-                >
-                  {procesando ? 'Sumando...' : '➕ Sumar al Formulario'}
-                </button>
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* ENTRADA MANUAL O PISTOLA LECTORA USB */}
-        <div className="w-full shrink-0 mt-2">
-          <div className="flex items-center justify-between mb-1 px-1">
-            <label className="text-[11px] font-bold text-slate-300 flex items-center gap-1.5">
-              <Keyboard size={13} className="text-emerald-400" /> Ingreso manual o pistola lectora
-            </label>
-            <span className="text-[10px] text-slate-400">Escribe y presiona Enter</span>
+            )}
           </div>
-          <div className="flex gap-2">
-            <div className="relative flex-1">
-              <input
-                type="text"
-                value={codigoManualInput}
-                onChange={e => setCodigoManualInput(e.target.value)}
-                onKeyDown={e => {
-                  if (e.key === 'Enter' && codigoManualInput.trim()) {
-                    e.preventDefault();
+
+          {/* ENTRADA MANUAL O PISTOLA LECTORA USB */}
+          <div className="w-full shrink-0">
+            <div className="flex items-center justify-between mb-1 px-1">
+              <label className="text-[11px] font-bold text-slate-300 flex items-center gap-1.5">
+                <Keyboard size={13} className="text-emerald-400" /> Ingreso manual o lector USB
+              </label>
+              <span className="text-[10px] text-slate-400">Presiona Enter</span>
+            </div>
+            <div className="flex gap-2">
+              <div className="relative flex-1">
+                <input
+                  type="text"
+                  value={codigoManualInput}
+                  onChange={e => setCodigoManualInput(e.target.value)}
+                  onKeyDown={e => {
+                    if (e.key === 'Enter' && codigoManualInput.trim()) {
+                      e.preventDefault();
+                      manejarCodigoEscaneado(codigoManualInput.trim());
+                      setCodigoManualInput('');
+                    }
+                  }}
+                  placeholder="Código de barras o SKU..."
+                  className="input-dark w-full px-3 py-2 bg-slate-800 border-2 border-slate-700 focus:border-emerald-400 focus:bg-slate-900 rounded-xl text-xs sm:text-sm font-mono font-bold text-emerald-300 placeholder:text-slate-400 outline-none transition-all shadow-inner"
+                  style={{ color: '#34d399', WebkitTextFillColor: '#34d399' }}
+                />
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  if (codigoManualInput.trim()) {
                     manejarCodigoEscaneado(codigoManualInput.trim());
                     setCodigoManualInput('');
                   }
                 }}
-                placeholder="Escribe código (ej: 4921 ó 7701...)"
-                className="input-dark w-full px-3.5 py-2.5 bg-slate-800 border-2 border-slate-700 focus:border-emerald-400 focus:bg-slate-900 rounded-xl text-sm font-mono font-bold text-emerald-300 placeholder:text-slate-400 outline-none transition-all shadow-inner"
-                style={{ color: '#34d399', WebkitTextFillColor: '#34d399' }}
-              />
+                className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs rounded-xl cursor-pointer transition-all shadow-md shadow-emerald-600/20 active:scale-95 flex items-center gap-1 shrink-0"
+              >
+                <Plus size={14} className="stroke-[3]" /> Sumar
+              </button>
             </div>
-            <button
-              type="button"
-              onClick={() => {
-                if (codigoManualInput.trim()) {
-                  manejarCodigoEscaneado(codigoManualInput.trim());
-                  setCodigoManualInput('');
-                }
-              }}
-              className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs rounded-xl cursor-pointer transition-all shadow-md shadow-emerald-600/20 active:scale-95 flex items-center gap-1.5 shrink-0"
-            >
-              <Plus size={14} className="stroke-[3]" /> Sumar
-            </button>
-          </div>
-        </div>
-
-        {/* LISTA EN VIVO DE PRODUCTOS EN EL FORMULARIO */}
-        <div className="w-full mt-2 bg-slate-900/90 border border-slate-800 rounded-2xl p-2.5 text-left shrink-0">
-          <div className="flex items-center justify-between mb-1.5 border-b border-slate-800 pb-1.5">
-            <span className="text-xs font-black text-slate-200 flex items-center gap-1.5">
-              <ListCheck size={14} className="text-emerald-400" />
-              En el Formulario ({totalProductos} productos)
-            </span>
-            <span className="text-xs text-emerald-400 font-black bg-emerald-500/10 px-2 py-0.5 rounded-full">
-              {totalUnidades} unidades en lista
-            </span>
           </div>
 
-          {productosEnCarga.length === 0 ? (
-            <p className="text-[11px] text-slate-500 italic text-center py-2">
-              Apunta al código. Cada producto escaneado se sumará automáticamente a la lista del formulario.
-            </p>
-          ) : (
-            <div className="max-h-28 overflow-y-auto space-y-1.5 pr-1 scrollbar-thin">
-              {productosEnCarga.map((item) => (
-                <div key={item.id} className="flex items-center justify-between p-2 bg-slate-800/80 rounded-xl border border-slate-700/60 text-xs">
-                  <div className="min-w-0 pr-2">
-                    <div className="flex items-center gap-1.5">
-                      <p className="font-bold text-white text-xs truncate max-w-[150px] sm:max-w-[180px]">{item.nombre}</p>
-                      <span className={`text-[9px] px-1.5 py-0.2 rounded font-bold uppercase tracking-wider ${
-                        item.esExistente ? 'bg-slate-700 text-slate-300' : 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
-                      }`}>
-                        {item.esExistente ? 'Existente' : 'Nuevo'}
-                      </span>
-                    </div>
-                    <p className="text-[10px] text-slate-400 font-mono mt-0.5">
-                      {item.sku || 'SIN SKU'} • ${Number(item.precioVenta || 0).toLocaleString('es-CO')}
-                    </p>
-                  </div>
-
-                  <div className="flex items-center gap-2 shrink-0">
-                    <div className="flex items-center bg-slate-900 border border-slate-700 rounded-lg p-0.5">
-                      <button
-                        type="button"
-                        onClick={() => onModificarCantidad?.(item.id, -1)}
-                        className="w-5 h-5 flex items-center justify-center text-slate-400 hover:text-white rounded hover:bg-slate-800 cursor-pointer"
-                        title="Restar una unidad"
-                      >
-                        <Minus size={11} />
-                      </button>
-                      <span className="font-mono font-black text-emerald-400 text-xs px-2">
-                        +{item.stock}
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() => onModificarCantidad?.(item.id, 1)}
-                        className="w-5 h-5 flex items-center justify-center text-slate-400 hover:text-white rounded hover:bg-slate-800 cursor-pointer"
-                        title="Sumar una unidad"
-                      >
-                        <Plus size={11} />
-                      </button>
-                    </div>
-
-                    <button
-                      type="button"
-                      onClick={() => onRemoverProducto(item.id)}
-                      className="p-1 text-slate-400 hover:text-rose-400 transition-colors cursor-pointer"
-                      title="Quitar del formulario"
-                    >
-                      <Trash2 size={13} />
-                    </button>
-                  </div>
-                </div>
-              ))}
+          {/* LISTA EN VIVO DE PRODUCTOS EN EL FORMULARIO */}
+          <div className="w-full bg-slate-900/90 border border-slate-800 rounded-2xl p-2.5 text-left shrink-0">
+            <div className="flex items-center justify-between mb-1.5 border-b border-slate-800 pb-1.5">
+              <span className="text-xs font-black text-slate-200 flex items-center gap-1.5">
+                <ListCheck size={14} className="text-emerald-400" />
+                En el Formulario ({totalProductos} productos)
+              </span>
+              <span className="text-xs text-emerald-400 font-black bg-emerald-500/10 px-2 py-0.5 rounded-full">
+                {totalUnidades} un. en lista
+              </span>
             </div>
-          )}
+
+            {productosEnCarga.length === 0 ? (
+              <p className="text-[11px] text-slate-500 italic text-center py-2">
+                Apunta al código o ingresa el número. Se sumará automáticamente a la lista.
+              </p>
+            ) : (
+              <div className="max-h-24 sm:max-h-32 overflow-y-auto space-y-1.5 pr-1 scrollbar-thin">
+                {productosEnCarga.map((item) => (
+                  <div key={item.id} className="flex items-center justify-between p-2 bg-slate-800/80 rounded-xl border border-slate-700/60 text-xs">
+                    <div className="min-w-0 pr-2">
+                      <div className="flex items-center gap-1.5">
+                        <p className="font-bold text-white text-xs truncate max-w-[140px] sm:max-w-[180px]">{item.nombre}</p>
+                        <span className={`text-[9px] px-1.5 py-0.2 rounded font-bold uppercase tracking-wider ${
+                          item.esExistente ? 'bg-slate-700 text-slate-300' : 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+                        }`}>
+                          {item.esExistente ? 'Existente' : 'Nuevo'}
+                        </span>
+                      </div>
+                      <p className="text-[10px] text-slate-400 font-mono mt-0.5">
+                        {item.sku || 'SIN SKU'} • ${Number(item.precioVenta || 0).toLocaleString('es-CO')}
+                      </p>
+                    </div>
+
+                    <div className="flex items-center gap-2 shrink-0">
+                      <div className="flex items-center bg-slate-900 border border-slate-700 rounded-lg p-0.5">
+                        <button
+                          type="button"
+                          onClick={() => onModificarCantidad?.(item.id, -1)}
+                          className="w-5 h-5 flex items-center justify-center text-slate-400 hover:text-white rounded hover:bg-slate-800 cursor-pointer"
+                          title="Restar una unidad"
+                        >
+                          <Minus size={11} />
+                        </button>
+                        <span className="font-mono font-black text-emerald-400 text-xs px-1.5">
+                          +{item.stock}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => onModificarCantidad?.(item.id, 1)}
+                          className="w-5 h-5 flex items-center justify-center text-slate-400 hover:text-white rounded hover:bg-slate-800 cursor-pointer"
+                          title="Sumar una unidad"
+                        >
+                          <Plus size={11} />
+                        </button>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => onRemoverProducto(item.id)}
+                        className="p-1 text-slate-400 hover:text-rose-400 transition-colors cursor-pointer"
+                        title="Quitar del formulario"
+                      >
+                        <Trash2 size={13} />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
         </div>
 
-        {/* BOTÓN PRINCIPAL: VOLVER AL FORMULARIO */}
-        <div className="w-full mt-2.5 mb-1 shrink-0">
+        {/* PIE DE PÁGINA FIJO: BOTÓN PRINCIPAL VOLVER AL FORMULARIO */}
+        <div className="w-full pt-2.5 border-t border-slate-800 shrink-0 bg-[#0f172a]">
           <button
             type="button"
             onClick={() => handleCerrarYVolverAlFormulario()}
             className="w-full py-3 bg-emerald-600 hover:bg-emerald-500 text-white font-black rounded-2xl text-xs sm:text-sm flex items-center justify-center gap-2 shadow-lg shadow-emerald-600/25 cursor-pointer active:scale-95 transition-all"
           >
-            <ArrowLeft size={16} /> Volver al Formulario ({totalProductos} productos en lista)
+            <ArrowLeft size={16} /> Volver al Formulario ({totalProductos} {totalProductos === 1 ? 'producto' : 'productos'} en lista)
           </button>
         </div>
 

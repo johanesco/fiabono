@@ -4497,8 +4497,8 @@ export default function InventarioPage() {
 
       {/* MODAL CREAR / EDITAR PRODUCTO (BLINDADO PARA MÓVIL Y ESCRITORIO) */}
       {(esAdmin || puedeEditarInventario) && modalProducto && (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center p-2 sm:p-4 z-[950]">
-          <div className="bg-white dark:bg-[#0f172a] rounded-3xl sm:rounded-[2.5rem] w-full max-w-[98vw] 2xl:max-w-[1650px] h-[96dvh] sm:h-[92dvh] shadow-2xl border border-slate-100 dark:border-slate-800 flex flex-col overflow-hidden animate-in zoom-in-95 duration-200">
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center p-2 sm:p-4 z-[9995]">
+          <div className="bg-white dark:bg-[#0f172a] rounded-3xl sm:rounded-[2.5rem] w-full max-w-[98vw] 2xl:max-w-[1650px] h-[94dvh] sm:h-[92dvh] shadow-2xl border border-slate-100 dark:border-slate-800 flex flex-col overflow-hidden animate-in zoom-in-95 duration-200">
             
             {/* Encabezado Fijo del Modal */}
             <div className="flex items-center justify-between gap-3 border-b border-slate-200 bg-slate-50 px-4 sm:px-6 py-3 sm:py-3.5 dark:border-slate-800 dark:bg-slate-900/60 shrink-0 z-10">
@@ -4996,8 +4996,8 @@ export default function InventarioPage() {
 
                 </div>
 
-                {/* Botones de Acción de la Columna Izquierda */}
-                <div className="mt-auto pt-3 border-t border-slate-200 dark:border-slate-800 space-y-2">
+                {/* Botones de Acción de la Columna Izquierda (Sticky en móvil y escritorio para que nunca se tape) */}
+                <div className="sticky bottom-0 bg-white/95 dark:bg-[#0f172a]/95 backdrop-blur-md mt-auto pt-3 pb-2 border-t border-slate-200 dark:border-slate-800 space-y-2 z-10">
                   {editandoId ? (
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-3">
                       <button
