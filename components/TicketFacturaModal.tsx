@@ -196,13 +196,14 @@ export default function TicketFacturaModal({ isOpen, onClose, datos }: TicketFac
     return lineas.join('\n');
   };
 
+  const celClienteRaw = (datos.celularCliente || '').toString().replace(/\D/g, '');
+  const tieneCelularValido = celClienteRaw.length >= 7;
+  const celClienteLimpio = celClienteRaw.startsWith('57') && celClienteRaw.length > 10 ? celClienteRaw : (celClienteRaw ? `57${celClienteRaw}` : '');
+
   const compartirPorWhatsApp = () => {
+    if (!tieneCelularValido) return;
     const texto = generarTextoTicketWhatsApp();
-    const celRaw = (datos.celularCliente || '').toString().replace(/\D/g, '');
-    const celLimpio = celRaw.startsWith('57') && celRaw.length > 10 ? celRaw : (celRaw ? `57${celRaw}` : '');
-    const url = celLimpio
-      ? `https://wa.me/${celLimpio}?text=${encodeURIComponent(texto)}`
-      : `https://wa.me/?text=${encodeURIComponent(texto)}`;
+    const url = `https://wa.me/${celClienteLimpio}?text=${encodeURIComponent(texto)}`;
 
     if (typeof window !== 'undefined') {
       window.open(url, '_blank');
@@ -752,27 +753,29 @@ export default function TicketFacturaModal({ isOpen, onClose, datos }: TicketFac
           {/* BOTONES DE ACCIÓN */}
           <div className="ticket-print-hide p-3 sm:p-4 border-t border-slate-100 dark:border-slate-800 bg-white dark:bg-[#0f172a] flex flex-col sm:flex-row gap-2 sm:gap-2.5 shrink-0">
             
-            {/* VISTA MÓVIL: 2 FILAS ORGANIZADAS */}
+            {/* VISTA MÓVIL: ORGANIZADA SEGÚN SI TIENE NÚMERO O NO */}
             <div className="sm:hidden flex flex-col gap-2 w-full">
-              {/* Fila 1 en móvil: WhatsApp con foto a ancho completo */}
-              <button
-                type="button"
-                disabled={generandoImagen}
-                onClick={manejarEnviarImagenWhatsApp}
-                className="w-full py-3 px-4 bg-[#25D366] hover:bg-[#20bd5a] text-white font-black rounded-xl shadow-xs flex items-center justify-center gap-2 transition active:scale-95 text-xs text-center cursor-pointer disabled:opacity-60"
-                title="Compartir foto real del tíquet a WhatsApp"
-              >
-                {generandoImagen ? (
-                  <Loader2 size={16} className="animate-spin shrink-0" />
-                ) : (
-                  <MessageCircle size={16} className="shrink-0 fill-white/20" />
-                )}
-                <span className="truncate">
-                  {generandoImagen ? 'Generando foto...' : 'Foto a WhatsApp 📷'}
-                </span>
-              </button>
+              {/* Fila 1 en móvil: WhatsApp (solo si el cliente tiene número guardado) */}
+              {tieneCelularValido && (
+                <button
+                  type="button"
+                  disabled={generandoImagen}
+                  onClick={manejarEnviarImagenWhatsApp}
+                  className="w-full py-3 px-4 bg-[#25D366] hover:bg-[#20bd5a] text-white font-black rounded-xl shadow-xs flex items-center justify-center gap-2 transition active:scale-95 text-xs text-center cursor-pointer disabled:opacity-60"
+                  title="Compartir foto real del tíquet a WhatsApp del cliente"
+                >
+                  {generandoImagen ? (
+                    <Loader2 size={16} className="animate-spin shrink-0" />
+                  ) : (
+                    <MessageCircle size={16} className="shrink-0 fill-white/20" />
+                  )}
+                  <span className="truncate">
+                    {generandoImagen ? 'Generando foto...' : 'Foto a WhatsApp 📷'}
+                  </span>
+                </button>
+              )}
 
-              {/* Fila 2 en móvil: Cerrar, Guardar en galería e Imprimir */}
+              {/* Fila en móvil: Cerrar, Guardar en galería e Imprimir */}
               <div className="flex gap-2 w-full">
                 <button
                   type="button"
@@ -823,16 +826,18 @@ export default function TicketFacturaModal({ isOpen, onClose, datos }: TicketFac
               </button>
 
               <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  disabled={generandoImagen}
-                  onClick={manejarEnviarImagenWhatsApp}
-                  className="py-2.5 px-3.5 bg-[#25D366] hover:bg-[#20bd5a] text-white font-black rounded-xl shadow-sm flex items-center justify-center gap-1.5 transition active:scale-95 text-xs text-center cursor-pointer disabled:opacity-60"
-                  title="Copiar imagen y abrir WhatsApp Web para pegar con Ctrl+V"
-                >
-                  {generandoImagen ? <Loader2 size={15} className="animate-spin shrink-0" /> : <MessageCircle size={15} className="shrink-0 fill-white/20" />}
-                  <span>Foto a WhatsApp</span>
-                </button>
+                {tieneCelularValido && (
+                  <button
+                    type="button"
+                    disabled={generandoImagen}
+                    onClick={manejarEnviarImagenWhatsApp}
+                    className="py-2.5 px-3.5 bg-[#25D366] hover:bg-[#20bd5a] text-white font-black rounded-xl shadow-sm flex items-center justify-center gap-1.5 transition active:scale-95 text-xs text-center cursor-pointer disabled:opacity-60"
+                    title="Copiar imagen y abrir WhatsApp Web para pegar con Ctrl+V"
+                  >
+                    {generandoImagen ? <Loader2 size={15} className="animate-spin shrink-0" /> : <MessageCircle size={15} className="shrink-0 fill-white/20" />}
+                    <span>Foto a WhatsApp</span>
+                  </button>
+                )}
 
                 <button
                   type="button"
