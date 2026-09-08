@@ -1,7 +1,9 @@
 "use client";
 import React, { useRef, useState, useEffect } from "react";
 import { createPortal } from "react-dom";
-import { X, Printer, Receipt, Crown, MessageCircle } from "lucide-react";
+import { X, Printer, Receipt, Crown, MessageCircle, Download, Share2, Loader2 } from "lucide-react";
+import { toBlob, toPng } from "html-to-image";
+import toast from "react-hot-toast";
 import { useAuth } from "@/hooks/AuthContext";
 import ModalUpsellSuscripcion from "./ModalUpsellSuscripcion";
 
@@ -55,13 +57,13 @@ export default function TicketFacturaModal({ isOpen, onClose, datos }: TicketFac
   const ticketRef = useRef<HTMLDivElement>(null);
   const [modalUpsell, setModalUpsell] = useState(false);
   const [montado, setMontado] = useState(false);
+  const [generandoImagen, setGenerandoImagen] = useState(false);
 
   useEffect(() => {
     setMontado(true);
   }, []);
 
   if (!isOpen || !datos) return null;
-
 
   const formatearFecha = (f: any) => {
     if (!f) return new Date().toLocaleDateString('es-CO', { day: '2-digit', month: '2-digit', year: 'numeric' });
@@ -86,12 +88,11 @@ export default function TicketFacturaModal({ isOpen, onClose, datos }: TicketFac
   };
 
   const manejarImprimir = () => {
-    // Breve delay con requestAnimationFrame para asegurar que el DOM esté listo antes de abrir el diálogo de impresión nativo
-    requestAnimationFrame(() => {
-      setTimeout(() => {
-        window.print();
-      }, 50);
-    });
+    try {
+      window.print();
+    } catch (e) {
+      console.error("Error al invocar impresión:", e);
+    }
   };
 
   const getTituloTipo = () => {
@@ -205,6 +206,90 @@ export default function TicketFacturaModal({ isOpen, onClose, datos }: TicketFac
 
     if (typeof window !== 'undefined') {
       window.open(url, '_blank');
+    }
+  };
+
+  const capturarBlobTicket = async (): Promise<Blob | null> => {
+    if (!ticketRef.current) return null;
+    return await toBlob(ticketRef.current, {
+      pixelRatio: 2.5,
+      backgroundColor: '#ffffff',
+      cacheBust: true,
+    });
+  };
+
+  const manejarCompartirOdescargarImagen = async () => {
+    if (!ticketRef.current || generandoImagen) return;
+    setGenerandoImagen(true);
+    const toastId = toast.loading("Generando imagen del ticket...");
+
+    try {
+      const blob = await capturarBlobTicket();
+      if (!blob) throw new Error("No se pudo generar la imagen");
+
+      const nombreArchivo = `Ticket-${datos.idTransaccion ? datos.idTransaccion.slice(0, 8).toUpperCase() : Date.now()}.png`;
+      const archivo = new File([blob], nombreArchivo, { type: 'image/png' });
+
+      // Si el navegador soporta compartir archivos (dispositivos móviles Android / iOS)
+      if (typeof navigator !== 'undefined' && navigator.canShare && navigator.canShare({ files: [archivo] })) {
+        toast.dismiss(toastId);
+        await navigator.share({
+          files: [archivo],
+          title: `Factura ${datos.nombreNegocio}`,
+          text: `Comprobante de compra de ${datos.nombreNegocio}`
+        });
+        toast.success("¡Comprobante compartido!");
+      } else {
+        // En computador o si no soporta compartir archivos, descargar directamente
+        const urlDescarga = URL.createObjectURL(blob);
+        const enlace = document.createElement('a');
+        enlace.href = urlDescarga;
+        enlace.download = nombreArchivo;
+        document.body.appendChild(enlace);
+        enlace.click();
+        document.body.removeChild(enlace);
+        URL.revokeObjectURL(urlDescarga);
+        toast.dismiss(toastId);
+        toast.success("¡Imagen del ticket descargada!");
+      }
+    } catch (error: any) {
+      toast.dismiss(toastId);
+      if (error?.name !== 'AbortError') {
+        console.error("Error compartiendo imagen del ticket:", error);
+        toast.error("No se pudo compartir la imagen. Puedes descargarla o enviar el texto.");
+      }
+    } finally {
+      setGenerandoImagen(false);
+    }
+  };
+
+  const manejarDescargarImagenDirecta = async () => {
+    if (!ticketRef.current || generandoImagen) return;
+    setGenerandoImagen(true);
+    const toastId = toast.loading("Preparando descarga de imagen...");
+
+    try {
+      const dataUrl = await toPng(ticketRef.current, {
+        pixelRatio: 2.5,
+        backgroundColor: '#ffffff',
+        cacheBust: true,
+      });
+
+      const nombreArchivo = `Ticket-${datos.idTransaccion ? datos.idTransaccion.slice(0, 8).toUpperCase() : Date.now()}.png`;
+      const enlace = document.createElement('a');
+      enlace.href = dataUrl;
+      enlace.download = nombreArchivo;
+      document.body.appendChild(enlace);
+      enlace.click();
+      document.body.removeChild(enlace);
+      toast.dismiss(toastId);
+      toast.success("¡Ticket descargado como imagen PNG!");
+    } catch (error) {
+      console.error("Error al descargar imagen:", error);
+      toast.dismiss(toastId);
+      toast.error("Error al descargar la imagen.");
+    } finally {
+      setGenerandoImagen(false);
     }
   };
 
@@ -324,6 +409,7 @@ export default function TicketFacturaModal({ isOpen, onClose, datos }: TicketFac
                     <img 
                       src={datos.logoNegocio} 
                       alt="Logo Negocio" 
+                      crossOrigin="anonymous"
                       className="max-h-16 max-w-[140px] object-contain filter grayscale contrast-125"
                     />
                   </div>
@@ -590,45 +676,132 @@ export default function TicketFacturaModal({ isOpen, onClose, datos }: TicketFac
           </div>
 
           {/* BOTONES DE ACCIÓN */}
-          <div className="ticket-print-hide p-3 sm:p-4 border-t border-slate-100 dark:border-slate-800 bg-white dark:bg-[#0f172a] flex flex-wrap gap-2 sm:gap-3 shrink-0">
-            <button
-              type="button"
-              onClick={onClose}
-              className="py-2.5 sm:py-3.5 px-3 sm:px-4 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold rounded-xl sm:rounded-2xl transition-colors text-xs sm:text-sm text-center cursor-pointer"
-            >
-              Cerrar
-            </button>
+          <div className="ticket-print-hide p-3 sm:p-4 border-t border-slate-100 dark:border-slate-800 bg-white dark:bg-[#0f172a] flex flex-col sm:flex-row gap-2 sm:gap-2.5 shrink-0">
+            
+            {/* VISTA MÓVIL: 2 FILAS ORGANIZADAS */}
+            <div className="sm:hidden flex flex-col gap-2 w-full">
+              {/* Fila 1 en móvil: WhatsApp (Texto e Imagen directa) */}
+              <div className="flex gap-2 w-full">
+                <button
+                  type="button"
+                  onClick={compartirPorWhatsApp}
+                  className="flex-1 py-2.5 px-2.5 bg-[#25D366] hover:bg-[#20bd5a] text-white font-black rounded-xl shadow-xs flex items-center justify-center gap-1.5 transition active:scale-95 text-xs text-center cursor-pointer"
+                  title={datos.celularCliente ? `Enviar al WhatsApp de ${datos.nombreCliente} (${datos.celularCliente})` : "Compartir por WhatsApp"}
+                >
+                  <MessageCircle size={15} className="shrink-0 fill-white/20" />
+                  <span className="truncate">
+                    {datos.celularCliente ? 'Enviar WhatsApp' : 'Texto WhatsApp'}
+                  </span>
+                </button>
 
-            {/* BOTÓN COMPARTIR / ENVIAR POR WHATSAPP (Valor agregado sin costo de papel) */}
-            <button
-              type="button"
-              onClick={compartirPorWhatsApp}
-              className="flex-1 min-w-[130px] py-2.5 sm:py-3.5 px-3 sm:px-4 bg-[#25D366] hover:bg-[#20bd5a] text-white font-black rounded-xl sm:rounded-2xl shadow-md sm:shadow-lg shadow-[#25D366]/25 flex items-center justify-center gap-1.5 sm:gap-2 transition-transform transform active:scale-95 text-xs sm:text-sm text-center cursor-pointer"
-              title={datos.celularCliente ? `Enviar al WhatsApp de ${datos.nombreCliente} (${datos.celularCliente})` : "Compartir por WhatsApp"}
-            >
-              <MessageCircle size={16} className="shrink-0 fill-white/20" />
-              <span className="truncate">
-                {datos.celularCliente ? 'Enviar al WhatsApp' : 'Compartir Factura'}
-              </span>
-            </button>
+                <button
+                  type="button"
+                  disabled={generandoImagen}
+                  onClick={manejarCompartirOdescargarImagen}
+                  className="flex-1 py-2.5 px-2.5 bg-violet-600 hover:bg-violet-700 text-white font-black rounded-xl shadow-xs flex items-center justify-center gap-1.5 transition active:scale-95 text-xs text-center cursor-pointer disabled:opacity-60"
+                  title="Compartir tíquet como foto/imagen a WhatsApp"
+                >
+                  {generandoImagen ? (
+                    <Loader2 size={15} className="animate-spin shrink-0" />
+                  ) : (
+                    <Share2 size={15} className="shrink-0" />
+                  )}
+                  <span className="truncate">
+                    {generandoImagen ? 'Generando...' : 'Compartir Foto'}
+                  </span>
+                </button>
+              </div>
 
-            <button
-              type="button"
-              onClick={() => {
-                if (datosSesion?.esGratis) {
-                  setModalUpsell(true);
-                  return;
-                }
-                manejarImprimir();
-              }}
-              className="flex-1 min-w-[120px] py-2.5 sm:py-3.5 px-3 sm:px-4 bg-blue-600 hover:bg-blue-700 text-white font-black rounded-xl sm:rounded-2xl shadow-md sm:shadow-lg shadow-blue-600/30 flex items-center justify-center gap-1.5 sm:gap-2 transition-transform transform active:scale-95 text-xs sm:text-sm text-center cursor-pointer"
-            >
-              <Printer size={16} className="shrink-0" /> 
-              <span className="truncate">
-                {datosSesion?.esGratis ? 'Factura Imprimible' : 'Imprimir'}
-              </span>
-              {datosSesion?.esGratis && <Crown size={13} className="text-amber-300 shrink-0" />}
-            </button>
+              {/* Fila 2 en móvil: Cerrar, Descargar PNG e Imprimir */}
+              <div className="flex gap-2 w-full">
+                <button
+                  type="button"
+                  onClick={onClose}
+                  className="py-2 px-3 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold rounded-xl text-xs text-center cursor-pointer"
+                >
+                  Cerrar
+                </button>
+
+                <button
+                  type="button"
+                  disabled={generandoImagen}
+                  onClick={manejarDescargarImagenDirecta}
+                  className="flex-1 py-2 px-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-bold rounded-xl flex items-center justify-center gap-1 text-xs text-center cursor-pointer disabled:opacity-60"
+                  title="Descargar imagen en la galería"
+                >
+                  <Download size={13} />
+                  <span>Guardar</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (datosSesion?.esGratis) {
+                      setModalUpsell(true);
+                      return;
+                    }
+                    manejarImprimir();
+                  }}
+                  className="flex-1 py-2 px-2 bg-blue-600 hover:bg-blue-700 text-white font-black rounded-xl flex items-center justify-center gap-1 text-xs text-center cursor-pointer"
+                  title="Imprimir en impresora térmica"
+                >
+                  <Printer size={13} />
+                  <span>Imprimir</span>
+                  {datosSesion?.esGratis && <Crown size={12} className="text-amber-300 shrink-0" />}
+                </button>
+              </div>
+            </div>
+
+            {/* VISTA ESCRITORIO: EN UNA SOLA FILA ELEGANTE */}
+            <div className="hidden sm:flex items-center justify-between gap-2.5 w-full">
+              <button
+                type="button"
+                onClick={onClose}
+                className="py-2.5 px-4 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold rounded-xl transition text-xs text-center cursor-pointer"
+              >
+                Cerrar
+              </button>
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={compartirPorWhatsApp}
+                  className="py-2.5 px-3.5 bg-[#25D366] hover:bg-[#20bd5a] text-white font-black rounded-xl shadow-sm flex items-center justify-center gap-1.5 transition active:scale-95 text-xs text-center cursor-pointer"
+                  title={datos.celularCliente ? `Enviar al WhatsApp de ${datos.nombreCliente} (${datos.celularCliente})` : "Compartir por WhatsApp"}
+                >
+                  <MessageCircle size={15} className="shrink-0 fill-white/20" />
+                  <span>{datos.celularCliente ? 'Enviar WhatsApp' : 'WhatsApp'}</span>
+                </button>
+
+                <button
+                  type="button"
+                  disabled={generandoImagen}
+                  onClick={manejarDescargarImagenDirecta}
+                  className="py-2.5 px-3.5 bg-violet-600 hover:bg-violet-700 text-white font-black rounded-xl shadow-sm flex items-center justify-center gap-1.5 transition active:scale-95 text-xs text-center cursor-pointer disabled:opacity-60"
+                  title="Descargar imagen PNG del tíquet térmico"
+                >
+                  {generandoImagen ? <Loader2 size={15} className="animate-spin shrink-0" /> : <Download size={15} className="shrink-0" />}
+                  <span>Descargar Imagen</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (datosSesion?.esGratis) {
+                      setModalUpsell(true);
+                      return;
+                    }
+                    manejarImprimir();
+                  }}
+                  className="py-2.5 px-4 bg-blue-600 hover:bg-blue-700 text-white font-black rounded-xl shadow-sm flex items-center justify-center gap-1.5 transition active:scale-95 text-xs text-center cursor-pointer"
+                >
+                  <Printer size={15} className="shrink-0" /> 
+                  <span>{datosSesion?.esGratis ? 'Factura Imprimible' : 'Imprimir'}</span>
+                  {datosSesion?.esGratis && <Crown size={12} className="text-amber-300 shrink-0" />}
+                </button>
+              </div>
+            </div>
+
           </div>
 
         </div>
