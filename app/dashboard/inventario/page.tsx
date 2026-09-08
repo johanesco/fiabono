@@ -1,5 +1,6 @@
 "use client";
 import { useState, useEffect, useMemo, useRef } from "react";
+import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import { collection, getDocs, query, doc, updateDoc, deleteDoc, where, addDoc, writeBatch, increment } from "firebase/firestore";
 import { db } from "../../../firebase";
@@ -77,6 +78,9 @@ export default function InventarioPage() {
   const puedeEditarInventario = esAdmin || datosSesion?.permisos?.editarInventario === true || datosSesion?.puedeEditarInventario === true;
   const puedeIngresarInventario = esAdmin || datosSesion?.permisos?.ingresoInventario === true;
   const moduloSepareActivo = datosSesion?.moduloSepareActivo !== false;
+
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
 
   const [inventario, setInventario] = useState<any[]>([]);
   const [cargando, setCargando] = useState(true);
@@ -4495,64 +4499,45 @@ export default function InventarioPage() {
         </div>
       )}
 
-      {/* MODAL CREAR / EDITAR PRODUCTO (BLINDADO PARA MÓVIL Y ESCRITORIO) */}
-      {(esAdmin || puedeEditarInventario) && modalProducto && (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center p-2 sm:p-4 z-[9995]">
-          <div className="bg-white dark:bg-[#0f172a] rounded-3xl sm:rounded-[2.5rem] w-full max-w-[98vw] 2xl:max-w-[1650px] h-[94dvh] sm:h-[92dvh] shadow-2xl border border-slate-100 dark:border-slate-800 flex flex-col overflow-hidden animate-in zoom-in-95 duration-200">
+      {/* MODAL CREAR / EDITAR PRODUCTO (BLINDADO PARA MÓVIL Y ESCRITORIO CON PORTAL) */}
+      {(esAdmin || puedeEditarInventario) && modalProducto && mounted && createPortal(
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-end sm:items-center justify-center p-0 sm:p-4 z-[99999] overflow-hidden">
+          <div className="bg-white dark:bg-[#0f172a] rounded-t-3xl sm:rounded-[2.5rem] w-full max-w-[98vw] 2xl:max-w-[1650px] h-full sm:h-[92dvh] max-h-[100dvh] sm:max-h-[92dvh] shadow-2xl border border-slate-100 dark:border-slate-800 flex flex-col overflow-hidden animate-in slide-in-from-bottom-4 sm:zoom-in-95 duration-200">
             
-            {/* Encabezado Fijo del Modal */}
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2.5 border-b border-slate-200 bg-slate-50 px-3.5 sm:px-6 py-2.5 sm:py-3.5 dark:border-slate-800 dark:bg-slate-900/60 shrink-0 z-10">
-              <div className="flex items-center justify-between sm:justify-start gap-2.5 min-w-0">
-                <div className="flex items-center gap-2.5 min-w-0">
-                  <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl sm:rounded-2xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0 shadow-inner">
-                    <Package size={20} className="sm:w-[22px] sm:h-[22px]" />
-                  </div>
-                  <div className="min-w-0">
-                    <h3 className="text-sm sm:text-lg font-black text-slate-900 dark:text-white flex items-center gap-1.5 truncate">
-                      {editandoId ? 'Editar Producto' : 'Gestión de Inventario'}
-                    </h3>
-                    <p className="text-[10px] sm:text-[11px] text-slate-500 dark:text-slate-400 truncate hidden xs:block">
-                      {editandoId ? `Modificando referencia seleccionada` : `${inventario.length} referencias en catálogo`}
-                    </p>
-                  </div>
+            {/* Encabezado Fijo del Modal (Línea única compacta en móvil) */}
+            <div className="flex items-center justify-between gap-2 border-b border-slate-200 bg-slate-50 px-3 sm:px-6 py-2 sm:py-3.5 dark:border-slate-800 dark:bg-slate-900/60 shrink-0 z-10">
+              <div className="flex items-center gap-2 min-w-0">
+                <div className="w-7 h-7 sm:w-10 sm:h-10 rounded-lg sm:rounded-2xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0 shadow-inner">
+                  <Package size={17} className="sm:w-[22px] sm:h-[22px]" />
                 </div>
-
-                {/* Botón cerrar para móvil alineado a la derecha */}
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (productosEnCarga.length > 0) {
-                      setModalConfirmarDescarteCarga(true);
-                    } else {
-                      limpiarFormulario();
-                      setModalProducto(false);
-                    }
-                  }}
-                  className="sm:hidden p-1.5 rounded-full bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-300 transition cursor-pointer shrink-0"
-                  aria-label="Cerrar modal"
-                >
-                  <X size={18} />
-                </button>
+                <div className="min-w-0">
+                  <h3 className="text-xs sm:text-lg font-black text-slate-900 dark:text-white flex items-center gap-1.5 truncate">
+                    {editandoId ? 'Editar' : 'Inventario'}
+                  </h3>
+                  <p className="text-[10px] sm:text-[11px] text-slate-500 dark:text-slate-400 truncate hidden sm:block">
+                    {editandoId ? `Modificando referencia seleccionada` : `${inventario.length} referencias en catálogo`}
+                  </p>
+                </div>
               </div>
 
-              <div className="flex items-center justify-between sm:justify-end gap-2 shrink-0">
+              <div className="flex items-center justify-end gap-1.5 sm:gap-2 shrink-0">
                 {/* Selector de pestañas para pantallas móviles */}
-                <div className="flex lg:hidden bg-slate-200 dark:bg-slate-800 p-1 rounded-xl text-xs font-bold flex-1 sm:flex-none justify-center">
+                <div className="flex lg:hidden bg-slate-200 dark:bg-slate-800 p-0.5 sm:p-1 rounded-lg sm:rounded-xl text-[11px] sm:text-xs font-bold justify-center">
                   <button
                     type="button"
                     onClick={() => setTabMovilModal('formulario')}
-                    className={`flex-1 sm:flex-none px-3 py-1 rounded-lg transition cursor-pointer text-center ${tabMovilModal === 'formulario' ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs' : 'text-slate-500 hover:text-slate-900 dark:hover:text-white'}`}
+                    className={`px-2 sm:px-3 py-0.5 sm:py-1 rounded-md sm:rounded-lg transition cursor-pointer text-center ${tabMovilModal === 'formulario' ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs' : 'text-slate-500 hover:text-slate-900 dark:hover:text-white'}`}
                   >
                     Formulario
                   </button>
                   <button
                     type="button"
                     onClick={() => setTabMovilModal('lista')}
-                    className={`flex-1 sm:flex-none px-3 py-1 rounded-lg transition cursor-pointer flex items-center justify-center gap-1.5 ${tabMovilModal === 'lista' ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs' : 'text-slate-500 hover:text-slate-900 dark:hover:text-white'}`}
+                    className={`px-2 sm:px-3 py-0.5 sm:py-1 rounded-md sm:rounded-lg transition cursor-pointer flex items-center justify-center gap-1 ${tabMovilModal === 'lista' ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs' : 'text-slate-500 hover:text-slate-900 dark:hover:text-white'}`}
                   >
                     Cola ({productosEnCarga.length})
                     {productosEnCarga.length > 0 && (
-                      <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
                     )}
                   </button>
                 </div>
@@ -4564,10 +4549,10 @@ export default function InventarioPage() {
                       setModalProducto(false);
                       setModalEscanerInventario(true);
                     }}
-                    className="flex items-center gap-1.5 px-3 py-1.5 sm:py-2 rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/20 text-xs font-bold transition cursor-pointer shrink-0"
+                    className="flex items-center gap-1 px-2 sm:px-3 py-1 sm:py-2 rounded-lg sm:rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/20 text-[11px] sm:text-xs font-bold transition cursor-pointer shrink-0"
                     title="Alternar al escáner de cámara"
                   >
-                    <ScanLine size={15} /> <span>Escáner</span>
+                    <ScanLine size={13} /> <span className="hidden xs:inline">Escáner</span>
                   </button>
                 )}
                 
@@ -4581,9 +4566,11 @@ export default function InventarioPage() {
                       setModalProducto(false);
                     }
                   }}
-                  className="hidden sm:inline-flex rounded-xl sm:rounded-full bg-white px-3.5 py-2 text-xs sm:text-sm font-bold text-slate-600 shadow-sm transition hover:bg-slate-100 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700 shrink-0 cursor-pointer"
+                  className="p-1 sm:px-3.5 sm:py-2 rounded-full bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-200 hover:bg-slate-300 dark:hover:bg-slate-700 text-xs sm:text-sm font-bold shrink-0 transition cursor-pointer"
+                  aria-label="Cerrar modal"
                 >
-                  Cerrar
+                  <X size={16} className="sm:hidden" />
+                  <span className="hidden sm:inline">Cerrar</span>
                 </button>
               </div>
             </div>
@@ -4592,20 +4579,20 @@ export default function InventarioPage() {
             <div className="flex-1 overflow-hidden grid grid-cols-1 lg:grid-cols-[1.15fr_0.85fr] xl:grid-cols-[1.2fr_0.8fr]">
               
               {/* COLUMNA IZQUIERDA: FORMULARIO DE INGRESO Y EDICIÓN */}
-              <div className={`flex flex-col h-full overflow-y-auto p-3 sm:p-5 space-y-3 ${tabMovilModal === 'formulario' ? 'flex' : 'hidden lg:flex'}`}>
+              <div className={`flex flex-col h-full overflow-y-auto p-2 sm:p-5 space-y-2 sm:space-y-3 ${tabMovilModal === 'formulario' ? 'flex' : 'hidden lg:flex'}`}>
                 
                 {/* Banner de Modo Edición Activo */}
                 {editandoId && (
-                  <div className="p-3 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/50 rounded-2xl flex items-center justify-between gap-3 shadow-xs">
-                    <div className="flex items-center gap-2.5 min-w-0">
-                      <div className="w-8 h-8 rounded-xl bg-amber-500 text-white flex items-center justify-center shrink-0">
-                        <Edit3 size={16} />
+                  <div className="p-2 sm:p-3 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/50 rounded-xl sm:rounded-2xl flex items-center justify-between gap-2 sm:gap-3 shadow-xs">
+                    <div className="flex items-center gap-2 sm:gap-2.5 min-w-0">
+                      <div className="w-6 h-6 sm:w-8 sm:h-8 rounded-lg sm:rounded-xl bg-amber-500 text-white flex items-center justify-center shrink-0">
+                        <Edit3 size={13} />
                       </div>
                       <div className="min-w-0">
                         <p className="text-xs font-black text-amber-900 dark:text-amber-200 truncate">
-                          Editando producto: "{nombre || 'Sin nombre'}"
+                          Editando: "{nombre || 'Sin nombre'}"
                         </p>
-                        <p className="text-[10px] text-amber-700 dark:text-amber-400">
+                        <p className="text-[10px] text-amber-700 dark:text-amber-400 hidden xs:block">
                           Ajusta los datos y presiona "Actualizar en Catálogo".
                         </p>
                       </div>
@@ -4613,19 +4600,19 @@ export default function InventarioPage() {
                     <button
                       type="button"
                       onClick={limpiarFormulario}
-                      className="px-3 py-1.5 text-xs font-bold bg-white dark:bg-slate-800 border border-amber-300 dark:border-amber-700 text-amber-800 dark:text-amber-300 rounded-xl hover:bg-amber-100 dark:hover:bg-slate-700 transition shrink-0 cursor-pointer"
+                      className="px-2.5 py-1 text-xs font-bold bg-white dark:bg-slate-800 border border-amber-300 dark:border-amber-700 text-amber-800 dark:text-amber-300 rounded-lg sm:rounded-xl hover:bg-amber-100 dark:hover:bg-slate-700 transition shrink-0 cursor-pointer"
                     >
-                      Cancelar edición
+                      Cancelar
                     </button>
                   </div>
                 )}
 
                 {/* Campos del Formulario */}
-                <div className="space-y-3.5">
+                <div className="space-y-2 sm:space-y-3.5">
                   
                   {/* Fila 1: Nombre del Producto */}
-                  <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3.5 dark:border-slate-800 dark:bg-slate-900/40 space-y-1.5">
-                    <label className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider block">
+                  <div className="rounded-xl sm:rounded-2xl border border-slate-200 bg-slate-50 p-2 sm:p-3.5 dark:border-slate-800 dark:bg-slate-900/40 space-y-1 sm:space-y-1.5">
+                    <label className="text-[10px] sm:text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider block">
                       Nombre del Producto *
                     </label>
                     <input 
@@ -4633,9 +4620,9 @@ export default function InventarioPage() {
                       value={nombre} 
                       onChange={(e) => { setNombre(e.target.value); setErrores(prev => ({ ...prev, nombre: '' })); }} 
                       placeholder="Ej. Camisa Polo Manga Corta" 
-                      className="w-full p-2.5 sm:p-3 bg-white dark:bg-[#020617] border border-slate-200 dark:border-slate-700 rounded-xl outline-none font-bold text-sm sm:text-base focus:border-emerald-500 text-slate-900 dark:text-white transition-all shadow-xs" 
+                      className="w-full p-2 sm:p-3 bg-white dark:bg-[#020617] border border-slate-200 dark:border-slate-700 rounded-xl outline-none font-bold text-xs sm:text-base focus:border-emerald-500 text-slate-900 dark:text-white transition-all shadow-xs" 
                     />
-                    {errores.nombre && <p className="mt-1 text-[11px] text-rose-500 font-medium">{errores.nombre}</p>}
+                    {errores.nombre && <p className="mt-0.5 text-[10px] sm:text-[11px] text-rose-500 font-medium">{errores.nombre}</p>}
                     
                     {/* Detector de productos similares para evitar duplicados */}
                     {!editandoId && nombre.trim().length >= 2 && (
@@ -4683,12 +4670,12 @@ export default function InventarioPage() {
                   </div>
 
                   {/* Fila 2: SKU / Código de Barras */}
-                  <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3.5 dark:border-slate-800 dark:bg-slate-900/40 space-y-1.5">
+                  <div className="rounded-xl sm:rounded-2xl border border-slate-200 bg-slate-50 p-2 sm:p-3.5 dark:border-slate-800 dark:bg-slate-900/40 space-y-1 sm:space-y-1.5">
                     <div className="flex items-center justify-between">
-                      <label className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider block">
+                      <label className="text-[10px] sm:text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider block">
                         Código de Barras / SKU
                       </label>
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-1.5 sm:gap-2">
                         <button
                           type="button"
                           onClick={() => {
@@ -4696,10 +4683,10 @@ export default function InventarioPage() {
                             setSku(nuevoSku);
                             toast.success(`Código: ${nuevoSku}`, { icon: '✨' });
                           }}
-                          className="text-[11px] font-bold text-indigo-600 dark:text-indigo-400 hover:underline flex items-center gap-1 cursor-pointer"
+                          className="text-[10px] sm:text-[11px] font-bold text-indigo-600 dark:text-indigo-400 hover:underline flex items-center gap-1 cursor-pointer"
                           title="Generar código automático"
                         >
-                          <Sparkles size={12} /> Auto
+                          <Sparkles size={11} /> Auto
                         </button>
                         <button
                           type="button"
@@ -4707,10 +4694,10 @@ export default function InventarioPage() {
                             setModalProducto(false);
                             setModalEscanerInventario(true);
                           }}
-                          className="text-[11px] font-bold text-emerald-600 dark:text-emerald-400 hover:underline flex items-center gap-1 cursor-pointer"
+                          className="text-[10px] sm:text-[11px] font-bold text-emerald-600 dark:text-emerald-400 hover:underline flex items-center gap-1 cursor-pointer"
                           title="Escanear con la cámara del celular"
                         >
-                          <ScanLine size={12} /> Escanear
+                          <ScanLine size={11} /> Escanear
                         </button>
                       </div>
                     </div>
@@ -4719,7 +4706,7 @@ export default function InventarioPage() {
                       value={sku} 
                       onChange={(e) => setSku(e.target.value)} 
                       placeholder="Ej. 7701234567890 o CAM-001" 
-                      className="w-full p-2.5 sm:p-3 bg-white dark:bg-[#020617] border border-slate-200 dark:border-slate-700 rounded-xl outline-none font-mono font-bold text-sm sm:text-base focus:border-emerald-500 text-slate-900 dark:text-white transition-all shadow-xs" 
+                      className="w-full p-2 sm:p-3 bg-white dark:bg-[#020617] border border-slate-200 dark:border-slate-700 rounded-xl outline-none font-mono font-bold text-xs sm:text-base focus:border-emerald-500 text-slate-900 dark:text-white transition-all shadow-xs" 
                     />
 
                     {/* Coincidencia inteligente por código */}
@@ -4763,12 +4750,12 @@ export default function InventarioPage() {
                   </div>
 
                   {/* Fila 3: Categoría */}
-                  <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3.5 dark:border-slate-800 dark:bg-slate-900/40 space-y-1.5">
-                    <label className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider block">
+                  <div className="rounded-xl sm:rounded-2xl border border-slate-200 bg-slate-50 p-2 sm:p-3.5 dark:border-slate-800 dark:bg-slate-900/40 space-y-1 sm:space-y-1.5">
+                    <label className="text-[10px] sm:text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider block">
                       Categoría
                     </label>
                     <div className="relative">
-                      <div className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white p-1 shadow-xs transition-all focus-within:border-emerald-500 dark:border-slate-700 dark:bg-[#020617]">
+                      <div className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white p-0.5 sm:p-1 shadow-xs transition-all focus-within:border-emerald-500 dark:border-slate-700 dark:bg-[#020617]">
                         <input
                           value={categoria}
                           onFocus={() => setCategoriaFoco(true)}
@@ -4792,7 +4779,7 @@ export default function InventarioPage() {
                             setCategoriaFoco(true);
                           }}
                           placeholder="Escribe o busca una categoría..."
-                          className="w-full bg-transparent px-3 py-2 text-sm font-semibold text-slate-800 outline-none placeholder:text-slate-400 dark:text-slate-100"
+                          className="w-full bg-transparent px-2.5 py-1.5 sm:py-2 text-xs sm:text-sm font-semibold text-slate-800 outline-none placeholder:text-slate-400 dark:text-slate-100"
                         />
                         <button
                           type="button"
@@ -4890,10 +4877,11 @@ export default function InventarioPage() {
                     {errores.categoria && <p className="mt-1 text-[11px] text-rose-500 font-medium">{errores.categoria}</p>}
                   </div>
 
-                  {/* Fila 4: Tipo y ¿Inventariable? */}
-                  <div className="grid grid-cols-2 gap-2.5 sm:gap-3">
-                    <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3 dark:border-slate-800 dark:bg-slate-900/40 space-y-1">
-                      <label className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider block">
+                  {/* Fila 4 (Móvil): Tipo, Stock y Precio en 3 columnas compactas sin scroll */}
+                  <div className="grid grid-cols-3 gap-1.5 sm:hidden">
+                    {/* Tipo */}
+                    <div className="rounded-xl border border-slate-200 bg-slate-50 p-1.5 dark:border-slate-800 dark:bg-slate-900/40 space-y-0.5">
+                      <label className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider block truncate">
                         Tipo
                       </label>
                       <select 
@@ -4909,42 +4897,19 @@ export default function InventarioPage() {
                             setInventariable(true);
                           }
                         }} 
-                        className="w-full p-2.5 bg-white dark:bg-[#020617] border border-slate-200 dark:border-slate-700 rounded-xl outline-none font-bold text-xs sm:text-sm focus:border-emerald-500 text-slate-900 dark:text-white"
+                        className="w-full p-1.5 bg-white dark:bg-[#020617] border border-slate-200 dark:border-slate-700 rounded-lg outline-none font-bold text-[11px] focus:border-emerald-500 text-slate-900 dark:text-white"
                       >
-                        <option value="producto">Producto Físico</option>
+                        <option value="producto">Producto</option>
                         <option value="servicio">Servicio</option>
                       </select>
                     </div>
 
-                    <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3 dark:border-slate-800 dark:bg-slate-900/40 space-y-1">
-                      <label className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider block">
-                        ¿Inventariable?
+                    {/* Stock */}
+                    <div className="rounded-xl border border-slate-200 bg-slate-50 p-1.5 dark:border-slate-800 dark:bg-slate-900/40 space-y-0.5">
+                      <label className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider block truncate">
+                        Stock
                       </label>
-                      <select 
-                        value={inventariable ? 'si' : 'no'} 
-                        onChange={(e) => {
-                          const esInv = e.target.value === 'si';
-                          setInventariable(esInv);
-                          if (!esInv) {
-                            setStock('0');
-                            setErrores(prev => ({ ...prev, stock: '' }));
-                          }
-                        }} 
-                        className="w-full p-2.5 bg-white dark:bg-[#020617] border border-slate-200 dark:border-slate-700 rounded-xl outline-none font-bold text-xs sm:text-sm focus:border-emerald-500 text-slate-900 dark:text-white"
-                      >
-                        <option value="si">Sí (Controla Stock)</option>
-                        <option value="no">No (Stock Ilimitado)</option>
-                      </select>
-                    </div>
-                  </div>
-
-                  {/* Fila 5: Stock y Precio Venta */}
-                  <div className="grid grid-cols-2 gap-2.5 sm:gap-3">
-                    {tipoProducto === 'producto' && inventariable ? (
-                      <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3 dark:border-slate-800 dark:bg-slate-900/40 space-y-1">
-                        <label className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider block">
-                          Stock
-                        </label>
+                      {tipoProducto === 'producto' && inventariable ? (
                         <input 
                           type="number" 
                           min="0" 
@@ -4955,20 +4920,19 @@ export default function InventarioPage() {
                             setErrores(prev => ({ ...prev, stock: '' })); 
                           }} 
                           placeholder="0" 
-                          className="w-full p-2.5 sm:p-3 bg-white dark:bg-[#020617] border border-slate-200 dark:border-slate-700 rounded-xl outline-none font-black text-sm sm:text-base focus:border-emerald-500 text-slate-900 dark:text-white" 
+                          className="w-full p-1.5 bg-white dark:bg-[#020617] border border-slate-200 dark:border-slate-700 rounded-lg outline-none font-black text-xs focus:border-emerald-500 text-slate-900 dark:text-white" 
                         />
-                        {errores.stock && <p className="mt-1 text-[11px] text-rose-500 font-medium">{errores.stock}</p>}
-                      </div>
-                    ) : (
-                      <div className="rounded-2xl border border-dashed border-indigo-200 bg-indigo-50/60 dark:border-indigo-900/50 dark:bg-indigo-950/20 p-3 flex flex-col justify-center">
-                        <label className="text-xs font-bold text-indigo-500 uppercase tracking-wider mb-0.5 block">Stock</label>
-                        <span className="text-indigo-700 dark:text-indigo-300 font-black text-xs sm:text-sm">🛠️ Ilimitado</span>
-                      </div>
-                    )}
+                      ) : (
+                        <div className="w-full p-1.5 bg-indigo-50 dark:bg-indigo-950/30 border border-indigo-200 dark:border-indigo-900/50 rounded-lg text-center">
+                          <span className="text-indigo-600 dark:text-indigo-300 font-bold text-[10px]">Ilimitado</span>
+                        </div>
+                      )}
+                    </div>
 
-                    <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3 dark:border-slate-800 dark:bg-slate-900/40 space-y-1">
-                      <label className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider block">
-                        Precio Venta ($)
+                    {/* Precio Venta */}
+                    <div className="rounded-xl border border-slate-200 bg-slate-50 p-1.5 dark:border-slate-800 dark:bg-slate-900/40 space-y-0.5">
+                      <label className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider block truncate">
+                        Precio ($)
                       </label>
                       <input 
                         type="text" 
@@ -4979,14 +4943,109 @@ export default function InventarioPage() {
                           setErrores(prev => ({ ...prev, precio: '' })); 
                         }} 
                         placeholder="$0" 
-                        className="w-full p-2.5 sm:p-3 bg-white dark:bg-[#020617] border border-slate-200 dark:border-slate-700 rounded-xl outline-none font-black text-sm sm:text-base focus:border-emerald-500 text-slate-900 dark:text-white" 
+                        className="w-full p-1.5 bg-white dark:bg-[#020617] border border-slate-200 dark:border-slate-700 rounded-lg outline-none font-black text-xs focus:border-emerald-500 text-slate-900 dark:text-white" 
                       />
-                      {errores.precio && <p className="mt-1 text-[11px] text-rose-500 font-medium">{errores.precio}</p>}
                     </div>
                   </div>
 
-                  {/* Vista Previa Compacta */}
-                  <div className="rounded-2xl border border-emerald-200/80 bg-emerald-50/60 p-3 dark:border-emerald-500/20 dark:bg-emerald-500/5 text-xs text-slate-700 dark:text-slate-200 flex flex-wrap items-center justify-between gap-2">
+                  {/* Filas 4 y 5 (Escritorio): Diseño completo y espacioso */}
+                  <div className="hidden sm:block space-y-3">
+                    <div className="grid grid-cols-2 gap-2.5 sm:gap-3">
+                      <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3 dark:border-slate-800 dark:bg-slate-900/40 space-y-1">
+                        <label className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider block">
+                          Tipo
+                        </label>
+                        <select 
+                          value={tipoProducto} 
+                          onChange={(e) => {
+                            const val = e.target.value as 'producto' | 'servicio';
+                            setTipoProducto(val);
+                            if (val === 'servicio') {
+                              setInventariable(false);
+                              setStock('0');
+                              setErrores(prev => ({ ...prev, stock: '' }));
+                            } else {
+                              setInventariable(true);
+                            }
+                          }} 
+                          className="w-full p-2.5 bg-white dark:bg-[#020617] border border-slate-200 dark:border-slate-700 rounded-xl outline-none font-bold text-xs sm:text-sm focus:border-emerald-500 text-slate-900 dark:text-white"
+                        >
+                          <option value="producto">Producto Físico</option>
+                          <option value="servicio">Servicio</option>
+                        </select>
+                      </div>
+
+                      <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3 dark:border-slate-800 dark:bg-slate-900/40 space-y-1">
+                        <label className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider block">
+                          ¿Inventariable?
+                        </label>
+                        <select 
+                          value={inventariable ? 'si' : 'no'} 
+                          onChange={(e) => {
+                            const esInv = e.target.value === 'si';
+                            setInventariable(esInv);
+                            if (!esInv) {
+                              setStock('0');
+                              setErrores(prev => ({ ...prev, stock: '' }));
+                            }
+                          }} 
+                          className="w-full p-2.5 bg-white dark:bg-[#020617] border border-slate-200 dark:border-slate-700 rounded-xl outline-none font-bold text-xs sm:text-sm focus:border-emerald-500 text-slate-900 dark:text-white"
+                        >
+                          <option value="si">Sí (Controla Stock)</option>
+                          <option value="no">No (Stock Ilimitado)</option>
+                        </select>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2.5 sm:gap-3">
+                      {tipoProducto === 'producto' && inventariable ? (
+                        <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3 dark:border-slate-800 dark:bg-slate-900/40 space-y-1">
+                          <label className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider block">
+                            Stock
+                          </label>
+                          <input 
+                            type="number" 
+                            min="0" 
+                            value={stock} 
+                            onChange={(e) => { 
+                              const valor = Number(e.target.value); 
+                              setStock(String(Math.max(0, valor))); 
+                              setErrores(prev => ({ ...prev, stock: '' })); 
+                            }} 
+                            placeholder="0" 
+                            className="w-full p-2.5 sm:p-3 bg-white dark:bg-[#020617] border border-slate-200 dark:border-slate-700 rounded-xl outline-none font-black text-sm sm:text-base focus:border-emerald-500 text-slate-900 dark:text-white" 
+                          />
+                          {errores.stock && <p className="mt-1 text-[11px] text-rose-500 font-medium">{errores.stock}</p>}
+                        </div>
+                      ) : (
+                        <div className="rounded-2xl border border-dashed border-indigo-200 bg-indigo-50/60 dark:border-indigo-900/50 dark:bg-indigo-950/20 p-3 flex flex-col justify-center">
+                          <label className="text-xs font-bold text-indigo-500 uppercase tracking-wider mb-0.5 block">Stock</label>
+                          <span className="text-indigo-700 dark:text-indigo-300 font-black text-xs sm:text-sm">🛠️ Ilimitado</span>
+                        </div>
+                      )}
+
+                      <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3 dark:border-slate-800 dark:bg-slate-900/40 space-y-1">
+                        <label className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider block">
+                          Precio Venta ($)
+                        </label>
+                        <input 
+                          type="text" 
+                          inputMode="numeric" 
+                          value={formatearMonedaInput(precioVenta)} 
+                          onChange={(e) => { 
+                            setPrecioVenta(e.target.value.replace(/\D/g, '')); 
+                            setErrores(prev => ({ ...prev, precio: '' })); 
+                          }} 
+                          placeholder="$0" 
+                          className="w-full p-2.5 sm:p-3 bg-white dark:bg-[#020617] border border-slate-200 dark:border-slate-700 rounded-xl outline-none font-black text-sm sm:text-base focus:border-emerald-500 text-slate-900 dark:text-white" 
+                        />
+                        {errores.precio && <p className="mt-1 text-[11px] text-rose-500 font-medium">{errores.precio}</p>}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Vista Previa Compacta (Solo escritorio) */}
+                  <div className="hidden sm:flex rounded-2xl border border-emerald-200/80 bg-emerald-50/60 p-3 dark:border-emerald-500/20 dark:bg-emerald-500/5 text-xs text-slate-700 dark:text-slate-200 flex-wrap items-center justify-between gap-2">
                     <span className="font-bold text-emerald-800 dark:text-emerald-300">Resumen:</span>
                     <span>Tipo: <strong>{tipoProducto === 'servicio' ? 'Servicio' : 'Producto'}</strong></span>
                     <span>Categoría: <strong>{categoria || 'General'}</strong></span>
@@ -4996,14 +5055,14 @@ export default function InventarioPage() {
 
                 </div>
 
-                {/* Botones de Acción de la Columna Izquierda (Sticky en móvil y escritorio para que nunca se tape) */}
-                <div className="sticky bottom-0 bg-white/95 dark:bg-[#0f172a]/95 backdrop-blur-md mt-auto pt-3 pb-2 border-t border-slate-200 dark:border-slate-800 space-y-2 z-10">
+                {/* Botones de Acción de la Columna Izquierda (Sticky sin solapamiento) */}
+                <div className="sticky bottom-0 bg-white/95 dark:bg-[#0f172a]/95 backdrop-blur-md mt-auto pt-2 sm:pt-3 pb-1 sm:pb-2 border-t border-slate-200 dark:border-slate-800 space-y-2 z-10">
                   {editandoId ? (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-3">
+                    <div className="grid grid-cols-2 gap-2 sm:gap-3">
                       <button
                         type="button"
                         onClick={limpiarFormulario}
-                        className="py-3 px-4 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-700 dark:text-slate-300 font-bold rounded-xl text-xs sm:text-sm transition cursor-pointer"
+                        className="py-2.5 sm:py-3 px-3 sm:px-4 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-700 dark:text-slate-300 font-bold rounded-xl text-xs sm:text-sm transition cursor-pointer"
                       >
                         Cancelar Edición
                       </button>
@@ -5011,7 +5070,7 @@ export default function InventarioPage() {
                         type="button"
                         onClick={() => guardarProducto(false)}
                         disabled={guardando}
-                        className="py-3 px-4 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-black rounded-xl shadow-lg shadow-emerald-600/25 flex items-center justify-center gap-1.5 text-xs sm:text-sm transition active:scale-95 cursor-pointer"
+                        className="py-2.5 sm:py-3 px-3 sm:px-4 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-black rounded-xl shadow-lg shadow-emerald-600/25 flex items-center justify-center gap-1.5 text-xs sm:text-sm transition active:scale-95 cursor-pointer"
                       >
                         {guardando ? 'Actualizando...' : <>✓ Actualizar en Catálogo</>}
                       </button>
@@ -5021,7 +5080,7 @@ export default function InventarioPage() {
                       type="button"
                       onClick={agregarProductoALaCarga}
                       disabled={guardando}
-                      className="w-full py-3.5 px-4 bg-sky-600 hover:bg-sky-700 disabled:opacity-50 text-white font-black rounded-xl shadow-md text-xs sm:text-sm flex items-center justify-center gap-2 active:scale-98 transition cursor-pointer"
+                      className="w-full py-2.5 sm:py-3.5 px-4 bg-sky-600 hover:bg-sky-700 disabled:opacity-50 text-white font-black rounded-xl shadow-md text-xs sm:text-sm flex items-center justify-center gap-2 active:scale-98 transition cursor-pointer"
                       title="Encola este producto a la lista en vivo de la derecha y limpia los campos para seguir agregando"
                     >
                       ➕ Encolar y Seguir Agregando
@@ -5227,7 +5286,8 @@ export default function InventarioPage() {
             </div>
 
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* MODAL DE CONFIRMACIÓN PARA DESCARTAR CARGA DE PRODUCTOS */}

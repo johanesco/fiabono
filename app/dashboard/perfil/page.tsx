@@ -449,7 +449,7 @@ export default function PerfilPage() {
   };
 
   return (
-    <div className="flex flex-col gap-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+    <div className="flex flex-col gap-6 animate-in fade-in slide-in-from-bottom-4 duration-500 pb-28 sm:pb-12">
       
       {/* Input de archivo global para subir logo en cualquier momento */}
       <input 
@@ -477,7 +477,7 @@ export default function PerfilPage() {
             </div>
           </div>
 
-          <button onClick={() => signOut(auth)} className="w-full bg-rose-50 dark:bg-rose-500/10 text-rose-600 dark:text-rose-400 font-bold py-6 rounded-[2rem] border border-rose-200 dark:border-rose-500/20 hover:bg-rose-100 dark:hover:bg-rose-500/30 transition-colors mb-4 flex justify-center items-center gap-2 text-lg mt-8">
+          <button onClick={() => signOut(auth)} className="w-full bg-rose-50 dark:bg-rose-500/10 text-rose-600 dark:text-rose-400 font-bold py-5 sm:py-6 rounded-[2rem] border border-rose-200 dark:border-rose-500/20 hover:bg-rose-100 dark:hover:bg-rose-500/30 transition-colors mb-24 sm:mb-6 flex justify-center items-center gap-2 text-lg mt-8">
             <LogOut size={24} className="shrink-0" /> Cerrar Sesión
           </button>
         </div>
@@ -1434,7 +1434,7 @@ export default function PerfilPage() {
             </div>
           )}
 
-          <button onClick={() => signOut(auth)} className="w-full bg-rose-50 dark:bg-rose-500/10 text-rose-600 dark:text-rose-400 font-bold py-6 rounded-[2rem] border border-rose-200 dark:border-rose-500/20 hover:bg-rose-100 dark:hover:bg-rose-500/30 transition-colors mb-4 flex justify-center items-center gap-2 text-lg mt-6">
+          <button onClick={() => signOut(auth)} className="w-full bg-rose-50 dark:bg-rose-500/10 text-rose-600 dark:text-rose-400 font-bold py-5 sm:py-6 rounded-[2rem] border border-rose-200 dark:border-rose-500/20 hover:bg-rose-100 dark:hover:bg-rose-500/30 transition-colors mb-24 sm:mb-6 flex justify-center items-center gap-2 text-lg mt-6">
             <LogOut size={24} className="shrink-0" /> Cerrar Sesión
           </button>
         </>
