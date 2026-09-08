@@ -45,57 +45,57 @@ export default function VistaTicketCard({ datos, ticketRef }: VistaTicketCardPro
     <div
       id="seccion-ticket-impresion"
       ref={ticketRef}
-      className="w-full max-w-[340px] h-fit bg-white text-slate-900 p-4 sm:p-5 rounded-2xl shadow-lg border border-slate-200 font-mono text-xs flex flex-col shrink-0 mx-auto my-2"
+      className="w-full max-w-[330px] h-fit bg-white text-slate-900 p-3.5 sm:p-4 rounded-2xl shadow-lg border border-slate-200 font-mono text-xs flex flex-col shrink-0 mx-auto my-0 sm:my-1"
     >
       {/* ENCABEZADO NEGOCIO */}
-      <div className="text-center pb-3 border-b border-dashed border-slate-300">
+      <div className="text-center pb-2 border-b border-dashed border-slate-300">
         {/* LOGO DEL NEGOCIO (SI ESTÁ CONFIGURADO) */}
         {datos.logoNegocio && (
-          <div className="flex justify-center mb-2.5">
+          <div className="flex justify-center mb-2">
             <img 
               src={datos.logoNegocio} 
               alt="Logo Negocio" 
               crossOrigin="anonymous"
-              className="max-h-16 max-w-[140px] object-contain filter grayscale contrast-125"
+              className="max-h-12 max-w-[120px] object-contain filter grayscale contrast-125"
             />
           </div>
         )}
         
-        <h2 className="text-base font-black uppercase tracking-wider text-slate-900 leading-tight">
+        <h2 className="text-sm sm:text-base font-black uppercase tracking-wider text-slate-900 leading-tight">
           {datos.nombreNegocio || "MI NEGOCIO"}
         </h2>
         
         {datos.nitNegocio && (
-          <p className="text-[11px] font-bold text-slate-700 mt-0.5">
+          <p className="text-[10.5px] font-bold text-slate-700 mt-0.5">
             NIT / RUT: {datos.nitNegocio}
           </p>
         )}
         
         {datos.direccionNegocio && (
-          <p className="text-[10.5px] text-slate-600 font-medium mt-0.5">
+          <p className="text-[10px] text-slate-600 font-medium mt-0.5">
             {datos.direccionNegocio}
           </p>
         )}
         
         {datos.telefonoNegocio && (
-          <p className="text-[10.5px] text-slate-600 font-medium">
+          <p className="text-[10px] text-slate-600 font-medium">
             Tel / WhatsApp: {datos.telefonoNegocio}
           </p>
         )}
         
         {datos.correoNegocio && (
-          <p className="text-[9.5px] text-slate-500 font-medium">
+          <p className="text-[9px] text-slate-500 font-medium">
             {datos.correoNegocio}
           </p>
         )}
 
-        <div className="mt-2.5 inline-block bg-slate-100 text-slate-800 px-2.5 py-0.5 rounded font-black text-[10px] uppercase tracking-widest border border-slate-300">
+        <div className="mt-1.5 inline-block bg-slate-100 text-slate-800 px-2 py-0.5 rounded font-black text-[9.5px] uppercase tracking-widest border border-slate-300">
           {getTituloTipo()}
         </div>
       </div>
 
       {/* METADATOS DE LA FACTURA */}
-      <div className="py-2.5 border-b border-dashed border-slate-300 space-y-1 text-[11px]">
+      <div className="py-2 border-b border-dashed border-slate-300 space-y-0.5 text-[10.5px]">
         <div className="flex justify-between">
           <span className="text-slate-500 font-bold">Fecha:</span>
           <span className="font-bold text-slate-900">{formatearFecha(datos.fecha)}</span>
@@ -127,7 +127,7 @@ export default function VistaTicketCard({ datos, ticketRef }: VistaTicketCardPro
         {datos.idTransaccion && (
           <div className="flex justify-between">
             <span className="text-slate-500 font-bold">Ticket #:</span>
-            <span className="font-mono text-[10px] text-slate-700">
+            <span className="font-mono text-[9.5px] text-slate-700">
               {datos.idTransaccion.slice(0, 8).toUpperCase()}
             </span>
           </div>
@@ -135,8 +135,8 @@ export default function VistaTicketCard({ datos, ticketRef }: VistaTicketCardPro
       </div>
 
       {/* LISTA DE ARTÍCULOS O DESCRIPCIÓN */}
-      <div className="py-3 border-b border-dashed border-slate-300">
-        <div className="flex justify-between font-black text-[10.5px] sm:text-[11px] text-slate-800 pb-1.5 border-b border-slate-200">
+      <div className="py-2 border-b border-dashed border-slate-300">
+        <div className="flex justify-between font-black text-[10px] sm:text-[10.5px] text-slate-800 pb-1 border-b border-slate-200">
           <span className="w-1/2">CANT / PRODUCTO</span>
           <span className="w-1/4 text-right">VR. UNIT</span>
           <span className="w-1/4 text-right">TOTAL</span>
@@ -211,7 +211,7 @@ export default function VistaTicketCard({ datos, ticketRef }: VistaTicketCardPro
       </div>
 
       {/* TOTALES Y PAGOS */}
-      <div className="py-3 border-b border-dashed border-slate-300 space-y-1.5 text-[11px]">
+      <div className="py-2 border-b border-dashed border-slate-300 space-y-1 text-[10.5px]">
         {/* Desglose de Descuento si aplica */}
         {datos.montoDescuento !== undefined && datos.montoDescuento > 0 && (
           <>
@@ -242,16 +242,16 @@ export default function VistaTicketCard({ datos, ticketRef }: VistaTicketCardPro
           </>
         )}
 
-        <div className="flex justify-between items-center text-sm font-black pt-1">
+        <div className="flex justify-between items-center text-xs sm:text-sm font-black pt-0.5">
           <span className="uppercase text-slate-900">TOTAL:</span>
-          <span className="text-base text-slate-900">
+          <span className="text-sm sm:text-base text-slate-900">
             ${(datos.montoTotal || 0).toLocaleString('es-CO')}
           </span>
         </div>
 
         {/* MÉTODO DE PAGO */}
         {datos.metodoPago && (
-          <div className="flex justify-between items-center text-slate-700 pt-1">
+          <div className="flex justify-between items-center text-slate-700 pt-0.5">
             <span className="font-bold">Forma de Pago:</span>
             <span className="font-black uppercase text-slate-900">
               {datos.metodoPago === 'transferencia' && 'Transferencia / Nequi'}
@@ -265,7 +265,7 @@ export default function VistaTicketCard({ datos, ticketRef }: VistaTicketCardPro
 
         {/* REFERENCIA DE COMPROBANTE */}
         {datos.referenciaPago && (
-          <div className="flex justify-between items-center text-slate-600 text-[10px]">
+          <div className="flex justify-between items-center text-slate-600 text-[9.5px]">
             <span className="font-medium">Ref. / Aprobación:</span>
             <span className="font-mono font-bold text-slate-800">#{datos.referenciaPago}</span>
           </div>
@@ -287,7 +287,7 @@ export default function VistaTicketCard({ datos, ticketRef }: VistaTicketCardPro
 
         {/* ESTADO DE CUENTA RESULTANTE (SI CORRESPONDE A CLIENTE REGISTRADO) */}
         {datos.saldoNuevo !== undefined && datos.nombreCliente !== "Venta de Mostrador" && (
-          <div className="mt-2 pt-2 border-t border-slate-100">
+          <div className="mt-1 pt-1 border-t border-slate-100">
             <div className="flex justify-between items-center font-bold">
               <span className="text-slate-600">Saldo en Cuenta:</span>
               <span className={`font-black ${
@@ -309,12 +309,12 @@ export default function VistaTicketCard({ datos, ticketRef }: VistaTicketCardPro
       </div>
 
       {/* PIE DEL TICKET */}
-      <div className="pt-3 text-center text-[10px] text-slate-500 space-y-1">
+      <div className="pt-2 text-center text-[9.5px] text-slate-500 space-y-0.5">
         <p className="font-black text-slate-800 uppercase">
           {datos.mensajePieTicket || "¡GRACIAS POR SU COMPRA!"}
         </p>
-        <p className="text-[9px] text-slate-600">Conserve este comprobante para cualquier aclaración.</p>
-        <p className="text-[8px] text-slate-400 font-sans mt-2">Generado por Fiabono.com</p>
+        <p className="text-[8.5px] text-slate-600">Conserve este comprobante para cualquier aclaración.</p>
+        <p className="text-[8px] text-slate-400 font-sans mt-1">Generado por Fiabono.com</p>
       </div>
     </div>
   );

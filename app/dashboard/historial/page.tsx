@@ -371,49 +371,54 @@ Quedamos pendientes para revisar detalles o responder cualquier duda.
 
   return (
     <div className="flex flex-col animate-in fade-in slide-in-from-bottom-4 duration-500 bg-white dark:bg-[#0f172a] rounded-[2rem] shadow-sm border border-slate-100 dark:border-slate-800/60 overflow-hidden h-full">
-      <div className="bg-slate-50 dark:bg-[#0f172a] p-6 border-b border-slate-100 dark:border-slate-800/60 flex flex-col gap-5 sticky top-0 z-10 shrink-0">
+      <div className="bg-slate-50 dark:bg-[#0f172a] p-4 md:py-3 md:px-5 border-b border-slate-100 dark:border-slate-800/60 flex flex-col gap-3 md:gap-2.5 sticky top-0 z-10 shrink-0">
         
-        <div className="relative">
-          <Search className="absolute left-4 sm:left-5 top-1/2 -translate-y-1/2 text-slate-400 w-5 h-5 sm:w-6 sm:h-6" />
-          <input 
-            type="text" 
-            value={busquedaHistorial} 
-            onChange={(e) => setBusquedaHistorial(e.target.value)} 
-            placeholder="Buscar por nombre o celular..." 
-            className="w-full p-4 sm:p-5 pl-12 sm:pl-14 bg-white dark:bg-[#020617] border border-slate-200 dark:border-slate-800/80 rounded-2xl outline-none focus:border-blue-500 text-base sm:text-lg transition-all shadow-sm dark:text-slate-200 placeholder:text-sm sm:placeholder:text-base placeholder:text-slate-400" 
-          />
-        </div>
-        
-        <div className="flex flex-col gap-3">
+        {/* FILA SUPERIOR: BUSCADOR Y SELECTOR DE TIEMPO */}
+        <div className="flex flex-col md:flex-row md:items-center gap-2.5 sm:gap-3 w-full">
+          {/* BUSCADOR */}
+          <div className="relative flex-1 min-w-0">
+            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4 sm:w-4.5 sm:h-4.5" />
+            <input 
+              type="text" 
+              value={busquedaHistorial} 
+              onChange={(e) => setBusquedaHistorial(e.target.value)} 
+              placeholder="Buscar por nombre o celular..." 
+              className="w-full py-2.5 md:py-2 pl-10 pr-4 bg-white dark:bg-[#020617] border border-slate-200 dark:border-slate-800/80 rounded-xl outline-none focus:border-blue-500 text-sm transition-all shadow-xs dark:text-slate-200 placeholder:text-xs sm:placeholder:text-sm placeholder:text-slate-400" 
+            />
+          </div>
+
+          {/* FILTRO DE TIEMPO (EN LA MISMA FILA EN PC) */}
           {puedeVerReportes && (
-            <div className="flex bg-slate-200/50 dark:bg-[#020617] p-1.5 rounded-xl">
+            <div className="flex bg-slate-200/60 dark:bg-[#020617] p-1 rounded-xl shrink-0">
               {['hoy', 'semana', 'mes', 'todos'].map((filtro) => (
                 <button key={filtro} 
                   onClick={() => {
                     if (planActual === 'basico' && filtro !== 'hoy') setModalSuscripcion({ visible: true, titulo: "Función PRO", mensaje: "Los filtros históricos avanzados están disponibles en el plan PRO." });
                     else setFiltroTiempoHistorial(filtro as any);
                   }}
-                  className={`flex-1 text-sm font-bold py-3 rounded-lg capitalize transition-all ${filtroTiempoHistorial === filtro ? 'bg-white dark:bg-[#1e293b] text-blue-600 dark:text-blue-400 shadow-sm' : 'text-slate-500 dark:text-slate-400'}`}>
+                  className={`px-3 md:px-3.5 py-1.5 md:py-1 text-xs font-bold rounded-lg capitalize transition-all cursor-pointer ${filtroTiempoHistorial === filtro ? 'bg-white dark:bg-[#1e293b] text-blue-600 dark:text-blue-400 shadow-xs' : 'text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200'}`}>
                   {filtro}
                 </button>
               ))}
             </div>
           )}
-          <div className="flex flex-wrap gap-2 w-full mt-1">
-            {(puedeGestionarInventario ? ['todos', 'venta', 'abono', 'fiado', 'ingreso_inventario'] : ['todos', 'venta', 'abono', 'fiado']).map((tipo) => (
-              <button 
-                key={tipo} 
-                onClick={() => setFiltroTipoHistorial(tipo as any)} 
-                className={`flex-1 min-w-[75px] text-xs sm:text-sm font-bold py-2.5 sm:py-3 rounded-xl transition-all ${
-                  filtroTipoHistorial === tipo 
-                    ? (tipo === 'ingreso_inventario' ? 'bg-sky-600 text-white shadow-sm' : 'bg-slate-800 text-white dark:bg-slate-200 dark:text-slate-900 shadow-sm') 
-                    : 'bg-white dark:bg-[#020617] text-slate-500 border border-slate-200 dark:border-slate-800/80'
-                }`}
-              >
-                {tipo === 'ingreso_inventario' ? '📦 INVENTARIO' : tipo.toUpperCase()}
-              </button>
-            ))}
-          </div>
+        </div>
+        
+        {/* FILA INFERIOR: FILTRO DE TIPOS */}
+        <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 w-full">
+          {(puedeGestionarInventario ? ['todos', 'venta', 'abono', 'fiado', 'ingreso_inventario'] : ['todos', 'venta', 'abono', 'fiado']).map((tipo) => (
+            <button 
+              key={tipo} 
+              onClick={() => setFiltroTipoHistorial(tipo as any)} 
+              className={`flex-1 md:flex-initial text-[11px] sm:text-xs font-black py-1.5 px-3 rounded-lg transition-all cursor-pointer ${
+                filtroTipoHistorial === tipo 
+                  ? (tipo === 'ingreso_inventario' ? 'bg-sky-600 text-white shadow-xs' : 'bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900 shadow-xs') 
+                  : 'bg-white dark:bg-[#020617] text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-800/80'
+              }`}
+            >
+              {tipo === 'ingreso_inventario' ? '📦 INVENTARIO' : tipo.toUpperCase()}
+            </button>
+          ))}
         </div>
       </div>
       

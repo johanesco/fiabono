@@ -522,15 +522,15 @@ Estamos atentos para cualquier consulta.
 
       {/* MODAL EN PANTALLA (SIEMPRE EN PRIMER PLANO ABSOLUTO) */}
       <div className="ticket-print-portal fixed inset-0 bg-slate-900/80 backdrop-blur-md flex items-center justify-center p-2 sm:p-4 z-[999999] animate-in fade-in duration-200">
-        <div className="ticket-print-modal-card bg-white dark:bg-[#0f172a] rounded-3xl sm:rounded-[2rem] w-full max-w-lg shadow-2xl border border-slate-100 dark:border-slate-800 flex flex-col h-[80dvh] sm:h-auto sm:max-h-[86dvh] overflow-hidden my-auto">
+        <div className="ticket-print-modal-card bg-white dark:bg-[#0f172a] rounded-3xl sm:rounded-2xl w-full max-w-md lg:max-w-lg shadow-2xl border border-slate-100 dark:border-slate-800 flex flex-col h-[85dvh] sm:h-auto sm:max-h-[96vh] overflow-hidden my-auto">
           
           {/* HEADER DEL MODAL */}
-          <div className="ticket-print-hide p-3 sm:p-4 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center bg-slate-50 dark:bg-slate-900/60 shrink-0">
+          <div className="ticket-print-hide p-3 sm:py-2.5 sm:px-4 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center bg-slate-50 dark:bg-slate-900/60 shrink-0">
             <div className="flex items-center gap-2">
-              <div className="p-1.5 sm:p-2 bg-blue-100 dark:bg-blue-500/20 text-blue-600 dark:text-blue-400 rounded-xl">
-                <Receipt size={18} className="sm:w-5 sm:h-5" />
+              <div className="p-1.5 bg-blue-100 dark:bg-blue-500/20 text-blue-600 dark:text-blue-400 rounded-xl">
+                <Receipt size={16} className="sm:w-4 sm:h-4" />
               </div>
-              <h3 className="font-black text-slate-900 dark:text-white text-sm sm:text-base">Vista Previa de Factura / Ticket</h3>
+              <h3 className="font-black text-slate-900 dark:text-white text-xs sm:text-sm">Vista Previa de Factura / Ticket</h3>
             </div>
             <button
               onClick={onClose}
@@ -541,12 +541,12 @@ Estamos atentos para cualquier consulta.
           </div>
 
           {/* CONTENIDO SCROLLEABLE - TICKET TÉRMICO */}
-          <div className="p-2 sm:p-6 overflow-y-auto flex-1 bg-slate-100/80 dark:bg-slate-950 flex flex-col items-center min-h-0">
+          <div className="p-2 sm:py-2 sm:px-4 overflow-y-auto flex-1 bg-slate-100/80 dark:bg-slate-950 flex flex-col items-center min-h-0">
             <VistaTicketCard datos={datos} ticketRef={ticketRef} />
           </div>
 
           {/* BOTONES DE ACCIÓN */}
-          <div className="ticket-print-hide p-3 sm:p-4 border-t border-slate-100 dark:border-slate-800 bg-white dark:bg-[#0f172a] flex flex-col sm:flex-row gap-2 sm:gap-2.5 shrink-0">
+          <div className="ticket-print-hide p-3 sm:py-2.5 sm:px-4 border-t border-slate-100 dark:border-slate-800 bg-white dark:bg-[#0f172a] flex flex-col sm:flex-row gap-2 sm:gap-2 shrink-0">
             
             {/* VISTA MÓVIL: ORGANIZADA SEGÚN SI TIENE NÚMERO O NO */}
             <div className="sm:hidden flex flex-col gap-2 w-full">
