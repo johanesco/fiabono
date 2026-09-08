@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
+import { usePathname } from "next/navigation";
 import { X, Download, ArrowUpFromLine, MoreHorizontal, Smartphone } from "lucide-react";
 
 // Detecta si la app ya está en modo standalone (instalada y abierta desde icono)
@@ -24,14 +25,15 @@ function esChromeIOS(): boolean {
 }
 
 export default function InstallPrompt() {
+  const pathname = usePathname();
   const [eventoAndroid, setEventoAndroid] = useState<Event & { prompt?: () => Promise<void> } | null>(null);
   const [mostrarModal, setMostrarModal] = useState(false);
   const [esDispositivoIOS, setEsDispositivoIOS] = useState(false);
   const [esChromeEnIOS, setEsChromeEnIOS] = useState(false);
 
   useEffect(() => {
-    // Si ya está abierta como PWA instalada, no mostrar nada
-    if (estaInstalada()) return;
+    // Si ya está abierta como PWA instalada o es la ruta pública del comprobante para clientes (/t/...), no mostrar nada
+    if (estaInstalada() || pathname?.startsWith("/t/")) return;
 
     const esApple = esIOS();
     const esChrome = esChromeIOS();
@@ -92,7 +94,7 @@ export default function InstallPrompt() {
     setMostrarModal(false);
   }
 
-  if (!mostrarModal || estaInstalada()) return null;
+  if (!mostrarModal || estaInstalada() || pathname?.startsWith("/t/")) return null;
 
   return (
     <div className="fixed inset-x-0 bottom-[80px] z-[999] px-4 pointer-events-none flex justify-center animate-in fade-in slide-in-from-bottom-5 duration-300">

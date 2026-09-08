@@ -1111,6 +1111,12 @@ function FiarContenido() {
 
         const saldoEsteFiado = dTotal;
         const saldoCreditoTotal = Number.isFinite(Number(cliente.deudaTotal)) ? Number(cliente.deudaTotal) : saldoEsteFiado;
+        const idTransaccion = modalExito?.ticketDatos?.idTransaccion;
+        let enlaceTexto = "";
+        if (idTransaccion && typeof window !== 'undefined') {
+          enlaceTexto = `\n\n🔗 *Ver o descargar comprobante digital:*\n${window.location.origin}/t/${idTransaccion}`;
+        }
+
         const texto = `¡Hola, *${cliente.nombre}*! Gracias por tu confianza en *${nombreNegocio || 'nuestra tienda'}*.
 
 ===================
@@ -1119,7 +1125,7 @@ function FiarContenido() {
 
 ${detalleTexto}
 *TOTAL DE ESTE FIADO: $${saldoEsteFiado.toLocaleString('es-CO')}*
-*Saldo de crédito Total: $${saldoCreditoTotal.toLocaleString('es-CO')}*
+*Saldo de crédito Total: $${saldoCreditoTotal.toLocaleString('es-CO')}*${enlaceTexto}
 
 Gracias por confiar en nosotros.
 Estamos atentos para cualquier consulta.

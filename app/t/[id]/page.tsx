@@ -5,7 +5,7 @@ import { doc, getDoc } from "firebase/firestore";
 import { db } from "@/firebase";
 import { DatosFacturaProps } from "@/components/TicketFacturaModal";
 import VistaTicketCard from "@/components/VistaTicketCard";
-import { Download, Printer, ArrowLeft, Loader2, AlertCircle, ShieldCheck } from "lucide-react";
+import { Download, ArrowLeft, Loader2, AlertCircle, ShieldCheck } from "lucide-react";
 import { toBlob } from "html-to-image";
 import toast from "react-hot-toast";
 
@@ -216,35 +216,8 @@ export default function PaginaTicketPublico() {
     }
   };
 
-  const imprimir = () => {
-    try {
-      window.print();
-    } catch (e) {
-      console.error(e);
-    }
-  };
-
   return (
     <div className="min-h-screen bg-slate-100 dark:bg-slate-950 text-slate-900 dark:text-slate-100 flex flex-col items-center p-3 sm:p-6 select-none font-sans">
-      <style jsx global>{`
-        @media print {
-          nav, footer, .ticket-print-hide {
-            display: none !important;
-          }
-          body {
-            background: #ffffff !important;
-            margin: 0 !important;
-            padding: 0 !important;
-          }
-          #seccion-ticket-impresion {
-            box-shadow: none !important;
-            border: none !important;
-            margin: 0 auto !important;
-            max-width: 80mm !important;
-          }
-        }
-      `}</style>
-
       {/* HEADER DE LA PÁGINA PÚBLICA */}
       <header className="ticket-print-hide w-full max-w-[380px] flex items-center justify-between py-3 mb-2">
         <div className="flex items-center gap-2">
@@ -296,26 +269,16 @@ export default function PaginaTicketPublico() {
             <VistaTicketCard datos={datosFactura} ticketRef={ticketRef} />
           </div>
 
-          {/* BOTONES DE ACCIÓN PARA EL CLIENTE */}
-          <div className="ticket-print-hide w-full flex items-center gap-2.5 mt-4">
+          {/* BOTÓN DE ACCIÓN PARA EL CLIENTE */}
+          <div className="ticket-print-hide w-full mt-4">
             <button
               type="button"
               disabled={generandoDescarga}
               onClick={descargarImagen}
-              className="flex-1 py-3 px-4 bg-emerald-600 hover:bg-emerald-700 text-white font-black rounded-2xl shadow-lg flex items-center justify-center gap-2 transition active:scale-95 text-xs text-center cursor-pointer disabled:opacity-60"
+              className="w-full py-3.5 px-4 bg-emerald-600 hover:bg-emerald-700 text-white font-black rounded-2xl shadow-lg flex items-center justify-center gap-2 transition active:scale-95 text-xs text-center cursor-pointer disabled:opacity-60"
             >
               {generandoDescarga ? <Loader2 size={16} className="animate-spin shrink-0" /> : <Download size={16} className="shrink-0" />}
-              <span>{generandoDescarga ? "Guardando..." : "Guardar Comprobante"}</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={imprimir}
-              className="py-3 px-4 bg-white dark:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-800 font-bold rounded-2xl shadow-sm flex items-center justify-center gap-1.5 transition active:scale-95 text-xs text-center cursor-pointer"
-              title="Imprimir ticket"
-            >
-              <Printer size={16} />
-              <span>Imprimir</span>
+              <span>{generandoDescarga ? "Guardando imagen..." : "Guardar Comprobante"}</span>
             </button>
           </div>
 

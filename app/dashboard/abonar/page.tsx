@@ -366,6 +366,11 @@ function AbonarContenido() {
 
   const abrirWhatsApp = (cliente: any) => {
     const abonoMonto = parseFloat(montoAbono.replace(/\D/g, '')) || 0;
+    const idTransaccion = modalExito?.ticketDatos?.idTransaccion;
+    let enlaceTexto = "";
+    if (idTransaccion && typeof window !== 'undefined') {
+      enlaceTexto = `\n\n🔗 *Ver o descargar comprobante digital:*\n${window.location.origin}/t/${idTransaccion}`;
+    }
 
     let texto = "";
     if (modalExito?.esSepare) {
@@ -377,7 +382,7 @@ function AbonarContenido() {
 
 • Abono recibido: *$${abonoMonto.toLocaleString('es-CO')}*
 • Método: *${metodoPago.toUpperCase()}${subMetodoPago ? ` (${subMetodoPago})` : ''}*
-• Saldo restante: *$${(modalExito.saldoRestanteSepare || 0).toLocaleString('es-CO')}*
+• Saldo restante: *$${(modalExito.saldoRestanteSepare || 0).toLocaleString('es-CO')}*${enlaceTexto}
 
 Gracias por tu pago y confianza.
 Estamos atentos para cualquier consulta.
@@ -396,7 +401,7 @@ Estamos atentos para cualquier consulta.
 
 • Abono recibido: *$${abonoMonto.toLocaleString('es-CO')}*
 • Método: *${metodoPago.toUpperCase()}${subMetodoPago ? ` (${subMetodoPago})` : ''}*
-• Saldo actual en cuenta: *${saldoFormat}*
+• Saldo actual en cuenta: *${saldoFormat}*${enlaceTexto}
 
 Gracias por tu abono y confianza.
 Estamos atentos para cualquier consulta.

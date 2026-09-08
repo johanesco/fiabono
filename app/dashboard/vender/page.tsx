@@ -1272,6 +1272,12 @@ function VenderContenido() {
        infoExtra = '\n*Pago completo.*';
     }
 
+    const idTransaccion = modalExito?.ticketDatos?.idTransaccion;
+    let enlaceTexto = "";
+    if (idTransaccion && typeof window !== 'undefined') {
+      enlaceTexto = `\n\n🔗 *Ver o descargar comprobante digital:*\n${window.location.origin}/t/${idTransaccion}`;
+    }
+
     const texto = `¡Hola, *${nombreDestino}*! Gracias por tu compra en *${nombreNegocio || 'nuestra tienda'}*.
 
 ===================
@@ -1280,7 +1286,7 @@ function VenderContenido() {
 
 ${detalleTexto}
 *TOTAL: $${totalFilasRegistro.toLocaleString('es-CO')}*
-${infoExtra}
+${infoExtra}${enlaceTexto}
 
 Gracias por tu compra.
 Estamos atentos para cualquier consulta.

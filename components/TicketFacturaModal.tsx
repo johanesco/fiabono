@@ -109,99 +109,173 @@ export default function TicketFacturaModal({ isOpen, onClose, datos }: TicketFac
   };
 
   const generarTextoTicketWhatsApp = () => {
-    const lineas: string[] = [];
-    const nombreNegocio = datos.nombreNegocio || "MI NEGOCIO";
-    const titulo = (() => {
-      if (datos.tipo === 'venta') return '🧾 *COMPROBANTE DE VENTA*';
-      if (datos.tipo === 'fiado') return '📋 *COMPROBANTE DE FIADO / CRÉDITO*';
-      if (datos.tipo === 'abono') return '💵 *COMPROBANTE DE ABONO*';
-      if (datos.tipo === 'separe') return '📦 *PLAN SEPARE REGISTRADO*';
-      if (datos.tipo === 'abono_separe') return '💵 *ABONO A PLAN SEPARE*';
-      if (datos.tipo === 'entrega_separe') return '🎉 *ENTREGA DE PLAN SEPARE*';
-      if (datos.tipo === 'egreso') return '↩️ *COMPROBANTE DE DEVOLUCIÓN*';
-      return '🧾 *COMPROBANTE DE CAJA*';
-    })();
+    const nombreNegocio = datos.nombreNegocio || "nuestra tienda";
+    const nombreCliente = datos.nombreCliente && datos.nombreCliente !== "Venta de Mostrador" ? datos.nombreCliente : "Cliente";
 
-    lineas.push(titulo);
-    lineas.push(`🏬 *${nombreNegocio.toUpperCase()}*`);
-    if (datos.nitNegocio) lineas.push(`NIT/RUT: ${datos.nitNegocio}`);
-    if (datos.direccionNegocio) lineas.push(`📍 ${datos.direccionNegocio}`);
-    if (datos.telefonoNegocio) lineas.push(`📱 Tel: ${datos.telefonoNegocio}`);
-    lineas.push(`────────────────────`);
+    let enlaceTexto = "";
+    if (datos.idTransaccion && typeof window !== 'undefined') {
+      enlaceTexto = `\n\n🔗 *Ver o descargar comprobante digital:*\n${window.location.origin}/t/${datos.idTransaccion}`;
+    }
 
-    lineas.push(`📅 *Fecha:* ${formatearFecha(datos.fecha)} - ${formatearHora(datos.fecha)}`);
-    lineas.push(`👤 *Cliente:* ${datos.nombreCliente || "Venta de Mostrador"}`);
-    if (datos.registradoPor) lineas.push(`💼 *Atendido por:* ${datos.registradoPor}`);
-    if (datos.idTransaccion) lineas.push(`🔢 *Ticket:* #${datos.idTransaccion.slice(0, 8).toUpperCase()}`);
-    lineas.push(`────────────────────`);
-
+    // Detalle simplificado de productos
+    let detalleTexto = "";
     if (datos.detalles && datos.detalles.length > 0) {
-      lineas.push(`🛍️ *DETALLE:*`);
       datos.detalles.forEach(item => {
         const cant = item.cantidad || 1;
         const vUnit = item.valorUnitario || (cant > 0 ? (item.valor || 0) / cant : item.valor || 0);
         const vTotal = item.valor || (cant * vUnit);
-        lineas.push(`• *${cant}x* ${item.descripcion || "Artículo"}`);
-        if (cant > 1 || item.valorUnitario) {
-          lineas.push(`   $${vUnit.toLocaleString('es-CO')} c/u → *$${vTotal.toLocaleString('es-CO')}*`);
-        } else {
-          lineas.push(`   Subtotal: *$${vTotal.toLocaleString('es-CO')}*`);
-        }
+        detalleTexto += `• ${cant}x ${item.descripcion || "Artículo"}\n  Precio unitario: *$${vUnit.toLocaleString('es-CO')}*\n  Total: *$${vTotal.toLocaleString('es-CO')}*\n\n`;
       });
     } else if (datos.descripcionGeneral) {
-      lineas.push(`🛍️ *DETALLE:*`);
-      lineas.push(datos.descripcionGeneral);
+      detalleTexto = `• ${datos.descripcionGeneral}\n\n`;
     }
-    lineas.push(`────────────────────`);
 
     if (datos.montoDescuento && datos.montoDescuento > 0) {
-      lineas.push(`🏷️ Descuento: -$${datos.montoDescuento.toLocaleString('es-CO')}`);
+      detalleTexto += `*Descuento:* -$${datos.montoDescuento.toLocaleString('es-CO')}\n`;
     }
-    if (datos.valorIva && datos.valorIva > 0) {
-      lineas.push(`🏛️ IVA (${datos.porcentajeIva || 19}%): $${datos.valorIva.toLocaleString('es-CO')}`);
-    }
-    lineas.push(`💰 *TOTAL:* *$${(datos.montoTotal || 0).toLocaleString('es-CO')}*`);
 
-    if (datos.metodoPago) {
-      const metodosTexto: Record<string, string> = {
-        efectivo: 'Efectivo',
-        transferencia: 'Transferencia / Nequi',
-        datafono: 'Datáfono / Tarjeta',
-        credito_externo: 'Crédito Addi / Sistecrédito',
-        fiado: 'Crédito Directo (Fiado)'
+    if (datos.tipo === 'fiado') {
+      const saldoTotalStr = datos.saldoNuevo !== undefined ? `\n*Saldo de crédito Total: $${datos.saldoNuevo.toLocaleString('es-CO')}*` : "";
+      return `¡Hola, *${nombreCliente}*! Gracias por tu confianza en *${nombreNegocio}*.
+
+===================
+*DETALLE DEL CRÉDITO*
+===================
+
+${detalleTexto.trim()}
+*TOTAL DE ESTE FIADO: $${(datos.montoTotal || 0).toLocaleString('es-CO')}*${saldoTotalStr}${enlaceTexto}
+
+Gracias por confiar en nosotros.
+Estamos atentos para cualquier consulta.
+
+*¡Que tengas un gran día!*`;
+    }
+
+    if (datos.tipo === 'abono') {
+      const saldoFormat = datos.saldoNuevo !== undefined 
+        ? (datos.saldoNuevo < 0 ? `$${Math.abs(datos.saldoNuevo).toLocaleString('es-CO')} a favor` : `$${datos.saldoNuevo.toLocaleString('es-CO')}`)
+        : "";
+      const metodos: Record<string, string> = {
+        efectivo: 'EFECTIVO',
+        transferencia: 'TRANSFERENCIA',
+        datafono: 'DATÁFONO',
+        credito_externo: 'CRÉDITO'
       };
-      lineas.push(`💳 *Forma de Pago:* ${metodosTexto[datos.metodoPago] || datos.metodoPago}`);
-      if (datos.referenciaPago) lineas.push(`🔖 *Ref. Pago:* #${datos.referenciaPago}`);
+      const metodoStr = datos.metodoPago ? (metodos[datos.metodoPago] || datos.metodoPago.toUpperCase()) : "EFECTIVO";
+
+      return `¡Hola, *${nombreCliente}*! Gracias por tu abono en *${nombreNegocio}*.
+
+===================
+*COMPROBANTE DE ABONO*
+===================
+
+• Abono recibido: *$${(datos.montoTotal || 0).toLocaleString('es-CO')}*
+• Método: *${metodoStr}*${saldoFormat ? `\n• Saldo actual en cuenta: *${saldoFormat}*` : ""}${enlaceTexto}
+
+Gracias por tu abono y confianza.
+Estamos atentos para cualquier consulta.
+
+*¡Que tengas un gran día!*`;
     }
 
-    if (datos.pagoRecibido !== undefined && datos.pagoRecibido > 0) {
-      lineas.push(`💵 *Recibido:* $${datos.pagoRecibido.toLocaleString('es-CO')}`);
-    }
-    if (datos.devuelta !== undefined && datos.devuelta > 0) {
-      lineas.push(`🪙 *Devuelta:* $${datos.devuelta.toLocaleString('es-CO')}`);
+    if (datos.tipo === 'separe') {
+      const abonoInicial = datos.pagoRecibido || 0;
+      const saldoPend = datos.saldoNuevo !== undefined ? datos.saldoNuevo : Math.max((datos.montoTotal || 0) - abonoInicial, 0);
+      return `¡Hola, *${nombreCliente}*! Gracias por separar con nosotros en *${nombreNegocio}*.
+
+===================
+*PLAN SEPARE REGISTRADO*
+===================
+
+${detalleTexto.trim()}
+*TOTAL SEPARE: $${(datos.montoTotal || 0).toLocaleString('es-CO')}*
+• Abono inicial: *$${abonoInicial.toLocaleString('es-CO')}*
+• Saldo pendiente: *$${saldoPend.toLocaleString('es-CO')}*${enlaceTexto}
+
+Gracias por tu confianza.
+Estamos atentos para cualquier consulta.
+
+*¡Te esperamos pronto!*`;
     }
 
-    if (datos.saldoNuevo !== undefined && datos.nombreCliente !== "Venta de Mostrador") {
-      lineas.push(`────────────────────`);
-      if (datos.saldoNuevo === 0) {
-        lineas.push(`✅ *Estado de Cuenta:* Al día ($0 pendiente)`);
-      } else if (datos.saldoNuevo < 0) {
-        lineas.push(`🟢 *Saldo a Favor:* $${Math.abs(datos.saldoNuevo).toLocaleString('es-CO')}`);
-      } else {
-        lineas.push(`⚠️ *Saldo Pendiente:* *$${datos.saldoNuevo.toLocaleString('es-CO')}*`);
-      }
+    if (datos.tipo === 'abono_separe') {
+      const saldoPend = datos.saldoNuevo !== undefined ? datos.saldoNuevo : 0;
+      const metodos: Record<string, string> = {
+        efectivo: 'EFECTIVO',
+        transferencia: 'TRANSFERENCIA',
+        datafono: 'DATÁFONO',
+        credito_externo: 'CRÉDITO'
+      };
+      const metodoStr = datos.metodoPago ? (metodos[datos.metodoPago] || datos.metodoPago.toUpperCase()) : "EFECTIVO";
+
+      return `¡Hola, *${nombreCliente}*! Gracias por tu abono en *${nombreNegocio}*.
+
+===================
+*ABONO A PLAN SEPARE*
+===================
+
+• Abono recibido: *$${(datos.montoTotal || 0).toLocaleString('es-CO')}*
+• Método: *${metodoStr}*
+• Saldo restante: *$${saldoPend.toLocaleString('es-CO')}*${enlaceTexto}
+
+Gracias por tu abono y confianza.
+Estamos atentos para cualquier consulta.
+
+*¡Que tengas un gran día!*`;
     }
 
-    lineas.push(`────────────────────`);
-    if (datos.idTransaccion && typeof window !== 'undefined') {
-      const enlaceTicket = `${window.location.origin}/t/${datos.idTransaccion}`;
-      lineas.push(`🔗 *Ver o descargar comprobante digital:*`);
-      lineas.push(enlaceTicket);
-      lineas.push(`────────────────────`);
-    }
-    lineas.push(`${datos.mensajePieTicket || "¡Muchas gracias por su preferencia! 🙌"}`);
+    if (datos.tipo === 'entrega_separe') {
+      return `¡Hola, *${nombreCliente}*! Tus productos han sido pagados en su totalidad en *${nombreNegocio}*.
 
-    return lineas.join('\n');
+===================
+*ENTREGA DE PLAN SEPARE*
+===================
+
+${detalleTexto.trim()}
+*TOTAL CANCELADO: $${(datos.montoTotal || 0).toLocaleString('es-CO')}*
+✅ Estado: Completamente pagado y entregado${enlaceTexto}
+
+¡Gracias por tu preferencia!
+Estamos atentos para cualquier consulta.
+
+*¡Te esperamos pronto!*`;
+    }
+
+    if (datos.tipo === 'egreso') {
+      return `¡Hola, *${nombreCliente}*! Comprobante de egreso o devolución en *${nombreNegocio}*.
+
+===================
+*COMPROBANTE DE DEVOLUCIÓN*
+===================
+
+${detalleTexto.trim()}
+*TOTAL DEVUELTO: $${(datos.montoTotal || 0).toLocaleString('es-CO')}*${enlaceTexto}
+
+Estamos atentos para cualquier consulta.`;
+    }
+
+    // Por defecto: COMPROBANTE DE VENTA
+    let infoExtra = "";
+    if (datos.devuelta && datos.devuelta > 0) {
+      infoExtra = `\n*Entregaste:* $${(datos.pagoRecibido || 0).toLocaleString('es-CO')}\n*Devuelta:* $${datos.devuelta.toLocaleString('es-CO')}*`;
+    } else {
+      infoExtra = '\n*Pago completo.*';
+    }
+
+    return `¡Hola, *${nombreCliente}*! Gracias por tu compra en *${nombreNegocio}*.
+
+===================
+*COMPROBANTE DE VENTA*
+===================
+
+${detalleTexto.trim()}
+*TOTAL: $${(datos.montoTotal || 0).toLocaleString('es-CO')}*
+${infoExtra.trim()}${enlaceTexto}
+
+Gracias por tu compra.
+Estamos atentos para cualquier consulta.
+
+*¡Te esperamos pronto!*`;
   };
 
   const celClienteRaw = (datos.celularCliente || '').toString().replace(/\D/g, '');
