@@ -4,7 +4,7 @@ import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import { collection, getDocs, query, where } from "firebase/firestore";
 import { db } from "../../../firebase";
-import { Search, X, Clock, MessageCircle, Star, Users, Store, Printer, Edit3, Trash2, Bookmark, ChevronRight } from 'lucide-react';
+import { Search, X, Clock, MessageCircle, Star, Users, Store, Printer, Edit3, Trash2, Bookmark, ChevronRight, Package, ArrowRight } from 'lucide-react';
 import toast from "react-hot-toast";
 
 import { useAuth } from "../../../hooks/AuthContext";
@@ -33,6 +33,7 @@ export default function HistorialPage() {
   const [filtroTiempoHistorial, setFiltroTiempoHistorial] = useState<'hoy' | 'semana' | 'mes' | 'todos'>('hoy');
   const [filtroTipoHistorial, setFiltroTipoHistorial] = useState<'todos' | 'venta' | 'abono' | 'fiado' | 'ingreso_inventario'>('todos');
   
+  const [movimientoInventarioDetalle, setMovimientoInventarioDetalle] = useState<Movimiento | null>(null);
   const [ultimoDocSnapshot, setUltimoDocSnapshot] = useState<any>(null);
   const [hayMasMovimientos, setHayMasMovimientos] = useState(false);
   const [cargandoMas, setCargandoMas] = useState(false);
@@ -309,11 +310,25 @@ Quedamos pendientes para revisar detalles o responder cualquier duda.
   const diaActualNum = hoyDate.getDay() === 0 ? 6 : hoyDate.getDay() - 1; 
   const inicioSemanaDate = new Date(hoyDate.getFullYear(), hoyDate.getMonth(), hoyDate.getDate() - diaActualNum);
 
+  // Permiso para gestionar y consultar ingresos de inventario
+  const puedeGestionarInventario = esAdmin || Boolean(datosSesion?.permisos?.editarInventario || datosSesion?.permisos?.ingresoInventario);
+
   const historialFiltrado = todosMovimientos.filter(mov => {
     const filtroForzado = (!puedeVerReportes || planActual === 'basico') ? 'hoy' : filtroTiempoHistorial;
     
-    // Regla de privacidad: Movimientos de inventario solo son visibles para el Administrador
-    if (!esAdmin && mov.tipo === 'ingreso_inventario') return false;
+    // Regla de privacidad: Inventario solo visible si tiene permiso de inventario
+    if (mov.tipo === 'ingreso_inventario') {
+      if (!puedeGestionarInventario) return false;
+      
+      // Si es colaborador con permiso de inventario, solo ve lo que él mismo registró
+      if (!esAdmin) {
+        const nombreActual = (datosSesion?.nombreUsuario || '').trim().toLowerCase();
+        const regPor = (mov.registradoPor || '').trim().toLowerCase();
+        const creador = (mov as any).creadoPor || '';
+        const matchPropio = (nombreActual && regPor === nombreActual) || (datosSesion?.uid && creador === datosSesion.uid);
+        if (!matchPropio) return false;
+      }
+    }
 
     const esIngresoInv = mov.tipo === 'ingreso_inventario';
     const clienteMov = clientes.find(c => c.id === mov.clienteId);
@@ -331,9 +346,9 @@ Quedamos pendientes para revisar detalles o responder cualquier duda.
     if (busquedaHistorial && !matchBusqueda) return false;
     if (filtroTipoHistorial !== 'todos' && mov.tipo !== filtroTipoHistorial) return false;
 
-    // Regla de privacidad: Colaborador solo ve sus propios movimientos
+    // Regla de privacidad para ventas/abonos/fiados: Colaborador solo ve sus propios movimientos
     const esColaborador = datosSesion?.rol === 'cajero' || datosSesion?.tipoUsuario === 'colaborador';
-    if (esColaborador) {
+    if (esColaborador && mov.tipo !== 'ingreso_inventario') {
       const nombreActual = (datosSesion?.nombreUsuario || '').trim().toLowerCase();
       const regPor = (mov.registradoPor || '').trim().toLowerCase();
       const vend = ((mov as any).vendedor || '').trim().toLowerCase();
@@ -385,7 +400,7 @@ Quedamos pendientes para revisar detalles o responder cualquier duda.
             </div>
           )}
           <div className="flex flex-wrap gap-2 w-full mt-1">
-            {(esAdmin ? ['todos', 'venta', 'abono', 'fiado', 'ingreso_inventario'] : ['todos', 'venta', 'abono', 'fiado']).map((tipo) => (
+            {(puedeGestionarInventario ? ['todos', 'venta', 'abono', 'fiado', 'ingreso_inventario'] : ['todos', 'venta', 'abono', 'fiado']).map((tipo) => (
               <button 
                 key={tipo} 
                 onClick={() => setFiltroTipoHistorial(tipo as any)} 
@@ -414,7 +429,7 @@ Quedamos pendientes para revisar detalles o responder cualquier duda.
                 key={mov.id} 
                 onClick={() => {
                   if (esIngresoInv) {
-                    toast(`Entrada de inventario: +${mov.cantidadAgregada || 1} un. de ${mov.nombreProducto || 'producto'}`, { icon: '📦' });
+                    setMovimientoInventarioDetalle(mov);
                     return;
                   }
                   abrirHistorialCliente(mov.clienteId);
@@ -498,6 +513,13 @@ Quedamos pendientes para revisar detalles o responder cualquier duda.
           movimientos={historialFiltrado} 
           getNombreCliente={getNombreCliente} 
           onRowClick={abrirHistorialCliente}
+          onMovimientoClick={(mov) => {
+            if (mov.tipo === 'ingreso_inventario') {
+              setMovimientoInventarioDetalle(mov);
+            } else {
+              abrirHistorialCliente(mov.clienteId);
+            }
+          }}
           onImprimir={abrirTicketDeMovimiento}
         />
 
@@ -625,13 +647,15 @@ Quedamos pendientes para revisar detalles o responder cualquier duda.
                 })()}
               </div>
 
-              {/* HEADER MÓVIL COMPACTO (Máximo ~100px para dejar libre el 80% de la pantalla) */}
-              <div className="md:hidden bg-slate-50 dark:bg-[#020617] border-b border-slate-200 dark:border-slate-800 shrink-0 px-3.5 py-2.5 space-y-2">
-                {/* Fila 1: Nombre + Celular + Saldo + Botones */}
-                <div className="flex items-center justify-between gap-2 min-w-0">
+              {/* HEADER MÓVIL OPTIMIZADO (Nombre prominente, saldo destacado, acciones claras) */}
+              <div className="md:hidden bg-slate-50 dark:bg-[#020617] border-b border-slate-200 dark:border-slate-800 shrink-0 px-4 py-3 space-y-2.5">
+                {/* Fila 1: Nombre del cliente en fila completa con opciones y botón cerrar */}
+                <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-1.5 min-w-0">
-                      <h2 className="text-lg font-black text-slate-900 dark:text-white truncate tracking-tight">{clienteActivo.nombre}</h2>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <h2 className="text-xl font-black text-slate-900 dark:text-white tracking-tight leading-snug break-words">
+                        {clienteActivo.nombre}
+                      </h2>
                       {datosSesion?.rol !== 'cajero' && (
                         <div className="flex items-center gap-1 shrink-0">
                           <button
@@ -640,7 +664,7 @@ Quedamos pendientes para revisar detalles o responder cualquier duda.
                             title="Modificar Cliente"
                             className="p-1 rounded-lg bg-white dark:bg-slate-800 text-slate-500 hover:text-blue-600 shadow-xs border border-slate-200 dark:border-slate-700 cursor-pointer"
                           >
-                            <Edit3 size={13} />
+                            <Edit3 size={14} />
                           </button>
                           <button
                             type="button"
@@ -648,64 +672,59 @@ Quedamos pendientes para revisar detalles o responder cualquier duda.
                             title="Eliminar Cliente"
                             className="p-1 rounded-lg bg-white dark:bg-slate-800 text-slate-500 hover:text-rose-600 shadow-xs border border-slate-200 dark:border-slate-700 cursor-pointer"
                           >
-                            <Trash2 size={13} />
+                            <Trash2 size={14} />
                           </button>
                         </div>
                       )}
                     </div>
-                    <p className="text-slate-500 dark:text-slate-400 text-[11px] font-medium truncate">
-                      {clienteActivo.celular || "Sin celular registrado"}
+                    <p className="text-slate-500 dark:text-slate-400 text-xs font-medium mt-0.5">
+                      {clienteActivo.celular ? `📱 ${clienteActivo.celular}` : "Sin celular registrado"}
                     </p>
                   </div>
 
-                  {/* Saldo a la derecha */}
-                  {(() => {
-                    const saldoSeparesActivos = separesCliente
-                      .filter(s => s.estado === 'activo')
-                      .reduce((acc, s) => acc + (s.saldoPendiente || 0), 0);
-                    const totalCompromiso = (clienteActivo.deudaTotal || 0) + saldoSeparesActivos;
-
-                    return (
-                      <div className="flex items-center gap-2 shrink-0">
-                        <div className="text-right">
-                          <span className={`text-[9px] font-black uppercase tracking-wider block leading-tight ${
-                            (clienteActivo.deudaTotal || 0) < 0 
-                              ? 'text-emerald-500' 
-                              : (totalCompromiso === 0 ? 'text-slate-400' : 'text-rose-500')
-                          }`}>
-                            {(clienteActivo.deudaTotal || 0) < 0 ? 'A favor' : (totalCompromiso === 0 ? 'Al Día' : 'Saldo')}
-                          </span>
-                          <span className={`text-base font-black leading-tight block ${
-                            totalCompromiso === 0 
-                              ? 'text-slate-400' 
-                              : ((clienteActivo.deudaTotal || 0) < 0 ? 'text-emerald-500' : 'text-rose-500')
-                          }`}>
-                            ${Math.abs(totalCompromiso).toLocaleString('es-CO')}
-                          </span>
-                        </div>
-
-                        <button 
-                          onClick={() => setClienteActivo(null)} 
-                          className="p-1.5 rounded-full bg-white dark:bg-slate-800 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-700 shadow-xs border border-slate-200 dark:border-slate-700 transition cursor-pointer"
-                          aria-label="Cerrar"
-                        >
-                          <X size={16} />
-                        </button>
-                      </div>
-                    );
-                  })()}
+                  <button 
+                    onClick={() => setClienteActivo(null)} 
+                    className="p-2 rounded-full bg-white dark:bg-slate-800 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-700 shadow-xs border border-slate-200 dark:border-slate-700 transition cursor-pointer shrink-0 mt-0.5"
+                    aria-label="Cerrar perfil"
+                  >
+                    <X size={18} />
+                  </button>
                 </div>
 
-                {/* Fila 2: Si tiene separes activos, desglose compacto */}
+                {/* Fila 2: Saldo Destacado en tarjeta compacta */}
                 {(() => {
                   const saldoSeparesActivos = separesCliente
                     .filter(s => s.estado === 'activo')
                     .reduce((acc, s) => acc + (s.saldoPendiente || 0), 0);
-                  if (saldoSeparesActivos <= 0) return null;
+                  const totalCompromiso = (clienteActivo.deudaTotal || 0) + saldoSeparesActivos;
+
                   return (
-                    <div className="flex items-center justify-between text-[10px] font-bold px-2 py-0.5 rounded-lg bg-violet-50 dark:bg-violet-950/30 border border-violet-200 dark:border-violet-900/40 text-violet-700 dark:text-violet-300">
-                      <span>Fiados: ${(clienteActivo.deudaTotal || 0).toLocaleString('es-CO')}</span>
-                      <span>Separes: ${saldoSeparesActivos.toLocaleString('es-CO')}</span>
+                    <div className="flex items-center justify-between p-2.5 rounded-xl bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-800 shadow-xs">
+                      <div>
+                        <span className={`text-[10px] font-black uppercase tracking-wider block ${
+                          (clienteActivo.deudaTotal || 0) < 0 
+                            ? 'text-emerald-600 dark:text-emerald-400' 
+                            : (totalCompromiso === 0 ? 'text-slate-400' : 'text-slate-500 dark:text-slate-400')
+                        }`}>
+                          {(clienteActivo.deudaTotal || 0) < 0 ? 'Saldo a Favor' : (totalCompromiso === 0 ? 'Estado' : (saldoSeparesActivos > 0 ? 'Saldo Total Pendiente' : 'Saldo Actual'))}
+                        </span>
+                        {saldoSeparesActivos > 0 && (
+                          <div className="flex items-center gap-2 text-[10px] font-bold text-slate-400 mt-0.5">
+                            <span>Fiados: ${(clienteActivo.deudaTotal || 0).toLocaleString('es-CO')}</span>
+                            <span>•</span>
+                            <span className="text-violet-600 dark:text-violet-400">Separes: ${saldoSeparesActivos.toLocaleString('es-CO')}</span>
+                          </div>
+                        )}
+                      </div>
+                      <div className="text-right">
+                        <span className={`text-xl font-black ${
+                          totalCompromiso === 0 
+                            ? 'text-slate-400' 
+                            : ((clienteActivo.deudaTotal || 0) < 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400')
+                        }`}>
+                          {totalCompromiso === 0 ? 'Al Día' : `$${Math.abs(totalCompromiso).toLocaleString('es-CO')}`}
+                        </span>
+                      </div>
                     </div>
                   );
                 })()}
@@ -714,26 +733,26 @@ Quedamos pendientes para revisar detalles o responder cualquier duda.
                 <div className="flex items-center gap-1.5">
                   <button 
                     onClick={() => router.push(`/dashboard/vender?clienteId=${clienteActivo.id}`)} 
-                    className="flex-1 py-1.5 px-2 bg-emerald-500 hover:bg-emerald-600 text-white font-bold rounded-lg text-[11px] uppercase shadow-xs transition active:scale-95 cursor-pointer text-center"
+                    className="flex-1 py-2 px-2 bg-emerald-500 hover:bg-emerald-600 text-white font-black rounded-xl text-xs uppercase shadow-xs transition active:scale-95 cursor-pointer text-center"
                   >
                     Vender
                   </button>
                   <button 
                     onClick={() => router.push(`/dashboard/fiar?clienteId=${clienteActivo.id}`)} 
-                    className="flex-1 py-1.5 px-2 bg-rose-500 hover:bg-rose-600 text-white font-bold rounded-lg text-[11px] uppercase shadow-xs transition active:scale-95 cursor-pointer text-center"
+                    className="flex-1 py-2 px-2 bg-rose-500 hover:bg-rose-600 text-white font-black rounded-xl text-xs uppercase shadow-xs transition active:scale-95 cursor-pointer text-center"
                   >
                     Fiar
                   </button>
                   <button 
                     onClick={() => router.push(`/dashboard/abonar?clienteId=${clienteActivo.id}`)} 
-                    className="flex-1 py-1.5 px-2 bg-blue-500 hover:bg-blue-600 text-white font-bold rounded-lg text-[11px] uppercase shadow-xs transition active:scale-95 cursor-pointer text-center"
+                    className="flex-1 py-2 px-2 bg-blue-500 hover:bg-blue-600 text-white font-black rounded-xl text-xs uppercase shadow-xs transition active:scale-95 cursor-pointer text-center"
                   >
                     Abonar
                   </button>
                   {puedeSepare && (
                     <button 
                       onClick={() => router.push(`/dashboard/separe?clienteId=${clienteActivo.id}`)} 
-                      className="flex-1 py-1.5 px-2 bg-violet-600 hover:bg-violet-700 text-white font-bold rounded-lg text-[11px] uppercase shadow-xs transition active:scale-95 cursor-pointer text-center"
+                      className="flex-1 py-2 px-2 bg-violet-600 hover:bg-violet-700 text-white font-black rounded-xl text-xs uppercase shadow-xs transition active:scale-95 cursor-pointer text-center"
                     >
                       Separe
                     </button>
@@ -745,9 +764,9 @@ Quedamos pendientes para revisar detalles o responder cualquier duda.
                   <button 
                     type="button"
                     onClick={() => abrirWhatsApp(generarTextoComprobante('estado', clienteActivo), clienteActivo.celular)} 
-                    className="w-full py-1.5 px-3 bg-[#25D366]/15 hover:bg-[#25D366]/25 text-[#128C7E] dark:text-[#25D366] font-bold rounded-xl border border-[#25D366]/40 transition active:scale-98 cursor-pointer flex items-center justify-center gap-1.5 text-xs shadow-xs"
+                    className="w-full py-2 px-3 bg-[#25D366]/15 hover:bg-[#25D366]/25 text-[#128C7E] dark:text-[#25D366] font-black rounded-xl border border-[#25D366]/40 transition active:scale-98 cursor-pointer flex items-center justify-center gap-2 text-xs shadow-xs"
                   >
-                    <MessageCircle size={14} className="text-[#25D366] fill-[#25D366]/30" />
+                    <MessageCircle size={15} className="text-[#25D366] fill-[#25D366]/30" />
                     <span>Enviar estado de cuenta por WhatsApp</span>
                   </button>
                 )}
@@ -930,6 +949,102 @@ Quedamos pendientes para revisar detalles o responder cualquier duda.
         onClose={() => setModalGestionCliente({ visible: false, modo: 'editar', cliente: null })}
         onSuccess={handleGestionClienteSuccess}
       />
+
+      {/* MODAL DETALLE DE INGRESO DE INVENTARIO */}
+      {movimientoInventarioDetalle && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 z-[900] animate-in zoom-in duration-200">
+          <div className="bg-white dark:bg-[#0f172a] p-6 sm:p-8 rounded-[2.5rem] w-full max-w-md shadow-2xl text-left border border-slate-100 dark:border-slate-800/60 relative">
+            <button 
+              onClick={() => setMovimientoInventarioDetalle(null)}
+              className="absolute top-5 right-5 p-2 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-500 hover:bg-slate-200 dark:hover:bg-slate-700 transition cursor-pointer"
+            >
+              <X size={18} />
+            </button>
+
+            <div className="flex items-center gap-3 mb-5">
+              <div className="w-12 h-12 rounded-2xl bg-sky-100 dark:bg-sky-950/60 text-sky-600 dark:text-sky-400 flex items-center justify-center shadow-xs">
+                <Package size={26} />
+              </div>
+              <div>
+                <span className="text-[10px] font-black uppercase tracking-wider text-sky-600 dark:text-sky-400 bg-sky-50 dark:bg-sky-950/40 px-2 py-0.5 rounded-md">
+                  📦 Entrada de Mercancía
+                </span>
+                <h3 className="text-xl font-black text-slate-900 dark:text-white mt-0.5">
+                  Detalle de Recepción
+                </h3>
+              </div>
+            </div>
+
+            <div className="space-y-3 bg-slate-50 dark:bg-[#020617] p-4 rounded-2xl border border-slate-200/60 dark:border-slate-800 text-sm">
+              <div>
+                <span className="text-[11px] font-bold text-slate-400 uppercase block">Producto recibido</span>
+                <p className="font-black text-slate-800 dark:text-slate-100 text-base">
+                  {movimientoInventarioDetalle.nombreProducto || 'Producto sin nombre'}
+                </p>
+              </div>
+
+              {movimientoInventarioDetalle.descripcion && (
+                <div>
+                  <span className="text-[11px] font-bold text-slate-400 uppercase block">Detalle / Notas</span>
+                  <p className="font-medium text-slate-700 dark:text-slate-300">
+                    {movimientoInventarioDetalle.descripcion}
+                  </p>
+                </div>
+              )}
+
+              <div className="grid grid-cols-2 gap-2 pt-2 border-t border-slate-200 dark:border-slate-800">
+                <div>
+                  <span className="text-[11px] font-bold text-slate-400 uppercase block">Unidades ingresadas</span>
+                  <span className="inline-flex items-center gap-1 font-black text-emerald-600 dark:text-emerald-400 text-base">
+                    +{movimientoInventarioDetalle.cantidadAgregada || 1} un.
+                  </span>
+                </div>
+
+                {movimientoInventarioDetalle.monto > 0 && (
+                  <div>
+                    <span className="text-[11px] font-bold text-slate-400 uppercase block">Costo / Valor total</span>
+                    <span className="font-black text-slate-900 dark:text-slate-100 text-base">
+                      ${movimientoInventarioDetalle.monto.toLocaleString('es-CO')}
+                    </span>
+                  </div>
+                )}
+              </div>
+
+              <div className="pt-2 border-t border-slate-200 dark:border-slate-800 text-xs text-slate-500 dark:text-slate-400 space-y-1">
+                {movimientoInventarioDetalle.registradoPor && (
+                  <p>👤 <strong>Recibido por:</strong> {movimientoInventarioDetalle.registradoPor}</p>
+                )}
+                <p>
+                  📅 <strong>Fecha:</strong> {movimientoInventarioDetalle.fecha?.toDate ? movimientoInventarioDetalle.fecha.toDate().toLocaleDateString('es-CO', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : (movimientoInventarioDetalle.fecha instanceof Date ? movimientoInventarioDetalle.fecha.toLocaleDateString('es-CO', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : 'Hoy')}
+                </p>
+              </div>
+            </div>
+
+            <div className="mt-5 flex gap-2.5">
+              <button
+                type="button"
+                onClick={() => setMovimientoInventarioDetalle(null)}
+                className="flex-1 py-3 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-bold rounded-xl text-sm transition cursor-pointer"
+              >
+                Cerrar
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  const nombreBuscado = movimientoInventarioDetalle.nombreProducto || '';
+                  setMovimientoInventarioDetalle(null);
+                  router.push(`/dashboard/inventario?busqueda=${encodeURIComponent(nombreBuscado)}`);
+                }}
+                className="flex-1 py-3 bg-sky-600 hover:bg-sky-700 text-white font-black rounded-xl text-sm transition flex items-center justify-center gap-1.5 shadow-md shadow-sky-600/20 cursor-pointer"
+              >
+                <span>Ver en Inventario</span>
+                <ArrowRight size={15} />
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
     </div>
   );

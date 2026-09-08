@@ -4516,7 +4516,7 @@ export default function InventarioPage() {
               }
             }
           }}
-          className="fixed inset-x-0 top-0 bottom-16 sm:bottom-0 sm:inset-0 bg-black/80 backdrop-blur-md flex items-end sm:items-center justify-center p-0 sm:p-4 z-[90] overflow-hidden"
+          className="fixed inset-x-0 top-0 bottom-[68px] sm:bottom-0 sm:inset-0 bg-black/80 backdrop-blur-md flex items-end sm:items-center justify-center p-0 sm:p-4 z-[90] overflow-hidden"
         >
           <div className="bg-white dark:bg-[#0f172a] rounded-t-3xl sm:rounded-[2.5rem] w-full max-w-[98vw] 2xl:max-w-[1650px] h-full sm:h-[92dvh] shadow-2xl border border-slate-100 dark:border-slate-800 flex flex-col overflow-hidden animate-in slide-in-from-bottom-4 sm:zoom-in-95 duration-200">
             
@@ -4565,10 +4565,10 @@ export default function InventarioPage() {
                       setModalProducto(false);
                       setModalEscanerInventario(true);
                     }}
-                    className="flex items-center gap-1 px-2 sm:px-3 py-1 sm:py-2 rounded-lg sm:rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/20 text-[11px] sm:text-xs font-bold transition cursor-pointer shrink-0"
-                    title="Alternar al escáner de cámara"
+                    className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] sm:text-xs font-black shadow-md shadow-emerald-600/25 transition active:scale-95 cursor-pointer shrink-0"
+                    title="Abrir el escáner de cámara"
                   >
-                    <ScanLine size={13} /> <span className="hidden xs:inline">Escáner</span>
+                    <ScanLine size={14} /> <span>📷 Escanear</span>
                   </button>
                 )}
                 
@@ -5073,8 +5073,8 @@ export default function InventarioPage() {
 
                 </div>
 
-                {/* Botones de Acción de la Columna Izquierda (Sticky sin solapamiento) */}
-                <div className="sticky bottom-0 bg-white/95 dark:bg-[#0f172a]/95 backdrop-blur-md mt-auto pt-2 sm:pt-3 pb-1 sm:pb-2 border-t border-slate-200 dark:border-slate-800 space-y-2 z-10">
+                {/* Botones de Acción de la Columna Izquierda (Sticky sin solapamiento y elevado en móvil) */}
+                <div className="sticky bottom-0 bg-white/95 dark:bg-[#0f172a]/95 backdrop-blur-md mt-auto pt-2.5 sm:pt-3 pb-3 sm:pb-2 border-t border-slate-200 dark:border-slate-800 space-y-2 z-10">
                   {editandoId ? (
                     <div className="grid grid-cols-2 gap-2 sm:gap-3">
                       <button
@@ -5098,7 +5098,7 @@ export default function InventarioPage() {
                       type="button"
                       onClick={agregarProductoALaCarga}
                       disabled={guardando}
-                      className="w-full py-2.5 sm:py-3.5 px-4 bg-sky-600 hover:bg-sky-700 disabled:opacity-50 text-white font-black rounded-xl shadow-md text-xs sm:text-sm flex items-center justify-center gap-2 active:scale-98 transition cursor-pointer"
+                      className="w-full py-3 sm:py-3.5 px-4 bg-sky-600 hover:bg-sky-700 disabled:opacity-50 text-white font-black rounded-xl shadow-md text-xs sm:text-sm flex items-center justify-center gap-2 active:scale-98 transition cursor-pointer"
                       title="Encola este producto a la lista en vivo de la derecha y limpia los campos para seguir agregando"
                     >
                       ➕ Encolar y Seguir Agregando

@@ -6,10 +6,11 @@ interface TablaHistorialProps {
   movimientos: Movimiento[];
   getNombreCliente: (id?: string, tipo?: string) => string;
   onRowClick?: (clienteId?: string, tipo?: string) => void;
+  onMovimientoClick?: (mov: Movimiento) => void;
   onImprimir?: (mov: Movimiento) => void;
 }
 
-export default function TablaHistorial({ movimientos, getNombreCliente, onRowClick, onImprimir }: TablaHistorialProps) {
+export default function TablaHistorial({ movimientos, getNombreCliente, onRowClick, onMovimientoClick, onImprimir }: TablaHistorialProps) {
   return (
     <div className="hidden md:block w-full bg-white dark:bg-[#0f172a] rounded-[2rem] border border-slate-100 dark:border-slate-800/60 shadow-sm overflow-hidden">
       <table className="w-full text-left border-collapse">
@@ -31,10 +32,14 @@ export default function TablaHistorial({ movimientos, getNombreCliente, onRowCli
               <tr 
                 key={mov.id} 
                 onClick={() => {
-                  if (!esIngresoInv && onRowClick) onRowClick(mov.clienteId, mov.tipo);
+                  if (onMovimientoClick) {
+                    onMovimientoClick(mov);
+                  } else if (!esIngresoInv && onRowClick) {
+                    onRowClick(mov.clienteId, mov.tipo);
+                  }
                 }} 
-                className={`border-b border-slate-100 dark:border-slate-800/60 transition-colors ${
-                  esIngresoInv ? 'hover:bg-sky-50/40 dark:hover:bg-sky-950/20' : 'hover:bg-slate-50 dark:hover:bg-[#1e293b]/50 cursor-pointer'
+                className={`border-b border-slate-100 dark:border-slate-800/60 transition-colors cursor-pointer ${
+                  esIngresoInv ? 'hover:bg-sky-50/40 dark:hover:bg-sky-950/20' : 'hover:bg-slate-50 dark:hover:bg-[#1e293b]/50'
                 }`}
               >
                 <td className="p-6 text-sm text-slate-500 dark:text-slate-400 whitespace-nowrap">
