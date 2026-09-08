@@ -257,10 +257,21 @@ export default function LandingPage() {
       if (error.code === 'auth/popup-closed-by-user' || error.code === 'auth/cancelled-popup-request') {
         // Ventana cerrada voluntariamente por el usuario
         return;
+      } else if (error.code === 'auth/unauthorized-domain') {
+        const dominio = typeof window !== 'undefined' ? window.location.hostname : 'este dominio';
+        setAuthErrores(p => ({ 
+          ...p, 
+          general: `El dominio "${dominio}" no está autorizado en Firebase. Agrégalo en la consola de Firebase: Authentication > Configuración > Dominios autorizados.` 
+        }));
+      } else if (error.code === 'auth/popup-blocked') {
+        setAuthErrores(p => ({ 
+          ...p, 
+          general: "El navegador bloqueó la ventana emergente de Google. Habilita las ventanas emergentes o inicia sesión con correo y contraseña." 
+        }));
       } else if (error.code === 'auth/operation-not-allowed') {
         setAuthErrores(p => ({ ...p, general: "El inicio con Google debe ser habilitado en la consola de Firebase (Authentication > Sign-in method)." }));
       } else {
-        setAuthErrores(p => ({ ...p, general: "No se pudo acceder con Google. Intenta de nuevo o ingresa con correo." }));
+        setAuthErrores(p => ({ ...p, general: `No se pudo acceder con Google (${error.code || error.message || 'Error'}). Intenta de nuevo o ingresa con correo.` }));
       }
     } finally {
       setCargandoGoogle(false);
