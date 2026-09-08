@@ -45,9 +45,10 @@ service cloud.firestore {
       // El Master puede leer todo.
       // Un usuario puede leer su propio perfil.
       // Un cajero puede leer los datos de su admin (para obtener nombre de tienda, logo, etc.)
-      // Un admin puede leer la lista de sus colaboradores (donde adminId == request.auth.uid)
-      allow read: if estaAutenticado() && (
-        request.auth.uid == userId ||
+      // Permitir get individual por ID para que los comprobantes públicos /t/[id] puedan mostrar el nombre comercial y logo del negocio.
+      // La lista completa (list) de usuarios sigue estrictamente protegida para usuarios autenticados autorizados.
+      allow get: if true;
+      allow list: if estaAutenticado() && (
         resource.data.adminId == request.auth.uid ||
         resource.data.rol == 'admin' && exists(/databases/$(database)/documents/usuarios/$(request.auth.uid)) ||
         esMaster()
