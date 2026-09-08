@@ -1,7 +1,7 @@
 "use client";
 import React, { useRef, useState, useEffect } from "react";
 import { createPortal } from "react-dom";
-import { X, Printer, Receipt, Crown, MessageCircle, Download, Share2, Loader2 } from "lucide-react";
+import { X, Printer, Receipt, Crown, MessageCircle, Download, Share2, Loader2, FileText } from "lucide-react";
 import { toBlob, toPng } from "html-to-image";
 import toast from "react-hot-toast";
 import { useAuth } from "@/hooks/AuthContext";
@@ -211,17 +211,37 @@ export default function TicketFacturaModal({ isOpen, onClose, datos }: TicketFac
 
   const capturarBlobTicket = async (): Promise<Blob | null> => {
     if (!ticketRef.current) return null;
-    return await toBlob(ticketRef.current, {
+    const node = ticketRef.current;
+    const rect = node.getBoundingClientRect();
+    const anchoReal = Math.max(Math.ceil(rect.width || 0), node.scrollWidth, 360);
+    const altoReal = Math.max(Math.ceil(rect.height || 0), node.scrollHeight);
+
+    return await toBlob(node, {
+      width: anchoReal,
+      height: altoReal,
       pixelRatio: 2.5,
       backgroundColor: '#ffffff',
       cacheBust: true,
+      style: {
+        margin: '0px',
+        marginLeft: '0px',
+        marginRight: '0px',
+        marginTop: '0px',
+        marginBottom: '0px',
+        transform: 'none',
+        left: '0px',
+        top: '0px',
+        maxWidth: 'none',
+        width: `${anchoReal}px`,
+        boxSizing: 'border-box',
+      }
     });
   };
 
-  const manejarCompartirOdescargarImagen = async () => {
+  const manejarEnviarImagenWhatsApp = async () => {
     if (!ticketRef.current || generandoImagen) return;
     setGenerandoImagen(true);
-    const toastId = toast.loading("Generando imagen del ticket...");
+    const toastId = toast.loading("Preparando foto para WhatsApp...");
 
     try {
       const blob = await capturarBlobTicket();
@@ -230,7 +250,7 @@ export default function TicketFacturaModal({ isOpen, onClose, datos }: TicketFac
       const nombreArchivo = `Ticket-${datos.idTransaccion ? datos.idTransaccion.slice(0, 8).toUpperCase() : Date.now()}.png`;
       const archivo = new File([blob], nombreArchivo, { type: 'image/png' });
 
-      // Si el navegador soporta compartir archivos (dispositivos móviles Android / iOS)
+      // En móviles (Android / iOS): abre la bandeja nativa con la foto adjunta lista para enviar a WhatsApp
       if (typeof navigator !== 'undefined' && navigator.canShare && navigator.canShare({ files: [archivo] })) {
         toast.dismiss(toastId);
         await navigator.share({
@@ -238,9 +258,22 @@ export default function TicketFacturaModal({ isOpen, onClose, datos }: TicketFac
           title: `Factura ${datos.nombreNegocio}`,
           text: `Comprobante de compra de ${datos.nombreNegocio}`
         });
-        toast.success("¡Comprobante compartido!");
+        toast.success("¡Foto lista para enviar!");
       } else {
-        // En computador o si no soporta compartir archivos, descargar directamente
+        // En computador: Copia la imagen al portapapeles + descarga el archivo + abre WhatsApp Web
+        let copiado = false;
+        try {
+          if (typeof navigator !== 'undefined' && navigator.clipboard && typeof ClipboardItem !== 'undefined') {
+            await navigator.clipboard.write([
+              new ClipboardItem({ 'image/png': blob })
+            ]);
+            copiado = true;
+          }
+        } catch (clipErr) {
+          console.log("No se pudo copiar al portapapeles:", clipErr);
+        }
+
+        // Descarga de soporte
         const urlDescarga = URL.createObjectURL(blob);
         const enlace = document.createElement('a');
         enlace.href = urlDescarga;
@@ -249,14 +282,30 @@ export default function TicketFacturaModal({ isOpen, onClose, datos }: TicketFac
         enlace.click();
         document.body.removeChild(enlace);
         URL.revokeObjectURL(urlDescarga);
+
+        // Abrir WhatsApp Web con el contacto si existe
+        const celRaw = (datos.celularCliente || '').toString().replace(/\D/g, '');
+        const celLimpio = celRaw.startsWith('57') && celRaw.length > 10 ? celRaw : (celRaw ? `57${celRaw}` : '');
+        const waUrl = celLimpio
+          ? `https://web.whatsapp.com/send?phone=${celLimpio}`
+          : `https://web.whatsapp.com/`;
+
+        if (typeof window !== 'undefined') {
+          window.open(waUrl, '_blank');
+        }
+
         toast.dismiss(toastId);
-        toast.success("¡Imagen del ticket descargada!");
+        if (copiado) {
+          toast.success("📸 ¡Foto copiada! En WhatsApp Web solo presiona Ctrl + V para pegarla.", { duration: 6000 });
+        } else {
+          toast.success("📸 Imagen descargada. Puedes arrastrarla a WhatsApp Web.", { duration: 6000 });
+        }
       }
     } catch (error: any) {
       toast.dismiss(toastId);
       if (error?.name !== 'AbortError') {
-        console.error("Error compartiendo imagen del ticket:", error);
-        toast.error("No se pudo compartir la imagen. Puedes descargarla o enviar el texto.");
+        console.error("Error al preparar imagen para WhatsApp:", error);
+        toast.error("No se pudo enviar la imagen. Puedes usar la opción de texto o descargarla.");
       }
     } finally {
       setGenerandoImagen(false);
@@ -266,13 +315,33 @@ export default function TicketFacturaModal({ isOpen, onClose, datos }: TicketFac
   const manejarDescargarImagenDirecta = async () => {
     if (!ticketRef.current || generandoImagen) return;
     setGenerandoImagen(true);
-    const toastId = toast.loading("Preparando descarga de imagen...");
+    const toastId = toast.loading("Preparando descarga...");
 
     try {
-      const dataUrl = await toPng(ticketRef.current, {
+      const node = ticketRef.current;
+      const rect = node.getBoundingClientRect();
+      const anchoReal = Math.max(Math.ceil(rect.width || 0), node.scrollWidth, 360);
+      const altoReal = Math.max(Math.ceil(rect.height || 0), node.scrollHeight);
+
+      const dataUrl = await toPng(node, {
+        width: anchoReal,
+        height: altoReal,
         pixelRatio: 2.5,
         backgroundColor: '#ffffff',
         cacheBust: true,
+        style: {
+          margin: '0px',
+          marginLeft: '0px',
+          marginRight: '0px',
+          marginTop: '0px',
+          marginBottom: '0px',
+          transform: 'none',
+          left: '0px',
+          top: '0px',
+          maxWidth: 'none',
+          width: `${anchoReal}px`,
+          boxSizing: 'border-box',
+        }
       });
 
       const nombreArchivo = `Ticket-${datos.idTransaccion ? datos.idTransaccion.slice(0, 8).toUpperCase() : Date.now()}.png`;
@@ -680,39 +749,37 @@ export default function TicketFacturaModal({ isOpen, onClose, datos }: TicketFac
             
             {/* VISTA MÓVIL: 2 FILAS ORGANIZADAS */}
             <div className="sm:hidden flex flex-col gap-2 w-full">
-              {/* Fila 1 en móvil: WhatsApp (Texto e Imagen directa) */}
+              {/* Fila 1 en móvil: WhatsApp (Foto prioritaria y Texto opcional) */}
               <div className="flex gap-2 w-full">
                 <button
                   type="button"
-                  onClick={compartirPorWhatsApp}
-                  className="flex-1 py-2.5 px-2.5 bg-[#25D366] hover:bg-[#20bd5a] text-white font-black rounded-xl shadow-xs flex items-center justify-center gap-1.5 transition active:scale-95 text-xs text-center cursor-pointer"
-                  title={datos.celularCliente ? `Enviar al WhatsApp de ${datos.nombreCliente} (${datos.celularCliente})` : "Compartir por WhatsApp"}
-                >
-                  <MessageCircle size={15} className="shrink-0 fill-white/20" />
-                  <span className="truncate">
-                    {datos.celularCliente ? 'Enviar WhatsApp' : 'Texto WhatsApp'}
-                  </span>
-                </button>
-
-                <button
-                  type="button"
                   disabled={generandoImagen}
-                  onClick={manejarCompartirOdescargarImagen}
-                  className="flex-1 py-2.5 px-2.5 bg-violet-600 hover:bg-violet-700 text-white font-black rounded-xl shadow-xs flex items-center justify-center gap-1.5 transition active:scale-95 text-xs text-center cursor-pointer disabled:opacity-60"
-                  title="Compartir tíquet como foto/imagen a WhatsApp"
+                  onClick={manejarEnviarImagenWhatsApp}
+                  className="flex-[2] py-2.5 px-3 bg-[#25D366] hover:bg-[#20bd5a] text-white font-black rounded-xl shadow-xs flex items-center justify-center gap-1.5 transition active:scale-95 text-xs text-center cursor-pointer disabled:opacity-60"
+                  title="Compartir foto real del tíquet a WhatsApp"
                 >
                   {generandoImagen ? (
                     <Loader2 size={15} className="animate-spin shrink-0" />
                   ) : (
-                    <Share2 size={15} className="shrink-0" />
+                    <MessageCircle size={15} className="shrink-0 fill-white/20" />
                   )}
                   <span className="truncate">
-                    {generandoImagen ? 'Generando...' : 'Compartir Foto'}
+                    {generandoImagen ? 'Generando...' : 'Foto a WhatsApp 📷'}
                   </span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={compartirPorWhatsApp}
+                  className="flex-1 py-2.5 px-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold rounded-xl border border-slate-200 dark:border-slate-700 flex items-center justify-center gap-1 transition active:scale-95 text-xs text-center cursor-pointer"
+                  title="Enviar solo texto a WhatsApp"
+                >
+                  <FileText size={14} className="shrink-0" />
+                  <span className="truncate">Texto</span>
                 </button>
               </div>
 
-              {/* Fila 2 en móvil: Cerrar, Descargar PNG e Imprimir */}
+              {/* Fila 2 en móvil: Cerrar, Guardar en galería e Imprimir */}
               <div className="flex gap-2 w-full">
                 <button
                   type="button"
@@ -726,7 +793,7 @@ export default function TicketFacturaModal({ isOpen, onClose, datos }: TicketFac
                   type="button"
                   disabled={generandoImagen}
                   onClick={manejarDescargarImagenDirecta}
-                  className="flex-1 py-2 px-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-bold rounded-xl flex items-center justify-center gap-1 text-xs text-center cursor-pointer disabled:opacity-60"
+                  className="flex-1 py-2 px-2 bg-violet-50 dark:bg-violet-950/40 hover:bg-violet-100 dark:hover:bg-violet-900/40 text-violet-700 dark:text-violet-300 border border-violet-200 dark:border-violet-800/60 font-bold rounded-xl flex items-center justify-center gap-1 text-xs text-center cursor-pointer disabled:opacity-60"
                   title="Descargar imagen en la galería"
                 >
                   <Download size={13} />
@@ -765,12 +832,23 @@ export default function TicketFacturaModal({ isOpen, onClose, datos }: TicketFac
               <div className="flex items-center gap-2">
                 <button
                   type="button"
-                  onClick={compartirPorWhatsApp}
-                  className="py-2.5 px-3.5 bg-[#25D366] hover:bg-[#20bd5a] text-white font-black rounded-xl shadow-sm flex items-center justify-center gap-1.5 transition active:scale-95 text-xs text-center cursor-pointer"
-                  title={datos.celularCliente ? `Enviar al WhatsApp de ${datos.nombreCliente} (${datos.celularCliente})` : "Compartir por WhatsApp"}
+                  disabled={generandoImagen}
+                  onClick={manejarEnviarImagenWhatsApp}
+                  className="py-2.5 px-3.5 bg-[#25D366] hover:bg-[#20bd5a] text-white font-black rounded-xl shadow-sm flex items-center justify-center gap-1.5 transition active:scale-95 text-xs text-center cursor-pointer disabled:opacity-60"
+                  title="Copiar imagen y abrir WhatsApp Web para pegar con Ctrl+V"
                 >
-                  <MessageCircle size={15} className="shrink-0 fill-white/20" />
-                  <span>{datos.celularCliente ? 'Enviar WhatsApp' : 'WhatsApp'}</span>
+                  {generandoImagen ? <Loader2 size={15} className="animate-spin shrink-0" /> : <MessageCircle size={15} className="shrink-0 fill-white/20" />}
+                  <span>Foto a WhatsApp</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={compartirPorWhatsApp}
+                  className="py-2.5 px-3 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold rounded-xl border border-slate-200 dark:border-slate-700 flex items-center justify-center gap-1.5 transition active:scale-95 text-xs text-center cursor-pointer"
+                  title="Enviar por WhatsApp en formato texto"
+                >
+                  <FileText size={14} className="shrink-0" />
+                  <span>Texto</span>
                 </button>
 
                 <button
@@ -778,7 +856,7 @@ export default function TicketFacturaModal({ isOpen, onClose, datos }: TicketFac
                   disabled={generandoImagen}
                   onClick={manejarDescargarImagenDirecta}
                   className="py-2.5 px-3.5 bg-violet-600 hover:bg-violet-700 text-white font-black rounded-xl shadow-sm flex items-center justify-center gap-1.5 transition active:scale-95 text-xs text-center cursor-pointer disabled:opacity-60"
-                  title="Descargar imagen PNG del tíquet térmico"
+                  title="Descargar imagen PNG completa del tíquet térmico"
                 >
                   {generandoImagen ? <Loader2 size={15} className="animate-spin shrink-0" /> : <Download size={15} className="shrink-0" />}
                   <span>Descargar Imagen</span>
