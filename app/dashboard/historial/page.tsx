@@ -653,7 +653,7 @@ Quedamos pendientes para revisar detalles o responder cualquier duda.
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2 flex-wrap">
-                      <h2 className="text-xl font-black text-slate-900 dark:text-white tracking-tight leading-snug break-words">
+                      <h2 className="text-2xl font-black text-slate-900 dark:text-white tracking-tight leading-snug break-words">
                         {clienteActivo.nombre}
                       </h2>
                       {datosSesion?.rol !== 'cajero' && (
@@ -962,61 +962,66 @@ Quedamos pendientes para revisar detalles o responder cualquier duda.
             </button>
 
             <div className="flex items-center gap-3 mb-5">
-              <div className="w-12 h-12 rounded-2xl bg-sky-100 dark:bg-sky-950/60 text-sky-600 dark:text-sky-400 flex items-center justify-center shadow-xs">
+              <div className="w-12 h-12 rounded-2xl bg-sky-100 dark:bg-sky-950/60 text-sky-600 dark:text-sky-400 flex items-center justify-center shadow-xs shrink-0">
                 <Package size={26} />
               </div>
-              <div>
-                <span className="text-[10px] font-black uppercase tracking-wider text-sky-600 dark:text-sky-400 bg-sky-50 dark:bg-sky-950/40 px-2 py-0.5 rounded-md">
+              <div className="min-w-0">
+                <span className="text-[10px] font-black uppercase tracking-wider text-sky-600 dark:text-sky-400 bg-sky-50 dark:bg-sky-950/40 px-2 py-0.5 rounded-md inline-block">
                   📦 Entrada de Mercancía
                 </span>
-                <h3 className="text-xl font-black text-slate-900 dark:text-white mt-0.5">
+                <h3 className="text-xl font-black text-slate-900 dark:text-white mt-0.5 truncate">
                   Detalle de Recepción
                 </h3>
               </div>
             </div>
 
-            <div className="space-y-3 bg-slate-50 dark:bg-[#020617] p-4 rounded-2xl border border-slate-200/60 dark:border-slate-800 text-sm">
-              <div>
-                <span className="text-[11px] font-bold text-slate-400 uppercase block">Producto recibido</span>
-                <p className="font-black text-slate-800 dark:text-slate-100 text-base">
+            <div className="space-y-3 text-sm">
+              {/* Tarjeta de Producto y Unidades */}
+              <div className="p-4 bg-slate-50 dark:bg-[#020617] rounded-2xl border border-slate-200/70 dark:border-slate-800">
+                <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 block mb-1">
+                  Producto Ingresado
+                </span>
+                <p className="font-black text-slate-900 dark:text-white text-base leading-snug">
                   {movimientoInventarioDetalle.nombreProducto || 'Producto sin nombre'}
                 </p>
+                <div className="mt-2.5 flex items-center gap-2 flex-wrap">
+                  <span className="inline-flex items-center gap-1 font-black text-xs px-2.5 py-1 rounded-xl bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300">
+                    +{movimientoInventarioDetalle.cantidadAgregada || 1} unidades añadidas
+                  </span>
+                  {movimientoInventarioDetalle.monto > 0 && (
+                    <span className="text-xs font-bold text-slate-600 dark:text-slate-300 bg-white dark:bg-slate-800 px-2.5 py-1 rounded-xl border border-slate-200 dark:border-slate-700">
+                      Costo: ${movimientoInventarioDetalle.monto.toLocaleString('es-CO')}
+                    </span>
+                  )}
+                </div>
               </div>
 
+              {/* Bloque independiente de Detalle y Notas */}
               {movimientoInventarioDetalle.descripcion && (
-                <div>
-                  <span className="text-[11px] font-bold text-slate-400 uppercase block">Detalle / Notas</span>
-                  <p className="font-medium text-slate-700 dark:text-slate-300">
+                <div className="p-3.5 bg-slate-50 dark:bg-[#020617] rounded-2xl border border-slate-200/70 dark:border-slate-800">
+                  <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 block mb-1">
+                    Detalle y Observaciones
+                  </span>
+                  <p className="font-medium text-slate-700 dark:text-slate-300 text-xs leading-relaxed whitespace-pre-wrap">
                     {movimientoInventarioDetalle.descripcion}
                   </p>
                 </div>
               )}
 
-              <div className="grid grid-cols-2 gap-2 pt-2 border-t border-slate-200 dark:border-slate-800">
-                <div>
-                  <span className="text-[11px] font-bold text-slate-400 uppercase block">Unidades ingresadas</span>
-                  <span className="inline-flex items-center gap-1 font-black text-emerald-600 dark:text-emerald-400 text-base">
-                    +{movimientoInventarioDetalle.cantidadAgregada || 1} un.
-                  </span>
-                </div>
-
-                {movimientoInventarioDetalle.monto > 0 && (
-                  <div>
-                    <span className="text-[11px] font-bold text-slate-400 uppercase block">Costo / Valor total</span>
-                    <span className="font-black text-slate-900 dark:text-slate-100 text-base">
-                      ${movimientoInventarioDetalle.monto.toLocaleString('es-CO')}
-                    </span>
+              {/* Registro y Auditoría */}
+              <div className="p-3 bg-sky-50/50 dark:bg-sky-950/20 rounded-2xl border border-sky-100 dark:border-sky-900/40 text-xs text-slate-600 dark:text-slate-300 space-y-1.5">
+                {movimientoInventarioDetalle.registradoPor && (
+                  <div className="flex items-center justify-between">
+                    <span className="text-slate-400 font-bold">Inventariado por:</span>
+                    <span className="font-black text-sky-700 dark:text-sky-300">👤 {movimientoInventarioDetalle.registradoPor}</span>
                   </div>
                 )}
-              </div>
-
-              <div className="pt-2 border-t border-slate-200 dark:border-slate-800 text-xs text-slate-500 dark:text-slate-400 space-y-1">
-                {movimientoInventarioDetalle.registradoPor && (
-                  <p>👤 <strong>Recibido por:</strong> {movimientoInventarioDetalle.registradoPor}</p>
-                )}
-                <p>
-                  📅 <strong>Fecha:</strong> {movimientoInventarioDetalle.fecha?.toDate ? movimientoInventarioDetalle.fecha.toDate().toLocaleDateString('es-CO', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : (movimientoInventarioDetalle.fecha instanceof Date ? movimientoInventarioDetalle.fecha.toLocaleDateString('es-CO', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : 'Hoy')}
-                </p>
+                <div className="flex items-center justify-between">
+                  <span className="text-slate-400 font-bold">Fecha y Hora:</span>
+                  <span className="font-medium text-slate-700 dark:text-slate-300">
+                    📅 {movimientoInventarioDetalle.fecha?.toDate ? movimientoInventarioDetalle.fecha.toDate().toLocaleDateString('es-CO', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : (movimientoInventarioDetalle.fecha instanceof Date ? movimientoInventarioDetalle.fecha.toLocaleDateString('es-CO', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : 'Hoy')}
+                  </span>
+                </div>
               </div>
             </div>
 

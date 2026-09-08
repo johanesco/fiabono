@@ -640,19 +640,15 @@ Quedamos pendientes para revisar detalles o responder cualquier duda.
                   </div>
                 </div>
 
-                {/* HEADER MÓVIL COMPACTO (Máximo ~100px para dejar libre el 80% de la pantalla) */}
-                <div className="md:hidden bg-slate-50 dark:bg-[#020617] border-b border-slate-200 dark:border-slate-800 shrink-0 px-3.5 py-2.5 space-y-2">
-                  {/* Fila 1: Volver + Nombre + Celular + Saldo + Cerrar */}
-                  <div className="flex items-center justify-between gap-2 min-w-0">
+                {/* HEADER MÓVIL OPTIMIZADO (Nombre prominente, saldo destacado, acciones claras) */}
+                <div className="md:hidden bg-slate-50 dark:bg-[#020617] border-b border-slate-200 dark:border-slate-800 shrink-0 px-4 py-3 space-y-2.5">
+                  {/* Fila 1: Nombre del cliente en fila completa con opciones y botón cerrar */}
+                  <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-1.5 min-w-0">
-                        <button 
-                          onClick={() => setClienteActivo(null)} 
-                          className="text-[11px] font-bold text-blue-600 dark:text-blue-400 shrink-0 pr-1"
-                        >
-                          ←
-                        </button>
-                        <h2 className="text-base font-black text-slate-900 dark:text-white truncate">{clienteActivo.nombre}</h2>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <h2 className="text-2xl font-black text-slate-900 dark:text-white tracking-tight leading-snug break-words">
+                          {clienteActivo.nombre}
+                        </h2>
                         {datosSesion?.rol !== 'cajero' && (
                           <div className="flex items-center gap-1 shrink-0">
                             <button
@@ -661,7 +657,7 @@ Quedamos pendientes para revisar detalles o responder cualquier duda.
                               title="Modificar Cliente"
                               className="p-1 rounded-lg bg-white dark:bg-slate-800 text-slate-500 hover:text-blue-600 shadow-xs border border-slate-200 dark:border-slate-700 cursor-pointer"
                             >
-                              <Edit3 size={13} />
+                              <Edit3 size={14} />
                             </button>
                             <button
                               type="button"
@@ -669,67 +665,62 @@ Quedamos pendientes para revisar detalles o responder cualquier duda.
                               title="Eliminar Cliente"
                               className="p-1 rounded-lg bg-white dark:bg-slate-800 text-slate-500 hover:text-rose-600 shadow-xs border border-slate-200 dark:border-slate-700 cursor-pointer"
                             >
-                              <Trash2 size={13} />
+                              <Trash2 size={14} />
                             </button>
                           </div>
                         )}
                       </div>
-                      <p className="text-slate-500 dark:text-slate-400 text-[11px] font-medium truncate">
-                        {clienteActivo.celular || "Sin celular registrado"}
+                      <p className="text-slate-500 dark:text-slate-400 text-xs font-medium mt-0.5">
+                        {clienteActivo.celular ? `📱 ${clienteActivo.celular}` : "Sin celular registrado"}
                       </p>
                     </div>
 
-                    {/* Saldo a la derecha */}
-                    {(() => {
-                      const saldoSeparesActivos = separesCliente
-                        .filter((s: any) => s.estado === 'activo')
-                        .reduce((acc: number, s: any) => acc + (s.saldoPendiente || 0), 0);
-                      const totalCompromiso = (clienteActivo.deudaTotal || 0) + saldoSeparesActivos;
-
-                      return (
-                        <div className="flex items-center gap-2 shrink-0">
-                          <div className="text-right">
-                            <span className={`text-[9px] font-black uppercase tracking-wider block leading-tight ${
-                              (clienteActivo.deudaTotal || 0) < 0 
-                                ? 'text-emerald-500' 
-                                : (totalCompromiso === 0 ? 'text-slate-400' : 'text-rose-500')
-                            }`}>
-                              {(clienteActivo.deudaTotal || 0) < 0 ? 'A favor' : (totalCompromiso === 0 ? 'Al Día' : 'Saldo')}
-                            </span>
-                            <span className={`text-base font-black leading-tight block ${
-                              totalCompromiso === 0 
-                                ? 'text-slate-400' 
-                                : ((clienteActivo.deudaTotal || 0) < 0 ? 'text-emerald-500' : 'text-rose-500')
-                            }`}>
-                              ${Math.abs(totalCompromiso).toLocaleString('es-CO')}
-                            </span>
-                          </div>
-
-                          <button 
-                            onClick={() => {
-                              setVerTodosClientes(false);
-                              setClienteActivo(null);
-                            }} 
-                            className="p-1.5 rounded-full bg-white dark:bg-slate-800 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-700 shadow-xs border border-slate-200 dark:border-slate-700 transition cursor-pointer"
-                            aria-label="Cerrar"
-                          >
-                            <X size={16} />
-                          </button>
-                        </div>
-                      );
-                    })()}
+                    <button 
+                      onClick={() => {
+                        setVerTodosClientes(false);
+                        setClienteActivo(null);
+                      }} 
+                      className="p-2 rounded-full bg-white dark:bg-slate-800 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-700 shadow-xs border border-slate-200 dark:border-slate-700 transition cursor-pointer shrink-0 mt-0.5"
+                      aria-label="Cerrar perfil"
+                    >
+                      <X size={18} />
+                    </button>
                   </div>
 
-                  {/* Fila 2: Si tiene separes activos, desglose compacto */}
+                  {/* Fila 2: Saldo Destacado en tarjeta compacta */}
                   {(() => {
                     const saldoSeparesActivos = separesCliente
                       .filter((s: any) => s.estado === 'activo')
                       .reduce((acc: number, s: any) => acc + (s.saldoPendiente || 0), 0);
-                    if (saldoSeparesActivos <= 0) return null;
+                    const totalCompromiso = (clienteActivo.deudaTotal || 0) + saldoSeparesActivos;
+
                     return (
-                      <div className="flex items-center justify-between text-[10px] font-bold px-2 py-0.5 rounded-lg bg-violet-50 dark:bg-violet-950/30 border border-violet-200 dark:border-violet-900/40 text-violet-700 dark:text-violet-300">
-                        <span>Fiados: ${(clienteActivo.deudaTotal || 0).toLocaleString('es-CO')}</span>
-                        <span>Separes: ${saldoSeparesActivos.toLocaleString('es-CO')}</span>
+                      <div className="flex items-center justify-between p-2.5 rounded-xl bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-800 shadow-xs">
+                        <div>
+                          <span className={`text-[10px] font-black uppercase tracking-wider block ${
+                            (clienteActivo.deudaTotal || 0) < 0 
+                              ? 'text-emerald-600 dark:text-emerald-400' 
+                              : (totalCompromiso === 0 ? 'text-slate-400' : 'text-slate-500 dark:text-slate-400')
+                          }`}>
+                            {(clienteActivo.deudaTotal || 0) < 0 ? 'Saldo a Favor' : (totalCompromiso === 0 ? 'Estado' : (saldoSeparesActivos > 0 ? 'Saldo Total Pendiente' : 'Saldo Actual'))}
+                          </span>
+                          {saldoSeparesActivos > 0 && (
+                            <div className="flex items-center gap-2 text-[10px] font-bold text-slate-400 mt-0.5">
+                              <span>Fiados: ${(clienteActivo.deudaTotal || 0).toLocaleString('es-CO')}</span>
+                              <span>•</span>
+                              <span className="text-violet-600 dark:text-violet-400">Separes: ${saldoSeparesActivos.toLocaleString('es-CO')}</span>
+                            </div>
+                          )}
+                        </div>
+                        <div className="text-right">
+                          <span className={`text-xl font-black ${
+                            totalCompromiso === 0 
+                              ? 'text-slate-400' 
+                              : ((clienteActivo.deudaTotal || 0) < 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400')
+                          }`}>
+                            {totalCompromiso === 0 ? 'Al Día' : `$${Math.abs(totalCompromiso).toLocaleString('es-CO')}`}
+                          </span>
+                        </div>
                       </div>
                     );
                   })()}
@@ -738,40 +729,43 @@ Quedamos pendientes para revisar detalles o responder cualquier duda.
                   <div className="flex items-center gap-1.5">
                     <button 
                       onClick={() => router.push(`/dashboard/vender?clienteId=${clienteActivo.id}`)} 
-                      className="flex-1 py-1.5 px-2 bg-emerald-500 hover:bg-emerald-600 text-white font-bold rounded-lg text-[11px] uppercase shadow-xs transition active:scale-95 cursor-pointer text-center"
+                      className="flex-1 py-2 px-2 bg-emerald-500 hover:bg-emerald-600 text-white font-black rounded-xl text-xs uppercase shadow-xs transition active:scale-95 cursor-pointer text-center"
                     >
                       Vender
                     </button>
                     <button 
                       onClick={() => router.push(`/dashboard/fiar?clienteId=${clienteActivo.id}`)} 
-                      className="flex-1 py-1.5 px-2 bg-rose-500 hover:bg-rose-600 text-white font-bold rounded-lg text-[11px] uppercase shadow-xs transition active:scale-95 cursor-pointer text-center"
+                      className="flex-1 py-2 px-2 bg-rose-500 hover:bg-rose-600 text-white font-black rounded-xl text-xs uppercase shadow-xs transition active:scale-95 cursor-pointer text-center"
                     >
                       Fiar
                     </button>
                     <button 
                       onClick={() => router.push(`/dashboard/abonar?clienteId=${clienteActivo.id}`)} 
-                      className="flex-1 py-1.5 px-2 bg-blue-500 hover:bg-blue-600 text-white font-bold rounded-lg text-[11px] uppercase shadow-xs transition active:scale-95 cursor-pointer text-center"
+                      className="flex-1 py-2 px-2 bg-blue-500 hover:bg-blue-600 text-white font-black rounded-xl text-xs uppercase shadow-xs transition active:scale-95 cursor-pointer text-center"
                     >
                       Abonar
                     </button>
                     {puedeSepare && (
                       <button 
                         onClick={() => router.push(`/dashboard/separe?clienteId=${clienteActivo.id}`)} 
-                        className="flex-1 py-1.5 px-2 bg-violet-600 hover:bg-violet-700 text-white font-bold rounded-lg text-[11px] uppercase shadow-xs transition active:scale-95 cursor-pointer text-center"
+                        className="flex-1 py-2 px-2 bg-violet-600 hover:bg-violet-700 text-white font-black rounded-xl text-xs uppercase shadow-xs transition active:scale-95 cursor-pointer text-center"
                       >
                         Separe
                       </button>
                     )}
-                    {clienteActivo.celular && (
-                      <button 
-                        onClick={() => abrirWhatsApp(generarTextoComprobante('estado', clienteActivo), clienteActivo.celular)} 
-                        title="Enviar estado de cuenta por WhatsApp"
-                        className="p-1.5 bg-[#25D366]/15 hover:bg-[#25D366]/25 text-[#1ebd5a] dark:text-[#25D366] font-bold rounded-lg border border-[#25D366]/30 transition active:scale-95 cursor-pointer shrink-0"
-                      >
-                        <MessageCircle size={16} />
-                      </button>
-                    )}
                   </div>
+
+                  {/* Fila 4: Botón de WhatsApp con texto visible y claro */}
+                  {clienteActivo.celular && datosSesion?.rol !== 'cajero' && (
+                    <button 
+                      type="button"
+                      onClick={() => abrirWhatsApp(generarTextoComprobante('estado', clienteActivo), clienteActivo.celular)} 
+                      className="w-full py-2 px-3 bg-[#25D366]/15 hover:bg-[#25D366]/25 text-[#128C7E] dark:text-[#25D366] font-black rounded-xl border border-[#25D366]/40 transition active:scale-98 cursor-pointer flex items-center justify-center gap-2 text-xs shadow-xs"
+                    >
+                      <MessageCircle size={15} className="text-[#25D366] fill-[#25D366]/30" />
+                      <span>Enviar estado de cuenta por WhatsApp</span>
+                    </button>
+                  )}
                 </div>
 
                 {/* HISTORIAL INTERNO DEL PERFIL */}
