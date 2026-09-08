@@ -244,29 +244,28 @@ export default function TicketFacturaModal({ isOpen, onClose, datos }: TicketFac
 
               {/* LISTA DE ARTÍCULOS O DESCRIPCIÓN */}
               <div className="py-3 border-b border-dashed border-slate-300">
-                <div className="flex justify-between font-black text-[11px] text-slate-800 pb-1.5 border-b border-slate-200">
-                  <span>CANT / DESCRIPCIÓN</span>
-                  <span>TOTAL</span>
+                <div className="flex justify-between font-black text-[10.5px] sm:text-[11px] text-slate-800 pb-1.5 border-b border-slate-200">
+                  <span className="w-1/2">CANT / PRODUCTO</span>
+                  <span className="w-1/4 text-right">VR. UNIT</span>
+                  <span className="w-1/4 text-right">TOTAL</span>
                 </div>
 
                 <div className="space-y-1.5 pt-2">
                   {datos.detalles && datos.detalles.length > 0 ? (
                     datos.detalles.map((item, idx) => {
                       const cant = item.cantidad || 1;
-                      const vUnit = item.valorUnitario || item.valor || 0;
-                      const vTotal = cant * vUnit;
+                      const vUnit = item.valorUnitario || (cant > 0 ? (item.valor || 0) / cant : item.valor || 0);
+                      const vTotal = item.valor || (cant * vUnit);
 
                       return (
-                        <div key={idx} className="flex justify-between items-start text-[11px] leading-tight">
-                          <div className="flex-1 pr-2">
+                        <div key={idx} className="flex justify-between items-start text-[11px] leading-tight py-0.5">
+                          <div className="w-1/2 pr-1">
                             <p className="font-bold text-slate-900">{cant}x {item.descripcion || "Artículo"}</p>
-                            {cant > 1 && (
-                              <p className="text-[10px] text-slate-500">
-                                @ ${vUnit.toLocaleString('es-CO')} c/u
-                              </p>
-                            )}
                           </div>
-                          <span className="font-black text-slate-900 shrink-0">
+                          <span className="w-1/4 text-right text-slate-600 font-mono text-[10.5px]">
+                            ${vUnit.toLocaleString('es-CO')}
+                          </span>
+                          <span className="w-1/4 text-right font-black text-slate-900 font-mono text-[11px] shrink-0">
                             ${vTotal.toLocaleString('es-CO')}
                           </span>
                         </div>
@@ -292,10 +291,12 @@ export default function TicketFacturaModal({ isOpen, onClose, datos }: TicketFac
                             const cant = matchCant ? parseInt(matchCant[1], 10) : 1;
                             const nombreArt = matchCant ? matchCant[2].trim() : p;
                             return (
-                              <div key={idx} className="flex justify-between items-start text-[11px] leading-tight border-b border-dashed border-slate-100 last:border-none pb-1">
-                                <div className="flex-1 pr-2">
+                              <div key={idx} className="flex justify-between items-start text-[11px] leading-tight border-b border-dashed border-slate-100 last:border-none py-0.5">
+                                <div className="w-1/2 pr-1">
                                   <p className="font-bold text-slate-900">{cant}x {nombreArt}</p>
                                 </div>
+                                <span className="w-1/4 text-right text-slate-400 font-mono text-[10px]">-</span>
+                                <span className="w-1/4 text-right text-slate-400 font-mono text-[10px]">-</span>
                               </div>
                             );
                           })}
@@ -305,10 +306,10 @@ export default function TicketFacturaModal({ isOpen, onClose, datos }: TicketFac
 
                     return (
                       <div className="flex justify-between items-center text-[11px]">
-                        <span className="font-bold text-slate-800">
+                        <span className="w-3/4 font-bold text-slate-800">
                           {datos.descripcionGeneral || (datos.tipo === 'abono' ? 'Abono a cuenta' : (datos.tipo === 'fiado' ? 'Fiado de mercancía' : 'Venta directa'))}
                         </span>
-                        <span className="font-black text-slate-900">
+                        <span className="w-1/4 text-right font-black text-slate-900 font-mono">
                           ${(datos.montoTotal || 0).toLocaleString('es-CO')}
                         </span>
                       </div>
