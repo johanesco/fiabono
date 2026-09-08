@@ -8,6 +8,7 @@ import { API_DB } from "../../../servicios/db";
 import { OrdenPendiente } from "@/types";
 import TicketFacturaModal, { DatosFacturaProps } from "@/components/TicketFacturaModal";
 import toast from "react-hot-toast";
+import { abrirEnlaceWhatsApp } from "@/utils/whatsapp";
 import { 
   Receipt, 
   CheckCircle2, 
@@ -213,8 +214,8 @@ export default function OrdenesPage() {
     orden.items.forEach(f => {
       const unitario = parseFloat(f.valor) || 0;
       const subtotalFila = unitario * f.cantidad;
-      const desc = f.descripcion?.trim() || 'Artículo';
-      detalleTexto += `• ${f.cantidad}x ${desc}\n  Precio unitario: *$${unitario.toLocaleString('es-CO')}*\n  Subtotal: *$${subtotalFila.toLocaleString('es-CO')}*\n\n`;
+      const desc = f.descripcion?.trim() || 'Articulo';
+      detalleTexto += `- ${f.cantidad}x ${desc}\n  Precio unitario: *$${unitario.toLocaleString('es-CO')}*\n  Subtotal: *$${subtotalFila.toLocaleString('es-CO')}*\n\n`;
     });
 
     let texto = "";
@@ -228,7 +229,9 @@ export default function OrdenesPage() {
 *COMPROBANTE DE PLAN SEPARE*
 ===================
 
-${detalleTexto}`;
+${detalleTexto.trim()}
+
+`;
 
       if (orden.montoDescuento && orden.montoDescuento > 0) {
         const dtoDesc = orden.descuentoTipo === 'porcentaje' ? `${orden.descuentoValor}%` : `$${Number(orden.descuentoValor).toLocaleString('es-CO')}`;
@@ -243,7 +246,7 @@ ${detalleTexto}`;
         const fl = (orden as any).payloadSepare?.fechaLimite || (orden as any).fechaLimite;
         const d = fl.toDate ? fl.toDate() : new Date(fl);
         if (!isNaN(d.getTime())) {
-          texto += `\n*Fecha límite de pago:* ${d.toLocaleDateString('es-CO', { day: '2-digit', month: '2-digit', year: 'numeric' })}`;
+          texto += `\n*Fecha limite de pago:* ${d.toLocaleDateString('es-CO', { day: '2-digit', month: '2-digit', year: 'numeric' })}`;
         }
       }
 
@@ -256,7 +259,7 @@ ${detalleTexto}`;
 Gracias por tu preferencia y confianza.
 Estamos atentos para cualquier consulta.
 
-*¡Que tengas un gran día!*`;
+*¡Que tengas un gran dia!*`;
 
     } else {
       if (orden.montoDescuento && orden.montoDescuento > 0) {
@@ -269,18 +272,18 @@ Estamos atentos para cualquier consulta.
 *${encabezadoTitulo}*
 ===================
 
-${detalleTexto}*TOTAL: $${orden.total.toLocaleString('es-CO')}*
+${detalleTexto.trim()}
+
+*TOTAL: $${orden.total.toLocaleString('es-CO')}*
 *Atendido por:* ${orden.nombreColaborador}
 
-¡Muchas gracias por tu compra! Estamos atentos para cualquier consulta.
+Muchas gracias por tu compra. Estamos atentos para cualquier consulta.
 
 *¡Te esperamos pronto!*`;
     }
 
-    const mensajeLimpio = normalizarMensajeWhatsApp(texto);
     const celularLimpio = orden.clienteCelular ? orden.clienteCelular.replace(/\D/g, '') : '';
-    const url = celularLimpio ? `https://wa.me/57${celularLimpio}?text=${encodeURIComponent(mensajeLimpio)}` : `https://wa.me/?text=${encodeURIComponent(mensajeLimpio)}`;
-    window.open(url, '_blank');
+    abrirEnlaceWhatsApp(celularLimpio, texto);
   };
 
   const abrirFacturaDeOrdenAprobada = (orden: OrdenPendiente) => {

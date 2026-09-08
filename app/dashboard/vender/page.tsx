@@ -10,6 +10,7 @@ import { customConfirm } from "@/utils/customConfirm";
 import { Html5Qrcode } from "html5-qrcode";
 import { API_DB } from "../../../servicios/db";
 import TicketFacturaModal from "@/components/TicketFacturaModal";
+import { abrirEnlaceWhatsApp } from "@/utils/whatsapp";
 
 export default function VenderPage() {
   return (
@@ -1235,7 +1236,7 @@ function VenderContenido() {
       const unitario = parseFloat(f.valor);
       const subtotal = unitario * f.cantidad;
       const desc = f.descripcion.trim() || "Articulo";
-      detalleTexto += `• ${f.cantidad}x ${desc}\n  Precio unitario: *$${unitario.toLocaleString('es-CO')}*\n  Total: *$${subtotal.toLocaleString('es-CO')}*\n\n`;
+      detalleTexto += `- ${f.cantidad}x ${desc}\n  Precio unitario: *$${unitario.toLocaleString('es-CO')}*\n  Total: *$${subtotal.toLocaleString('es-CO')}*\n\n`;
     });
 
     const dMonto = modalExito?.montoDescuentoTotal ?? montoDescuentoTotal;
@@ -1265,7 +1266,7 @@ function VenderContenido() {
        const abonoAplicado = Math.min(pagadoNum, dTotal);
        const saldoFiadoEsteCredito = Math.max(dTotal - abonoAplicado, 0);
        const saldoCreditoTotal = deudaAnteriorPendiente + saldoFiadoEsteCredito;
-       infoExtra = `\n*TOTAL DE ESTE FIADO:* $${saldoFiadoEsteCredito.toLocaleString('es-CO')}\n\n*Saldo de crédito Total:* $${saldoCreditoTotal.toLocaleString('es-CO')}*`;
+       infoExtra = `\n*TOTAL DE ESTE FIADO:* $${saldoFiadoEsteCredito.toLocaleString('es-CO')}\n\n*Saldo de credito Total: $${saldoCreditoTotal.toLocaleString('es-CO')}*`;
     } else if (devuelta > 0) {
        infoExtra = `\n*Entregaste:* $${pagadoNum.toLocaleString('es-CO')}\n*Devuelta:* $${devuelta.toLocaleString('es-CO')}*`;
     } else {
@@ -1275,7 +1276,7 @@ function VenderContenido() {
     const idTransaccion = modalExito?.ticketDatos?.idTransaccion;
     let enlaceTexto = "";
     if (idTransaccion && typeof window !== 'undefined') {
-      enlaceTexto = `\n\n🔗 *Ver o descargar comprobante digital:*\n${window.location.origin}/t/${idTransaccion}`;
+      enlaceTexto = `\n\n*Ver o descargar comprobante digital:*\n${window.location.origin}/t/${idTransaccion}`;
     }
 
     const texto = `¡Hola, *${nombreDestino}*! Gracias por tu compra en *${nombreNegocio || 'nuestra tienda'}*.
@@ -1284,20 +1285,18 @@ function VenderContenido() {
 *${encabezadoTitulo}*
 ===================
 
-${detalleTexto}
+${detalleTexto.trim()}
+
 *TOTAL: $${totalFilasRegistro.toLocaleString('es-CO')}*
-${infoExtra}${enlaceTexto}
+${infoExtra.trim()}${enlaceTexto}
 
 Gracias por tu compra.
 Estamos atentos para cualquier consulta.
 
 *¡Te esperamos pronto!*`;
-    const mensajeLimpio = normalizarMensajeWhatsApp(texto);
-    
-    const celularLimpio = cliente?.celular ? cliente.celular.replace(/\D/g, '') : '';
-    const url = celularLimpio ? `https://wa.me/57${celularLimpio}?text=${encodeURIComponent(mensajeLimpio)}` : `https://wa.me/?text=${encodeURIComponent(mensajeLimpio)}`;
 
-    window.open(url, '_blank');
+    const celularLimpio = cliente?.celular ? cliente.celular.replace(/\D/g, '') : '';
+    abrirEnlaceWhatsApp(celularLimpio, texto);
   };
 
   const handleScrollContenedor = () => {

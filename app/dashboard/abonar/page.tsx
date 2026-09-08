@@ -8,6 +8,7 @@ import { useAuth } from "../../../hooks/AuthContext";
 import { API_DB } from "../../../servicios/db";
 import TicketFacturaModal from "@/components/TicketFacturaModal";
 import toast from 'react-hot-toast';
+import { abrirEnlaceWhatsApp } from "@/utils/whatsapp";
 
 export default function AbonarPage() {
   return (
@@ -369,7 +370,7 @@ function AbonarContenido() {
     const idTransaccion = modalExito?.ticketDatos?.idTransaccion;
     let enlaceTexto = "";
     if (idTransaccion && typeof window !== 'undefined') {
-      enlaceTexto = `\n\n🔗 *Ver o descargar comprobante digital:*\n${window.location.origin}/t/${idTransaccion}`;
+      enlaceTexto = `\n\n*Ver o descargar comprobante digital:*\n${window.location.origin}/t/${idTransaccion}`;
     }
 
     let texto = "";
@@ -380,14 +381,14 @@ function AbonarContenido() {
 *ABONO A PLAN SEPARE*
 ===================
 
-• Abono recibido: *$${abonoMonto.toLocaleString('es-CO')}*
-• Método: *${metodoPago.toUpperCase()}${subMetodoPago ? ` (${subMetodoPago})` : ''}*
-• Saldo restante: *$${(modalExito.saldoRestanteSepare || 0).toLocaleString('es-CO')}*${enlaceTexto}
+- Abono recibido: *$${abonoMonto.toLocaleString('es-CO')}*
+- Metodo: *${metodoPago.toUpperCase()}${subMetodoPago ? ` (${subMetodoPago})` : ''}*
+- Saldo restante: *$${(modalExito.saldoRestanteSepare || 0).toLocaleString('es-CO')}*${enlaceTexto}
 
 Gracias por tu pago y confianza.
 Estamos atentos para cualquier consulta.
 
-*¡Que tengas un gran día!*`;
+*¡Que tengas un gran dia!*`;
     } else {
       const saldoFormat = cliente.deudaTotal < 0 
         ? `$${Math.abs(cliente.deudaTotal).toLocaleString('es-CO')} a favor` 
@@ -399,23 +400,18 @@ Estamos atentos para cualquier consulta.
 *COMPROBANTE DE ABONO*
 ===================
 
-• Abono recibido: *$${abonoMonto.toLocaleString('es-CO')}*
-• Método: *${metodoPago.toUpperCase()}${subMetodoPago ? ` (${subMetodoPago})` : ''}*
-• Saldo actual en cuenta: *${saldoFormat}*${enlaceTexto}
+- Abono recibido: *$${abonoMonto.toLocaleString('es-CO')}*
+- Metodo: *${metodoPago.toUpperCase()}${subMetodoPago ? ` (${subMetodoPago})` : ''}*
+- Saldo actual en cuenta: *${saldoFormat}*${enlaceTexto}
 
 Gracias por tu abono y confianza.
 Estamos atentos para cualquier consulta.
 
-*¡Que tengas un gran día!*`;
+*¡Que tengas un gran dia!*`;
     }
 
-    const mensajeLimpio = normalizarMensajeWhatsApp(texto);
     const celularLimpio = cliente.celular ? cliente.celular.replace(/\D/g, '') : '';
-    const url = celularLimpio ? `https://wa.me/57${celularLimpio}?text=${encodeURIComponent(mensajeLimpio)}` : `https://wa.me/?text=${encodeURIComponent(mensajeLimpio)}`;
-    
-    if (typeof window !== 'undefined') {
-      window.open(url, '_blank');
-    }
+    abrirEnlaceWhatsApp(celularLimpio, texto);
   };
 
   const clientesFiltradosRegistro = clientes.filter(c => 

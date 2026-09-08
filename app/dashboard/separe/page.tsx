@@ -15,6 +15,7 @@ import toast from "react-hot-toast";
 import { useAuth } from "@/hooks/AuthContext";
 import TicketFacturaModal, { DatosFacturaProps } from "@/components/TicketFacturaModal";
 import { Html5Qrcode } from "html5-qrcode";
+import { abrirEnlaceWhatsApp } from "@/utils/whatsapp";
 
 export default function SeparePage() {
   return (
@@ -1458,7 +1459,7 @@ function SepareContenido() {
       .forEach((f: any) => {
         const precio = parseFloat(f.valor) || 0;
         const subtotal = precio * f.cantidad;
-        itemsTexto += `• ${f.cantidad}x ${f.descripcion.trim()}\n  Precio unitario: *$${precio.toLocaleString('es-CO')}*\n  Total: *$${subtotal.toLocaleString('es-CO')}*\n\n`;
+        itemsTexto += `- ${f.cantidad}x ${f.descripcion.trim()}\n  Precio unitario: *$${precio.toLocaleString('es-CO')}*\n  Total: *$${subtotal.toLocaleString('es-CO')}*\n\n`;
       });
 
     let texto = `¡Hola, *${cli.nombre}*! Gracias por separar con nosotros en *${nombreNegocio}*.
@@ -1467,7 +1468,9 @@ function SepareContenido() {
 *COMPROBANTE DE PLAN SEPARE*
 ===================
 
-${itemsTexto}`;
+${itemsTexto.trim()}
+
+`;
 
     if (montoDescuento > 0) {
       const dtoDesc = descuentoTipo === 'porcentaje' ? `${valorDescuentoNum}%` : `$${valorDescuentoNum.toLocaleString('es-CO')}`;
@@ -1481,24 +1484,25 @@ ${itemsTexto}`;
     if (fechaLimite) {
       const fechaObj = new Date(fechaLimite + "T00:00:00");
       const fechaFmt = fechaObj.toLocaleDateString('es-CO', { day: '2-digit', month: '2-digit', year: 'numeric' });
-      texto += `\n*Fecha límite de pago:* ${fechaFmt}`;
+      texto += `\n*Fecha limite de pago:* ${fechaFmt}`;
     }
 
     if (notas.trim()) {
       texto += `\n*Nota:* ${notas.trim()}`;
     }
 
-    texto += `\n*Atendido por:* ${nombreUsuario}
+    const separeId = modalExito?.ticketDatos?.idTransaccion || modalExito?.separe?.id;
+    if (separeId && typeof window !== 'undefined') {
+      texto += `\n\n*Ver o descargar comprobante digital:*\n${window.location.origin}/t/${separeId}`;
+    }
 
-Gracias por tu preferencia y confianza.
+    texto += `\n\nGracias por tu preferencia y confianza.
 Estamos atentos para cualquier consulta.
 
-*¡Que tengas un gran día!*`;
+*¡Te esperamos pronto!*`;
 
-    const textoLimpio = normalizarMensajeWhatsApp(texto);
     const celLimpio = clienteSeleccionado.celular ? clienteSeleccionado.celular.replace(/\D/g, '') : '';
-    const url = celLimpio ? `https://wa.me/57${celLimpio}?text=${encodeURIComponent(textoLimpio)}` : `https://wa.me/?text=${encodeURIComponent(textoLimpio)}`;
-    window.open(url, '_blank');
+    abrirEnlaceWhatsApp(celLimpio, texto);
   };
 
   // Clientes filtrados

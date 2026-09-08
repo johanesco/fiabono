@@ -7,6 +7,7 @@ import toast from "react-hot-toast";
 import { useAuth } from "@/hooks/AuthContext";
 import ModalUpsellSuscripcion from "./ModalUpsellSuscripcion";
 import VistaTicketCard from "./VistaTicketCard";
+import { abrirEnlaceWhatsApp, limpiarTextoWhatsApp } from "@/utils/whatsapp";
 
 export interface DetalleFacturaItem {
   descripcion: string;
@@ -114,7 +115,7 @@ export default function TicketFacturaModal({ isOpen, onClose, datos }: TicketFac
 
     let enlaceTexto = "";
     if (datos.idTransaccion && typeof window !== 'undefined') {
-      enlaceTexto = `\n\n🔗 *Ver o descargar comprobante digital:*\n${window.location.origin}/t/${datos.idTransaccion}`;
+      enlaceTexto = `\n\n*Ver o descargar comprobante digital:*\n${window.location.origin}/t/${datos.idTransaccion}`;
     }
 
     // Detalle simplificado de productos
@@ -124,22 +125,24 @@ export default function TicketFacturaModal({ isOpen, onClose, datos }: TicketFac
         const cant = item.cantidad || 1;
         const vUnit = item.valorUnitario || (cant > 0 ? (item.valor || 0) / cant : item.valor || 0);
         const vTotal = item.valor || (cant * vUnit);
-        detalleTexto += `• ${cant}x ${item.descripcion || "Artículo"}\n  Precio unitario: *$${vUnit.toLocaleString('es-CO')}*\n  Total: *$${vTotal.toLocaleString('es-CO')}*\n\n`;
+        detalleTexto += `- ${cant}x ${item.descripcion || "Articulo"}\n  Precio unitario: *$${vUnit.toLocaleString('es-CO')}*\n  Total: *$${vTotal.toLocaleString('es-CO')}*\n\n`;
       });
     } else if (datos.descripcionGeneral) {
-      detalleTexto = `• ${datos.descripcionGeneral}\n\n`;
+      detalleTexto = `- ${datos.descripcionGeneral}\n\n`;
     }
 
     if (datos.montoDescuento && datos.montoDescuento > 0) {
       detalleTexto += `*Descuento:* -$${datos.montoDescuento.toLocaleString('es-CO')}\n`;
     }
 
+    let resultado = "";
+
     if (datos.tipo === 'fiado') {
-      const saldoTotalStr = datos.saldoNuevo !== undefined ? `\n*Saldo de crédito Total: $${datos.saldoNuevo.toLocaleString('es-CO')}*` : "";
-      return `¡Hola, *${nombreCliente}*! Gracias por tu confianza en *${nombreNegocio}*.
+      const saldoTotalStr = datos.saldoNuevo !== undefined ? `\n*Saldo de credito Total: $${datos.saldoNuevo.toLocaleString('es-CO')}*` : "";
+      resultado = `¡Hola, *${nombreCliente}*! Gracias por tu confianza en *${nombreNegocio}*.
 
 ===================
-*DETALLE DEL CRÉDITO*
+*DETALLE DEL CREDITO*
 ===================
 
 ${detalleTexto.trim()}
@@ -148,40 +151,36 @@ ${detalleTexto.trim()}
 Gracias por confiar en nosotros.
 Estamos atentos para cualquier consulta.
 
-*¡Que tengas un gran día!*`;
-    }
-
-    if (datos.tipo === 'abono') {
+*¡Que tengas un gran dia!*`;
+    } else if (datos.tipo === 'abono') {
       const saldoFormat = datos.saldoNuevo !== undefined 
         ? (datos.saldoNuevo < 0 ? `$${Math.abs(datos.saldoNuevo).toLocaleString('es-CO')} a favor` : `$${datos.saldoNuevo.toLocaleString('es-CO')}`)
         : "";
       const metodos: Record<string, string> = {
         efectivo: 'EFECTIVO',
         transferencia: 'TRANSFERENCIA',
-        datafono: 'DATÁFONO',
-        credito_externo: 'CRÉDITO'
+        datafono: 'DATAFONO',
+        credito_externo: 'CREDITO'
       };
       const metodoStr = datos.metodoPago ? (metodos[datos.metodoPago] || datos.metodoPago.toUpperCase()) : "EFECTIVO";
 
-      return `¡Hola, *${nombreCliente}*! Gracias por tu abono en *${nombreNegocio}*.
+      resultado = `¡Hola, *${nombreCliente}*! Gracias por tu abono en *${nombreNegocio}*.
 
 ===================
 *COMPROBANTE DE ABONO*
 ===================
 
-• Abono recibido: *$${(datos.montoTotal || 0).toLocaleString('es-CO')}*
-• Método: *${metodoStr}*${saldoFormat ? `\n• Saldo actual en cuenta: *${saldoFormat}*` : ""}${enlaceTexto}
+- Abono recibido: *$${(datos.montoTotal || 0).toLocaleString('es-CO')}*
+- Metodo: *${metodoStr}*${saldoFormat ? `\n- Saldo actual en cuenta: *${saldoFormat}*` : ""}${enlaceTexto}
 
 Gracias por tu abono y confianza.
 Estamos atentos para cualquier consulta.
 
-*¡Que tengas un gran día!*`;
-    }
-
-    if (datos.tipo === 'separe') {
+*¡Que tengas un gran dia!*`;
+    } else if (datos.tipo === 'separe') {
       const abonoInicial = datos.pagoRecibido || 0;
       const saldoPend = datos.saldoNuevo !== undefined ? datos.saldoNuevo : Math.max((datos.montoTotal || 0) - abonoInicial, 0);
-      return `¡Hola, *${nombreCliente}*! Gracias por separar con nosotros en *${nombreNegocio}*.
+      resultado = `¡Hola, *${nombreCliente}*! Gracias por separar con nosotros en *${nombreNegocio}*.
 
 ===================
 *PLAN SEPARE REGISTRADO*
@@ -189,43 +188,39 @@ Estamos atentos para cualquier consulta.
 
 ${detalleTexto.trim()}
 *TOTAL SEPARE: $${(datos.montoTotal || 0).toLocaleString('es-CO')}*
-• Abono inicial: *$${abonoInicial.toLocaleString('es-CO')}*
-• Saldo pendiente: *$${saldoPend.toLocaleString('es-CO')}*${enlaceTexto}
+- Abono inicial: *$${abonoInicial.toLocaleString('es-CO')}*
+- Saldo pendiente: *$${saldoPend.toLocaleString('es-CO')}*${enlaceTexto}
 
 Gracias por tu confianza.
 Estamos atentos para cualquier consulta.
 
 *¡Te esperamos pronto!*`;
-    }
-
-    if (datos.tipo === 'abono_separe') {
+    } else if (datos.tipo === 'abono_separe') {
       const saldoPend = datos.saldoNuevo !== undefined ? datos.saldoNuevo : 0;
       const metodos: Record<string, string> = {
         efectivo: 'EFECTIVO',
         transferencia: 'TRANSFERENCIA',
-        datafono: 'DATÁFONO',
-        credito_externo: 'CRÉDITO'
+        datafono: 'DATAFONO',
+        credito_externo: 'CREDITO'
       };
       const metodoStr = datos.metodoPago ? (metodos[datos.metodoPago] || datos.metodoPago.toUpperCase()) : "EFECTIVO";
 
-      return `¡Hola, *${nombreCliente}*! Gracias por tu abono en *${nombreNegocio}*.
+      resultado = `¡Hola, *${nombreCliente}*! Gracias por tu abono en *${nombreNegocio}*.
 
 ===================
 *ABONO A PLAN SEPARE*
 ===================
 
-• Abono recibido: *$${(datos.montoTotal || 0).toLocaleString('es-CO')}*
-• Método: *${metodoStr}*
-• Saldo restante: *$${saldoPend.toLocaleString('es-CO')}*${enlaceTexto}
+- Abono recibido: *$${(datos.montoTotal || 0).toLocaleString('es-CO')}*
+- Metodo: *${metodoStr}*
+- Saldo restante: *$${saldoPend.toLocaleString('es-CO')}*${enlaceTexto}
 
 Gracias por tu abono y confianza.
 Estamos atentos para cualquier consulta.
 
-*¡Que tengas un gran día!*`;
-    }
-
-    if (datos.tipo === 'entrega_separe') {
-      return `¡Hola, *${nombreCliente}*! Tus productos han sido pagados en su totalidad en *${nombreNegocio}*.
+*¡Que tengas un gran dia!*`;
+    } else if (datos.tipo === 'entrega_separe') {
+      resultado = `¡Hola, *${nombreCliente}*! Tus productos han sido pagados en su totalidad en *${nombreNegocio}*.
 
 ===================
 *ENTREGA DE PLAN SEPARE*
@@ -233,36 +228,33 @@ Estamos atentos para cualquier consulta.
 
 ${detalleTexto.trim()}
 *TOTAL CANCELADO: $${(datos.montoTotal || 0).toLocaleString('es-CO')}*
-✅ Estado: Completamente pagado y entregado${enlaceTexto}
+Estado: Completamente pagado y entregado${enlaceTexto}
 
 ¡Gracias por tu preferencia!
 Estamos atentos para cualquier consulta.
 
 *¡Te esperamos pronto!*`;
-    }
-
-    if (datos.tipo === 'egreso') {
-      return `¡Hola, *${nombreCliente}*! Comprobante de egreso o devolución en *${nombreNegocio}*.
+    } else if (datos.tipo === 'egreso') {
+      resultado = `¡Hola, *${nombreCliente}*! Comprobante de egreso o devolucion en *${nombreNegocio}*.
 
 ===================
-*COMPROBANTE DE DEVOLUCIÓN*
+*COMPROBANTE DE DEVOLUCION*
 ===================
 
 ${detalleTexto.trim()}
 *TOTAL DEVUELTO: $${(datos.montoTotal || 0).toLocaleString('es-CO')}*${enlaceTexto}
 
 Estamos atentos para cualquier consulta.`;
-    }
-
-    // Por defecto: COMPROBANTE DE VENTA
-    let infoExtra = "";
-    if (datos.devuelta && datos.devuelta > 0) {
-      infoExtra = `\n*Entregaste:* $${(datos.pagoRecibido || 0).toLocaleString('es-CO')}\n*Devuelta:* $${datos.devuelta.toLocaleString('es-CO')}*`;
     } else {
-      infoExtra = '\n*Pago completo.*';
-    }
+      // Por defecto: COMPROBANTE DE VENTA
+      let infoExtra = "";
+      if (datos.devuelta && datos.devuelta > 0) {
+        infoExtra = `\n*Entregaste:* $${(datos.pagoRecibido || 0).toLocaleString('es-CO')}\n*Devuelta:* $${datos.devuelta.toLocaleString('es-CO')}*`;
+      } else {
+        infoExtra = '\n*Pago completo.*';
+      }
 
-    return `¡Hola, *${nombreCliente}*! Gracias por tu compra en *${nombreNegocio}*.
+      resultado = `¡Hola, *${nombreCliente}*! Gracias por tu compra en *${nombreNegocio}*.
 
 ===================
 *COMPROBANTE DE VENTA*
@@ -276,6 +268,9 @@ Gracias por tu compra.
 Estamos atentos para cualquier consulta.
 
 *¡Te esperamos pronto!*`;
+    }
+
+    return limpiarTextoWhatsApp(resultado);
   };
 
   const celClienteRaw = (datos.celularCliente || '').toString().replace(/\D/g, '');
@@ -285,11 +280,7 @@ Estamos atentos para cualquier consulta.
   const compartirPorWhatsApp = () => {
     if (!tieneCelularValido) return;
     const texto = generarTextoTicketWhatsApp();
-    const url = `https://wa.me/${celClienteLimpio}?text=${encodeURIComponent(texto)}`;
-
-    if (typeof window !== 'undefined') {
-      window.open(url, '_blank');
-    }
+    abrirEnlaceWhatsApp(celClienteLimpio, texto);
   };
 
   const capturarBlobTicket = async (): Promise<Blob | null> => {

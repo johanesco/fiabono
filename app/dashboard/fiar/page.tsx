@@ -9,6 +9,7 @@ import toast from "react-hot-toast";
 import { Html5Qrcode } from "html5-qrcode";
 import { API_DB } from "../../../servicios/db";
 import TicketFacturaModal from "@/components/TicketFacturaModal";
+import { abrirEnlaceWhatsApp } from "@/utils/whatsapp";
 
 export default function FiarPage() {
     return (
@@ -1096,7 +1097,7 @@ function FiarContenido() {
             const unitario = parseFloat(f.valor);
             const subtotal = unitario * f.cantidad;
             const desc = f.descripcion.trim() || "Articulo";
-            detalleTexto += `• ${f.cantidad}x ${desc}\n  Precio unitario: *$${unitario.toLocaleString('es-CO')}*\n  Total: *$${subtotal.toLocaleString('es-CO')}*\n\n`;
+            detalleTexto += `- ${f.cantidad}x ${desc}\n  Precio unitario: *$${unitario.toLocaleString('es-CO')}*\n  Total: *$${subtotal.toLocaleString('es-CO')}*\n\n`;
         });
 
         const dMonto = modalExito?.montoDescuentoTotal ?? montoDescuentoTotal;
@@ -1114,29 +1115,27 @@ function FiarContenido() {
         const idTransaccion = modalExito?.ticketDatos?.idTransaccion;
         let enlaceTexto = "";
         if (idTransaccion && typeof window !== 'undefined') {
-          enlaceTexto = `\n\n🔗 *Ver o descargar comprobante digital:*\n${window.location.origin}/t/${idTransaccion}`;
+          enlaceTexto = `\n\n*Ver o descargar comprobante digital:*\n${window.location.origin}/t/${idTransaccion}`;
         }
 
         const texto = `¡Hola, *${cliente.nombre}*! Gracias por tu confianza en *${nombreNegocio || 'nuestra tienda'}*.
 
 ===================
-*DETALLE DEL CRÉDITO*
+*DETALLE DEL CREDITO*
 ===================
 
-${detalleTexto}
+${detalleTexto.trim()}
+
 *TOTAL DE ESTE FIADO: $${saldoEsteFiado.toLocaleString('es-CO')}*
-*Saldo de crédito Total: $${saldoCreditoTotal.toLocaleString('es-CO')}*${enlaceTexto}
+*Saldo de credito Total: $${saldoCreditoTotal.toLocaleString('es-CO')}*${enlaceTexto}
 
 Gracias por confiar en nosotros.
 Estamos atentos para cualquier consulta.
 
-*¡Que tengas un gran día!*`;
-        const mensajeLimpio = normalizarMensajeWhatsApp(texto);
+*¡Que tengas un gran dia!*`;
 
         const celularLimpio = cliente.celular ? cliente.celular.replace(/\D/g, '') : '';
-        const url = celularLimpio ? `https://wa.me/57${celularLimpio}?text=${encodeURIComponent(mensajeLimpio)}` : `https://wa.me/?text=${encodeURIComponent(mensajeLimpio)}`;
-
-        window.open(url, '_blank');
+        abrirEnlaceWhatsApp(celularLimpio, texto);
     };
 
     const handleScrollContenedor = () => {

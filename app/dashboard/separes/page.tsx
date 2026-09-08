@@ -15,6 +15,7 @@ import toast from "react-hot-toast";
 import { useAuth } from "@/hooks/AuthContext";
 import TicketFacturaModal, { DatosFacturaProps } from "@/components/TicketFacturaModal";
 import { Separe, AbonoSepare } from "@/types";
+import { abrirEnlaceWhatsApp } from "@/utils/whatsapp";
 
 export default function SeparesPage() {
   return (
@@ -396,28 +397,29 @@ function SeparesContenido() {
 *COMPROBANTE DE ABONO*
 ===================
 
-• Abono recibido: *$${montoAbonado.toLocaleString('es-CO')}*
-• Método: *${metodoPagoAbono.toUpperCase()}${subMetodoAbono ? ` (${subMetodoAbono})` : ''}*
-• Total pagado acumulado: *$${(sep.montoPagado || 0).toLocaleString('es-CO')}*
-• Saldo restante: *$${nuevoSaldo.toLocaleString('es-CO')}*
+- Abono recibido: *$${montoAbonado.toLocaleString('es-CO')}*
+- Metodo: *${metodoPagoAbono.toUpperCase()}${subMetodoAbono ? ` (${subMetodoAbono})` : ''}*
+- Total pagado acumulado: *$${(sep.montoPagado || 0).toLocaleString('es-CO')}*
+- Saldo restante: *$${nuevoSaldo.toLocaleString('es-CO')}*
 
 *Total del separe:* *$${(sep.total || 0).toLocaleString('es-CO')}*
 `;
 
     if (sep.fechaLimite) {
-      texto += `\n*Fecha límite de pago:* ${formatearFecha(sep.fechaLimite)}`;
+      texto += `\n*Fecha limite de pago:* ${formatearFecha(sep.fechaLimite)}`;
+    }
+
+    if (sep.id && typeof window !== 'undefined') {
+      texto += `\n\n*Ver o descargar comprobante digital:*\n${window.location.origin}/t/${sep.id}`;
     }
 
     texto += `\n\nGracias por tu pago y confianza.
 Estamos atentos para cualquier consulta.
 
-*¡Que tengas un gran día!*`;
+*¡Que tengas un gran dia!*`;
 
     const celular = sep.clienteCelular?.replace(/\D/g, '') || "";
-    const url = celular ? `https://wa.me/57${celular}?text=${encodeURIComponent(texto)}` : `https://wa.me/?text=${encodeURIComponent(texto)}`;
-    if (typeof window !== 'undefined') {
-      window.open(url, '_blank');
-    }
+    abrirEnlaceWhatsApp(celular, texto);
   };
 
   // Completar / Entregar Separe
@@ -515,22 +517,23 @@ Estamos atentos para cualquier consulta.
 
 `;
     (sep.items || []).forEach((it: any) => {
-      texto += `• ${it.cantidad > 1 ? `${it.cantidad}x ` : ''}${it.descripcion}\n`;
+      texto += `- ${it.cantidad > 1 ? `${it.cantidad}x ` : ''}${it.descripcion}\n`;
     });
 
     texto += `\n*TOTAL CANCELADO:* *$${(sep.total || 0).toLocaleString('es-CO')}*
-*SALDO RESTANTE:* *$0* (100% Pagado)
+*SALDO RESTANTE:* *$0* (100% Pagado)`;
 
-Tus productos han sido entregados con éxito.
+    if (sep.id && typeof window !== 'undefined') {
+      texto += `\n\n*Ver o descargar comprobante digital:*\n${window.location.origin}/t/${sep.id}`;
+    }
+
+    texto += `\n\nTus productos han sido entregados con exito.
 Gracias por tu compra y preferencia.
 
 *¡Te esperamos pronto!*`;
 
     const celular = sep.clienteCelular?.replace(/\D/g, '') || "";
-    const url = celular ? `https://wa.me/57${celular}?text=${encodeURIComponent(texto)}` : `https://wa.me/?text=${encodeURIComponent(texto)}`;
-    if (typeof window !== 'undefined') {
-      window.open(url, '_blank');
-    }
+    abrirEnlaceWhatsApp(celular, texto);
   };
 
   // Cancelar Separe con registro de movimiento de devolución y notificación
@@ -654,17 +657,14 @@ Gracias por tu compra y preferencia.
 *CANCELACIÓN DE PLAN SEPARE*
 ===================
 
-• Total abonado a devolver: *$${(datos.montoDevuelto || 0).toLocaleString('es-CO')}*
-• Motivo registrado: ${datos.motivo}
+- Total abonado a devolver: *$${(datos.montoDevuelto || 0).toLocaleString('es-CO')}*
+- Motivo registrado: ${datos.motivo}
 
 Quedamos a tu disposición ante cualquier duda o consulta.
 Gracias por contactarnos.`;
 
     const celular = datos.clienteCelular?.replace(/\D/g, '') || "";
-    const url = celular ? `https://wa.me/57${celular}?text=${encodeURIComponent(texto)}` : `https://wa.me/?text=${encodeURIComponent(texto)}`;
-    if (typeof window !== 'undefined') {
-      window.open(url, '_blank');
-    }
+    abrirEnlaceWhatsApp(celular, texto);
   };
 
   // Imprimir Ticket de Historial / Estado de Separe
