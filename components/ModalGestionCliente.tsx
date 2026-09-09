@@ -1,8 +1,10 @@
 "use client";
 import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { createPortal } from "react-dom";
 import { EmailAuthProvider, reauthenticateWithCredential } from "firebase/auth";
 import { auth } from "../firebase";
+import { useAuth } from "../hooks/AuthContext";
 import { API_DB } from "../servicios/db";
 import { Cliente } from "../types";
 import toast from "react-hot-toast";
@@ -21,7 +23,8 @@ import {
   Unlock,
   AlertOctagon,
   Banknote,
-  ArrowRight
+  ArrowRight,
+  ShieldCheck
 } from "lucide-react";
 
 interface ModalGestionClienteProps {
@@ -40,6 +43,7 @@ export default function ModalGestionCliente({
   onSuccess
 }: ModalGestionClienteProps) {
   const router = useRouter();
+  const { datosSesion } = useAuth() || {};
   const [pasoEdicion, setPasoEdicion] = useState<'autenticar' | 'formulario'>('autenticar');
   const [nombre, setNombre] = useState("");
   const [celular, setCelular] = useState("");
@@ -48,6 +52,11 @@ export default function ModalGestionCliente({
   const [checkboxResponsabilidad, setCheckboxResponsabilidad] = useState(false);
   const [procesando, setProcesando] = useState(false);
   const [errorPassword, setErrorPassword] = useState("");
+  const [montado, setMontado] = useState(false);
+
+  useEffect(() => {
+    setMontado(true);
+  }, []);
 
   useEffect(() => {
     if (cliente && isOpen) {
@@ -63,6 +72,10 @@ export default function ModalGestionCliente({
 
   if (!isOpen || !cliente) return null;
 
+  const currentUser = auth.currentUser;
+  const esGoogleUser = currentUser?.providerData?.some(p => p.providerId === 'google.com') || false;
+  const esAdmin = datosSesion?.esAdmin !== false;
+
   const deuda = cliente.deudaTotal || 0;
   const tieneDeuda = deuda > 0;
 
@@ -71,6 +84,13 @@ export default function ModalGestionCliente({
     e.preventDefault();
     setErrorPassword("");
 
+    // Si el usuario ingresó con Google o es el administrador principal autenticado
+    if (esGoogleUser) {
+      setPasoEdicion('formulario');
+      toast.success("Edición desbloqueada con cuenta Google verificada.");
+      return;
+    }
+
     if (!password.trim()) {
       setErrorPassword("Ingresa tu contraseña de administrador.");
       return;
@@ -78,7 +98,6 @@ export default function ModalGestionCliente({
 
     setProcesando(true);
     try {
-      const currentUser = auth.currentUser;
       if (!currentUser || !currentUser.email) {
         throw new Error("No hay una sesión activa de administrador.");
       }
@@ -163,67 +182,70 @@ export default function ModalGestionCliente({
       }
     }
 
-    if (!password.trim()) {
-      setErrorPassword("Ingresa tu contraseña de administrador para confirmar.");
-      return;
-    }
-
-    setProcesando(true);
-    try {
-      const currentUser = auth.currentUser;
-      if (!currentUser || !currentUser.email) {
-        throw new Error("No hay una sesión activa de administrador.");
+      if (!esGoogleUser) {
+        if (!password.trim()) {
+          setErrorPassword("Ingresa tu contraseña de administrador para confirmar.");
+          return;
+        }
       }
 
-      const credenciales = EmailAuthProvider.credential(currentUser.email, password);
-      await reauthenticateWithCredential(currentUser, credenciales);
+      setProcesando(true);
+      try {
+        if (!currentUser || !currentUser.email) {
+          throw new Error("No hay una sesión activa de administrador.");
+        }
 
-      // CORRECCIÓN A-4: Si el cliente tiene deuda, registrar un asiento contable (condonación/pérdida)
-      // para que el cuadre de caja y los reportes de cartera histórica no queden descuadrados al eliminarlo.
-      if (tieneDeuda && (cliente.deudaTotal || 0) > 0) {
-        await API_DB.registrarMovimientoConTransaccion(
-          {
-            clienteId: cliente.id,
-            usuarioId: cliente.usuarioId,
-            tipo: 'abono',
-            monto: cliente.deudaTotal || 0,
-            descripcion: 'Ajuste contable automático por eliminación de cliente con deuda (Condonación / Pérdida)',
-            fecha: new Date(),
-            registradoPor: currentUser.displayName || "Administrador",
-            metodoPago: 'efectivo'
-          },
-          {
-            ajustarSaldoCliente: false // El cliente será eliminado, no hace falta actualizar su doc
-          }
-        );
+        if (!esGoogleUser) {
+          const credenciales = EmailAuthProvider.credential(currentUser.email, password);
+          await reauthenticateWithCredential(currentUser, credenciales);
+        }
+
+        // CORRECCIÓN A-4: Si el cliente tiene deuda, registrar un asiento contable (condonación/pérdida)
+        // para que el cuadre de caja y los reportes de cartera histórica no queden descuadrados al eliminarlo.
+        if (tieneDeuda && (cliente.deudaTotal || 0) > 0) {
+          await API_DB.registrarMovimientoConTransaccion(
+            {
+              clienteId: cliente.id,
+              usuarioId: cliente.usuarioId,
+              tipo: 'abono',
+              monto: cliente.deudaTotal || 0,
+              descripcion: 'Ajuste contable automático por eliminación de cliente con deuda (Condonación / Pérdida)',
+              fecha: new Date(),
+              registradoPor: currentUser.displayName || "Administrador",
+              metodoPago: 'efectivo'
+            },
+            {
+              ajustarSaldoCliente: false // El cliente será eliminado, no hace falta actualizar su doc
+            }
+          );
+        }
+
+        await API_DB.eliminarCliente(cliente.id);
+        notificar.exito(`El cliente "${cliente.nombre}" ha sido eliminado del sistema.`, {
+          titulo: "Cliente eliminado",
+          icono: <span>🗑️</span>
+        });
+        onSuccess(undefined, true);
+        onClose();
+      } catch (error: any) {
+        console.error("Error al eliminar cliente:", error);
+        if (
+          error.code === 'auth/wrong-password' || 
+          error.code === 'auth/invalid-credential' || 
+          error.code === 'auth/invalid-login-credentials'
+        ) {
+          setErrorPassword("Contraseña incorrecta. Acción no autorizada.");
+        } else {
+          toast.error("Error al procesar la solicitud. Intenta nuevamente.");
+        }
+      } finally {
+        setProcesando(false);
       }
+    };
 
-      await API_DB.eliminarCliente(cliente.id);
-      notificar.exito(`El cliente "${cliente.nombre}" ha sido eliminado del sistema.`, {
-        titulo: "Cliente eliminado",
-        icono: <span>🗑️</span>
-      });
-      onSuccess(undefined, true);
-      onClose();
-    } catch (error: any) {
-      console.error("Error al eliminar cliente:", error);
-      if (
-        error.code === 'auth/wrong-password' || 
-        error.code === 'auth/invalid-credential' || 
-        error.code === 'auth/invalid-login-credentials'
-      ) {
-        setErrorPassword("Contraseña incorrecta. Acción no autorizada.");
-      } else {
-        toast.error("Error al procesar la solicitud. Intenta nuevamente.");
-      }
-    } finally {
-      setProcesando(false);
-    }
-  };
-
-  return (
-    <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-3 sm:p-4 z-[9999] animate-in fade-in duration-200 overflow-y-auto">
-      <div className="bg-white dark:bg-[#0f172a] rounded-[2.5rem] w-full max-w-md shadow-2xl border border-slate-100 dark:border-slate-800/80 overflow-hidden flex flex-col my-auto max-h-[92vh]">
+    const modalJSX = (
+      <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-3 sm:p-4 z-[999999] animate-in fade-in duration-200 overflow-y-auto">
+        <div className="bg-white dark:bg-[#0f172a] rounded-[2.5rem] w-full max-w-md shadow-2xl border border-slate-100 dark:border-slate-800/80 overflow-hidden flex flex-col my-auto max-h-[92vh]">
         
         {/* ENCABEZADO */}
         <div className={`p-5 sm:p-6 flex justify-between items-center text-white shrink-0 ${
@@ -263,55 +285,69 @@ export default function ModalGestionCliente({
           </button>
         </div>
 
-        {/* CASO 1: MODO EDITAR - PASO 1 (SOLICITAR CONTRASEÑA PRIMERO) */}
+        {/* CASO 1: MODO EDITAR - PASO 1 (SOLICITAR CONTRASEÑA O CONFIRMAR SI ES GOOGLE) */}
         {modo === 'editar' && pasoEdicion === 'autenticar' && (
           <form onSubmit={handleDesbloquearEdicion} className="p-5 sm:p-6 space-y-4 overflow-y-auto">
-            <div className="p-4 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900/50 rounded-2xl flex items-start gap-3">
-              <Lock className="text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" size={20} />
-              <div className="text-sm text-slate-700 dark:text-slate-300">
-                <p className="font-bold text-amber-800 dark:text-amber-300">Autorización requerida</p>
-                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-                  Ingresa tu contraseña de administrador para habilitar la edición de <strong>{cliente.nombre}</strong>.
-                </p>
+            {esGoogleUser ? (
+              <div className="p-4 bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-900/50 rounded-2xl flex items-start gap-3">
+                <ShieldCheck className="text-emerald-600 dark:text-emerald-400 shrink-0 mt-0.5" size={22} />
+                <div className="text-sm text-slate-700 dark:text-slate-300">
+                  <p className="font-bold text-emerald-800 dark:text-emerald-300">Sesión Verificada con Google</p>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                    Has iniciado sesión como Administrador con tu cuenta Google (<strong>{currentUser?.email}</strong>). Puedes desbloquear la edición de <strong>{cliente.nombre}</strong> con un clic.
+                  </p>
+                </div>
               </div>
-            </div>
+            ) : (
+              <>
+                <div className="p-4 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900/50 rounded-2xl flex items-start gap-3">
+                  <Lock className="text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" size={20} />
+                  <div className="text-sm text-slate-700 dark:text-slate-300">
+                    <p className="font-bold text-amber-800 dark:text-amber-300">Autorización requerida</p>
+                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                      Ingresa tu contraseña de administrador para habilitar la edición de <strong>{cliente.nombre}</strong>.
+                    </p>
+                  </div>
+                </div>
 
-            <div>
-              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
-                <Lock size={14} className="text-amber-500" /> Contraseña de Administrador
-              </label>
-              <input
-                type="password"
-                value={password}
-                onChange={(e) => {
-                  setPassword(e.target.value);
-                  if (errorPassword) setErrorPassword("");
-                }}
-                placeholder="Ingresa tu contraseña"
-                required
-                autoFocus
-                className="w-full p-4 bg-slate-50 dark:bg-[#020617] border border-slate-200 dark:border-slate-800 rounded-2xl outline-none focus:border-amber-500 dark:text-white font-medium text-base transition-colors"
-              />
-              {errorPassword && (
-                <p className="text-xs text-rose-500 font-bold mt-1.5 flex items-center gap-1">
-                  <AlertTriangle size={12} /> {errorPassword}
-                </p>
-              )}
-            </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
+                    <Lock size={14} className="text-amber-500" /> Contraseña de Administrador
+                  </label>
+                  <input
+                    type="password"
+                    value={password}
+                    onChange={(e) => {
+                      setPassword(e.target.value);
+                      if (errorPassword) setErrorPassword("");
+                    }}
+                    placeholder="Ingresa tu contraseña"
+                    required
+                    autoFocus
+                    className="w-full p-4 bg-slate-50 dark:bg-[#020617] border border-slate-200 dark:border-slate-800 rounded-2xl outline-none focus:border-amber-500 dark:text-white font-medium text-base transition-colors"
+                  />
+                  {errorPassword && (
+                    <p className="text-xs text-rose-500 font-bold mt-1.5 flex items-center gap-1">
+                      <AlertTriangle size={12} /> {errorPassword}
+                    </p>
+                  )}
+                </div>
+              </>
+            )}
 
             <div className="grid grid-cols-2 gap-3 pt-2">
               <button
                 type="button"
                 onClick={onClose}
                 disabled={procesando}
-                className="w-full py-4 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 font-bold rounded-2xl transition-colors text-sm"
+                className="w-full py-4 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 font-bold rounded-2xl transition-colors text-sm cursor-pointer"
               >
                 Cancelar
               </button>
               <button
                 type="submit"
-                disabled={procesando}
-                className="w-full py-4 bg-amber-600 hover:bg-amber-700 text-white font-black rounded-2xl shadow-lg shadow-amber-500/20 flex justify-center items-center gap-2 text-sm transition-all active:scale-95 disabled:opacity-50"
+                disabled={procesando || (!esGoogleUser && !password.trim())}
+                className="w-full py-4 bg-amber-600 hover:bg-amber-700 text-white font-black rounded-2xl shadow-lg shadow-amber-500/20 flex justify-center items-center gap-2 text-sm transition-all active:scale-95 disabled:opacity-50 cursor-pointer"
               >
                 {procesando ? "Validando..." : <>Desbloquear <Unlock size={18} /></>}
               </button>
@@ -448,26 +484,37 @@ export default function ModalGestionCliente({
               </div>
             )}
 
-            {/* CAPA 3: VALIDACIÓN DE CONTRASEÑA DE ADMINISTRADOR */}
+            {/* CAPA 3: VALIDACIÓN DE SEGURIDAD (CONTRASEÑA O VERIFICACIÓN GOOGLE) */}
             <div className="pt-2 border-t border-slate-100 dark:border-slate-800">
-              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
-                <Lock size={14} className="text-rose-500" /> Contraseña de Administrador
-              </label>
-              <input
-                type="password"
-                value={password}
-                onChange={(e) => {
-                  setPassword(e.target.value);
-                  if (errorPassword) setErrorPassword("");
-                }}
-                placeholder="Ingresa tu contraseña"
-                required
-                className="w-full p-4 bg-slate-50 dark:bg-[#020617] border border-slate-200 dark:border-slate-800 rounded-2xl outline-none focus:border-rose-500 dark:text-white font-medium text-base transition-colors"
-              />
-              {errorPassword && (
-                <p className="text-xs text-rose-500 font-bold mt-1.5 flex items-center gap-1">
-                  <AlertTriangle size={12} /> {errorPassword}
-                </p>
+              {esGoogleUser ? (
+                <div className="p-3 bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 rounded-xl flex items-center gap-2.5">
+                  <ShieldCheck size={18} className="text-emerald-500 shrink-0" />
+                  <p className="text-xs text-slate-600 dark:text-slate-300 font-medium leading-snug">
+                    Confirmación de seguridad autorizada como administrador Google (<strong>{currentUser?.email}</strong>).
+                  </p>
+                </div>
+              ) : (
+                <>
+                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
+                    <Lock size={14} className="text-rose-500" /> Contraseña de Administrador
+                  </label>
+                  <input
+                    type="password"
+                    value={password}
+                    onChange={(e) => {
+                      setPassword(e.target.value);
+                      if (errorPassword) setErrorPassword("");
+                    }}
+                    placeholder="Ingresa tu contraseña"
+                    required
+                    className="w-full p-4 bg-slate-50 dark:bg-[#020617] border border-slate-200 dark:border-slate-800 rounded-2xl outline-none focus:border-rose-500 dark:text-white font-medium text-base transition-colors"
+                  />
+                  {errorPassword && (
+                    <p className="text-xs text-rose-500 font-bold mt-1.5 flex items-center gap-1">
+                      <AlertTriangle size={12} /> {errorPassword}
+                    </p>
+                  )}
+                </>
               )}
             </div>
 
@@ -477,7 +524,7 @@ export default function ModalGestionCliente({
                 type="button"
                 onClick={onClose}
                 disabled={procesando}
-                className="w-full py-4 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 font-bold rounded-2xl transition-colors text-sm"
+                className="w-full py-4 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 font-bold rounded-2xl transition-colors text-sm cursor-pointer"
               >
                 Cancelar
               </button>
@@ -486,9 +533,9 @@ export default function ModalGestionCliente({
                 disabled={
                   procesando || 
                   (tieneDeuda && (textoConfirmacion.trim().toUpperCase() !== 'ELIMINAR' || !checkboxResponsabilidad)) ||
-                  !password.trim()
+                  (!esGoogleUser && !password.trim())
                 }
-                className="w-full py-4 bg-rose-600 hover:bg-rose-700 text-white font-black rounded-2xl shadow-lg shadow-rose-500/20 flex justify-center items-center gap-2 text-sm transition-all active:scale-95 disabled:opacity-40 disabled:pointer-events-none"
+                className="w-full py-4 bg-rose-600 hover:bg-rose-700 text-white font-black rounded-2xl shadow-lg shadow-rose-500/20 flex justify-center items-center gap-2 text-sm transition-all active:scale-95 disabled:opacity-40 disabled:pointer-events-none cursor-pointer"
               >
                 {procesando ? "Validando..." : <>Confirmar Eliminación <Trash2 size={18} /></>}
               </button>
@@ -499,4 +546,10 @@ export default function ModalGestionCliente({
       </div>
     </div>
   );
+
+  if (montado && typeof document !== "undefined") {
+    return createPortal(modalJSX, document.body);
+  }
+
+  return modalJSX;
 }
