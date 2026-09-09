@@ -557,15 +557,15 @@ export default function LandingPage() {
           </div>
         </div>
 
-        {/* 4. MOCKUP INTERACTIVO MULTIVISTA (4 PESTAÑAS) */}
+        {/* 4. MOCKUP INTERACTIVO MULTIVISTA (5 PESTAÑAS) */}
         <div className="mt-14 max-w-5xl mx-auto bg-white/80 dark:bg-[#0f172a]/80 backdrop-blur-xl rounded-[2.5rem] border border-slate-200/80 dark:border-slate-800/80 p-4 sm:p-8 shadow-2xl relative overflow-hidden">
           
           {/* Selector de Pestañas de Vista Previa */}
           <div className="flex items-center justify-start sm:justify-center gap-2 overflow-x-auto pb-3 mb-6 no-scrollbar border-b border-slate-100 dark:border-slate-800">
             {[
               { id: 'pos', nombre: '1. Venta en Mostrador', icono: ShoppingBag },
-              { id: 'whatsapp', nombre: '2. Comprobante por WhatsApp', icono: MessageCircle },
-              { id: 'factura', nombre: '3. Factura Térmica QR', icono: Printer },
+              { id: 'whatsapp', nombre: '2. WhatsApp: Venta, Fiado & Abono', icono: MessageCircle },
+              { id: 'factura', nombre: '3. Factura Térmica con Logo', icono: Printer },
               { id: 'separe', nombre: '4. Ficha Plan Separe', icono: Shirt },
             ].map(tab => {
               const Icon = tab.icono;
@@ -625,11 +625,11 @@ export default function LandingPage() {
                 </div>
               </div>
               <div className="lg:col-span-5 space-y-3 text-left">
-                <h4 className="text-xl font-black text-slate-900 dark:text-white">Cobro sin filas ni retrasos</h4>
+                <h4 className="text-xl font-black text-slate-900 dark:text-white">Cobro ágil sin filas ni confusiones</h4>
                 <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400 leading-relaxed font-medium">
-                  Busca productos por nombre, código de barras o código QR. Registra pagos de contado (efectivo o transferencias) o fíalo a la cuenta del cliente en un solo clic.
+                  Busca productos por nombre, código de barras o código QR. Registra pagos de contado (efectivo, Nequi, Daviplata o datáfono) o fíalo a la cuenta del cliente en un solo clic verificando su cupo disponible.
                 </p>
-                <div className="bg-blue-50 dark:bg-blue-500/10 p-3 rounded-xl text-xs font-bold text-blue-700 dark:text-blue-300 border border-blue-100 dark:border-blue-500/20">
+                <div className="bg-emerald-50 dark:bg-emerald-500/10 p-3 rounded-xl text-xs font-bold text-emerald-700 dark:text-emerald-300 border border-emerald-100 dark:border-emerald-500/20">
                   💡 Descuenta el stock automáticamente y registra el ingreso en tu caja al instante.
                 </div>
               </div>
@@ -638,27 +638,40 @@ export default function LandingPage() {
 
           {tabMockup === 'whatsapp' && (
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-center animate-in fade-in duration-300">
-              <div className="lg:col-span-6 bg-emerald-600 text-white p-5 rounded-2xl shadow-xl font-sans text-xs space-y-3 text-left">
-                <div className="flex items-center justify-between border-b border-emerald-400/40 pb-2 font-black">
+              <div className="lg:col-span-6 bg-emerald-700 text-white p-5 rounded-2xl shadow-xl font-sans text-xs space-y-3 text-left">
+                <div className="flex items-center justify-between border-b border-emerald-500/40 pb-2 font-black">
                   <span className="flex items-center gap-1.5"><MessageCircle size={16}/> WhatsApp del Cliente</span>
                   <span className="text-[10px] bg-white/20 px-2 py-0.5 rounded">Enviado en 1 toque</span>
                 </div>
-                <div className="bg-emerald-700/50 p-3.5 rounded-xl space-y-1.5 text-[11px] leading-relaxed">
-                  <p className="font-bold text-emerald-200">🛒 *COMPROBANTE DE VENTA — Tu Negocio*</p>
-                  <p className="border-t border-emerald-500/40 pt-1">Cliente: *Cliente Registrado*</p>
-                  <p>• Vestido Lino Estampado x1 $\rightarrow$ $65.000</p>
-                  <p>• Sandalias Plataforma x1 $\rightarrow$ $45.000</p>
-                  <p className="font-black text-sm pt-1 border-t border-emerald-500/40 text-emerald-100">*Total:* $110.000 (Pagado en Efectivo)</p>
-                  <p className="text-[10px] text-emerald-300 pt-1">¡Gracias por su compra! 🙌</p>
+                {/* Selector rápido para ver tipos de comprobante */}
+                <div className="space-y-2.5">
+                  <div className="bg-emerald-800/60 p-3 rounded-xl space-y-1 text-[11px] leading-relaxed border-l-4 border-amber-400">
+                    <p className="font-black text-amber-300">📝 *COMPROBANTE DE FIADO — Moda & Estilo*</p>
+                    <p>Cliente: *Camila Torres*</p>
+                    <p>• Jean Levantacola Azul x1 $\rightarrow$ $95.000</p>
+                    <p className="font-bold pt-1 border-t border-emerald-600 text-emerald-100">
+                      Saldo anterior: $50.000 • *Nuevo saldo a pagar: $145.000*
+                    </p>
+                    <p className="text-[10px] text-emerald-300">Link de verificación en línea incluido 🔗</p>
+                  </div>
+
+                  <div className="bg-emerald-800/60 p-3 rounded-xl space-y-1 text-[11px] leading-relaxed border-l-4 border-emerald-400">
+                    <p className="font-black text-emerald-200">💵 *COMPROBANTE DE ABONO — Moda & Estilo*</p>
+                    <p>Cliente: *Camila Torres* • Abono recibido: *$60.000* (Nequi)</p>
+                    <p className="font-bold pt-1 border-t border-emerald-600 text-emerald-100">
+                      Saldo pendiente restante: *$85.000*
+                    </p>
+                    <p className="text-[10px] text-emerald-300">¡Muchas gracias por su puntual abono! 🙌</p>
+                  </div>
                 </div>
               </div>
               <div className="lg:col-span-6 space-y-3 text-left">
                 <h4 className="text-xl font-black text-slate-900 dark:text-white">Cero papel, cero pena al cobrar</h4>
                 <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400 leading-relaxed font-medium">
-                  El cliente recibe el comprobante directamente en su WhatsApp. Si es un fiado o un abono, el mensaje detalla exactamente cuánto pagó y cuánto saldo le resta.
+                  Con un solo toque envías al WhatsApp de tu cliente el comprobante de <strong>Venta de contado, Fiado nuevo o Abono registrado</strong>. Cada mensaje incluye un enlace donde tu cliente puede ver su factura y saldo actualizado las 24 horas.
                 </p>
                 <div className="bg-emerald-50 dark:bg-emerald-500/10 p-3 rounded-xl text-xs font-bold text-emerald-700 dark:text-emerald-300 border border-emerald-100 dark:border-emerald-500/20">
-                  📱 Cuentas claras evitan discusiones y aceleran el recaudo de cartera.
+                  📱 El cliente ve exactamente cuánto debe y cuánto abonó. Cuentas claras sin reclamos ni discusiones.
                 </div>
               </div>
             </div>
@@ -669,9 +682,13 @@ export default function LandingPage() {
               <div className="lg:col-span-6 flex justify-center">
                 <div className="bg-white text-slate-900 p-5 rounded-2xl border border-slate-200 shadow-xl font-mono text-[11px] space-y-2 w-full max-w-sm text-left">
                   <div className="text-center pb-2 border-b border-dashed border-slate-300">
-                    <p className="font-black text-sm tracking-wider">TU NEGOCIO</p>
-                    <p className="text-[10px] text-slate-500">NIT: 901.XXX.XXX-X • Factura / Comprobante #0089</p>
-                    <p className="text-[9px] text-slate-400">Cra Principal # 12-34 • Cel / WhatsApp</p>
+                    {/* Simulación del Logo del Negocio */}
+                    <div className="w-12 h-12 mx-auto bg-slate-900 text-white rounded-xl flex items-center justify-center font-black text-lg mb-1.5 shadow-sm">
+                      M&E
+                    </div>
+                    <p className="font-black text-sm tracking-wider">MODA & ESTILO BOUTIQUE</p>
+                    <p className="text-[10px] text-slate-500">NIT: 901.345.678-1 • Factura #0142</p>
+                    <p className="text-[9px] text-slate-400">Cra 15 # 45-20, Medellín • Cel: 312 456 7890</p>
                   </div>
                   <div className="space-y-1 py-1">
                     <div className="flex justify-between"><span>Vestido Lino M</span><span>$65.000</span></div>
@@ -683,18 +700,18 @@ export default function LandingPage() {
                   </div>
                   <div className="pt-2 text-center">
                     <div className="inline-flex items-center gap-1.5 bg-slate-100 px-3 py-1 rounded text-[10px] font-bold text-slate-600">
-                      <QrCode size={13}/> Tirilla 58mm / 80mm
+                      <QrCode size={13}/> Compatible con cualquier impresora térmica
                     </div>
                   </div>
                 </div>
               </div>
               <div className="lg:col-span-6 space-y-3 text-left">
-                <h4 className="text-xl font-black text-slate-900 dark:text-white">Imprime en cualquier impresora térmica</h4>
+                <h4 className="text-xl font-black text-slate-900 dark:text-white">Factura con el logo y datos de tu marca</h4>
                 <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400 leading-relaxed font-medium">
-                  Compatible con impresoras Bluetooth de celular, USB para computador o Wi-Fi. Incluye el logo de tu negocio, NIT, dirección y mensaje de pie de factura.
+                  Imprime desde tu celular por Bluetooth, o desde tu computador por cable o Wi-Fi. Personaliza tu factura con tu <strong>logo, NIT, dirección, teléfono y mensaje de agradecimiento</strong>.
                 </p>
                 <div className="bg-amber-50 dark:bg-amber-500/10 p-3 rounded-xl text-xs font-bold text-amber-700 dark:text-amber-300 border border-amber-100 dark:border-amber-500/20">
-                  🧾 Dale presencia formal y profesional a tu establecimiento.
+                  🧾 Brinda la imagen seria, formal y profesional que tus clientes respetan.
                 </div>
               </div>
             </div>
@@ -710,7 +727,7 @@ export default function LandingPage() {
                   <span className="text-xs font-bold text-rose-500">📅 Vence en 8 días</span>
                 </div>
                 <div className="bg-white dark:bg-[#0f172a] p-3 rounded-xl border border-slate-200 dark:border-slate-800 space-y-2 text-xs">
-                  <p className="font-black text-slate-900 dark:text-white text-sm">Cliente: Cliente Registrado</p>
+                  <p className="font-black text-slate-900 dark:text-white text-sm">Cliente: Camila Torres</p>
                   <p className="text-slate-500">Prenda: Jean Levantacola Talla 8 (Azul Oscuro)</p>
                   <div className="w-full bg-slate-100 dark:bg-slate-800 rounded-full h-3 overflow-hidden">
                     <div className="bg-gradient-to-r from-purple-600 to-indigo-600 h-full w-[65%]"></div>
@@ -722,12 +739,12 @@ export default function LandingPage() {
                 </div>
               </div>
               <div className="lg:col-span-6 space-y-3 text-left">
-                <h4 className="text-xl font-black text-slate-900 dark:text-white">Aparta prendas con fotos y alertas</h4>
+                <h4 className="text-xl font-black text-slate-900 dark:text-white">Aparta prendas con fotos y alertas de fecha límite</h4>
                 <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400 leading-relaxed font-medium">
-                  Toma foto a la mercancía apartada, define fecha límite, registra abonos parciales y activa alertas antes de que se venza el plazo para liberar la prenda o avisar al cliente.
+                  Toma foto a la mercancía apartada con la cámara de tu celular, define fecha límite, registra abonos parciales y activa alertas antes de que se venza el plazo para liberar la prenda o avisar al cliente.
                 </p>
                 <div className="bg-purple-50 dark:bg-purple-500/10 p-3 rounded-xl text-xs font-bold text-purple-700 dark:text-purple-300 border border-purple-100 dark:border-purple-500/20">
-                  👗 Aumenta hasta un 35% la rotación de mercancía en temporadas altas.
+                  👗 Aumenta hasta un 35% la rotación de mercancía en temporadas altas y quincenas.
                 </div>
               </div>
             </div>
@@ -1316,12 +1333,13 @@ export default function LandingPage() {
             </div>
 
             <ul className="flex flex-col gap-3 mb-8 flex-1 text-xs font-bold text-slate-700 dark:text-slate-300">
-              <li className="flex items-center gap-2.5"><CheckCircle2 size={16} className="text-emerald-500 shrink-0"/> 1 Usuario Administrador (0 Colaboradores)</li>
+              <li className="flex items-center gap-2.5"><CheckCircle2 size={16} className="text-emerald-500 shrink-0"/> 1 Usuario Administrador</li>
               <li className="flex items-center gap-2.5"><CheckCircle2 size={16} className="text-emerald-500 shrink-0"/> Hasta 15 clientes registrados</li>
               <li className="flex items-center gap-2.5"><CheckCircle2 size={16} className="text-emerald-500 shrink-0"/> Hasta 30 productos en catálogo</li>
-              <li className="flex items-center gap-2.5"><CheckCircle2 size={16} className="text-emerald-500 shrink-0"/> Hasta 40 ventas, fiados y abonos/mes</li>
-              <li className="flex items-center gap-2.5"><CheckCircle2 size={16} className="text-emerald-500 shrink-0"/> Notificación de comprobante por WhatsApp</li>
-              <li className="flex items-center gap-2.5"><CheckCircle2 size={16} className="text-emerald-500 shrink-0"/> Descuento automático de inventario</li>
+              <li className="flex items-center gap-2.5"><CheckCircle2 size={16} className="text-emerald-500 shrink-0"/> Hasta 40 ventas, fiados y abonos al mes</li>
+              <li className="flex items-center gap-2.5"><CheckCircle2 size={16} className="text-emerald-500 shrink-0"/> Comprobantes y extractos por WhatsApp</li>
+              <li className="flex items-center gap-2.5"><CheckCircle2 size={16} className="text-emerald-500 shrink-0"/> Control de existencias en tiempo real</li>
+              <li className="flex items-center gap-2.5"><CheckCircle2 size={16} className="text-emerald-500 shrink-0"/> Logo de tu negocio en tu perfil</li>
             </ul>
 
             <button 
@@ -1334,17 +1352,17 @@ export default function LandingPage() {
           </div>
           
           {/* 2. PLAN COMERCIO */}
-          <div className="bg-blue-600 dark:bg-blue-700 p-8 rounded-[2.5rem] border-2 border-blue-400 flex flex-col shadow-2xl shadow-blue-600/30 relative text-white transform lg:-translate-y-3">
-            <div className="absolute top-0 right-0 bg-emerald-400 text-slate-900 text-[10px] font-black uppercase tracking-widest px-4 py-1.5 rounded-bl-2xl">
+          <div className="bg-emerald-600 dark:bg-emerald-700 p-8 rounded-[2.5rem] border-2 border-emerald-400 flex flex-col shadow-2xl shadow-emerald-600/30 relative text-white transform lg:-translate-y-3">
+            <div className="absolute top-0 right-0 bg-white text-emerald-800 text-[10px] font-black uppercase tracking-widest px-4 py-1.5 rounded-bl-2xl shadow-sm">
               Más Popular
             </div>
             <div className="mb-2">
-              <span className="text-xs font-black uppercase tracking-wider text-blue-100 bg-blue-500/50 px-3 py-1 rounded-full">
+              <span className="text-xs font-black uppercase tracking-wider text-emerald-100 bg-emerald-700/60 px-3 py-1 rounded-full">
                 Plan Comercio
               </span>
             </div>
             <h3 className="text-2xl font-black mb-1 text-white mt-3">Para Tiendas y Negocios</h3>
-            <p className="text-blue-100 text-xs mb-6 h-8">La solución para negocios con alto volumen y mostrador.</p>
+            <p className="text-emerald-100 text-xs mb-6 h-8">La solución para negocios de mostrador con alto volumen diario.</p>
             
             <div className="mb-6">
               <div className="flex items-baseline gap-2">
@@ -1352,22 +1370,23 @@ export default function LandingPage() {
                   Precio Próximamente
                 </span>
               </div>
-              <span className="text-xs text-blue-200 font-bold block mt-1">Tarifa mensual asequible • 14 días de prueba completa sin costo</span>
+              <span className="text-xs text-emerald-100 font-bold block mt-1">Tarifa mensual asequible • 14 días de prueba completa sin costo</span>
             </div>
 
             <ul className="flex flex-col gap-3 mb-8 flex-1 text-xs font-bold text-white">
-              <li className="flex items-center gap-2.5"><CheckCircle2 size={16} className="text-emerald-300 shrink-0"/> Clientes e Inventario ILIMITADOS</li>
-              <li className="flex items-center gap-2.5"><CheckCircle2 size={16} className="text-emerald-300 shrink-0"/> Ventas, fiados y abonos ILIMITADOS</li>
-              <li className="flex items-center gap-2.5"><CheckCircle2 size={16} className="text-emerald-300 shrink-0"/> 1 Usuario Colaborador con permisos</li>
-              <li className="flex items-center gap-2.5"><CheckCircle2 size={16} className="text-emerald-300 shrink-0"/> Factura Imprimible en tirilla (58/80mm)</li>
-              <li className="flex items-center gap-2.5"><CheckCircle2 size={16} className="text-emerald-300 shrink-0"/> Alertas de Stock Bajo y Agotados</li>
-              <li className="flex items-center gap-2.5"><CheckCircle2 size={16} className="text-emerald-300 shrink-0"/> Reportes de Caja Neta y Cartera Activa</li>
+              <li className="flex items-center gap-2.5"><CheckCircle2 size={16} className="text-emerald-200 shrink-0"/> Clientes e Inventario ILIMITADOS</li>
+              <li className="flex items-center gap-2.5"><CheckCircle2 size={16} className="text-emerald-200 shrink-0"/> Ventas, fiados y abonos ILIMITADOS</li>
+              <li className="flex items-center gap-2.5"><CheckCircle2 size={16} className="text-emerald-200 shrink-0"/> 1 Usuario Colaborador con horarios y permisos</li>
+              <li className="flex items-center gap-2.5"><CheckCircle2 size={16} className="text-emerald-200 shrink-0"/> Factura imprimible para cualquier impresora térmica</li>
+              <li className="flex items-center gap-2.5"><CheckCircle2 size={16} className="text-emerald-200 shrink-0"/> Logo y datos de tu negocio en facturas</li>
+              <li className="flex items-center gap-2.5"><CheckCircle2 size={16} className="text-emerald-200 shrink-0"/> Reportes de Caja Neta, Deudas y Cartera Activa</li>
+              <li className="flex items-center gap-2.5"><CheckCircle2 size={16} className="text-emerald-200 shrink-0"/> Alertas de Stock Bajo y Productos Agotados</li>
             </ul>
 
             <button 
               type="button" 
               onClick={() => abrirRegistroConPlan('comercio')} 
-              className="w-full bg-white text-blue-600 hover:bg-blue-50 font-black py-3.5 rounded-2xl shadow-lg transition-transform active:scale-95 cursor-pointer text-sm text-center"
+              className="w-full bg-white text-emerald-700 hover:bg-emerald-50 font-black py-3.5 rounded-2xl shadow-lg transition-transform active:scale-95 cursor-pointer text-sm text-center"
             >
               Comenzar Prueba Gratis (14 Días)
             </button>
@@ -1396,12 +1415,13 @@ export default function LandingPage() {
             </div>
 
             <ul className="flex flex-col gap-3 mb-8 flex-1 text-xs font-bold text-slate-700 dark:text-slate-300">
-              <li className="flex items-center gap-2.5"><CheckCircle2 size={16} className="text-purple-600 dark:text-purple-400 shrink-0"/> Módulo PLAN SEPARE Completo con Alertas</li>
+              <li className="flex items-center gap-2.5"><CheckCircle2 size={16} className="text-purple-600 dark:text-purple-400 shrink-0"/> Todo lo del Plan Comercio ILIMITADO</li>
+              <li className="flex items-center gap-2.5"><CheckCircle2 size={16} className="text-purple-600 dark:text-purple-400 shrink-0"/> Módulo PLAN SEPARE Completo con Fotos y Alertas</li>
               <li className="flex items-center gap-2.5"><CheckCircle2 size={16} className="text-purple-600 dark:text-purple-400 shrink-0"/> Generador de Etiquetas Adhesivas con Código QR</li>
-              <li className="flex items-center gap-2.5"><CheckCircle2 size={16} className="text-purple-600 dark:text-purple-400 shrink-0"/> 4 Usuarios Colaboradores incluidos</li>
+              <li className="flex items-center gap-2.5"><CheckCircle2 size={16} className="text-purple-600 dark:text-purple-400 shrink-0"/> Hasta 4 Usuarios Colaboradores con permisos</li>
               <li className="flex items-center gap-2.5"><CheckCircle2 size={16} className="text-purple-600 dark:text-purple-400 shrink-0"/> Modo Terminal Multivendedor en mostrador</li>
-              <li className="flex items-center gap-2.5"><CheckCircle2 size={16} className="text-purple-600 dark:text-purple-400 shrink-0"/> Importar y Exportar masivo en Excel</li>
-              <li className="flex items-center gap-2.5"><CheckCircle2 size={16} className="text-purple-600 dark:text-purple-400 shrink-0"/> Logo de tu Negocio en Facturas Térmicas</li>
+              <li className="flex items-center gap-2.5"><CheckCircle2 size={16} className="text-purple-600 dark:text-purple-400 shrink-0"/> Importar y Exportar masivo de catálogo en Excel</li>
+              <li className="flex items-center gap-2.5"><CheckCircle2 size={16} className="text-purple-600 dark:text-purple-400 shrink-0"/> Logo y membrete del negocio en facturas</li>
             </ul>
 
             <button 
@@ -1411,6 +1431,148 @@ export default function LandingPage() {
             >
               Comenzar Prueba Gratis (14 Días)
             </button>
+          </div>
+
+        </div>
+
+        {/* TABLA COMPARATIVA DETALLADA DE PLANES */}
+        <div className="mt-16 max-w-5xl mx-auto bg-white dark:bg-[#0f172a] rounded-[2.5rem] border border-slate-200/80 dark:border-slate-800/80 p-5 sm:p-10 shadow-lg text-left">
+          <div className="text-center max-w-2xl mx-auto mb-8">
+            <span className="text-xs font-black uppercase tracking-wider text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-500/10 px-3 py-1 rounded-full">
+              Comparativa Completa
+            </span>
+            <h3 className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-white mt-2">
+              Compara cada función lado a lado
+            </h3>
+            <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-1">
+              Transparencia total. Sin costos ocultos ni letras pequeñas.
+            </p>
+          </div>
+
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs sm:text-sm border-collapse min-w-[620px]">
+              <thead>
+                <tr className="border-b border-slate-200 dark:border-slate-800 text-slate-400 dark:text-slate-500 text-[11px] uppercase tracking-wider">
+                  <th className="py-3 px-4 font-black">Funcionalidad</th>
+                  <th className="py-3 px-4 font-black text-center">Plan Gratis</th>
+                  <th className="py-3 px-4 font-black text-center text-emerald-600 dark:text-emerald-400">Comercio</th>
+                  <th className="py-3 px-4 font-black text-center text-purple-600 dark:text-purple-400">PRO Almacén</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60 font-medium">
+                <tr className="hover:bg-slate-50 dark:hover:bg-slate-800/30">
+                  <td className="py-3.5 px-4 text-slate-800 dark:text-slate-200 font-bold">Clientes registrados en base de datos</td>
+                  <td className="py-3.5 px-4 text-center text-slate-600 dark:text-slate-400">Hasta 15</td>
+                  <td className="py-3.5 px-4 text-center font-bold text-emerald-600">ILIMITADOS</td>
+                  <td className="py-3.5 px-4 text-center font-bold text-purple-600">ILIMITADOS</td>
+                </tr>
+                <tr className="hover:bg-slate-50 dark:hover:bg-slate-800/30">
+                  <td className="py-3.5 px-4 text-slate-800 dark:text-slate-200 font-bold">Productos en inventario / catálogo</td>
+                  <td className="py-3.5 px-4 text-center text-slate-600 dark:text-slate-400">Hasta 30</td>
+                  <td className="py-3.5 px-4 text-center font-bold text-emerald-600">ILIMITADOS</td>
+                  <td className="py-3.5 px-4 text-center font-bold text-purple-600">ILIMITADOS</td>
+                </tr>
+                <tr className="hover:bg-slate-50 dark:hover:bg-slate-800/30">
+                  <td className="py-3.5 px-4 text-slate-800 dark:text-slate-200 font-bold">Ventas, fiados y abonos registrados</td>
+                  <td className="py-3.5 px-4 text-center text-slate-600 dark:text-slate-400">40 al mes</td>
+                  <td className="py-3.5 px-4 text-center font-bold text-emerald-600">ILIMITADOS</td>
+                  <td className="py-3.5 px-4 text-center font-bold text-purple-600">ILIMITADOS</td>
+                </tr>
+                <tr className="hover:bg-slate-50 dark:hover:bg-slate-800/30">
+                  <td className="py-3.5 px-4 text-slate-800 dark:text-slate-200 font-bold">Comprobantes por WhatsApp (Ventas, Fiados y Abonos)</td>
+                  <td className="py-3.5 px-4 text-center text-emerald-500 font-bold">✓ Incluido</td>
+                  <td className="py-3.5 px-4 text-center text-emerald-500 font-bold">✓ Incluido</td>
+                  <td className="py-3.5 px-4 text-center text-emerald-500 font-bold">✓ Incluido</td>
+                </tr>
+                <tr className="hover:bg-slate-50 dark:hover:bg-slate-800/30">
+                  <td className="py-3.5 px-4 text-slate-800 dark:text-slate-200 font-bold">Factura imprimible en impresora térmica</td>
+                  <td className="py-3.5 px-4 text-center text-slate-300 dark:text-slate-600">—</td>
+                  <td className="py-3.5 px-4 text-center text-emerald-500 font-bold">✓ Incluido</td>
+                  <td className="py-3.5 px-4 text-center text-emerald-500 font-bold">✓ Incluido</td>
+                </tr>
+                <tr className="hover:bg-slate-50 dark:hover:bg-slate-800/30">
+                  <td className="py-3.5 px-4 text-slate-800 dark:text-slate-200 font-bold">Logo del negocio en recibos y facturas</td>
+                  <td className="py-3.5 px-4 text-center text-emerald-500 font-bold">✓ En Perfil</td>
+                  <td className="py-3.5 px-4 text-center text-emerald-500 font-bold">✓ Factura y Perfil</td>
+                  <td className="py-3.5 px-4 text-center text-emerald-500 font-bold">✓ Factura y Perfil</td>
+                </tr>
+                <tr className="hover:bg-slate-50 dark:hover:bg-slate-800/30">
+                  <td className="py-3.5 px-4 text-slate-800 dark:text-slate-200 font-bold">Usuarios Colaboradores (Cajeros / Vendedores)</td>
+                  <td className="py-3.5 px-4 text-center text-slate-300 dark:text-slate-600">0 (Solo Admin)</td>
+                  <td className="py-3.5 px-4 text-center font-bold text-slate-800 dark:text-slate-100">1 Colaborador</td>
+                  <td className="py-3.5 px-4 text-center font-bold text-purple-600">Hasta 4 Colaboradores</td>
+                </tr>
+                <tr className="hover:bg-slate-50 dark:hover:bg-slate-800/30">
+                  <td className="py-3.5 px-4 text-slate-800 dark:text-slate-200 font-bold">Control de horarios y permisos de colaborador</td>
+                  <td className="py-3.5 px-4 text-center text-slate-300 dark:text-slate-600">—</td>
+                  <td className="py-3.5 px-4 text-center text-emerald-500 font-bold">✓ Incluido</td>
+                  <td className="py-3.5 px-4 text-center text-emerald-500 font-bold">✓ Incluido</td>
+                </tr>
+                <tr className="hover:bg-slate-50 dark:hover:bg-slate-800/30">
+                  <td className="py-3.5 px-4 text-slate-800 dark:text-slate-200 font-bold">Reportes de Caja del Día, Utilidad y Cartera</td>
+                  <td className="py-3.5 px-4 text-center text-slate-600 dark:text-slate-400">Básico</td>
+                  <td className="py-3.5 px-4 text-center text-emerald-500 font-bold">✓ Completo</td>
+                  <td className="py-3.5 px-4 text-center text-emerald-500 font-bold">✓ Completo</td>
+                </tr>
+                <tr className="hover:bg-slate-50 dark:hover:bg-slate-800/30">
+                  <td className="py-3.5 px-4 text-slate-800 dark:text-slate-200 font-bold">Módulo PLAN SEPARE con Fotos y Alertas</td>
+                  <td className="py-3.5 px-4 text-center text-slate-300 dark:text-slate-600">—</td>
+                  <td className="py-3.5 px-4 text-center text-slate-300 dark:text-slate-600">—</td>
+                  <td className="py-3.5 px-4 text-center text-purple-600 font-bold">✓ Exclusivo PRO</td>
+                </tr>
+                <tr className="hover:bg-slate-50 dark:hover:bg-slate-800/30">
+                  <td className="py-3.5 px-4 text-slate-800 dark:text-slate-200 font-bold">Generador de Planchas de Etiquetas QR</td>
+                  <td className="py-3.5 px-4 text-center text-slate-300 dark:text-slate-600">—</td>
+                  <td className="py-3.5 px-4 text-center text-slate-300 dark:text-slate-600">—</td>
+                  <td className="py-3.5 px-4 text-center text-purple-600 font-bold">✓ Exclusivo PRO</td>
+                </tr>
+                <tr className="hover:bg-slate-50 dark:hover:bg-slate-800/30">
+                  <td className="py-3.5 px-4 text-slate-800 dark:text-slate-200 font-bold">Modo Terminal Multivendedor en mostrador</td>
+                  <td className="py-3.5 px-4 text-center text-slate-300 dark:text-slate-600">—</td>
+                  <td className="py-3.5 px-4 text-center text-slate-300 dark:text-slate-600">—</td>
+                  <td className="py-3.5 px-4 text-center text-purple-600 font-bold">✓ Exclusivo PRO</td>
+                </tr>
+                <tr className="hover:bg-slate-50 dark:hover:bg-slate-800/30">
+                  <td className="py-3.5 px-4 text-slate-800 dark:text-slate-200 font-bold">Carga y descarga masiva en Excel</td>
+                  <td className="py-3.5 px-4 text-center text-slate-300 dark:text-slate-600">—</td>
+                  <td className="py-3.5 px-4 text-center text-slate-300 dark:text-slate-600">—</td>
+                  <td className="py-3.5 px-4 text-center text-purple-600 font-bold">✓ Exclusivo PRO</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          {/* GLOSARIO EDUCATIVO DE CONCEPTOS CLAVE */}
+          <div className="mt-8 pt-8 border-t border-slate-100 dark:border-slate-800 grid grid-cols-1 md:grid-cols-3 gap-6 text-xs text-left">
+            <div className="bg-slate-50 dark:bg-slate-900/40 p-4 rounded-2xl border border-slate-200/60 dark:border-slate-800/60 space-y-1.5">
+              <div className="flex items-center gap-1.5 font-black text-slate-900 dark:text-white">
+                <Users size={16} className="text-blue-500" />
+                <span>¿Qué es un Colaborador?</span>
+              </div>
+              <p className="text-slate-600 dark:text-slate-400 leading-relaxed font-medium">
+                Es una cuenta de acceso para tu cajero o empleado. Puede registrar ventas o fiados desde su propio celular o el del mostrador, <strong>sin ver tus ganancias totales ni modificar precios</strong> si tú no se lo permites.
+              </p>
+            </div>
+
+            <div className="bg-slate-50 dark:bg-slate-900/40 p-4 rounded-2xl border border-slate-200/60 dark:border-slate-800/60 space-y-1.5">
+              <div className="flex items-center gap-1.5 font-black text-slate-900 dark:text-white">
+                <Store size={16} className="text-purple-500" />
+                <span>¿Qué es Terminal Multivendedor?</span>
+              </div>
+              <p className="text-slate-600 dark:text-slate-400 leading-relaxed font-medium">
+                Ideal para almacenes donde varios asesores atienden al tiempo. Permite que cada vendedor marque quién atendió la venta o separe en la misma caja, facilitando el control de comisiones y auditoría.
+              </p>
+            </div>
+
+            <div className="bg-slate-50 dark:bg-slate-900/40 p-4 rounded-2xl border border-slate-200/60 dark:border-slate-800/60 space-y-1.5">
+              <div className="flex items-center gap-1.5 font-black text-slate-900 dark:text-white">
+                <BarChart3 size={16} className="text-emerald-500" />
+                <span>Reportes de Caja y Cartera</span>
+              </div>
+              <p className="text-slate-600 dark:text-slate-400 leading-relaxed font-medium">
+                Cierra la caja en 2 segundos sabiendo con exactitud cuánto dinero en efectivo debes tener en el cajón, cuánto entró por transferencias y cuánto dinero está pendiente por cobrar en la calle.
+              </p>
+            </div>
           </div>
 
         </div>
