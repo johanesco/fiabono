@@ -110,6 +110,12 @@ export default function PaginaTicketPublico() {
     cargarTicket();
   }, [id]);
 
+  useEffect(() => {
+    if (datosFactura && typeof window !== 'undefined') {
+      window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+    }
+  }, [datosFactura]);
+
   const obtenerDatosNegocio = async (usuarioId: string): Promise<{
     nombreNegocio: string;
     telefonoNegocio?: string;
@@ -217,19 +223,19 @@ export default function PaginaTicketPublico() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-100 dark:bg-slate-950 text-slate-900 dark:text-slate-100 flex flex-col items-center p-3 sm:p-6 select-none font-sans">
+    <div className="min-h-[100dvh] bg-slate-100 dark:bg-slate-950 text-slate-900 dark:text-slate-100 flex flex-col items-center px-3 pt-2 pb-6 sm:p-6 select-none font-sans">
       {/* HEADER DE LA PÁGINA PÚBLICA */}
-      <header className="ticket-print-hide w-full max-w-[380px] flex items-center justify-between py-3 mb-2">
+      <header className="ticket-print-hide w-full max-w-[380px] flex items-center justify-between py-2 mb-1.5 shrink-0">
         <div className="flex items-center gap-2">
-          <div className="w-8 h-8 rounded-xl bg-emerald-600 text-white flex items-center justify-center font-black text-sm shadow-md">
+          <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-xl bg-emerald-600 text-white flex items-center justify-center font-black text-xs sm:text-sm shadow-md">
             F
           </div>
-          <span className="font-black text-base tracking-tight text-slate-800 dark:text-slate-100">
+          <span className="font-black text-sm sm:text-base tracking-tight text-slate-800 dark:text-slate-100">
             Fiabono
           </span>
         </div>
-        <div className="flex items-center gap-1 text-[11px] font-bold text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-500/10 px-2.5 py-1 rounded-full border border-emerald-200 dark:border-emerald-800/50">
-          <ShieldCheck size={14} />
+        <div className="flex items-center gap-1 text-[10px] sm:text-[11px] font-bold text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-500/10 px-2.5 py-1 rounded-full border border-emerald-200 dark:border-emerald-800/50">
+          <ShieldCheck size={13} />
           <span>Comprobante Verificado</span>
         </div>
       </header>

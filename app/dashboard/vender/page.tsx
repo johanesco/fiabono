@@ -1052,7 +1052,16 @@ function VenderContenido() {
         const subtotalFila = valUnitario * fila.cantidad;
         montoAcumulado += subtotalFila;
         let descFinal = fila.descripcion.trim() || "Artículo registrado";
-        detallesParaComprobante.push({ descripcion: descFinal, valor: subtotalFila, cantidad: fila.cantidad, valorUnitario: valUnitario }); 
+        const itemInv = inventario.find(p => p.nombre.trim().toLowerCase() === descFinal.toLowerCase());
+        const costoUnit = itemInv?.costoCompra ? Number(itemInv.costoCompra) : 0;
+        detallesParaComprobante.push({ 
+          descripcion: descFinal, 
+          valor: subtotalFila, 
+          cantidad: fila.cantidad, 
+          valorUnitario: valUnitario,
+          costoUnitario: costoUnit,
+          productoId: itemInv?.id || undefined
+        }); 
         if (fila.cantidad > 1) { resumenNombres.push(`${fila.cantidad}x ${descFinal}`); } 
         else { resumenNombres.push(descFinal); }
       }
@@ -1373,8 +1382,8 @@ Estamos atentos para cualquier consulta.
         <div className="flex items-center gap-2 shrink-0">
           {/* Selector de Vendedor Responsable (Visible si es Terminal Multivendedor o Admin) */}
           {esTerminalMultivendedor ? (
-            <div className="flex items-center bg-white/15 backdrop-blur-sm rounded-xl px-2 py-1 sm:px-2.5 sm:py-1.5 border border-white/20 max-w-[120px] sm:max-w-none min-w-0">
-              <User size={14} className="text-white/80 mr-1.5 shrink-0" />
+            <div className="flex items-center bg-white/20 hover:bg-white/25 dark:bg-white/15 dark:hover:bg-white/20 backdrop-blur-sm rounded-xl px-2 py-1 sm:px-2.5 sm:py-1.5 border border-white/25 max-w-[120px] sm:max-w-none min-w-0 transition-colors">
+              <User size={14} className="text-white/90 mr-1.5 shrink-0" />
               <select
                 value={vendedorActivo}
                 onChange={(e) => cambiarVendedor(e.target.value)}
@@ -1388,8 +1397,8 @@ Estamos atentos para cualquier consulta.
               </select>
             </div>
           ) : (
-            <div className="hidden sm:flex items-center bg-white/15 backdrop-blur-sm rounded-xl px-2.5 py-1.5 border border-white/20 text-white text-xs font-bold gap-1.5">
-              <User size={13} className="text-white/80" />
+            <div className="hidden sm:flex items-center bg-white/20 dark:bg-white/15 backdrop-blur-sm rounded-xl px-2.5 py-1.5 border border-white/25 text-white text-xs font-bold gap-1.5 shadow-xs">
+              <User size={13} className="text-white/90" />
               <span>{vendedorActivo}</span>
             </div>
           )}
@@ -1407,7 +1416,7 @@ Estamos atentos para cualquier consulta.
       </div>
 
       {/* BARRA DE PESTAÑAS MULTI-VENTA POS */}
-      <div className="bg-emerald-700/90 dark:bg-slate-900 px-3 py-2 border-b border-emerald-800/40 dark:border-slate-800 flex items-center gap-2 overflow-x-auto no-scrollbar shrink-0 z-20">
+      <div className="bg-emerald-700/95 dark:bg-emerald-950/90 px-3 py-2 border-b border-emerald-800/50 dark:border-emerald-900/50 flex items-center gap-2 overflow-x-auto no-scrollbar shrink-0 z-20">
         {pestanas.map((p, index) => {
           const activa = p.id === pestanaActivaId;
           const subtotalPestana = (activa ? filasRegistro : p.filas).reduce((acc, f) => acc + ((parseFloat(f.valor) || 0) * f.cantidad), 0);

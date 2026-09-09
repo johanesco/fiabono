@@ -180,6 +180,13 @@ export default function InventarioPage() {
     'Tienda del Peluquero', 'Bebe accesorios', 'Bienestar', 'Buzos', 'Cacharro', 'Colegial'
   ]);
 
+  const [modalGestionCategorias, setModalGestionCategorias] = useState(false);
+  const [busquedaCategoriasModal, setBusquedaCategoriasModal] = useState('');
+  const [nuevaCatModalInput, setNuevaCatModalInput] = useState('');
+  const [categoriaEditandoModal, setCategoriaEditandoModal] = useState<string | null>(null);
+  const [nuevoNombreCatModal, setNuevoNombreCatModal] = useState('');
+  const [guardandoCatModal, setGuardandoCatModal] = useState(false);
+
   const [limiteRender, setLimiteRender] = useState(20);
 
   // Recuperar borrador de productos en carga al iniciar sesión
@@ -229,6 +236,18 @@ export default function InventarioPage() {
       const lista: any[] = [];
       snap.forEach((doc) => lista.push({ id: doc.id, ...doc.data() }));
       setInventario(lista);
+
+      // Sincronizar categorías dinámicas presentes en el inventario real
+      const categoriasPresentes = lista
+        .map((p) => (p.categoria || '').trim())
+        .filter(Boolean);
+      if (categoriasPresentes.length > 0) {
+        setCategoriasDisponibles((prev) =>
+          [...new Set([...prev, ...categoriasPresentes])].sort((a, b) =>
+            a.localeCompare(b, 'es')
+          )
+        );
+      }
     } catch (error: any) {
       console.error("Error cargando inventario:", error);
       if (reintento === 0) {
@@ -666,7 +685,7 @@ export default function InventarioPage() {
         inventariable: prodExistente.inventariable !== false,
         enCarga: true,
       });
-      toast.success(`"${prodExistente.nombre}" sumado a la lista (+${cantAgregada} un.)`, { icon: '📦' });
+      toast.success(`📦 "${prodExistente.nombre}" sumado a la cola (+${cantAgregada} un.) • Ver en pestaña "Cola"`, { icon: '📦', duration: 3500 });
     } else {
       const productoTmp = {
         id: `manual_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
@@ -683,7 +702,7 @@ export default function InventarioPage() {
       };
 
       setProductosEnCarga(prev => [productoTmp, ...prev]);
-      toast.success(`"${nombre.trim()}" agregado a la lista de carga`, { icon: '➕' });
+      toast.success(`📦 "${nombre.trim()}" encolado (+${cantAgregada} un.) • Ver en pestaña "Cola"`, { icon: '📦', duration: 3500 });
     }
 
     setNombre('');
@@ -2247,6 +2266,110 @@ export default function InventarioPage() {
     mostrarMensajeCategoria('danger', 'Categoría eliminada', `Se quitó "${valor}" de la lista disponible.`);
   };
 
+  const crearCategoriaDesdeModal = (nombreRaw: string) => {
+    const val = nombreRaw.trim();
+    if (!val) {
+      toast.error('Ingresa un nombre para la categoría.');
+      return;
+    }
+    if (categoriasDisponibles.some(c => c.toLowerCase() === val.toLowerCase())) {
+      toast.error(`La categoría "${val}" ya existe.`);
+      return;
+    }
+    const nuevaLista = [...new Set([...categoriasDisponibles, val])].sort((a, b) => a.localeCompare(b, 'es'));
+    setCategoriasDisponibles(nuevaLista);
+    setNuevaCatModalInput('');
+    toast.success(`Categoría "${val}" creada`, { icon: '🏷️' });
+  };
+
+  const renombrarCategoriaGlobal = async (catVieja: string, catNuevaRaw: string) => {
+    const catNueva = catNuevaRaw.trim();
+    if (!catNueva || catNueva.toLowerCase() === catVieja.toLowerCase()) {
+      setCategoriaEditandoModal(null);
+      setNuevoNombreCatModal('');
+      return;
+    }
+
+    try {
+      setGuardandoCatModal(true);
+      const prodsAfectados = inventario.filter(p => (p.categoria || '').trim().toLowerCase() === catVieja.toLowerCase());
+      if (prodsAfectados.length > 0) {
+        const batch = writeBatch(db);
+        prodsAfectados.forEach(p => {
+          batch.update(doc(db, "inventario", p.id), { categoria: catNueva });
+        });
+        await batch.commit();
+
+        setInventario(prev => prev.map(p => 
+          (p.categoria || '').trim().toLowerCase() === catVieja.toLowerCase()
+            ? { ...p, categoria: catNueva }
+            : p
+        ));
+      }
+
+      setCategoriasDisponibles(prev => {
+        const filtrada = prev.filter(c => c.toLowerCase() !== catVieja.toLowerCase());
+        return [...new Set([...filtrada, catNueva])].sort((a, b) => a.localeCompare(b, 'es'));
+      });
+
+      if (categoria.toLowerCase() === catVieja.toLowerCase()) {
+        setCategoria(catNueva);
+      }
+
+      setCategoriaEditandoModal(null);
+      setNuevoNombreCatModal('');
+      toast.success(`Categoría renombrada a "${catNueva}" (${prodsAfectados.length} productos actualizados)`, { icon: '🏷️' });
+    } catch (err) {
+      console.error("Error renombrando categoría:", err);
+      toast.error("No se pudo renombrar la categoría.");
+    } finally {
+      setGuardandoCatModal(false);
+    }
+  };
+
+  const eliminarCategoriaGlobal = async (catAEliminar: string) => {
+    if (catAEliminar.toLowerCase() === 'general') {
+      toast.error("La categoría 'General' es la predeterminada y no se puede eliminar.");
+      return;
+    }
+
+    const prodsAfectados = inventario.filter(p => (p.categoria || '').trim().toLowerCase() === catAEliminar.toLowerCase());
+    const confirmar = window.confirm(
+      prodsAfectados.length > 0
+        ? `Esta categoría tiene ${prodsAfectados.length} producto(s) asignados.\n\nSi la eliminas, estos productos se reasignarán a la categoría "General". ¿Deseas continuar?`
+        : `¿Eliminar la categoría "${catAEliminar}" del catálogo?`
+    );
+    if (!confirmar) return;
+
+    try {
+      setGuardandoCatModal(true);
+      if (prodsAfectados.length > 0) {
+        const batch = writeBatch(db);
+        prodsAfectados.forEach(p => {
+          batch.update(doc(db, "inventario", p.id), { categoria: 'General' });
+        });
+        await batch.commit();
+
+        setInventario(prev => prev.map(p => 
+          (p.categoria || '').trim().toLowerCase() === catAEliminar.toLowerCase()
+            ? { ...p, categoria: 'General' }
+            : p
+        ));
+      }
+
+      setCategoriasDisponibles(prev => prev.filter(c => c.toLowerCase() !== catAEliminar.toLowerCase()));
+      if (categoria.toLowerCase() === catAEliminar.toLowerCase()) {
+        setCategoria('General');
+      }
+      toast.success(`Categoría "${catAEliminar}" eliminada`, { icon: '🗑️' });
+    } catch (err) {
+      console.error("Error eliminando categoría:", err);
+      toast.error("No se pudo eliminar la categoría.");
+    } finally {
+      setGuardandoCatModal(false);
+    }
+  };
+
   // Renderizado de Badge de Stock
   const renderStockBadge = (prod: any, modo: 'normal' | 'movil' = 'normal') => {
     const cant = Number(prod.stock || 0);
@@ -2313,13 +2436,20 @@ export default function InventarioPage() {
             </p>
           </div>
         </div>
-
         {/* Acciones de Cabecera */}
         <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
           {esAdmin && (
             <>
-              {/* En Pantallas Medianas/Grandes (md:): Botones directos */}
+              {/* En Desktop (>= md): Botones directos con labels */}
               <div className="hidden md:flex items-center gap-1.5">
+                <button 
+                  onClick={() => setModalGestionCategorias(true)} 
+                  className="bg-white/20 hover:bg-white/30 px-3 py-2 rounded-xl font-bold text-xs flex items-center gap-1.5 transition-colors backdrop-blur-sm shadow-sm cursor-pointer"
+                  title="Administrar categorías del catálogo (crear, renombrar, eliminar)"
+                >
+                  <Tag size={15}/> <span>Categorías</span>
+                </button>
+
                 <button 
                   onClick={() => {
                     if (!datosSesion?.esPro) {
@@ -2388,13 +2518,26 @@ export default function InventarioPage() {
                   type="button"
                   onClick={() => setMenuHerramientasMovil(!menuHerramientasMovil)}
                   className="bg-white/20 hover:bg-white/30 p-2 rounded-xl font-bold text-xs flex items-center justify-center transition-colors backdrop-blur-sm shadow-sm text-white active:scale-95 cursor-pointer"
-                  title="Herramientas de inventario (Excel, Importar, QRs)"
+                  title="Herramientas de inventario (Categorías, Excel, Importar, QRs)"
                 >
                   <MoreVertical size={18}/>
                 </button>
 
                 {menuHerramientasMovil && (
                   <div className="absolute right-0 top-full mt-2 w-56 bg-white dark:bg-[#0f172a] text-slate-800 dark:text-white rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 p-1.5 z-50 animate-in zoom-in-95 duration-150">
+                    <button
+                      onClick={() => {
+                        setMenuHerramientasMovil(false);
+                        setModalGestionCategorias(true);
+                      }}
+                      className="w-full flex items-center justify-between px-3 py-2.5 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl text-xs font-bold text-left transition-colors cursor-pointer"
+                    >
+                      <div className="flex items-center gap-2">
+                        <Tag size={16} className="text-violet-600 dark:text-violet-400"/>
+                        <span>🏷️ Categorías</span>
+                      </div>
+                    </button>
+
                     <button
                       onClick={() => {
                         setMenuHerramientasMovil(false);
@@ -4777,21 +4920,31 @@ export default function InventarioPage() {
 
                   {/* Fila 3: Categoría */}
                   <div className="rounded-xl sm:rounded-2xl border border-slate-200 bg-slate-50 p-2 sm:p-3.5 dark:border-slate-800 dark:bg-slate-900/40 space-y-1 sm:space-y-1.5">
-                    <label className="text-[10px] sm:text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider block">
-                      Categoría
-                    </label>
+                    <div className="flex items-center justify-between">
+                      <label className="text-[10px] sm:text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider block">
+                        Categoría
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => setModalGestionCategorias(true)}
+                        className="text-[11px] font-bold text-sky-600 dark:text-sky-400 hover:text-sky-700 dark:hover:text-sky-300 hover:underline flex items-center gap-1 cursor-pointer transition-colors"
+                        title="Administrar catálogo completo de categorías"
+                      >
+                        <Tag size={12} />
+                        <span>Administrar categorías</span>
+                      </button>
+                    </div>
                     <div className="relative">
-                      <div className={`flex items-center gap-2 rounded-xl border ${errores.categoria ? 'border-rose-500 ring-2 ring-rose-500/30 bg-rose-50/20' : 'border-slate-200 dark:border-slate-700 focus-within:border-emerald-500'} bg-white p-0.5 sm:p-1 shadow-xs transition-all dark:bg-[#020617]`}>
+                      <div className={`flex items-center gap-1.5 rounded-xl border ${errores.categoria ? 'border-rose-500 ring-2 ring-rose-500/30 bg-rose-50/20' : 'border-slate-200 dark:border-slate-700 focus-within:border-emerald-500'} bg-white p-0.5 sm:p-1 shadow-xs transition-all dark:bg-[#020617]`}>
                         <input
                           value={categoria}
                           onFocus={() => setCategoriaFoco(true)}
-                          onBlur={() => setTimeout(() => setCategoriaFoco(false), 150)}
+                          onBlur={() => setTimeout(() => setCategoriaFoco(false), 200)}
                           onKeyDown={(e) => {
                             if (e.key === 'Enter') {
                               e.preventDefault();
                               if (categoriasFiltradas.length > 0) {
-                                const siguiente = categoriasFiltradas[0];
-                                setCategoria(siguiente);
+                                setCategoria(categoriasFiltradas[0]);
                                 setCategoriaFoco(false);
                                 setErrores(prev => ({ ...prev, categoria: '' }));
                               } else if (categoria.trim()) {
@@ -4804,99 +4957,56 @@ export default function InventarioPage() {
                             setErrores(prev => ({ ...prev, categoria: '' }));
                             setCategoriaFoco(true);
                           }}
-                          placeholder="Escribe o busca una categoría..."
+                          placeholder="Selecciona o escribe una categoría..."
                           className="w-full bg-transparent px-2.5 py-1.5 sm:py-2 text-xs sm:text-sm font-semibold text-slate-800 outline-none placeholder:text-slate-400 dark:text-slate-100"
                         />
+                        {categoria.trim() && !categoriasDisponibles.some(c => c.toLowerCase() === categoria.trim().toLowerCase()) && (
+                          <button
+                            type="button"
+                            onMouseDown={(e) => e.preventDefault()}
+                            onClick={agregarCategoria}
+                            className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold shrink-0 transition flex items-center gap-1 cursor-pointer shadow-xs"
+                            title="Guardar y usar esta nueva categoría"
+                          >
+                            <Plus size={13} />
+                            <span>Crear</span>
+                          </button>
+                        )}
                         <button
                           type="button"
                           onMouseDown={(e) => e.preventDefault()}
                           onClick={() => setCategoriaFoco((prev) => !prev)}
                           className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-slate-50 text-slate-600 transition hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 shrink-0 cursor-pointer"
-                          aria-label="Mostrar categorías"
+                          aria-label="Mostrar categorías disponibles"
                         >
                           ▾
                         </button>
                       </div>
 
-                      <div className="mt-2 flex items-center justify-between gap-2">
-                        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                          Administrar categorías
-                        </span>
-                        <button
-                          type="button"
-                          onClick={() => setGestionCategoriasHabilitada((prev) => !prev)}
-                          className={`relative flex h-5 w-10 items-center rounded-full transition cursor-pointer ${gestionCategoriasHabilitada ? 'bg-emerald-500' : 'bg-slate-300 dark:bg-slate-700'}`}
-                          aria-label="Habilitar administración de categorías"
-                        >
-                          <span className={`absolute h-4 w-4 rounded-full bg-white shadow-xs transition ${gestionCategoriasHabilitada ? 'translate-x-5' : 'translate-x-1'}`} />
-                        </button>
-                      </div>
-
-                      {menuCategoriasVisible && (
-                        <div className="absolute left-0 right-0 top-[calc(100%+6px)] z-20 max-h-60 overflow-y-auto rounded-2xl border border-slate-200 bg-white p-2 shadow-xl dark:border-slate-700 dark:bg-[#0f172a] scrollbar-thin">
+                      {categoriaFoco && categoriasFiltradas.length > 0 && (
+                        <div className="absolute left-0 right-0 top-[calc(100%+6px)] z-30 max-h-56 overflow-y-auto rounded-2xl border border-slate-200 bg-white p-1.5 shadow-2xl dark:border-slate-700 dark:bg-[#0f172a] scrollbar-thin">
                           {categoriasFiltradas.map((item) => (
-                            <div key={item} className="flex items-center gap-2 rounded-xl px-2 py-1.5 text-left transition hover:bg-slate-100 dark:hover:bg-slate-800">
-                              <button
-                                type="button"
-                                disabled={Boolean(categoriaEditando && categoriaEditando !== item)}
-                                onMouseDown={(e) => e.preventDefault()}
-                                onClick={() => {
-                                  setCategoria(item);
-                                  setCategoriaFoco(false);
-                                  setErrores(prev => ({ ...prev, categoria: '' }));
-                                }}
-                                className={`flex-1 text-left text-xs font-medium text-slate-700 transition dark:text-slate-200 cursor-pointer ${Boolean(categoriaEditando && categoriaEditando !== item) ? 'cursor-not-allowed opacity-40' : ''}`}
-                              >
-                                {item}
-                              </button>
-
-                              {gestionCategoriasHabilitada && (
-                                <div className="flex items-center gap-1">
-                                  <button
-                                    type="button"
-                                    disabled={Boolean(categoriaEditando && categoriaEditando !== item)}
-                                    onMouseDown={(e) => e.preventDefault()}
-                                    onClick={() => {
-                                      setCategoriaEditando(item);
-                                      setNombreCategoriaEditada(item);
-                                    }}
-                                    className={`rounded-lg bg-slate-100 px-2 py-0.5 text-[10px] font-bold text-slate-600 transition hover:bg-slate-200 dark:bg-slate-700 dark:text-slate-200 cursor-pointer ${Boolean(categoriaEditando && categoriaEditando !== item) ? 'cursor-not-allowed opacity-40' : ''}`}
-                                  >
-                                    Editar
-                                  </button>
-                                  <button
-                                    type="button"
-                                    disabled={Boolean(categoriaEditando && categoriaEditando !== item)}
-                                    onMouseDown={(e) => e.preventDefault()}
-                                    onClick={() => eliminarCategoria(item)}
-                                    className={`rounded-lg bg-rose-50 px-2 py-0.5 text-[10px] font-bold text-rose-600 transition hover:bg-rose-100 dark:bg-rose-950/40 dark:text-rose-300 cursor-pointer ${Boolean(categoriaEditando && categoriaEditando !== item) ? 'cursor-not-allowed opacity-40' : ''}`}
-                                  >
-                                    Eliminar
-                                  </button>
-                                </div>
+                            <button
+                              key={item}
+                              type="button"
+                              onMouseDown={(e) => e.preventDefault()}
+                              onClick={() => {
+                                setCategoria(item);
+                                setCategoriaFoco(false);
+                                setErrores(prev => ({ ...prev, categoria: '' }));
+                              }}
+                              className={`w-full text-left px-3 py-2 text-xs font-semibold rounded-xl transition flex items-center justify-between cursor-pointer ${
+                                categoria.toLowerCase() === item.toLowerCase()
+                                  ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 font-bold'
+                                  : 'text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800'
+                              }`}
+                            >
+                              <span>{item}</span>
+                              {categoria.toLowerCase() === item.toLowerCase() && (
+                                <CheckCircle2 size={14} className="text-emerald-500" />
                               )}
-                            </div>
+                            </button>
                           ))}
-
-                          {gestionCategoriasHabilitada && (
-                            <div className="mt-2 border-t border-slate-100 pt-2 dark:border-slate-800">
-                              <div className="flex items-center gap-1">
-                                <input
-                                  value={categoria}
-                                  onChange={(e) => setCategoria(e.target.value)}
-                                  placeholder="Nombre de la nueva categoría"
-                                  className="w-full rounded-lg border border-slate-200 px-2 py-1 text-xs outline-none dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
-                                />
-                                <button
-                                  type="button"
-                                  onClick={agregarCategoria}
-                                  className="rounded-lg bg-emerald-600 px-2 py-1 text-xs font-bold text-white transition hover:bg-emerald-700 cursor-pointer"
-                                >
-                                  Crear
-                                </button>
-                              </div>
-                            </div>
-                          )}
                         </div>
                       )}
                     </div>
@@ -5156,15 +5266,31 @@ export default function InventarioPage() {
                       </button>
                     </div>
                   ) : (
-                    <button
-                      type="button"
-                      onClick={agregarProductoALaCarga}
-                      disabled={guardando}
-                      className="w-full py-3 sm:py-3.5 px-4 bg-sky-600 hover:bg-sky-700 disabled:opacity-50 text-white font-black rounded-xl shadow-md text-xs sm:text-sm flex items-center justify-center gap-2 active:scale-98 transition cursor-pointer"
-                      title="Encola este producto a la lista en vivo de la derecha y limpia los campos para seguir agregando"
-                    >
-                      ➕ Encolar y Seguir Agregando
-                    </button>
+                    <div className="space-y-2">
+                      <button
+                        type="button"
+                        onClick={agregarProductoALaCarga}
+                        disabled={guardando}
+                        className="w-full py-3 sm:py-3.5 px-4 bg-sky-600 hover:bg-sky-700 disabled:opacity-50 text-white font-black rounded-xl shadow-md text-xs sm:text-sm flex items-center justify-center gap-2 active:scale-98 transition cursor-pointer"
+                        title="Encola este producto a la lista en vivo de la derecha y limpia los campos para seguir agregando"
+                      >
+                        ➕ Encolar y Seguir Agregando
+                      </button>
+
+                      {productosEnCarga.length > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => setTabMovilModal('lista')}
+                          className="lg:hidden w-full py-2 px-3 bg-sky-50 hover:bg-sky-100 dark:bg-sky-950/40 dark:hover:bg-sky-900/50 border border-sky-200 dark:border-sky-800 text-sky-700 dark:text-sky-300 font-bold rounded-xl text-xs flex items-center justify-between transition cursor-pointer"
+                        >
+                          <span className="flex items-center gap-1.5">
+                            <LayoutList size={14} className="text-sky-600 dark:text-sky-400" />
+                            <span>{productosEnCarga.length} producto(s) en la cola</span>
+                          </span>
+                          <span className="text-[11px] underline font-black">Ver cola →</span>
+                        </button>
+                      )}
+                    </div>
                   )}
                 </div>
 
@@ -5478,6 +5604,229 @@ export default function InventarioPage() {
                 className="w-full py-3.5 px-4 bg-rose-600 hover:bg-rose-700 disabled:opacity-50 text-white font-black rounded-2xl transition-all shadow-lg shadow-rose-600/30 flex items-center justify-center gap-2 text-sm active:scale-95"
               >
                 {eliminandoProducto ? 'Eliminando...' : 'Sí, Eliminar'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL DEDICADO DE GESTIÓN DE CATEGORÍAS */}
+      {modalGestionCategorias && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/80 backdrop-blur-sm animate-in fade-in duration-150">
+          <div className="bg-white dark:bg-[#0f172a] w-full max-w-lg rounded-3xl border border-slate-200 dark:border-slate-800 shadow-2xl overflow-hidden flex flex-col max-h-[90vh] animate-in zoom-in-95 duration-150">
+            {/* Cabecera */}
+            <div className="p-4 sm:p-5 border-b border-slate-100 dark:border-slate-800/80 flex items-center justify-between gap-3 bg-gradient-to-r from-violet-500/10 via-purple-500/5 to-transparent">
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="w-10 h-10 rounded-2xl bg-violet-600 text-white flex items-center justify-center shadow-lg shadow-violet-600/25 shrink-0">
+                  <Tag size={20} />
+                </div>
+                <div className="min-w-0">
+                  <h3 className="text-base sm:text-lg font-black text-slate-900 dark:text-white truncate">
+                    Administrar Categorías
+                  </h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 truncate">
+                    {categoriasDisponibles.length} categorías disponibles en tu catálogo
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setModalGestionCategorias(false);
+                  setCategoriaEditandoModal(null);
+                  setNuevoNombreCatModal('');
+                }}
+                className="p-2 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-500 dark:text-slate-400 transition cursor-pointer shrink-0"
+                aria-label="Cerrar modal"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Formulario Nueva Categoría */}
+            <div className="p-4 sm:p-5 border-b border-slate-100 dark:border-slate-800/80 bg-slate-50/60 dark:bg-slate-900/40">
+              <label className="text-[11px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1.5 block">
+                Crear nueva categoría
+              </label>
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  crearCategoriaDesdeModal(nuevaCatModalInput);
+                }}
+                className="flex items-center gap-2"
+              >
+                <input
+                  type="text"
+                  value={nuevaCatModalInput}
+                  onChange={(e) => setNuevaCatModalInput(e.target.value)}
+                  placeholder="Ej. Bebidas, Accesorios, Postres..."
+                  className="flex-1 p-2.5 bg-white dark:bg-[#020617] border border-slate-200 dark:border-slate-700 rounded-xl outline-none text-xs sm:text-sm font-semibold text-slate-900 dark:text-white focus:border-violet-500 shadow-xs"
+                />
+                <button
+                  type="submit"
+                  disabled={!nuevaCatModalInput.trim()}
+                  className="px-4 py-2.5 bg-violet-600 hover:bg-violet-700 disabled:opacity-40 text-white font-bold rounded-xl text-xs sm:text-sm flex items-center gap-1.5 shadow-md shadow-violet-600/20 transition cursor-pointer active:scale-95 shrink-0"
+                >
+                  <Plus size={15} />
+                  <span>Agregar</span>
+                </button>
+              </form>
+            </div>
+
+            {/* Buscador interno de categorías */}
+            {categoriasDisponibles.length > 5 && (
+              <div className="px-4 sm:px-5 pt-3 pb-1">
+                <div className="flex items-center gap-2 px-3 py-2 bg-slate-100 dark:bg-slate-800/60 rounded-xl border border-slate-200/80 dark:border-slate-700/60 text-xs">
+                  <Search size={14} className="text-slate-400 shrink-0" />
+                  <input
+                    type="text"
+                    value={busquedaCategoriasModal}
+                    onChange={(e) => setBusquedaCategoriasModal(e.target.value)}
+                    placeholder="Filtrar categorías..."
+                    className="w-full bg-transparent outline-none font-medium text-slate-900 dark:text-white placeholder:text-slate-400"
+                  />
+                  {busquedaCategoriasModal && (
+                    <button
+                      type="button"
+                      onClick={() => setBusquedaCategoriasModal('')}
+                      className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+                    >
+                      <X size={13} />
+                    </button>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Listado Scrollable de Categorías */}
+            <div className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-2 scrollbar-thin scrollbar-thumb-slate-300 dark:scrollbar-thumb-slate-700">
+              {(() => {
+                const listaFiltrada = categoriasDisponibles.filter((c) =>
+                  c.toLowerCase().includes(busquedaCategoriasModal.toLowerCase().trim())
+                );
+
+                if (listaFiltrada.length === 0) {
+                  return (
+                    <div className="text-center py-8 text-slate-400 dark:text-slate-500 text-xs font-medium">
+                      No se encontraron categorías que coincidan con "{busquedaCategoriasModal}".
+                    </div>
+                  );
+                }
+
+                return listaFiltrada.map((cat) => {
+                  const conteoProds = inventario.filter(
+                    (p) => (p.categoria || '').trim().toLowerCase() === cat.toLowerCase()
+                  ).length;
+                  const esGeneral = cat.toLowerCase() === 'general';
+                  const estaEditando = categoriaEditandoModal === cat;
+
+                  return (
+                    <div
+                      key={cat}
+                      className="p-2.5 sm:p-3 bg-slate-50 dark:bg-slate-900/60 rounded-2xl border border-slate-200/80 dark:border-slate-800 flex items-center justify-between gap-2 transition hover:border-violet-300 dark:hover:border-violet-900"
+                    >
+                      {estaEditando ? (
+                        <div className="flex-1 flex items-center gap-2">
+                          <input
+                            type="text"
+                            value={nuevoNombreCatModal}
+                            onChange={(e) => setNuevoNombreCatModal(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') {
+                                e.preventDefault();
+                                renombrarCategoriaGlobal(cat, nuevoNombreCatModal);
+                              }
+                            }}
+                            autoFocus
+                            className="flex-1 p-1.5 bg-white dark:bg-[#020617] border border-violet-500 rounded-lg text-xs sm:text-sm font-bold text-slate-900 dark:text-white outline-none"
+                          />
+                          <button
+                            type="button"
+                            disabled={guardandoCatModal || !nuevoNombreCatModal.trim()}
+                            onClick={() => renombrarCategoriaGlobal(cat, nuevoNombreCatModal)}
+                            className="px-2.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white rounded-lg text-xs font-bold transition cursor-pointer"
+                          >
+                            ✓ Guardar
+                          </button>
+                          <button
+                            type="button"
+                            disabled={guardandoCatModal}
+                            onClick={() => {
+                              setCategoriaEditandoModal(null);
+                              setNuevoNombreCatModal('');
+                            }}
+                            className="px-2 py-1.5 bg-slate-200 hover:bg-slate-300 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-lg text-xs font-bold transition cursor-pointer"
+                          >
+                            Cancelar
+                          </button>
+                        </div>
+                      ) : (
+                        <>
+                          <div className="flex items-center gap-2.5 min-w-0">
+                            <span className="w-7 h-7 rounded-lg bg-violet-100 dark:bg-violet-950/60 text-violet-700 dark:text-violet-300 flex items-center justify-center text-xs shrink-0 font-black">
+                              🏷️
+                            </span>
+                            <div className="min-w-0">
+                              <p className="text-xs sm:text-sm font-bold text-slate-800 dark:text-slate-100 truncate flex items-center gap-1.5">
+                                <span>{cat}</span>
+                                {esGeneral && (
+                                  <span className="text-[10px] font-bold px-1.5 py-0.2 rounded bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-400">
+                                    Base
+                                  </span>
+                                )}
+                              </p>
+                              <p className="text-[10px] text-slate-500 dark:text-slate-400">
+                                {conteoProds} {conteoProds === 1 ? 'producto asignado' : 'productos asignados'}
+                              </p>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-1 shrink-0">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setCategoriaEditandoModal(cat);
+                                setNuevoNombreCatModal(cat);
+                              }}
+                              className="p-1.5 text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white hover:bg-slate-200 dark:hover:bg-slate-800 rounded-lg transition cursor-pointer"
+                              title="Renombrar categoría (actualiza todos los productos)"
+                            >
+                              <Edit3 size={14} />
+                            </button>
+                            {!esGeneral && (
+                              <button
+                                type="button"
+                                onClick={() => eliminarCategoriaGlobal(cat)}
+                                className="p-1.5 text-rose-500 hover:text-rose-700 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded-lg transition cursor-pointer"
+                                title="Eliminar categoría"
+                              >
+                                <Trash2 size={14} />
+                              </button>
+                            )}
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  );
+                });
+              })()}
+            </div>
+
+            {/* Pie de Modal */}
+            <div className="p-3 sm:p-4 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between gap-3 bg-slate-50 dark:bg-slate-900/60">
+              <span className="text-[11px] text-slate-500 dark:text-slate-400">
+                Al renombrar una categoría, se actualizan automáticamente sus productos.
+              </span>
+              <button
+                type="button"
+                onClick={() => {
+                  setModalGestionCategorias(false);
+                  setCategoriaEditandoModal(null);
+                  setNuevoNombreCatModal('');
+                }}
+                className="px-4 py-2 bg-slate-200 hover:bg-slate-300 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-white font-bold rounded-xl text-xs transition cursor-pointer shrink-0"
+              >
+                Cerrar
               </button>
             </div>
           </div>

@@ -249,27 +249,60 @@ export default function VistaTicketCard({ datos, ticketRef }: VistaTicketCardPro
           </span>
         </div>
 
-        {/* MÉTODO DE PAGO */}
-        {datos.metodoPago && (
-          <div className="flex justify-between items-center text-slate-700 pt-0.5">
-            <span className="font-bold">Forma de Pago:</span>
-            <span className="font-black uppercase text-slate-900">
-              {datos.metodoPago === 'transferencia' && 'Transferencia / Nequi'}
-              {datos.metodoPago === 'datafono' && 'Datáfono / Tarjeta'}
-              {datos.metodoPago === 'credito_externo' && 'Crédito Addi / Sistecrédito'}
-              {datos.metodoPago === 'efectivo' && 'Efectivo'}
-              {datos.metodoPago === 'fiado' && 'Crédito Directo (Fiado)'}
-            </span>
-          </div>
-        )}
+        {/* MÉTODO DE PAGO Y REFERENCIA DINÁMICA */}
+        {datos.metodoPago && (() => {
+          let subMetodo = datos.subMetodoPago || '';
+          let refLimpia = datos.referenciaPago || '';
 
-        {/* REFERENCIA DE COMPROBANTE */}
-        {datos.referenciaPago && (
-          <div className="flex justify-between items-center text-slate-600 text-[9.5px]">
-            <span className="font-medium">Ref. / Aprobación:</span>
-            <span className="font-mono font-bold text-slate-800">#{datos.referenciaPago}</span>
-          </div>
-        )}
+          // Si en referenciaPago viene un string compuesto como "Bancolombia — 12345" o solo "Bancolombia"
+          if (refLimpia.includes(' — ')) {
+            const partes = refLimpia.split(' — ');
+            if (!subMetodo && partes[0]) subMetodo = partes[0].trim();
+            refLimpia = partes.slice(1).join(' — ').trim();
+          } else if (refLimpia) {
+            // Si coincide exactamente con alguna plataforma conocida
+            const bancosConocidos = ['nequi', 'daviplata', 'bancolombia', 'pse', 'addi', 'sistecrédito', 'sistecredito', 'krediya'];
+            if (bancosConocidos.includes(refLimpia.toLowerCase().trim())) {
+              if (!subMetodo) subMetodo = refLimpia.trim();
+              refLimpia = '';
+            }
+          }
+
+          let etiquetaMetodo = '';
+          if (datos.metodoPago === 'transferencia') {
+            etiquetaMetodo = subMetodo ? `Transferencia (${subMetodo})` : 'Transferencia';
+          } else if (datos.metodoPago === 'datafono') {
+            etiquetaMetodo = 'Datáfono / Tarjeta';
+          } else if (datos.metodoPago === 'credito_externo') {
+            etiquetaMetodo = subMetodo ? `Crédito (${subMetodo})` : 'Crédito Externo';
+          } else if (datos.metodoPago === 'efectivo') {
+            etiquetaMetodo = 'Efectivo';
+          } else if (datos.metodoPago === 'fiado') {
+            etiquetaMetodo = 'Crédito Directo (Fiado)';
+          } else {
+            etiquetaMetodo = String(datos.metodoPago);
+          }
+
+          return (
+            <>
+              <div className="flex justify-between items-center text-slate-700 pt-0.5">
+                <span className="font-bold">Forma de Pago:</span>
+                <span className="font-black uppercase text-slate-900">
+                  {etiquetaMetodo}
+                </span>
+              </div>
+
+              {refLimpia && (
+                <div className="flex justify-between items-center text-slate-600 text-[9.5px]">
+                  <span className="font-medium">Ref. / Aprobación:</span>
+                  <span className="font-mono font-bold text-slate-800">
+                    {refLimpia.startsWith('#') ? refLimpia : `#${refLimpia}`}
+                  </span>
+                </div>
+              )}
+            </>
+          );
+        })()}
 
         {datos.pagoRecibido !== undefined && (
           <div className="flex justify-between items-center text-slate-600">

@@ -1211,12 +1211,12 @@ Estamos atentos para cualquier consulta.
                 <div className="flex items-center gap-2 shrink-0">
                     {/* Selector de Vendedor Responsable */}
                     {esTerminalMultivendedor ? (
-                        <div className="flex items-center bg-white/15 backdrop-blur-sm rounded-xl px-2.5 py-1.5 border border-white/20">
-                            <User size={14} className="text-white/80 mr-1.5 shrink-0" />
+                        <div className="flex items-center bg-white/20 hover:bg-white/25 dark:bg-white/15 dark:hover:bg-white/20 backdrop-blur-sm rounded-xl px-2 py-1 sm:px-2.5 sm:py-1.5 border border-white/25 max-w-[120px] sm:max-w-none min-w-0 transition-colors">
+                            <User size={14} className="text-white/90 mr-1.5 shrink-0" />
                             <select
                                 value={vendedorActivo}
                                 onChange={(e) => cambiarVendedor(e.target.value)}
-                                className="bg-transparent text-white font-bold text-xs outline-none cursor-pointer pr-1"
+                                className="bg-transparent text-white font-bold text-xs outline-none cursor-pointer pr-1 truncate w-full"
                             >
                                 {listaVendedores.map((v) => (
                                     <option key={v} value={v} className="bg-slate-900 text-white">
@@ -1226,8 +1226,8 @@ Estamos atentos para cualquier consulta.
                             </select>
                         </div>
                     ) : (
-                        <div className="hidden sm:flex items-center bg-white/15 backdrop-blur-sm rounded-xl px-2.5 py-1.5 border border-white/20 text-white text-xs font-bold gap-1.5">
-                            <User size={13} className="text-white/80" />
+                        <div className="hidden sm:flex items-center bg-white/20 dark:bg-white/15 backdrop-blur-sm rounded-xl px-2.5 py-1.5 border border-white/25 text-white text-xs font-bold gap-1.5 shadow-xs">
+                            <User size={13} className="text-white/90" />
                             <span>{vendedorActivo}</span>
                         </div>
                     )}
@@ -1245,7 +1245,7 @@ Estamos atentos para cualquier consulta.
             </div>
 
             {/* BARRA DE PESTAÑAS MULTI-FIADO POS */}
-            <div className="bg-rose-700/90 dark:bg-slate-900 px-3 py-2 border-b border-rose-800/40 dark:border-slate-800 flex items-center gap-2 overflow-x-auto no-scrollbar shrink-0 z-20">
+            <div className="bg-rose-700/95 dark:bg-rose-950/90 px-3 py-2 border-b border-rose-800/50 dark:border-rose-900/50 flex items-center gap-2 overflow-x-auto no-scrollbar shrink-0 z-20">
                 {pestanas.map((p, index) => {
                     const activa = p.id === pestanaActivaId;
                     const subtotalPestana = (activa ? filasRegistro : p.filas).reduce((acc, f) => acc + ((parseFloat(f.valor) || 0) * f.cantidad), 0);

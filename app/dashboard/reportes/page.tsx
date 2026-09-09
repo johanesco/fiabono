@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { 
   TrendingUp, 
   ShoppingBag, 
@@ -22,7 +22,9 @@ import {
   CreditCard,
   Smartphone,
   Layers,
-  Zap
+  Zap,
+  Lock,
+  Percent
 } from 'lucide-react';
 import toast from "react-hot-toast";
 import { collection, query, where, onSnapshot } from "firebase/firestore";
@@ -48,11 +50,13 @@ export default function ReportesPage() {
   const esPro = datosSesion?.esPro;
   const esComercio = datosSesion?.esComercio;
   const esGratis = datosSesion?.esGratis;
+  const esAdmin = datosSesion?.rol === 'admin' || !datosSesion?.rol;
   const puedeVerReportes = datosSesion?.rol !== 'cajero' || datosSesion?.permisos?.verReportes === true;
 
   const [clientes, setClientes] = useState<Cliente[]>([]);
   const [todosMovimientos, setTodosMovimientos] = useState<Movimiento[]>([]);
   const [separes, setSepares] = useState<any[]>([]);
+  const [inventario, setInventario] = useState<any[]>([]);
 
   // Filtros principales
   const [filtroGeneral, setFiltroGeneral] = useState<'hoy' | 'semana' | 'mes' | 'ano' | 'todos'>('hoy');
@@ -108,10 +112,19 @@ export default function ReportesPage() {
       setSepares(lista);
     });
 
+    // 4. Listener en tiempo real de inventario (para costo y margen de ganancia)
+    const qI = query(collection(db, "inventario"), where("usuarioId", "==", cuentaPrincipalId));
+    const unsubInv = onSnapshot(qI, (snap) => {
+      const lista: any[] = [];
+      snap.forEach(d => lista.push({ id: d.id, ...d.data() }));
+      setInventario(lista);
+    });
+
     return () => {
       unsubClientes();
       unsubMovs();
       unsubSepares();
+      unsubInv();
     };
   }, [cuentaPrincipalId]);
 
@@ -252,6 +265,57 @@ export default function ReportesPage() {
   const totalEnSeparesActivos = separesActivos.reduce((a, s) => a + (s.total || 0), 0);
   const abonosEnSeparesActivos = separesActivos.reduce((a, s) => a + (s.montoPagado || 0), 0);
   const saldoPendienteSepares = separesActivos.reduce((a, s) => a + (s.saldoPendiente || 0), 0);
+
+  // Mapa de inventario para cálculo rápido de costos
+  const mapaCostosInventario = useMemo(() => {
+    const mapa = new Map<string, number>();
+    inventario.forEach(p => {
+      const costo = Number(p.costoCompra) || 0;
+      if (p.id) mapa.set(p.id, costo);
+      if (p.nombre) mapa.set(p.nombre.trim().toLowerCase(), costo);
+    });
+    return mapa;
+  }, [inventario]);
+
+  // Cálculo de Costo de Mercancía Vendida (COGS) y Utilidad Bruta Estimada
+  const { costoTotalMercanciaVendida, utilidadBrutaEstimada, margenGananciaEstimado, productosConCostoCount } = useMemo(() => {
+    let costoTotal = 0;
+    let itemsVendidosConCosto = 0;
+
+    movsVentas.forEach(mov => {
+      if (Array.isArray(mov.detalles) && mov.detalles.length > 0) {
+        mov.detalles.forEach((det: any) => {
+          const cantidad = Number(det.cantidad) || 1;
+          let costoUnit = Number(det.costoUnitario) || 0;
+
+          if (!costoUnit) {
+            if (det.productoId && mapaCostosInventario.has(det.productoId)) {
+              costoUnit = mapaCostosInventario.get(det.productoId) || 0;
+            } else if (det.descripcion && mapaCostosInventario.has(det.descripcion.trim().toLowerCase())) {
+              costoUnit = mapaCostosInventario.get(det.descripcion.trim().toLowerCase()) || 0;
+            }
+          }
+
+          if (costoUnit > 0) {
+            costoTotal += costoUnit * cantidad;
+            itemsVendidosConCosto += cantidad;
+          }
+        });
+      }
+    });
+
+    const utilidad = Math.max(0, totalVentas - costoTotal);
+    const margen = totalVentas > 0 && costoTotal > 0 
+      ? Math.round((utilidad / totalVentas) * 100) 
+      : (totalVentas > 0 && costoTotal === 0 ? 100 : 0);
+
+    return {
+      costoTotalMercanciaVendida: costoTotal,
+      utilidadBrutaEstimada: utilidad,
+      margenGananciaEstimado: margen,
+      productosConCostoCount: itemsVendidosConCosto
+    };
+  }, [movsVentas, mapaCostosInventario, totalVentas]);
 
   // Generador de datos para Gráfica de Comportamiento Financiero
   const obtenerDatosGrafica = () => {
@@ -840,6 +904,127 @@ export default function ReportesPage() {
           </div>
         </div>
       </div>
+
+      {/* BLOQUE EXCLUSIVO ADMINISTRADOR: RENTABILIDAD Y UTILIDAD ESTIMADA */}
+      {esAdmin && (
+        <div className="bg-gradient-to-br from-slate-900 via-indigo-950/90 to-slate-900 text-white p-5 sm:p-6 rounded-[2rem] sm:rounded-3xl border border-indigo-800/40 shadow-xl flex flex-col gap-4 relative overflow-hidden">
+          {/* Fondo sutil decorativo */}
+          <div className="absolute -right-12 -top-12 w-48 h-48 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none" />
+          <div className="absolute -left-12 -bottom-12 w-48 h-48 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none" />
+
+          {/* Cabecera de la sección */}
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 border-b border-indigo-900/60 pb-3">
+            <div className="flex items-center gap-2.5">
+              <div className="w-9 h-9 rounded-xl bg-indigo-500/20 border border-indigo-400/30 text-indigo-300 flex items-center justify-center font-black shrink-0">
+                <TrendingUp size={18} />
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <h3 className="text-sm sm:text-base font-black text-white flex items-center gap-1.5">
+                    Utilidad Bruta y Margen de Rentabilidad
+                  </h3>
+                  <span className="inline-flex items-center gap-1 bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 text-[9px] sm:text-[10px] font-black px-2 py-0.5 rounded-full">
+                    <Lock size={10} /> Solo Administrador
+                  </span>
+                </div>
+                <p className="text-[11px] text-slate-300">
+                  Estimación basada en los costos de adquisición registrados en tu inventario vs ventas del periodo ({metaPeriodo.badgePeriodo}).
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-1.5 self-end sm:self-auto">
+              <span className="text-xs font-black text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-3 py-1 rounded-xl">
+                Margen Promedio: {margenGananciaEstimado}%
+              </span>
+            </div>
+          </div>
+
+          {/* Tarjetas de métricas de Utilidad */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
+            {/* 1. Utilidad Bruta Estimada */}
+            <div className="p-4 rounded-2xl bg-white/5 border border-white/10 backdrop-blur-sm flex flex-col justify-between">
+              <div className="flex items-center justify-between gap-1 mb-1">
+                <span className="text-[10px] sm:text-[11px] font-bold text-slate-300 uppercase tracking-wider">
+                  Ganancia Bruta Estimada
+                </span>
+                <span className="text-xs font-black text-emerald-400">
+                  +{margenGananciaEstimado}%
+                </span>
+              </div>
+              <p className="text-xl sm:text-2xl font-black text-emerald-400 tracking-tight">
+                ${utilidadBrutaEstimada.toLocaleString('es-CO')}
+              </p>
+              <p className="text-[10px] text-slate-400 mt-1 font-medium">
+                Ventas (${totalVentas.toLocaleString('es-CO')}) - Costo de compra
+              </p>
+            </div>
+
+            {/* 2. Costo de Mercancía Vendida (COGS) */}
+            <div className="p-4 rounded-2xl bg-white/5 border border-white/10 backdrop-blur-sm flex flex-col justify-between">
+              <div className="flex items-center justify-between gap-1 mb-1">
+                <span className="text-[10px] sm:text-[11px] font-bold text-slate-300 uppercase tracking-wider">
+                  Costo de Mercancía
+                </span>
+                <span className="text-[10px] font-bold text-indigo-300">
+                  {productosConCostoCount} un. costeadas
+                </span>
+              </div>
+              <p className="text-xl sm:text-2xl font-black text-slate-100 tracking-tight">
+                ${costoTotalMercanciaVendida.toLocaleString('es-CO')}
+              </p>
+              <p className="text-[10px] text-slate-400 mt-1 font-medium">
+                Inversión en la adquisición de lo vendido
+              </p>
+            </div>
+
+            {/* 3. Retorno / Eficiencia Comercial */}
+            <div className="p-4 rounded-2xl bg-white/5 border border-white/10 backdrop-blur-sm flex flex-col justify-between">
+              <div className="flex items-center justify-between gap-1 mb-1">
+                <span className="text-[10px] sm:text-[11px] font-bold text-slate-300 uppercase tracking-wider">
+                  Salud del Margen
+                </span>
+                <span className="text-xs font-black text-indigo-300">
+                  {margenGananciaEstimado >= 35 ? '🔥 Óptimo' : margenGananciaEstimado > 0 ? '👍 Estable' : 'ℹ️ Sin costo'}
+                </span>
+              </div>
+              <div className="mt-1 space-y-1.5">
+                <div className="w-full bg-slate-800 rounded-full h-2.5 overflow-hidden flex">
+                  <div 
+                    className="bg-indigo-500 h-full transition-all duration-500" 
+                    style={{ width: `${Math.min(100, Math.max(0, 100 - margenGananciaEstimado))}%` }} 
+                    title="Costo de mercancía"
+                  />
+                  <div 
+                    className="bg-emerald-400 h-full transition-all duration-500" 
+                    style={{ width: `${Math.min(100, Math.max(0, margenGananciaEstimado))}%` }} 
+                    title="Margen de ganancia"
+                  />
+                </div>
+                <div className="flex justify-between text-[9px] text-slate-400 font-bold">
+                  <span>Costo: {100 - margenGananciaEstimado}%</span>
+                  <span className="text-emerald-400">Ganancia: {margenGananciaEstimado}%</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {costoTotalMercanciaVendida === 0 && totalVentas > 0 && (
+            <div className="p-3 rounded-xl bg-indigo-500/10 border border-indigo-500/20 text-xs text-indigo-200 flex items-center justify-between gap-2">
+              <span className="text-[11px]">
+                💡 <strong>Consejo:</strong> Aún no has registrado el costo de compra en algunos de tus productos en <em>Inventario</em>. Diligencia este campo para tener la utilidad exacta en tiempo real.
+              </span>
+              <button
+                type="button"
+                onClick={() => router.push('/dashboard/inventario')}
+                className="px-2.5 py-1 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-bold text-[11px] shrink-0 transition cursor-pointer"
+              >
+                Ir a Inventario →
+              </button>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* BLOQUE ADICIONAL EXCLUSIVO PRO: RESUMEN DE PLAN SEPARE */}
       {esPro && (
