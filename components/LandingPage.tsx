@@ -12,7 +12,7 @@ import {
   Receipt, ShoppingBag, BarChart3, Clock, TrendingUp,
   Flame, BadgePercent, Check, ArrowUpRight, Calculator,
   Sparkle, Shield, PartyPopper, Briefcase, Building2, Phone, Bookmark, Menu,
-  Tag, Gift
+  Tag, Gift, Banknote, CreditCard
 } from 'lucide-react';
 
 export default function LandingPage() {
@@ -46,7 +46,7 @@ export default function LandingPage() {
   const [errorGoogleOnboarding, setErrorGoogleOnboarding] = useState("");
 
   // Tab de Mockup Interactivo
-  const [tabMockup, setTabMockup] = useState<'pos' | 'whatsapp' | 'factura' | 'separe'>('pos');
+  const [tabMockup, setTabMockup] = useState<'pos' | 'whatsapp' | 'factura' | 'separe' | 'caja'>('pos');
 
   // Tab de Nichos de Mercado
   const [tabNicho, setTabNicho] = useState<'tienda' | 'moda' | 'ferreteria' | 'belleza'>('moda');
@@ -567,6 +567,7 @@ export default function LandingPage() {
               { id: 'whatsapp', nombre: '2. WhatsApp: Venta, Fiado & Abono', icono: MessageCircle },
               { id: 'factura', nombre: '3. Factura Térmica con Logo', icono: Printer },
               { id: 'separe', nombre: '4. Ficha Plan Separe', icono: Shirt },
+              { id: 'caja', nombre: '5. Cierre de Caja del Día', icono: BarChart3 },
             ].map(tab => {
               const Icon = tab.icono;
               const activo = tabMockup === tab.id;
@@ -745,6 +746,63 @@ export default function LandingPage() {
                 </p>
                 <div className="bg-purple-50 dark:bg-purple-500/10 p-3 rounded-xl text-xs font-bold text-purple-700 dark:text-purple-300 border border-purple-100 dark:border-purple-500/20">
                   👗 Aumenta hasta un 35% la rotación de mercancía en temporadas altas y quincenas.
+                </div>
+              </div>
+            </div>
+          )}
+
+          {tabMockup === 'caja' && (
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-center animate-in fade-in duration-300">
+              <div className="lg:col-span-7 bg-slate-900 text-white p-5 sm:p-6 rounded-2xl shadow-xl space-y-4 text-left border border-slate-800">
+                <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+                  <div className="flex items-center gap-2">
+                    <div className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse"></div>
+                    <span className="text-xs font-black tracking-wider uppercase text-slate-300">BALANCE EN VIVO DE HOY</span>
+                  </div>
+                  <span className="text-[10px] bg-slate-800 text-slate-300 px-2 py-0.5 rounded font-mono">18:30 PM • Cierre</span>
+                </div>
+
+                {/* Tarjetas métricas reales de Fiabono */}
+                <div className="grid grid-cols-3 gap-2.5">
+                  <div className="bg-slate-800/80 p-3 rounded-xl border border-slate-700/50">
+                    <span className="text-[10px] text-slate-400 font-bold block">Dinero en Caja</span>
+                    <span className="text-base sm:text-lg font-black text-emerald-400">$645.000</span>
+                  </div>
+                  <div className="bg-slate-800/80 p-3 rounded-xl border border-slate-700/50">
+                    <span className="text-[10px] text-slate-400 font-bold block">Ventas de Contado</span>
+                    <span className="text-base sm:text-lg font-black text-white">$520.000</span>
+                  </div>
+                  <div className="bg-slate-800/80 p-3 rounded-xl border border-slate-700/50">
+                    <span className="text-[10px] text-slate-400 font-bold block">Fiados del Día</span>
+                    <span className="text-base sm:text-lg font-black text-amber-400">$180.000</span>
+                  </div>
+                </div>
+
+                {/* Desglose de medios de pago */}
+                <div className="bg-slate-950/60 p-3.5 rounded-xl space-y-2 border border-slate-800/60 text-xs">
+                  <span className="text-[11px] font-bold text-slate-400 block">Desglose de Medios de Pago:</span>
+                  <div className="flex justify-between items-center text-slate-300">
+                    <span className="flex items-center gap-1.5"><Banknote size={14} className="text-emerald-400"/> Efectivo físico en cajón:</span>
+                    <span className="font-mono font-black text-white">$385.000</span>
+                  </div>
+                  <div className="flex justify-between items-center text-slate-300">
+                    <span className="flex items-center gap-1.5"><Smartphone size={14} className="text-blue-400"/> Nequi / Daviplata / Bancos:</span>
+                    <span className="font-mono font-black text-white">$260.000</span>
+                  </div>
+                  <div className="flex justify-between items-center text-slate-300">
+                    <span className="flex items-center gap-1.5"><CreditCard size={14} className="text-purple-400"/> Datáfono (Tarjetas):</span>
+                    <span className="font-mono font-black text-white">$120.000</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="lg:col-span-5 space-y-3 text-left">
+                <h4 className="text-xl font-black text-slate-900 dark:text-white">Cierra la caja en 2 segundos</h4>
+                <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400 leading-relaxed font-medium">
+                  Se acabaron las horas sumando tirillas o perdiendo dinero porque la plata no cuadra con el cuaderno. Fiabono separa automáticamente <strong>el dinero físico de las transferencias y los fiados</strong>.
+                </p>
+                <div className="bg-emerald-50 dark:bg-emerald-500/10 p-3 rounded-xl text-xs font-bold text-emerald-700 dark:text-emerald-300 border border-emerald-100 dark:border-emerald-500/20">
+                  📊 Sabes exactamente cuánto dinero contante y sonante debe haber en el cajón de tu negocio al irte a dormir.
                 </div>
               </div>
             </div>
