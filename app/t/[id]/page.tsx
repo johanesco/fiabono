@@ -110,37 +110,43 @@ export default function PaginaTicketPublico() {
     cargarTicket();
   }, [id]);
 
+  // Función infalible para fijar la pantalla en la parte superior sin saltos
+  const fijarArriba = () => {
+    if (typeof window === 'undefined') return;
+    window.scrollTo({ top: 0, left: 0, behavior: 'instant' as any });
+    document.documentElement.scrollTop = 0;
+    document.body.scrollTop = 0;
+    const anchor = document.getElementById('top-anchor');
+    if (anchor && 'scrollIntoView' in anchor) {
+      anchor.scrollIntoView({ block: 'start', inline: 'nearest', behavior: 'instant' as any });
+    }
+  };
+
   useEffect(() => {
     // Desactivar scrollRestoration automático del navegador para evitar que abra a mitad de página
     if (typeof window !== 'undefined') {
       if ('scrollRestoration' in window.history) {
         window.history.scrollRestoration = 'manual';
       }
-      window.scrollTo(0, 0);
-      document.documentElement.scrollTop = 0;
-      document.body.scrollTop = 0;
+      fijarArriba();
     }
   }, []);
 
   useEffect(() => {
     if (datosFactura && typeof window !== 'undefined') {
-      window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
-      document.documentElement.scrollTop = 0;
-      document.body.scrollTop = 0;
+      fijarArriba();
 
-      const timer = setTimeout(() => {
-        window.scrollTo(0, 0);
-        document.documentElement.scrollTop = 0;
-        document.body.scrollTop = 0;
-      }, 50);
+      const t1 = setTimeout(fijarArriba, 50);
+      const t2 = setTimeout(fijarArriba, 180);
 
       requestAnimationFrame(() => {
-        window.scrollTo(0, 0);
-        document.documentElement.scrollTop = 0;
-        document.body.scrollTop = 0;
+        fijarArriba();
       });
 
-      return () => clearTimeout(timer);
+      return () => {
+        clearTimeout(t1);
+        clearTimeout(t2);
+      };
     }
   }, [datosFactura]);
 
@@ -250,8 +256,81 @@ export default function PaginaTicketPublico() {
     }
   };
 
+function SkeletonTicketCard() {
   return (
-    <div className="min-h-[100dvh] bg-slate-100 dark:bg-slate-950 text-slate-900 dark:text-slate-100 flex flex-col items-center px-2.5 pt-1 pb-4 sm:p-6 select-none font-sans">
+    <div
+      style={{ overflowAnchor: 'none' }}
+      className="w-full max-w-[340px] bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 p-3 sm:p-4 rounded-2xl shadow-md border border-slate-200 dark:border-slate-800 font-mono text-xs flex flex-col shrink-0 mx-auto my-0 animate-pulse"
+    >
+      {/* Encabezado simulado */}
+      <div className="flex flex-col items-center pb-2 border-b border-dashed border-slate-200 dark:border-slate-800 gap-1.5">
+        <div className="w-14 h-9 bg-slate-200 dark:bg-slate-800 rounded-lg" />
+        <div className="w-32 h-4 bg-slate-200 dark:bg-slate-800 rounded" />
+        <div className="w-24 h-2.5 bg-slate-100 dark:bg-slate-800/60 rounded" />
+        <div className="w-28 h-4 bg-slate-100 dark:bg-slate-800/60 rounded-full mt-1" />
+      </div>
+
+      {/* Metadatos simulados */}
+      <div className="py-2 border-b border-dashed border-slate-200 dark:border-slate-800 space-y-1.5">
+        <div className="flex justify-between">
+          <div className="w-12 h-2.5 bg-slate-100 dark:bg-slate-800/60 rounded" />
+          <div className="w-20 h-2.5 bg-slate-200 dark:bg-slate-800 rounded" />
+        </div>
+        <div className="flex justify-between">
+          <div className="w-12 h-2.5 bg-slate-100 dark:bg-slate-800/60 rounded" />
+          <div className="w-28 h-2.5 bg-slate-200 dark:bg-slate-800 rounded" />
+        </div>
+        <div className="flex justify-between">
+          <div className="w-16 h-2.5 bg-slate-100 dark:bg-slate-800/60 rounded" />
+          <div className="w-24 h-2.5 bg-slate-200 dark:bg-slate-800 rounded" />
+        </div>
+      </div>
+
+      {/* Artículos simulados */}
+      <div className="py-2 border-b border-dashed border-slate-200 dark:border-slate-800 space-y-2">
+        <div className="flex justify-between">
+          <div className="w-24 h-2.5 bg-slate-200 dark:bg-slate-800 rounded" />
+          <div className="w-12 h-2.5 bg-slate-200 dark:bg-slate-800 rounded" />
+        </div>
+        <div className="flex justify-between">
+          <div className="w-36 h-3 bg-slate-100 dark:bg-slate-800/60 rounded" />
+          <div className="w-14 h-3 bg-slate-100 dark:bg-slate-800/60 rounded" />
+        </div>
+        <div className="flex justify-between">
+          <div className="w-28 h-3 bg-slate-100 dark:bg-slate-800/60 rounded" />
+          <div className="w-14 h-3 bg-slate-100 dark:bg-slate-800/60 rounded" />
+        </div>
+      </div>
+
+      {/* Totales simulados */}
+      <div className="py-2 border-b border-dashed border-slate-200 dark:border-slate-800 space-y-2">
+        <div className="flex justify-between items-center pt-1">
+          <div className="w-16 h-4 bg-slate-200 dark:bg-slate-800 rounded" />
+          <div className="w-24 h-5 bg-slate-300 dark:bg-slate-700 rounded" />
+        </div>
+        <div className="flex justify-between">
+          <div className="w-20 h-2.5 bg-slate-100 dark:bg-slate-800/60 rounded" />
+          <div className="w-24 h-2.5 bg-slate-100 dark:bg-slate-800/60 rounded" />
+        </div>
+      </div>
+
+      {/* Pie simulado */}
+      <div className="pt-2 flex flex-col items-center gap-1">
+        <div className="w-36 h-2.5 bg-slate-100 dark:bg-slate-800/60 rounded" />
+        <div className="w-20 h-2 bg-slate-100 dark:bg-slate-800/60 rounded" />
+      </div>
+    </div>
+  );
+}
+
+  return (
+    <div
+      style={{ overflowAnchor: 'none' }}
+      className="min-h-[100dvh] bg-slate-100 dark:bg-slate-950 text-slate-900 dark:text-slate-100 flex flex-col items-center justify-start px-2.5 pt-1 pb-4 sm:p-6 select-none font-sans overflow-x-hidden"
+    >
+      {/* ANCLA INVISIBLE PARA FORZAR SIEMPRE EL TOPE DE LA PANTALLA */}
+      <div id="top-anchor" className="w-full h-0 pointer-events-none -mt-1" />
+
       {/* HEADER DE LA PÁGINA PÚBLICA */}
       <header className="ticket-print-hide w-full max-w-[340px] sm:max-w-[380px] flex items-center justify-between py-1 mb-1 shrink-0">
         <div className="flex items-center gap-1.5">
@@ -267,14 +346,6 @@ export default function PaginaTicketPublico() {
           <span>Comprobante Verificado</span>
         </div>
       </header>
-
-      {/* ESTADO DE CARGA */}
-      {cargando && (
-        <div className="flex-1 flex flex-col items-center justify-center gap-3 py-16">
-          <Loader2 size={32} className="animate-spin text-emerald-600" />
-          <p className="font-bold text-xs text-slate-500">Cargando comprobante...</p>
-        </div>
-      )}
 
       {/* ESTADO DE ERROR */}
       {!cargando && error && (
@@ -296,7 +367,22 @@ export default function PaginaTicketPublico() {
         </div>
       )}
 
-      {/* VISOR DEL TICKET */}
+      {/* ESTADO DE CARGA — SKELETON EN LA MISMA POSICIÓN EXACTA (CERO LAYOUT SHIFT) */}
+      {cargando && (
+        <main className="w-full max-w-[340px] sm:max-w-[380px] flex flex-col items-center">
+          <div className="w-full flex justify-center">
+            <SkeletonTicketCard />
+          </div>
+          <div className="ticket-print-hide w-full mt-2.5 sm:mt-4">
+            <div className="w-full py-2.5 sm:py-3 px-4 bg-slate-200/80 dark:bg-slate-800/80 text-slate-500 dark:text-slate-400 font-bold rounded-xl sm:rounded-2xl shadow-sm flex items-center justify-center gap-2 text-xs">
+              <Loader2 size={15} className="animate-spin text-emerald-600 shrink-0" />
+              <span>Cargando comprobante...</span>
+            </div>
+          </div>
+        </main>
+      )}
+
+      {/* VISOR DEL TICKET REAL */}
       {!cargando && datosFactura && (
         <main className="w-full max-w-[340px] sm:max-w-[380px] flex flex-col items-center">
           <div className="w-full flex justify-center">
