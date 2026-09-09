@@ -110,16 +110,12 @@ export default function PaginaTicketPublico() {
     cargarTicket();
   }, [id]);
 
-  // Función infalible para fijar la pantalla en la parte superior sin saltos
+  // Función para garantizar scroll arriba sin interferencias
   const fijarArriba = () => {
     if (typeof window === 'undefined') return;
     window.scrollTo({ top: 0, left: 0, behavior: 'instant' as any });
     document.documentElement.scrollTop = 0;
     document.body.scrollTop = 0;
-    const anchor = document.getElementById('top-anchor');
-    if (anchor && 'scrollIntoView' in anchor) {
-      anchor.scrollIntoView({ block: 'start', inline: 'nearest', behavior: 'instant' as any });
-    }
   };
 
   useEffect(() => {
@@ -136,8 +132,8 @@ export default function PaginaTicketPublico() {
     if (datosFactura && typeof window !== 'undefined') {
       fijarArriba();
 
-      const t1 = setTimeout(fijarArriba, 50);
-      const t2 = setTimeout(fijarArriba, 180);
+      const t1 = setTimeout(fijarArriba, 40);
+      const t2 = setTimeout(fijarArriba, 150);
 
       requestAnimationFrame(() => {
         fijarArriba();
@@ -325,14 +321,15 @@ function SkeletonTicketCard() {
 
   return (
     <div
-      style={{ overflowAnchor: 'none' }}
-      className="min-h-[100dvh] bg-slate-100 dark:bg-slate-950 text-slate-900 dark:text-slate-100 flex flex-col items-center justify-start px-2.5 pt-1 pb-4 sm:p-6 select-none font-sans overflow-x-hidden"
+      style={{
+        overflowAnchor: 'none',
+        paddingTop: 'max(calc(env(safe-area-inset-top, 0px) + 16px), 24px)',
+        paddingBottom: 'max(calc(env(safe-area-inset-bottom, 0px) + 24px), 32px)',
+      }}
+      className="min-h-[100dvh] bg-slate-100 dark:bg-slate-950 text-slate-900 dark:text-slate-100 flex flex-col items-center justify-start px-3 select-none font-sans overflow-x-hidden"
     >
-      {/* ANCLA INVISIBLE PARA FORZAR SIEMPRE EL TOPE DE LA PANTALLA */}
-      <div id="top-anchor" className="w-full h-0 pointer-events-none -mt-1" />
-
       {/* HEADER DE LA PÁGINA PÚBLICA */}
-      <header className="ticket-print-hide w-full max-w-[340px] sm:max-w-[380px] flex items-center justify-between py-1 mb-1 shrink-0">
+      <header className="ticket-print-hide w-full max-w-[340px] sm:max-w-[380px] flex items-center justify-between pb-2 mb-1.5 shrink-0">
         <div className="flex items-center gap-1.5">
           <div className="w-6 h-6 sm:w-7 sm:h-7 rounded-lg bg-emerald-600 text-white flex items-center justify-center font-black text-xs shadow-sm">
             F
@@ -341,7 +338,7 @@ function SkeletonTicketCard() {
             Fiabono
           </span>
         </div>
-        <div className="flex items-center gap-1 text-[9.5px] sm:text-[10.5px] font-bold text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-200 dark:border-emerald-800/50">
+        <div className="flex items-center gap-1 text-[9.5px] sm:text-[10.5px] font-bold text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-500/10 px-2.5 py-0.5 rounded-full border border-emerald-200 dark:border-emerald-800/50">
           <ShieldCheck size={12} />
           <span>Comprobante Verificado</span>
         </div>
