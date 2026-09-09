@@ -111,8 +111,36 @@ export default function PaginaTicketPublico() {
   }, [id]);
 
   useEffect(() => {
+    // Desactivar scrollRestoration automático del navegador para evitar que abra a mitad de página
+    if (typeof window !== 'undefined') {
+      if ('scrollRestoration' in window.history) {
+        window.history.scrollRestoration = 'manual';
+      }
+      window.scrollTo(0, 0);
+      document.documentElement.scrollTop = 0;
+      document.body.scrollTop = 0;
+    }
+  }, []);
+
+  useEffect(() => {
     if (datosFactura && typeof window !== 'undefined') {
       window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+      document.documentElement.scrollTop = 0;
+      document.body.scrollTop = 0;
+
+      const timer = setTimeout(() => {
+        window.scrollTo(0, 0);
+        document.documentElement.scrollTop = 0;
+        document.body.scrollTop = 0;
+      }, 50);
+
+      requestAnimationFrame(() => {
+        window.scrollTo(0, 0);
+        document.documentElement.scrollTop = 0;
+        document.body.scrollTop = 0;
+      });
+
+      return () => clearTimeout(timer);
     }
   }, [datosFactura]);
 
@@ -223,44 +251,44 @@ export default function PaginaTicketPublico() {
   };
 
   return (
-    <div className="min-h-[100dvh] bg-slate-100 dark:bg-slate-950 text-slate-900 dark:text-slate-100 flex flex-col items-center px-3 pt-2 pb-6 sm:p-6 select-none font-sans">
+    <div className="min-h-[100dvh] bg-slate-100 dark:bg-slate-950 text-slate-900 dark:text-slate-100 flex flex-col items-center px-2.5 pt-1 pb-4 sm:p-6 select-none font-sans">
       {/* HEADER DE LA PÁGINA PÚBLICA */}
-      <header className="ticket-print-hide w-full max-w-[380px] flex items-center justify-between py-2 mb-1.5 shrink-0">
-        <div className="flex items-center gap-2">
-          <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-xl bg-emerald-600 text-white flex items-center justify-center font-black text-xs sm:text-sm shadow-md">
+      <header className="ticket-print-hide w-full max-w-[340px] sm:max-w-[380px] flex items-center justify-between py-1 mb-1 shrink-0">
+        <div className="flex items-center gap-1.5">
+          <div className="w-6 h-6 sm:w-7 sm:h-7 rounded-lg bg-emerald-600 text-white flex items-center justify-center font-black text-xs shadow-sm">
             F
           </div>
-          <span className="font-black text-sm sm:text-base tracking-tight text-slate-800 dark:text-slate-100">
+          <span className="font-black text-xs sm:text-sm tracking-tight text-slate-800 dark:text-slate-100">
             Fiabono
           </span>
         </div>
-        <div className="flex items-center gap-1 text-[10px] sm:text-[11px] font-bold text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-500/10 px-2.5 py-1 rounded-full border border-emerald-200 dark:border-emerald-800/50">
-          <ShieldCheck size={13} />
+        <div className="flex items-center gap-1 text-[9.5px] sm:text-[10.5px] font-bold text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-200 dark:border-emerald-800/50">
+          <ShieldCheck size={12} />
           <span>Comprobante Verificado</span>
         </div>
       </header>
 
       {/* ESTADO DE CARGA */}
       {cargando && (
-        <div className="flex-1 flex flex-col items-center justify-center gap-3 py-20">
-          <Loader2 size={36} className="animate-spin text-emerald-600" />
-          <p className="font-bold text-sm text-slate-500">Cargando comprobante...</p>
+        <div className="flex-1 flex flex-col items-center justify-center gap-3 py-16">
+          <Loader2 size={32} className="animate-spin text-emerald-600" />
+          <p className="font-bold text-xs text-slate-500">Cargando comprobante...</p>
         </div>
       )}
 
       {/* ESTADO DE ERROR */}
       {!cargando && error && (
-        <div className="w-full max-w-[380px] bg-white dark:bg-slate-900 p-6 rounded-3xl shadow-xl border border-rose-100 dark:border-rose-950 text-center my-auto">
-          <div className="w-14 h-14 rounded-2xl bg-rose-50 dark:bg-rose-500/10 text-rose-500 flex items-center justify-center mx-auto mb-3">
-            <AlertCircle size={30} />
+        <div className="w-full max-w-[340px] sm:max-w-[380px] bg-white dark:bg-slate-900 p-6 rounded-3xl shadow-xl border border-rose-100 dark:border-rose-950 text-center my-auto">
+          <div className="w-12 h-12 rounded-2xl bg-rose-50 dark:bg-rose-500/10 text-rose-500 flex items-center justify-center mx-auto mb-3">
+            <AlertCircle size={26} />
           </div>
-          <h2 className="text-lg font-black text-slate-900 dark:text-white mb-2">Comprobante no disponible</h2>
-          <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed mb-6">
+          <h2 className="text-base font-black text-slate-900 dark:text-white mb-2">Comprobante no disponible</h2>
+          <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed mb-5">
             {error}
           </p>
           <a
             href="/"
-            className="inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-slate-900 dark:bg-white text-white dark:text-slate-900 rounded-xl font-bold text-xs shadow-md"
+            className="inline-flex items-center justify-center gap-2 px-4 py-2 bg-slate-900 dark:bg-white text-white dark:text-slate-900 rounded-xl font-bold text-xs shadow-md"
           >
             <ArrowLeft size={14} />
             <span>Ir a Fiabono</span>
@@ -270,27 +298,27 @@ export default function PaginaTicketPublico() {
 
       {/* VISOR DEL TICKET */}
       {!cargando && datosFactura && (
-        <main className="w-full max-w-[380px] flex flex-col items-center">
+        <main className="w-full max-w-[340px] sm:max-w-[380px] flex flex-col items-center">
           <div className="w-full flex justify-center">
             <VistaTicketCard datos={datosFactura} ticketRef={ticketRef} />
           </div>
 
           {/* BOTÓN DE ACCIÓN PARA EL CLIENTE */}
-          <div className="ticket-print-hide w-full mt-4">
+          <div className="ticket-print-hide w-full mt-2.5 sm:mt-4">
             <button
               type="button"
               disabled={generandoDescarga}
               onClick={descargarImagen}
-              className="w-full py-3.5 px-4 bg-emerald-600 hover:bg-emerald-700 text-white font-black rounded-2xl shadow-lg flex items-center justify-center gap-2 transition active:scale-95 text-xs text-center cursor-pointer disabled:opacity-60"
+              className="w-full py-2.5 sm:py-3 px-4 bg-emerald-600 hover:bg-emerald-700 text-white font-black rounded-xl sm:rounded-2xl shadow-md flex items-center justify-center gap-2 transition active:scale-95 text-xs text-center cursor-pointer disabled:opacity-60"
             >
-              {generandoDescarga ? <Loader2 size={16} className="animate-spin shrink-0" /> : <Download size={16} className="shrink-0" />}
+              {generandoDescarga ? <Loader2 size={15} className="animate-spin shrink-0" /> : <Download size={15} className="shrink-0" />}
               <span>{generandoDescarga ? "Guardando imagen..." : "Guardar Comprobante"}</span>
             </button>
           </div>
 
           {/* PIE DE PÁGINA INFORMATIVO Y PROMOCIONAL */}
-          <footer className="ticket-print-hide text-center py-6 text-slate-400 dark:text-slate-500 text-[11px] space-y-1">
-            <p>Este es un recibo digital emitido por el comercio mediante Fiabono.</p>
+          <footer className="ticket-print-hide text-center py-3 text-slate-400 dark:text-slate-500 text-[10px] space-y-0.5">
+            <p>Recibo digital emitido mediante Fiabono.</p>
             <p className="font-semibold text-slate-600 dark:text-slate-400">
               ¿Tienes un negocio? Administra tus ventas y fiados gratis en{" "}
               <a href="/" className="text-emerald-600 dark:text-emerald-400 font-bold hover:underline">

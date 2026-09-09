@@ -45,18 +45,18 @@ export default function VistaTicketCard({ datos, ticketRef }: VistaTicketCardPro
     <div
       id="seccion-ticket-impresion"
       ref={ticketRef}
-      className="w-full max-w-[330px] h-fit bg-white text-slate-900 p-3.5 sm:p-4 rounded-2xl shadow-lg border border-slate-200 font-mono text-xs flex flex-col shrink-0 mx-auto my-0 sm:my-1"
+      className="w-full max-w-[340px] h-fit bg-white text-slate-900 p-3 sm:p-4 rounded-2xl shadow-md border border-slate-200 font-mono text-xs flex flex-col shrink-0 mx-auto my-0"
     >
       {/* ENCABEZADO NEGOCIO */}
-      <div className="text-center pb-2 border-b border-dashed border-slate-300">
+      <div className="text-center pb-1.5 border-b border-dashed border-slate-300">
         {/* LOGO DEL NEGOCIO (SI ESTÁ CONFIGURADO) */}
         {datos.logoNegocio && (
-          <div className="flex justify-center mb-2">
+          <div className="flex justify-center mb-1.5">
             <img 
               src={datos.logoNegocio} 
               alt="Logo Negocio" 
               crossOrigin="anonymous"
-              className="max-h-12 max-w-[120px] object-contain filter grayscale contrast-125"
+              className="max-h-10 max-w-[110px] object-contain filter grayscale contrast-125"
             />
           </div>
         )}

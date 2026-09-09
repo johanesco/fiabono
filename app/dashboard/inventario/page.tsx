@@ -186,6 +186,7 @@ export default function InventarioPage() {
   const [categoriaEditandoModal, setCategoriaEditandoModal] = useState<string | null>(null);
   const [nuevoNombreCatModal, setNuevoNombreCatModal] = useState('');
   const [guardandoCatModal, setGuardandoCatModal] = useState(false);
+  const [categoriaAEliminarConfirm, setCategoriaAEliminarConfirm] = useState<{ nombre: string; conteoProds: number } | null>(null);
 
   const [limiteRender, setLimiteRender] = useState(20);
 
@@ -2327,19 +2328,19 @@ export default function InventarioPage() {
     }
   };
 
-  const eliminarCategoriaGlobal = async (catAEliminar: string) => {
+  const solicitarEliminarCategoria = (catAEliminar: string) => {
     if (catAEliminar.toLowerCase() === 'general') {
-      toast.error("La categoría 'General' es la predeterminada y no se puede eliminar.");
+      toast.error("La categoría 'General' es la base del catálogo y no se puede eliminar.", { icon: '🛡️' });
       return;
     }
+    const conteo = inventario.filter(p => (p.categoria || '').trim().toLowerCase() === catAEliminar.toLowerCase()).length;
+    setCategoriaAEliminarConfirm({ nombre: catAEliminar, conteoProds: conteo });
+  };
 
+  const ejecutarEliminacionCategoria = async () => {
+    if (!categoriaAEliminarConfirm) return;
+    const catAEliminar = categoriaAEliminarConfirm.nombre;
     const prodsAfectados = inventario.filter(p => (p.categoria || '').trim().toLowerCase() === catAEliminar.toLowerCase());
-    const confirmar = window.confirm(
-      prodsAfectados.length > 0
-        ? `Esta categoría tiene ${prodsAfectados.length} producto(s) asignados.\n\nSi la eliminas, estos productos se reasignarán a la categoría "General". ¿Deseas continuar?`
-        : `¿Eliminar la categoría "${catAEliminar}" del catálogo?`
-    );
-    if (!confirmar) return;
 
     try {
       setGuardandoCatModal(true);
@@ -2367,6 +2368,7 @@ export default function InventarioPage() {
       toast.error("No se pudo eliminar la categoría.");
     } finally {
       setGuardandoCatModal(false);
+      setCategoriaAEliminarConfirm(null);
     }
   };
 
@@ -5610,9 +5612,9 @@ export default function InventarioPage() {
         </div>
       )}
 
-      {/* MODAL DEDICADO DE GESTIÓN DE CATEGORÍAS */}
-      {modalGestionCategorias && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/80 backdrop-blur-sm animate-in fade-in duration-150">
+      {/* MODAL DEDICADO DE GESTIÓN DE CATEGORÍAS (Portal z-[100] para quedar siempre al frente de todo) */}
+      {modalGestionCategorias && mounted && createPortal(
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-3 sm:p-4 bg-slate-950/80 backdrop-blur-sm animate-in fade-in duration-150">
           <div className="bg-white dark:bg-[#0f172a] w-full max-w-lg rounded-3xl border border-slate-200 dark:border-slate-800 shadow-2xl overflow-hidden flex flex-col max-h-[90vh] animate-in zoom-in-95 duration-150">
             {/* Cabecera */}
             <div className="p-4 sm:p-5 border-b border-slate-100 dark:border-slate-800/80 flex items-center justify-between gap-3 bg-gradient-to-r from-violet-500/10 via-purple-500/5 to-transparent">
@@ -5796,7 +5798,7 @@ export default function InventarioPage() {
                             {!esGeneral && (
                               <button
                                 type="button"
-                                onClick={() => eliminarCategoriaGlobal(cat)}
+                                onClick={() => solicitarEliminarCategoria(cat)}
                                 className="p-1.5 text-rose-500 hover:text-rose-700 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded-lg transition cursor-pointer"
                                 title="Eliminar categoría"
                               >
@@ -5830,7 +5832,58 @@ export default function InventarioPage() {
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
+      )}
+
+      {/* MODAL DE CONFIRMACIÓN PROPIO PARA ELIMINAR CATEGORÍA (CERO MENSAJES DEL SISTEMA) */}
+      {categoriaAEliminarConfirm && mounted && createPortal(
+        <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md animate-in fade-in duration-150">
+          <div className="bg-white dark:bg-[#0f172a] w-full max-w-md rounded-3xl border border-slate-200 dark:border-slate-800 shadow-2xl p-6 text-center animate-in zoom-in-95 duration-150">
+            <div className="w-16 h-16 rounded-3xl bg-rose-50 dark:bg-rose-500/10 text-rose-500 flex items-center justify-center mx-auto mb-4 border border-rose-100 dark:border-rose-900/40 shadow-inner">
+              <Trash2 size={30} />
+            </div>
+
+            <h3 className="text-lg font-black text-slate-900 dark:text-white mb-2">
+              ¿Eliminar categoría "{categoriaAEliminarConfirm.nombre}"?
+            </h3>
+
+            {categoriaAEliminarConfirm.conteoProds > 0 ? (
+              <div className="space-y-2 mb-6">
+                <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
+                  Esta categoría tiene <strong className="text-slate-900 dark:text-white">{categoriaAEliminarConfirm.conteoProds} producto(s) asignados</strong>.
+                </p>
+                <div className="p-3 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/60 rounded-2xl text-[11px] text-amber-800 dark:text-amber-300 font-medium text-left">
+                  🛡️ <strong>Protección de catálogo:</strong> Para no dejar productos huérfanos, todos se reasignarán automáticamente a la categoría base <strong>"General"</strong>.
+                </div>
+              </div>
+            ) : (
+              <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed mb-6">
+                No hay productos asignados a esta categoría. Se eliminará del catálogo de categorías disponibles.
+              </p>
+            )}
+
+            <div className="grid grid-cols-2 gap-3">
+              <button
+                type="button"
+                disabled={guardandoCatModal}
+                onClick={() => setCategoriaAEliminarConfirm(null)}
+                className="py-3 px-4 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-bold rounded-2xl transition cursor-pointer text-xs"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                disabled={guardandoCatModal}
+                onClick={ejecutarEliminacionCategoria}
+                className="py-3 px-4 bg-rose-600 hover:bg-rose-700 disabled:opacity-50 text-white font-black rounded-2xl transition shadow-lg shadow-rose-600/25 cursor-pointer text-xs active:scale-95"
+              >
+                {guardandoCatModal ? "Eliminando..." : "Sí, Eliminar"}
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
       )}
 
       {/* MODAL UPSELL DE SUSCRIPCIÓN PARA EXCEL, QR O LÍMITES */}

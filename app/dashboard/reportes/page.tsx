@@ -907,117 +907,111 @@ export default function ReportesPage() {
 
       {/* BLOQUE EXCLUSIVO ADMINISTRADOR: RENTABILIDAD Y UTILIDAD ESTIMADA */}
       {esAdmin && (
-        <div className="bg-gradient-to-br from-slate-900 via-indigo-950/90 to-slate-900 text-white p-5 sm:p-6 rounded-[2rem] sm:rounded-3xl border border-indigo-800/40 shadow-xl flex flex-col gap-4 relative overflow-hidden">
-          {/* Fondo sutil decorativo */}
-          <div className="absolute -right-12 -top-12 w-48 h-48 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none" />
-          <div className="absolute -left-12 -bottom-12 w-48 h-48 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none" />
-
+        <div className="bg-white dark:bg-[#0f172a] p-4 sm:p-6 rounded-[2rem] sm:rounded-3xl border border-slate-100 dark:border-slate-800/80 shadow-sm flex flex-col gap-4">
           {/* Cabecera de la sección */}
-          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 border-b border-indigo-900/60 pb-3">
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 border-b border-slate-100 dark:border-slate-800/60 pb-3">
             <div className="flex items-center gap-2.5">
-              <div className="w-9 h-9 rounded-xl bg-indigo-500/20 border border-indigo-400/30 text-indigo-300 flex items-center justify-center font-black shrink-0">
+              <div className="w-8 h-8 rounded-xl bg-indigo-50 dark:bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 flex items-center justify-center font-black shrink-0">
                 <TrendingUp size={18} />
               </div>
               <div>
-                <div className="flex items-center gap-2">
-                  <h3 className="text-sm sm:text-base font-black text-white flex items-center gap-1.5">
+                <div className="flex flex-wrap items-center gap-2">
+                  <h3 className="text-sm sm:text-base font-black text-slate-900 dark:text-white flex items-center gap-1.5">
                     Utilidad Bruta y Margen de Rentabilidad
                   </h3>
-                  <span className="inline-flex items-center gap-1 bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 text-[9px] sm:text-[10px] font-black px-2 py-0.5 rounded-full">
+                  <span className="inline-flex items-center gap-1 bg-indigo-50 dark:bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border border-indigo-100 dark:border-indigo-500/20 text-[10px] font-bold px-2 py-0.5 rounded-lg">
                     <Lock size={10} /> Solo Administrador
                   </span>
                 </div>
-                <p className="text-[11px] text-slate-300">
+                <p className="text-[11px] text-slate-500 dark:text-slate-400">
                   Estimación basada en los costos de adquisición registrados en tu inventario vs ventas del periodo ({metaPeriodo.badgePeriodo}).
                 </p>
               </div>
             </div>
 
-            <div className="flex items-center gap-1.5 self-end sm:self-auto">
-              <span className="text-xs font-black text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-3 py-1 rounded-xl">
-                Margen Promedio: {margenGananciaEstimado}%
-              </span>
-            </div>
+            <span className="text-xs font-black text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-500/10 border border-indigo-200 dark:border-indigo-500/20 px-3 py-1 rounded-xl shrink-0 self-start sm:self-auto">
+              Margen Promedio: {margenGananciaEstimado}%
+            </span>
           </div>
 
           {/* Tarjetas de métricas de Utilidad */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
             {/* 1. Utilidad Bruta Estimada */}
-            <div className="p-4 rounded-2xl bg-white/5 border border-white/10 backdrop-blur-sm flex flex-col justify-between">
-              <div className="flex items-center justify-between gap-1 mb-1">
-                <span className="text-[10px] sm:text-[11px] font-bold text-slate-300 uppercase tracking-wider">
+            <div className="p-3.5 sm:p-4 rounded-2xl bg-slate-50 dark:bg-[#020617] border border-slate-100 dark:border-slate-800/80 flex flex-col justify-between">
+              <div className="flex items-center justify-between gap-1 mb-2">
+                <span className="text-[10px] sm:text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
                   Ganancia Bruta Estimada
                 </span>
-                <span className="text-xs font-black text-emerald-400">
+                <span className="text-[10px] sm:text-xs font-black px-1.5 py-0.5 rounded bg-emerald-100 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300">
                   +{margenGananciaEstimado}%
                 </span>
               </div>
-              <p className="text-xl sm:text-2xl font-black text-emerald-400 tracking-tight">
+              <p className="text-lg sm:text-2xl font-black text-emerald-600 dark:text-emerald-400 tracking-tight truncate">
                 ${utilidadBrutaEstimada.toLocaleString('es-CO')}
               </p>
-              <p className="text-[10px] text-slate-400 mt-1 font-medium">
-                Ventas (${totalVentas.toLocaleString('es-CO')}) - Costo de compra
-              </p>
+              <span className="text-[10px] text-slate-400 mt-1 font-medium truncate">
+                Ventas (${totalVentas.toLocaleString('es-CO')}) - Costo
+              </span>
             </div>
 
             {/* 2. Costo de Mercancía Vendida (COGS) */}
-            <div className="p-4 rounded-2xl bg-white/5 border border-white/10 backdrop-blur-sm flex flex-col justify-between">
-              <div className="flex items-center justify-between gap-1 mb-1">
-                <span className="text-[10px] sm:text-[11px] font-bold text-slate-300 uppercase tracking-wider">
+            <div className="p-3.5 sm:p-4 rounded-2xl bg-slate-50 dark:bg-[#020617] border border-slate-100 dark:border-slate-800/80 flex flex-col justify-between">
+              <div className="flex items-center justify-between gap-1 mb-2">
+                <span className="text-[10px] sm:text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
                   Costo de Mercancía
                 </span>
-                <span className="text-[10px] font-bold text-indigo-300">
+                <span className="text-[10px] font-bold text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-500/10 px-1.5 py-0.5 rounded">
                   {productosConCostoCount} un. costeadas
                 </span>
               </div>
-              <p className="text-xl sm:text-2xl font-black text-slate-100 tracking-tight">
+              <p className="text-lg sm:text-2xl font-black text-slate-900 dark:text-white tracking-tight truncate">
                 ${costoTotalMercanciaVendida.toLocaleString('es-CO')}
               </p>
-              <p className="text-[10px] text-slate-400 mt-1 font-medium">
-                Inversión en la adquisición de lo vendido
-              </p>
+              <span className="text-[10px] text-slate-400 mt-1 font-medium truncate">
+                Inversión en adquisición de lo vendido
+              </span>
             </div>
 
             {/* 3. Retorno / Eficiencia Comercial */}
-            <div className="p-4 rounded-2xl bg-white/5 border border-white/10 backdrop-blur-sm flex flex-col justify-between">
-              <div className="flex items-center justify-between gap-1 mb-1">
-                <span className="text-[10px] sm:text-[11px] font-bold text-slate-300 uppercase tracking-wider">
+            <div className="p-3.5 sm:p-4 rounded-2xl bg-slate-50 dark:bg-[#020617] border border-slate-100 dark:border-slate-800/80 flex flex-col justify-between">
+              <div className="flex items-center justify-between gap-1 mb-2">
+                <span className="text-[10px] sm:text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
                   Salud del Margen
                 </span>
-                <span className="text-xs font-black text-indigo-300">
+                <span className="text-[10px] sm:text-xs font-black text-indigo-600 dark:text-indigo-400">
                   {margenGananciaEstimado >= 35 ? '🔥 Óptimo' : margenGananciaEstimado > 0 ? '👍 Estable' : 'ℹ️ Sin costo'}
                 </span>
               </div>
               <div className="mt-1 space-y-1.5">
-                <div className="w-full bg-slate-800 rounded-full h-2.5 overflow-hidden flex">
+                <div className="w-full bg-slate-200 dark:bg-slate-800 rounded-full h-2.5 overflow-hidden flex">
                   <div 
-                    className="bg-indigo-500 h-full transition-all duration-500" 
+                    className="bg-slate-400 dark:bg-slate-600 h-full transition-all duration-500" 
                     style={{ width: `${Math.min(100, Math.max(0, 100 - margenGananciaEstimado))}%` }} 
                     title="Costo de mercancía"
                   />
                   <div 
-                    className="bg-emerald-400 h-full transition-all duration-500" 
+                    className="bg-emerald-500 h-full transition-all duration-500" 
                     style={{ width: `${Math.min(100, Math.max(0, margenGananciaEstimado))}%` }} 
                     title="Margen de ganancia"
                   />
                 </div>
-                <div className="flex justify-between text-[9px] text-slate-400 font-bold">
+                <div className="flex justify-between text-[9px] text-slate-500 dark:text-slate-400 font-bold">
                   <span>Costo: {100 - margenGananciaEstimado}%</span>
-                  <span className="text-emerald-400">Ganancia: {margenGananciaEstimado}%</span>
+                  <span className="text-emerald-600 dark:text-emerald-400">Ganancia: {margenGananciaEstimado}%</span>
                 </div>
               </div>
             </div>
           </div>
 
           {costoTotalMercanciaVendida === 0 && totalVentas > 0 && (
-            <div className="p-3 rounded-xl bg-indigo-500/10 border border-indigo-500/20 text-xs text-indigo-200 flex items-center justify-between gap-2">
-              <span className="text-[11px]">
+            <div className="p-3.5 rounded-2xl bg-indigo-50/80 dark:bg-indigo-950/30 border border-indigo-100 dark:border-indigo-900/50 text-xs text-indigo-900 dark:text-indigo-200 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2.5">
+              <span className="text-[11px] leading-relaxed">
                 💡 <strong>Consejo:</strong> Aún no has registrado el costo de compra en algunos de tus productos en <em>Inventario</em>. Diligencia este campo para tener la utilidad exacta en tiempo real.
               </span>
               <button
                 type="button"
                 onClick={() => router.push('/dashboard/inventario')}
-                className="px-2.5 py-1 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-bold text-[11px] shrink-0 transition cursor-pointer"
+                className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold text-[11px] shrink-0 transition cursor-pointer shadow-sm"
               >
                 Ir a Inventario →
               </button>

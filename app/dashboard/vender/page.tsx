@@ -1054,14 +1054,19 @@ function VenderContenido() {
         let descFinal = fila.descripcion.trim() || "Artículo registrado";
         const itemInv = inventario.find(p => p.nombre.trim().toLowerCase() === descFinal.toLowerCase());
         const costoUnit = itemInv?.costoCompra ? Number(itemInv.costoCompra) : 0;
-        detallesParaComprobante.push({ 
+        
+        const itemDetalle: any = { 
           descripcion: descFinal, 
           valor: subtotalFila, 
           cantidad: fila.cantidad, 
           valorUnitario: valUnitario,
-          costoUnitario: costoUnit,
-          productoId: itemInv?.id || undefined
-        }); 
+          costoUnitario: costoUnit
+        };
+        if (itemInv?.id) {
+          itemDetalle.productoId = itemInv.id;
+        }
+        detallesParaComprobante.push(itemDetalle);
+
         if (fila.cantidad > 1) { resumenNombres.push(`${fila.cantidad}x ${descFinal}`); } 
         else { resumenNombres.push(descFinal); }
       }
@@ -1382,24 +1387,26 @@ Estamos atentos para cualquier consulta.
         <div className="flex items-center gap-2 shrink-0">
           {/* Selector de Vendedor Responsable (Visible si es Terminal Multivendedor o Admin) */}
           {esTerminalMultivendedor ? (
-            <div className="flex items-center bg-white/20 hover:bg-white/25 dark:bg-white/15 dark:hover:bg-white/20 backdrop-blur-sm rounded-xl px-2 py-1 sm:px-2.5 sm:py-1.5 border border-white/25 max-w-[120px] sm:max-w-none min-w-0 transition-colors">
-              <User size={14} className="text-white/90 mr-1.5 shrink-0" />
+            <div className="flex items-center bg-white/20 hover:bg-white/30 dark:!bg-white/20 dark:hover:!bg-white/30 backdrop-blur-md rounded-xl px-2.5 py-1 sm:py-1.5 border border-white/30 max-w-[130px] sm:max-w-none min-w-0 transition-all shadow-sm">
+              <User size={13} className="text-white/90 mr-1 shrink-0" />
               <select
                 value={vendedorActivo}
                 onChange={(e) => cambiarVendedor(e.target.value)}
-                className="bg-transparent text-white font-bold text-xs outline-none cursor-pointer pr-1 truncate w-full"
+                style={{ backgroundColor: 'transparent', WebkitAppearance: 'none', MozAppearance: 'none' }}
+                className="!bg-transparent text-white font-bold text-xs outline-none cursor-pointer appearance-none pr-3 truncate w-full border-none focus:ring-0"
               >
                 {listaVendedores.map((v) => (
-                  <option key={v} value={v} className="bg-slate-900 text-white">
+                  <option key={v} value={v} className="bg-emerald-950 text-white dark:bg-slate-900">
                     {v}
                   </option>
                 ))}
               </select>
+              <ChevronDown size={11} className="text-white/80 pointer-events-none -ml-2 shrink-0" />
             </div>
           ) : (
-            <div className="hidden sm:flex items-center bg-white/20 dark:bg-white/15 backdrop-blur-sm rounded-xl px-2.5 py-1.5 border border-white/25 text-white text-xs font-bold gap-1.5 shadow-xs">
+            <div className="flex items-center bg-white/20 dark:!bg-white/20 backdrop-blur-md rounded-xl px-2.5 py-1.5 border border-white/30 text-white text-xs font-bold gap-1.5 shadow-sm">
               <User size={13} className="text-white/90" />
-              <span>{vendedorActivo}</span>
+              <span className="truncate max-w-[110px] sm:max-w-none">{vendedorActivo}</span>
             </div>
           )}
 
