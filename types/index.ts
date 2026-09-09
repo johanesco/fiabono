@@ -127,6 +127,8 @@ export interface Cliente {
   celular: string;
   deudaTotal: number;
   usuarioId: string;
+  direccion?: string;
+  notas?: string;
   fecha_creacion?: any;
 }
 

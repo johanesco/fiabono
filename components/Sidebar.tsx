@@ -1,16 +1,17 @@
 "use client";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Home, Package, Receipt, Bookmark, BarChart3, Clock, Settings, LogOut, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Home, Package, Receipt, Bookmark, BarChart3, Clock, Settings, LogOut, ChevronLeft, ChevronRight, LayoutDashboard } from 'lucide-react';
 import { signOut } from "firebase/auth";
 import { auth } from "../firebase";
+import LogoFiabono, { IsotipoFiabono } from "@/components/LogoFiabono";
 
 interface SidebarProps {
   sidebarAbierto: boolean;
   setSidebarAbierto: (estado: boolean) => void;
-  puedeVerReportes: boolean;
+  puedeVerReportes?: boolean;
   puedeGestionarSepares?: boolean;
-  nombreNegocio: string;
+  nombreNegocio?: string;
   ordenesPendientesCount?: number;
   separesActivosCount?: number;
 }
@@ -18,9 +19,9 @@ interface SidebarProps {
 export default function Sidebar({
   sidebarAbierto,
   setSidebarAbierto,
-  puedeVerReportes,
+  puedeVerReportes = false,
   puedeGestionarSepares = false,
-  nombreNegocio,
+  nombreNegocio = "Mi Negocio",
   ordenesPendientesCount = 0,
   separesActivosCount = 0
 }: SidebarProps) {
@@ -40,11 +41,15 @@ export default function Sidebar({
     <aside className={`${sidebarAbierto ? 'w-64' : 'w-20'} transition-all duration-300 hidden md:flex flex-col bg-white dark:bg-[#0f172a] border-r border-slate-200 dark:border-slate-800 p-4 shrink-0 h-screen sticky top-0 justify-between select-none`}>
       <div className="flex flex-col min-h-0">
         {/* Cabecera con botón de colapsar */}
-        <div className={`flex items-center mb-6 px-2 ${sidebarAbierto ? 'justify-between' : 'justify-center'}`}>
-          {sidebarAbierto && (
+        <div className={`flex items-center mb-6 px-1 ${sidebarAbierto ? 'justify-between' : 'justify-center flex-col gap-3'}`}>
+          {sidebarAbierto ? (
             <div className="truncate min-w-0 pr-2">
-              <h1 className="text-lg font-black text-slate-900 dark:text-white truncate">Fiabono</h1>
-              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider truncate">{nombreNegocio}</p>
+              <LogoFiabono size={28} showText={true} showBadge={false} />
+              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider truncate mt-1 pl-1">{nombreNegocio}</p>
+            </div>
+          ) : (
+            <div className="p-1.5 rounded-xl bg-slate-900 border border-emerald-500/30 shadow-sm" title={nombreNegocio}>
+              <IsotipoFiabono size={24} />
             </div>
           )}
           <button 

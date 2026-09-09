@@ -697,6 +697,53 @@ Quedamos pendientes para revisar detalles o responder cualquier duda.
                 })()}
               </div>
 
+              {/* BARRA DE ACCIONES RÁPIDAS Y WHATSAPP (SOLO ESCRITORIO) */}
+              <div className="hidden md:flex items-center justify-between gap-3 px-6 py-3.5 bg-slate-50 dark:bg-[#020617] border-b border-slate-200 dark:border-slate-800 shrink-0">
+                <div className="flex items-center gap-2">
+                  <button 
+                    type="button"
+                    onClick={() => router.push(`/dashboard/vender?clienteId=${clienteActivo.id}`)} 
+                    className="px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-white font-black rounded-xl text-xs uppercase shadow-xs transition active:scale-95 cursor-pointer text-center"
+                  >
+                    Vender
+                  </button>
+                  <button 
+                    type="button"
+                    onClick={() => router.push(`/dashboard/fiar?clienteId=${clienteActivo.id}`)} 
+                    className="px-4 py-2 bg-rose-500 hover:bg-rose-600 text-white font-black rounded-xl text-xs uppercase shadow-xs transition active:scale-95 cursor-pointer text-center"
+                  >
+                    Fiar
+                  </button>
+                  <button 
+                    type="button"
+                    onClick={() => router.push(`/dashboard/abonar?clienteId=${clienteActivo.id}`)} 
+                    className="px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white font-black rounded-xl text-xs uppercase shadow-xs transition active:scale-95 cursor-pointer text-center"
+                  >
+                    Abonar
+                  </button>
+                  {puedeSepare && (
+                    <button 
+                      type="button"
+                      onClick={() => router.push(`/dashboard/separe?clienteId=${clienteActivo.id}`)} 
+                      className="px-4 py-2 bg-violet-600 hover:bg-violet-700 text-white font-black rounded-xl text-xs uppercase shadow-xs transition active:scale-95 cursor-pointer text-center"
+                    >
+                      Separe
+                    </button>
+                  )}
+                </div>
+
+                {clienteActivo.celular && datosSesion?.rol !== 'cajero' && (
+                  <button 
+                    type="button"
+                    onClick={() => abrirWhatsApp(generarTextoComprobante('estado', clienteActivo), clienteActivo.celular)} 
+                    className="py-2 px-3.5 bg-[#25D366]/15 hover:bg-[#25D366]/25 text-[#128C7E] dark:text-[#25D366] font-black rounded-xl border border-[#25D366]/40 transition active:scale-98 cursor-pointer flex items-center gap-2 text-xs shadow-xs"
+                  >
+                    <MessageCircle size={16} className="text-[#25D366] fill-[#25D366]/30" />
+                    <span>Enviar estado de cuenta por WhatsApp</span>
+                  </button>
+                )}
+              </div>
+
               {/* HEADER MÓVIL OPTIMIZADO (Nombre centrado y prominente, saldo destacado, acciones claras) */}
               <div className="md:hidden bg-slate-50 dark:bg-[#020617] border-b border-slate-200 dark:border-slate-800 shrink-0 px-4 py-3 space-y-2.5 relative">
                 {/* Botón cerrar en esquina superior derecha */}

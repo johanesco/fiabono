@@ -24,7 +24,8 @@ import {
   Layers,
   Zap,
   Lock,
-  Percent
+  Percent,
+  ShieldAlert
 } from 'lucide-react';
 import toast from "react-hot-toast";
 import { collection, query, where, onSnapshot } from "firebase/firestore";
@@ -35,6 +36,8 @@ import { useAuth } from "../../../hooks/AuthContext";
 import { API_DB } from "../../../servicios/db";
 import { Cliente, Movimiento } from "../../../types";
 import ModalSuscripcion from "@/components/ModalSuscripcion";
+import ModalExportarReporte from "@/components/ModalExportarReporte";
+import { FileDown } from "lucide-react";
 
 const NOMBRES_MESES = [
   'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
@@ -72,6 +75,7 @@ export default function ReportesPage() {
 
   const [cargando, setCargando] = useState(true);
   const [modalSuscripcionOpen, setModalSuscripcionOpen] = useState(false);
+  const [modalExportarOpen, setModalExportarOpen] = useState(false);
   const [planInicialSuscripcion, setPlanInicialSuscripcion] = useState<'comercio' | 'pro'>('pro');
   // Estado del Live Data Inspector — ítem de gráfica actualmente inspeccionado
   const [itemInspeccionado, setItemInspeccionado] = useState<any | null>(null);
@@ -316,6 +320,59 @@ export default function ReportesPage() {
       productosConCostoCount: itemsVendidosConCosto
     };
   }, [movsVentas, mapaCostosInventario, totalVentas]);
+
+  // Análisis de Cartera y Riesgo de Clientes para el Radar
+  const analisisCarteraRiesgo = useMemo(() => {
+    const ahoraMs = Date.now();
+    let carteraRiesgo = 0;
+    let clientesRiesgoCount = 0;
+
+    clientes.forEach((c) => {
+      const deuda = c.deudaTotal || 0;
+      if (deuda > 0) {
+        // Buscar el último abono de este cliente en el historial general
+        const abonos = todosMovimientos.filter(
+          (m) => m.tipo === 'abono' && (m.clienteId === c.id || (m.clienteNombre && m.clienteNombre.trim().toLowerCase() === c.nombre.trim().toLowerCase()))
+        );
+
+        let ultimoAbonoMs = 0;
+        abonos.forEach((ab) => {
+          const t = ab.fecha?.seconds ? ab.fecha.seconds * 1000 : (ab.fecha?.toDate ? ab.fecha.toDate().getTime() : new Date(ab.fecha).getTime() || 0);
+          if (t > ultimoAbonoMs) ultimoAbonoMs = t;
+        });
+
+        const diasSinAbono = ultimoAbonoMs > 0 ? Math.floor((ahoraMs - ultimoAbonoMs) / (1000 * 60 * 60 * 24)) : 40;
+
+        if (diasSinAbono > 30) {
+          carteraRiesgo += deuda;
+          clientesRiesgoCount += 1;
+        }
+      }
+    });
+
+    const carteraSana = Math.max(0, carteraActiva - carteraRiesgo);
+    const tasaRecaudo = totalFiados > 0 ? Math.min(100, Math.round((totalAbonos / totalFiados) * 100)) : 100;
+
+    let semaforoRecaudo: 'sano' | 'observacion' | 'alerta' = 'sano';
+    let mensajeSemaforo = 'Recaudo saludable: los abonos cobrados respaldan los créditos otorgados.';
+
+    if (totalFiados > 0 && totalAbonos < totalFiados * 0.3) {
+      semaforoRecaudo = 'alerta';
+      mensajeSemaforo = 'Alerta de cartera: Los fiados otorgados superan ampliamente los abonos recibidos. Prioriza el cobro.';
+    } else if (totalFiados > 0 && totalAbonos < totalFiados * 0.7) {
+      semaforoRecaudo = 'observacion';
+      mensajeSemaforo = 'Recaudo en observación: Abonos por debajo del total de fiados concedidos este periodo.';
+    }
+
+    return {
+      carteraRiesgo,
+      clientesRiesgoCount,
+      carteraSana,
+      tasaRecaudo,
+      semaforoRecaudo,
+      mensajeSemaforo
+    };
+  }, [clientes, todosMovimientos, carteraActiva, totalFiados, totalAbonos]);
 
   // Generador de datos para Gráfica de Comportamiento Financiero
   const obtenerDatosGrafica = () => {
@@ -563,13 +620,13 @@ export default function ReportesPage() {
           </div>
         </div>
 
-        {/* Tarjetas de Resumen Difuminadas */}
+        {/* Tarjetas de Resumen Nítidas (Métricas reales del negocio) */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
           <div className="bg-white dark:bg-[#0f172a] p-6 sm:p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-800/60 shadow-sm flex items-center justify-between relative overflow-hidden">
             <div className="absolute right-0 top-0 bottom-0 w-2 bg-amber-500"></div>
             <div>
               <span className="text-xs font-extrabold text-slate-400 uppercase tracking-widest">Cartera en la Calle</span>
-              <p className="text-3xl sm:text-4xl font-black text-amber-500 mt-2 filter blur-md select-none bg-amber-500/10 px-2 rounded">
+              <p className="text-3xl sm:text-4xl font-black text-amber-500 mt-2">
                 ${carteraActiva.toLocaleString('es-CO')}
               </p>
               <p className="text-xs text-slate-500 mt-1 font-medium">Deuda total acumulada por tus clientes.</p>
@@ -588,7 +645,7 @@ export default function ReportesPage() {
                 </div>
                 <div className="h-8 w-[1px] bg-slate-200 dark:bg-slate-800"></div>
                 <div>
-                  <span className="text-3xl font-black text-rose-500 filter blur-sm select-none">{clientesConCredito}</span>
+                  <span className="text-3xl font-black text-rose-500">{clientesConCredito}</span>
                   <p className="text-[11px] text-rose-400 font-bold uppercase">Con Crédito</p>
                 </div>
               </div>
@@ -597,13 +654,14 @@ export default function ReportesPage() {
           </div>
         </div>
 
+        {/* 4 Métricas Clave Nítidas (Ventas de Hoy, Fiados de Hoy, Abonos de Hoy, Caja Neta) */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           <div className="bg-gradient-to-br from-emerald-500 to-green-600 p-6 rounded-[2rem] shadow-lg flex flex-col justify-between text-white">
             <div className="flex justify-between items-start mb-2">
               <span className="text-xs font-black uppercase tracking-widest text-emerald-100 opacity-90">{metaPeriodo.etiquetaVentas}</span>
               <div className="p-3 bg-white/20 backdrop-blur-sm rounded-2xl shrink-0"><ShoppingCart size={20} /></div>
             </div>
-            <p className="text-2xl sm:text-3xl font-black tracking-tight mt-4 filter blur-md select-none bg-black/10 px-2 rounded">
+            <p className="text-2xl sm:text-3xl font-black tracking-tight mt-4">
               ${totalVentas.toLocaleString('es-CO')}
             </p>
           </div>
@@ -613,7 +671,7 @@ export default function ReportesPage() {
               <span className="text-xs font-black uppercase tracking-widest text-rose-100 opacity-90">{metaPeriodo.etiquetaFiados}</span>
               <div className="p-3 bg-white/20 backdrop-blur-sm rounded-2xl shrink-0"><ShoppingBag size={20} /></div>
             </div>
-            <p className="text-2xl sm:text-3xl font-black tracking-tight mt-4 filter blur-md select-none bg-black/10 px-2 rounded">
+            <p className="text-2xl sm:text-3xl font-black tracking-tight mt-4">
               ${totalFiados.toLocaleString('es-CO')}
             </p>
           </div>
@@ -623,7 +681,7 @@ export default function ReportesPage() {
               <span className="text-xs font-black uppercase tracking-widest text-blue-100 opacity-90">{metaPeriodo.etiquetaAbonos}</span>
               <div className="p-3 bg-white/20 backdrop-blur-sm rounded-2xl shrink-0"><Banknote size={20} /></div>
             </div>
-            <p className="text-2xl sm:text-3xl font-black tracking-tight mt-4 filter blur-md select-none bg-black/10 px-2 rounded">
+            <p className="text-2xl sm:text-3xl font-black tracking-tight mt-4">
               ${totalAbonos.toLocaleString('es-CO')}
             </p>
           </div>
@@ -633,9 +691,243 @@ export default function ReportesPage() {
               <span className="text-[11px] font-black uppercase tracking-widest text-slate-300 opacity-90">{metaPeriodo.etiquetaCaja}</span>
               <div className="p-3 bg-white/10 backdrop-blur-sm rounded-2xl shrink-0"><TrendingUp size={20} /></div>
             </div>
-            <p className="text-2xl sm:text-3xl font-black tracking-tight mt-4 text-emerald-400 filter blur-md select-none bg-white/10 px-2 rounded">
+            <p className="text-2xl sm:text-3xl font-black tracking-tight mt-4 text-emerald-400">
               ${ingresosCaja.toLocaleString('es-CO')}
             </p>
+          </div>
+        </div>
+
+        {/* BLOQUE EXCLUSIVO: DESGLOSE POR MÉTODOS DE PAGO (ABREBOCAS DIFUMINADO) */}
+        <div className="bg-white dark:bg-[#0f172a] p-5 sm:p-7 rounded-[2rem] sm:rounded-3xl border border-slate-100 dark:border-slate-800/80 shadow-sm flex flex-col gap-5 relative">
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 border-b border-slate-100 dark:border-slate-800/60 pb-4">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-2xl bg-emerald-100 dark:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 flex items-center justify-center font-black shrink-0 shadow-xs">
+                <Banknote size={20} />
+              </div>
+              <div>
+                <h3 className="text-base sm:text-lg font-black text-slate-900 dark:text-white flex items-center gap-2 flex-wrap">
+                  <span>Desglose de Métodos de Pago</span>
+                  <span className="text-[10px] font-extrabold text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-500/10 px-2.5 py-0.5 rounded-full border border-amber-200 dark:border-amber-500/30 flex items-center gap-1 shadow-2xs">
+                    <Crown size={11} className="fill-current" /> Vista Previa PRO
+                  </span>
+                </h3>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                  Distribución exacta de Efectivo en gaveta vs Bancos (Nequi, Daviplata, Datáfono).
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => { setPlanInicialSuscripcion('pro'); setModalSuscripcionOpen(true); }}
+              className="text-xs font-black text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-500/15 hover:bg-emerald-100 px-3.5 py-1.5 rounded-xl border border-emerald-200 dark:border-emerald-500/30 transition-all cursor-pointer flex items-center gap-1.5 shadow-2xs shrink-0"
+            >
+              <Crown size={12} className="text-amber-500" /> Desbloquear Arqueo
+            </button>
+          </div>
+
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+            <div className="p-4 sm:p-5 rounded-2xl bg-slate-50 dark:bg-[#020617] border border-slate-100 dark:border-slate-800/80 flex flex-col justify-between min-h-[110px] transition-all hover:border-emerald-500/30">
+              <div className="flex items-center justify-between gap-1">
+                <span className="text-[11px] font-extrabold text-slate-500 dark:text-slate-400 uppercase tracking-wider flex items-center gap-1.5 truncate">
+                  <Banknote size={15} className="text-emerald-500 shrink-0" /> Efectivo
+                </span>
+                <span className="text-[10px] font-black text-emerald-600 bg-emerald-50 dark:bg-emerald-500/10 px-1.5 py-0.5 rounded">Gaveta</span>
+              </div>
+              <p className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white filter blur-xs select-none mt-2 tracking-tight">
+                ${Math.max(0, totalEfectivo).toLocaleString('es-CO')}
+              </p>
+              <span className="text-[10px] text-slate-400 font-medium mt-1">Billetes y monedas físicas</span>
+            </div>
+
+            <div className="p-4 sm:p-5 rounded-2xl bg-slate-50 dark:bg-[#020617] border border-slate-100 dark:border-slate-800/80 flex flex-col justify-between min-h-[110px] transition-all hover:border-blue-500/30">
+              <div className="flex items-center justify-between gap-1">
+                <span className="text-[11px] font-extrabold text-slate-500 dark:text-slate-400 uppercase tracking-wider flex items-center gap-1.5 truncate">
+                  <Smartphone size={15} className="text-blue-500 shrink-0" /> Transferencias
+                </span>
+                <span className="text-[10px] font-black text-blue-600 bg-blue-50 dark:bg-blue-500/10 px-1.5 py-0.5 rounded">Digital</span>
+              </div>
+              <p className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white filter blur-xs select-none mt-2 tracking-tight">
+                ${totalTransferencia.toLocaleString('es-CO')}
+              </p>
+              <span className="text-[10px] text-slate-400 font-medium mt-1">Nequi, Daviplata, Bancos</span>
+            </div>
+
+            <div className="p-4 sm:p-5 rounded-2xl bg-slate-50 dark:bg-[#020617] border border-slate-100 dark:border-slate-800/80 flex flex-col justify-between min-h-[110px] transition-all hover:border-purple-500/30">
+              <div className="flex items-center justify-between gap-1">
+                <span className="text-[11px] font-extrabold text-slate-500 dark:text-slate-400 uppercase tracking-wider flex items-center gap-1.5 truncate">
+                  <CreditCard size={15} className="text-purple-500 shrink-0" /> Datáfono
+                </span>
+                <span className="text-[10px] font-black text-purple-600 bg-purple-50 dark:bg-purple-500/10 px-1.5 py-0.5 rounded">POS</span>
+              </div>
+              <p className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white filter blur-xs select-none mt-2 tracking-tight">
+                ${totalDatafono.toLocaleString('es-CO')}
+              </p>
+              <span className="text-[10px] text-slate-400 font-medium mt-1">Tarjetas Débito / Crédito</span>
+            </div>
+
+            <div className="p-4 sm:p-5 rounded-2xl bg-slate-50 dark:bg-[#020617] border border-slate-100 dark:border-slate-800/80 flex flex-col justify-between min-h-[110px] transition-all hover:border-amber-500/30">
+              <div className="flex items-center justify-between gap-1">
+                <span className="text-[11px] font-extrabold text-slate-500 dark:text-slate-400 uppercase tracking-wider flex items-center gap-1.5 truncate">
+                  <Zap size={15} className="text-amber-500 shrink-0" /> Crédito Ext.
+                </span>
+                <span className="text-[10px] font-black text-amber-600 bg-amber-50 dark:bg-amber-500/10 px-1.5 py-0.5 rounded">Fintech</span>
+              </div>
+              <p className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white filter blur-xs select-none mt-2 tracking-tight">
+                ${totalCreditoExterno.toLocaleString('es-CO')}
+              </p>
+              <span className="text-[10px] text-slate-400 font-medium mt-1">SisteCrédito, Addi, etc.</span>
+            </div>
+          </div>
+        </div>
+
+        {/* BLOQUE UTILIDAD Y RENTABILIDAD (ABREBOCAS DIFUMINADO) */}
+        <div className="bg-white dark:bg-[#0f172a] p-5 sm:p-7 rounded-[2rem] sm:rounded-3xl border border-slate-100 dark:border-slate-800/80 shadow-sm flex flex-col gap-5">
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 border-b border-slate-100 dark:border-slate-800/60 pb-4">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-2xl bg-indigo-50 dark:bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 flex items-center justify-center font-black shrink-0 shadow-xs">
+                <TrendingUp size={20} />
+              </div>
+              <div>
+                <h3 className="text-base sm:text-lg font-black text-slate-900 dark:text-white flex items-center gap-2 flex-wrap">
+                  <span>Utilidad Bruta y Margen Real</span>
+                  <span className="text-[10px] font-extrabold text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-500/10 px-2.5 py-0.5 rounded-full border border-amber-200 dark:border-amber-500/30 flex items-center gap-1 shadow-2xs">
+                    <Crown size={11} className="fill-current" /> PRO
+                  </span>
+                </h3>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                  Cálculo equivalente a la información diligenciada en tu Inventario (lo que te costó adquirir cada producto vs. el precio en que lo vendes).
+                </p>
+              </div>
+            </div>
+            <span className="text-xs font-black text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-500/10 border border-indigo-200 dark:border-indigo-500/20 px-3 py-1.5 rounded-xl filter blur-xs select-none shrink-0">
+              Margen Estimado: {margenGananciaEstimado}%
+            </span>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
+            <div className="p-4 sm:p-5 rounded-2xl bg-slate-50 dark:bg-[#020617] border border-slate-100 dark:border-slate-800/80 flex flex-col justify-between min-h-[110px]">
+              <span className="text-[11px] font-extrabold text-slate-500 uppercase tracking-wider">Ganancia Bruta Estimada</span>
+              <p className="text-xl sm:text-2xl font-black text-emerald-600 dark:text-emerald-400 filter blur-xs select-none mt-2">
+                ${utilidadBrutaEstimada.toLocaleString('es-CO')}
+              </p>
+              <span className="text-[10px] text-slate-400 font-medium mt-1">Ventas del periodo menos costos</span>
+            </div>
+
+            <div className="p-4 sm:p-5 rounded-2xl bg-slate-50 dark:bg-[#020617] border border-slate-100 dark:border-slate-800/80 flex flex-col justify-between min-h-[110px]">
+              <span className="text-[11px] font-extrabold text-slate-500 uppercase tracking-wider">Costo de Mercancía</span>
+              <p className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white filter blur-xs select-none mt-2">
+                ${costoTotalMercanciaVendida.toLocaleString('es-CO')}
+              </p>
+              <span className="text-[10px] text-slate-400 font-medium mt-1">Inversión en inventario vendido</span>
+            </div>
+
+            <div className="p-4 sm:p-5 rounded-2xl bg-slate-50 dark:bg-[#020617] border border-slate-100 dark:border-slate-800/80 flex flex-col justify-between min-h-[110px]">
+              <span className="text-[11px] font-extrabold text-slate-500 uppercase tracking-wider">Salud de Margen</span>
+              <p className="text-xl sm:text-2xl font-black text-indigo-600 dark:text-indigo-400 filter blur-xs select-none mt-2">
+                {margenGananciaEstimado}% Margen Neto
+              </p>
+              <span className="text-[10px] text-slate-400 font-medium mt-1">Rentabilidad sobre cada venta</span>
+            </div>
+          </div>
+        </div>
+
+        {/* BLOQUE GRÁFICA DE COMPORTAMIENTO FINANCIERO (ABREBOCAS DIFUMINADO) */}
+        <div className="bg-white dark:bg-[#0f172a] p-6 sm:p-8 rounded-[2rem] sm:rounded-[2.5rem] border border-slate-100 dark:border-slate-800/60 shadow-sm flex flex-col gap-6 relative">
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+            <div>
+              <h3 className="text-lg sm:text-xl font-black text-slate-900 dark:text-white flex items-center gap-2 flex-wrap">
+                <BarChart3 className="text-emerald-500" size={22} />
+                <span>Comportamiento Financiero y Gráficas</span>
+                <span className="text-[10px] font-extrabold text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-500/10 px-2.5 py-0.5 rounded-full border border-amber-200 dark:border-amber-500/30 flex items-center gap-1 shadow-2xs">
+                  <Crown size={11} className="fill-current" /> PRO
+                </span>
+              </h3>
+              <p className="text-slate-500 dark:text-slate-400 text-xs mt-1">
+                Evolución diaria y mensual de ventas de contado vs fiados y recaudos.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => { setPlanInicialSuscripcion('pro'); setModalSuscripcionOpen(true); }}
+              className="px-4 py-2.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white rounded-xl font-black text-xs shadow-md transition-all cursor-pointer flex items-center gap-2 shrink-0 active:scale-95"
+            >
+              <Crown size={14} /> Desbloquear Gráfica Interactiva
+            </button>
+          </div>
+
+          {/* Gráfica de Barras Simulada con Altura y Proporción Visible */}
+          <div className="w-full bg-slate-50 dark:bg-[#020617] rounded-2xl border border-slate-100 dark:border-slate-800/80 p-5 flex flex-col justify-end gap-3 min-h-[200px]">
+            <div className="flex items-center justify-between text-xs text-slate-400 font-bold px-2">
+              <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-emerald-500 inline-block"></span> Ventas</span>
+              <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-rose-500 inline-block"></span> Fiados</span>
+              <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-blue-500 inline-block"></span> Abonos</span>
+            </div>
+            <div className="w-full h-36 flex items-end justify-between gap-1.5 sm:gap-3 filter blur-xs select-none opacity-85">
+              {[45, 65, 30, 85, 95, 55, 75, 40, 90, 60, 80, 100].map((val, idx) => (
+                <div key={idx} className="flex-1 flex items-end justify-center gap-0.5 sm:gap-1 h-full">
+                  <div className="w-full bg-emerald-500 rounded-t-sm sm:rounded-t-md" style={{ height: `${val}%` }}></div>
+                  <div className="w-full bg-rose-500 rounded-t-sm sm:rounded-t-md" style={{ height: `${val * 0.4}%` }}></div>
+                  <div className="w-full bg-blue-500 rounded-t-sm sm:rounded-t-md" style={{ height: `${val * 0.6}%` }}></div>
+                </div>
+              ))}
+            </div>
+            <div className="flex justify-between text-[10px] text-slate-400 font-bold px-1 pt-1 border-t border-slate-200 dark:border-slate-800">
+              <span>Ene</span><span>Feb</span><span>Mar</span><span>Abr</span><span>May</span><span>Jun</span>
+              <span>Jul</span><span>Ago</span><span>Sep</span><span>Oct</span><span>Nov</span><span>Dic</span>
+            </div>
+          </div>
+        </div>
+
+        {/* BLOQUE RENDIMIENTO DE COLABORADORES (ABREBOCAS DIFUMINADO) */}
+        <div className="bg-white dark:bg-[#0f172a] p-6 sm:p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-800/60 shadow-sm flex flex-col gap-5">
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 border-b border-slate-100 dark:border-slate-800/60 pb-4">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-2xl bg-amber-100 dark:bg-amber-500/20 text-amber-600 dark:text-amber-400 flex items-center justify-center font-black shrink-0 shadow-xs">
+                <Award size={20} />
+              </div>
+              <div>
+                <h3 className="text-base sm:text-lg font-black text-slate-900 dark:text-white flex items-center gap-2 flex-wrap">
+                  <span>Rendimiento de Colaboradores</span>
+                  <span className="text-[10px] font-extrabold text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-500/10 px-2.5 py-0.5 rounded-full border border-amber-200 dark:border-amber-500/30 flex items-center gap-1 shadow-2xs">
+                    <Crown size={11} className="fill-current" /> PRO
+                  </span>
+                </h3>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                  Conoce quién es tu mejor vendedor, comisiones generadas y promedio por venta.
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => { setPlanInicialSuscripcion('pro'); setModalSuscripcionOpen(true); }}
+              className="text-xs font-black text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-500/15 hover:bg-amber-100 px-3.5 py-1.5 rounded-xl border border-amber-200 dark:border-amber-500/30 transition-all cursor-pointer flex items-center gap-1.5 shadow-2xs shrink-0"
+            >
+              <Crown size={12} className="text-amber-500" /> Ver Ranking
+            </button>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+            <div className="p-4 sm:p-5 bg-slate-50 dark:bg-[#020617] rounded-2xl border border-slate-100 dark:border-slate-800/80 flex items-center gap-3.5">
+              <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-amber-400 to-amber-600 text-white font-black flex items-center justify-center text-base shadow-sm shrink-0">#1</div>
+              <div className="min-w-0 flex-1">
+                <p className="font-extrabold text-slate-800 dark:text-slate-200 text-sm truncate">Vendedor Estrella</p>
+                <p className="text-xs text-emerald-600 font-black filter blur-xs select-none mt-0.5">$3.450.000 • 28 ventas</p>
+              </div>
+            </div>
+            <div className="p-4 sm:p-5 bg-slate-50 dark:bg-[#020617] rounded-2xl border border-slate-100 dark:border-slate-800/80 flex items-center gap-3.5">
+              <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-slate-400 to-slate-600 text-white font-black flex items-center justify-center text-base shadow-sm shrink-0">#2</div>
+              <div className="min-w-0 flex-1">
+                <p className="font-extrabold text-slate-800 dark:text-slate-200 text-sm truncate">Cajero Principal</p>
+                <p className="text-xs text-emerald-600 font-black filter blur-xs select-none mt-0.5">$2.100.000 • 19 ventas</p>
+              </div>
+            </div>
+            <div className="p-4 sm:p-5 bg-slate-50 dark:bg-[#020617] rounded-2xl border border-slate-100 dark:border-slate-800/80 flex items-center gap-3.5">
+              <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-amber-700 to-amber-900 text-white font-black flex items-center justify-center text-base shadow-sm shrink-0">#3</div>
+              <div className="min-w-0 flex-1">
+                <p className="font-extrabold text-slate-800 dark:text-slate-200 text-sm truncate">Asesor de Mostrador</p>
+                <p className="text-xs text-emerald-600 font-black filter blur-xs select-none mt-0.5">$1.580.000 • 12 ventas</p>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -670,27 +962,44 @@ export default function ReportesPage() {
           <p className="text-slate-300 text-xs sm:text-sm font-medium">Supervisa el flujo de caja, estado de cartera y rendimiento del negocio en tiempo real.</p>
         </div>
 
-        {/* SELECTOR DE PERIODO GENERAL (HOY / SEMANA / MES / AÑO / TODOS) */}
-        <div className="flex bg-black/50 backdrop-blur-md p-1.5 rounded-2xl w-full lg:w-auto border border-white/15 overflow-x-auto shrink-0 z-10">
-          {[
-            { id: 'hoy', label: 'Hoy' },
-            { id: 'semana', label: 'Semana' },
-            { id: 'mes', label: 'Mes' },
-            { id: 'ano', label: 'Año' },
-            { id: 'todos', label: 'Todos' }
-          ].map((f) => (
-            <button 
-              key={f.id} 
-              onClick={() => setFiltroGeneral(f.id as any)}
-              className={`flex-1 lg:flex-initial px-4 sm:px-5 text-xs sm:text-sm font-black py-2.5 rounded-xl transition-all whitespace-nowrap cursor-pointer ${
-                filtroGeneral === f.id 
-                  ? 'bg-white text-slate-900 shadow-lg scale-105' 
-                  : 'text-white/75 hover:text-white hover:bg-white/10'
-              }`}
-            >
-              {f.label}
-            </button>
-          ))}
+        {/* SELECTOR DE PERIODO GENERAL (HOY / SEMANA / MES / AÑO / TODOS) Y BOTÓN EXPORTAR */}
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full lg:w-auto shrink-0 z-10">
+          <div className="flex bg-black/50 backdrop-blur-md p-1.5 rounded-2xl w-full sm:w-auto border border-white/15 overflow-x-auto">
+            {[
+              { id: 'hoy', label: 'Hoy' },
+              { id: 'semana', label: 'Semana' },
+              { id: 'mes', label: 'Mes' },
+              { id: 'ano', label: 'Año' },
+              { id: 'todos', label: 'Todos' }
+            ].map((f) => (
+              <button 
+                key={f.id} 
+                onClick={() => setFiltroGeneral(f.id as any)}
+                className={`flex-1 sm:flex-initial px-3.5 sm:px-4 text-xs font-black py-2.5 rounded-xl transition-all whitespace-nowrap cursor-pointer ${
+                  filtroGeneral === f.id 
+                    ? 'bg-white text-slate-900 shadow-lg scale-105' 
+                    : 'text-white/75 hover:text-white hover:bg-white/10'
+                }`}
+              >
+                {f.label}
+              </button>
+            ))}
+          </div>
+
+          {/* BOTÓN EXPORTAR REPORTE (CON BADGE PRO) */}
+          <button
+            type="button"
+            onClick={() => setModalExportarOpen(true)}
+            className="px-4 py-2.5 rounded-2xl bg-gradient-to-r from-amber-500 via-amber-400 to-amber-500 hover:from-amber-400 hover:to-amber-300 text-slate-950 font-black text-xs tracking-wide shadow-lg shadow-amber-500/25 flex items-center justify-center gap-2 transition-all transform active:scale-95 cursor-pointer group shrink-0"
+          >
+            <div className="p-1 rounded-lg bg-slate-950/10 group-hover:scale-110 transition-transform">
+              <FileDown size={16} className="stroke-[2.5]" />
+            </div>
+            <span>Exportar</span>
+            <span className="bg-slate-950 text-amber-400 px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider">
+              PRO
+            </span>
+          </button>
         </div>
       </div>
 
@@ -924,7 +1233,7 @@ export default function ReportesPage() {
                   </span>
                 </div>
                 <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                  Estimación basada en los costos de adquisición registrados en tu inventario vs ventas del periodo ({metaPeriodo.badgePeriodo}).
+                  Cálculo equivalente a la información diligenciada en tu Inventario: lo que te costó cada producto al adquirirlo vs. el precio en que lo vendes ({metaPeriodo.badgePeriodo}).
                 </p>
               </div>
             </div>
@@ -1058,6 +1367,125 @@ export default function ReportesPage() {
           </div>
         </div>
       )}
+
+      {/* BLOQUE HÍBRIDO: RADAR DE CARTERA & COMPORTAMIENTO DE CLIENTES */}
+      <div className="bg-white dark:bg-[#0f172a] p-6 sm:p-8 rounded-[2rem] sm:rounded-3xl border border-slate-100 dark:border-slate-800/80 shadow-sm flex flex-col gap-5">
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 border-b border-slate-100 dark:border-slate-800 pb-4">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-2xl bg-amber-50 dark:bg-amber-500/10 text-amber-600 dark:text-amber-400 flex items-center justify-center font-black shrink-0 shadow-xs">
+              <ShieldAlert size={20} />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h3 className="text-base sm:text-lg font-black text-slate-900 dark:text-white">
+                  Radar de Cartera & Riesgo de Clientes
+                </h3>
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-amber-100 dark:bg-amber-500/20 text-amber-700 dark:text-amber-300">
+                  Inteligencia Crediticia
+                </span>
+              </div>
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                Detección de deudas estancadas (+30 días sin abonar) y tasa de recaudo.
+              </p>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => router.push('/dashboard/clientes')}
+            className="flex items-center gap-1.5 px-4 py-2 rounded-2xl bg-slate-900 dark:bg-white text-white dark:text-slate-900 font-bold text-xs hover:opacity-90 transition cursor-pointer shadow-xs shrink-0"
+          >
+            <span>Gestionar Clientes & WhatsApp</span>
+            <ChevronRight size={14} />
+          </button>
+        </div>
+
+        {/* Tarjetas del Radar */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
+          {/* 1. Cartera Sana */}
+          <div className="p-4 rounded-2xl bg-emerald-50/60 dark:bg-emerald-950/20 border border-emerald-200/60 dark:border-emerald-900/40">
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-bold text-emerald-700 dark:text-emerald-400 uppercase tracking-wider">
+                Cartera Activa / Sana
+              </span>
+              <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
+            </div>
+            <p className="text-xl sm:text-2xl font-black text-emerald-700 dark:text-emerald-300 mt-1">
+              ${Math.round(analisisCarteraRiesgo.carteraSana).toLocaleString('es-CO')}
+            </p>
+            <span className="text-[10px] text-emerald-600/90 dark:text-emerald-400/90 font-medium">
+              Clientes que abonan con frecuencia (últimos 30d)
+            </span>
+          </div>
+
+          {/* 2. Cartera en Riesgo */}
+          <div className="p-4 rounded-2xl bg-rose-50/60 dark:bg-rose-950/20 border border-rose-200/60 dark:border-rose-900/40">
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-bold text-rose-700 dark:text-rose-400 uppercase tracking-wider">
+                🚨 Dinero en Riesgo
+              </span>
+              <span className="px-1.5 py-0.5 rounded text-[10px] font-black bg-rose-600 text-white">
+                {analisisCarteraRiesgo.clientesRiesgoCount} morosos
+              </span>
+            </div>
+            <p className="text-xl sm:text-2xl font-black text-rose-600 dark:text-rose-400 mt-1">
+              ${Math.round(analisisCarteraRiesgo.carteraRiesgo).toLocaleString('es-CO')}
+            </p>
+            <span className="text-[10px] text-rose-600/90 dark:text-rose-400/90 font-medium">
+              Más de 30 días sin registrar ningún abono
+            </span>
+          </div>
+
+          {/* 3. Tasa de Recaudo vs Fiados del Periodo */}
+          <div className="p-4 rounded-2xl bg-slate-50 dark:bg-[#020617] border border-slate-100 dark:border-slate-800">
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                Tasa de Recaudo ({metaPeriodo.badgePeriodo})
+              </span>
+              <span className={`text-[10px] font-black px-1.5 py-0.5 rounded ${
+                analisisCarteraRiesgo.semaforoRecaudo === 'alerta'
+                  ? 'bg-rose-100 text-rose-700 dark:bg-rose-500/20 dark:text-rose-300'
+                  : analisisCarteraRiesgo.semaforoRecaudo === 'observacion'
+                    ? 'bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-300'
+                    : 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300'
+              }`}>
+                {analisisCarteraRiesgo.tasaRecaudo}%
+              </span>
+            </div>
+            <p className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white mt-1">
+              ${totalAbonos.toLocaleString('es-CO')}
+            </p>
+            <span className="text-[10px] text-slate-400 font-medium">
+              Cobrado vs ${totalFiados.toLocaleString('es-CO')} fiado
+            </span>
+          </div>
+        </div>
+
+        {/* Semáforo y Alerta de Cartera */}
+        <div className={`p-3.5 rounded-2xl border text-xs flex items-center justify-between gap-3 ${
+          analisisCarteraRiesgo.semaforoRecaudo === 'alerta'
+            ? 'bg-rose-50 dark:bg-rose-950/30 border-rose-200 dark:border-rose-900/50 text-rose-900 dark:text-rose-200'
+            : analisisCarteraRiesgo.semaforoRecaudo === 'observacion'
+              ? 'bg-amber-50 dark:bg-amber-950/30 border-amber-200 dark:border-amber-900/50 text-amber-900 dark:text-amber-200'
+              : 'bg-emerald-50 dark:bg-emerald-950/30 border-emerald-200 dark:border-emerald-900/50 text-emerald-900 dark:text-emerald-200'
+        }`}>
+          <div className="flex items-center gap-2">
+            <span className="text-base">
+              {analisisCarteraRiesgo.semaforoRecaudo === 'alerta' ? '🚨' : analisisCarteraRiesgo.semaforoRecaudo === 'observacion' ? '⚠️' : '✅'}
+            </span>
+            <span className="font-semibold leading-tight">
+              {analisisCarteraRiesgo.mensajeSemaforo}
+            </span>
+          </div>
+          <button
+            type="button"
+            onClick={() => router.push('/dashboard/clientes')}
+            className="text-[11px] font-black underline shrink-0 cursor-pointer"
+          >
+            Ver Deudores →
+          </button>
+        </div>
+      </div>
 
       {/* BLOQUE 3: COMPORTAMIENTO FINANCIERO & GRÁFICA INTERACTIVA CON HISTORIAL PRO */}
       <div className="bg-white dark:bg-[#0f172a] p-6 sm:p-8 rounded-[2rem] sm:rounded-[2.5rem] border border-slate-100 dark:border-slate-800/60 shadow-sm flex flex-col gap-6">
@@ -1404,6 +1832,26 @@ export default function ReportesPage() {
         onClose={() => setModalSuscripcionOpen(false)} 
         cuentaPrincipalId={cuentaPrincipalId || ""} 
         planInicial={planInicialSuscripcion}
+      />
+
+      <ModalExportarReporte
+        isOpen={modalExportarOpen}
+        onClose={() => setModalExportarOpen(false)}
+        esPro={Boolean(esPro)}
+        onSolicitarPro={() => {
+          setModalExportarOpen(false);
+          setPlanInicialSuscripcion('pro');
+          setModalSuscripcionOpen(true);
+        }}
+        negocioNombre={datosSesion?.nombreNegocio || "Mi Negocio"}
+        negocioLogo={datosSesion?.logoNegocio}
+        negocioDireccion={datosSesion?.direccionNegocio}
+        negocioTelefono={datosSesion?.telefonoNegocio}
+        negocioNit={datosSesion?.nitNegocio}
+        todosMovimientos={todosMovimientos}
+        clientes={clientes}
+        separes={separes}
+        inventario={inventario}
       />
     </div>
   );

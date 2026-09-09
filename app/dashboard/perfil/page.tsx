@@ -4,7 +4,7 @@ import { collection, getDocs, query, doc, updateDoc, where, setDoc, deleteDoc } 
 import { signOut, updatePassword, EmailAuthProvider, reauthenticateWithCredential, getAuth, createUserWithEmailAndPassword } from "firebase/auth";
 import { getApps, initializeApp } from "firebase/app";
 import { db, auth } from "../../../firebase";
-import { UserCog, LogOut, Sun, Monitor, Moon, Edit2, Mail, ShieldAlert, CheckCircle2, AlertCircle, Star, Lock, UserPlus, ChevronUp, ChevronDown, Trash2, Info, X, Clock, Upload, Image as ImageIcon, Building2, MapPin, Receipt, PhoneCall, Camera, Smartphone, ArrowUpFromLine, MoreHorizontal, Download, Crown, Store, Sparkles, Bookmark } from 'lucide-react';
+import { UserCog, LogOut, Sun, Monitor, Moon, Edit2, Mail, ShieldAlert, CheckCircle2, AlertCircle, Star, Lock, UserPlus, ChevronUp, ChevronDown, ChevronRight, AlertTriangle, Trash2, Info, X, Clock, Upload, Image as ImageIcon, Building2, MapPin, Receipt, PhoneCall, Camera, Smartphone, ArrowUpFromLine, MoreHorizontal, Download, Crown, Store, Sparkles, Bookmark } from 'lucide-react';
 import ModalHorarios from '@/components/ModalHorarios';
 import { useAuth } from "../../../hooks/AuthContext";
 import ModalSuscripcion from "@/components/ModalSuscripcion";
@@ -91,6 +91,13 @@ export default function PerfilPage() {
   const [planInicialSuscripcion, setPlanInicialSuscripcion] = useState<'comercio' | 'pro'>('comercio');
   const [appInstalada, setAppInstalada] = useState(false);
   const [modalInstalarApp, setModalInstalarApp] = useState(false);
+
+  // Estados para Eliminación de Cuenta y Datos (Ley 1581 / Habeas Data)
+  const [modalEliminarCuenta, setModalEliminarCuenta] = useState(false);
+  const [modalConfirmacionFinalEliminar, setModalConfirmacionFinalEliminar] = useState(false);
+  const [textoConfirmacionEliminar, setTextoConfirmacionEliminar] = useState("");
+  const [eliminandoCuenta, setEliminandoCuenta] = useState(false);
+  const [errorEliminarCuenta, setErrorEliminarCuenta] = useState("");
 
   useEffect(() => {
     const verificarInstalada = () => {
@@ -454,6 +461,85 @@ export default function PerfilPage() {
       cargarListaColaboradores(usuarioAuth!.uid);
       setModalAvisoColaborador({ visible: true, titulo: "Suscripción Cancelada", mensaje: "Has vuelto al Plan Gratuito con éxito.\n\nTodos tus datos, clientes e inventario se conservan intactos. Las nuevas creaciones respetarán los límites del plan gratuito.", icono: 'info' });
     } catch (error) { setErrorCancelarPro("Contraseña incorrecta. Intenta de nuevo."); }
+  };
+
+  // Función para ejecutar la eliminación permanente de la cuenta y datos
+  const ejecutarEliminacionCuenta = async () => {
+    if (textoConfirmacionEliminar.trim() !== "ELIMINAR DEFINITIVAMENTE") {
+      setErrorEliminarCuenta("Debes escribir exactamente la frase de confirmación.");
+      return;
+    }
+
+    if (!usuarioAuth?.uid) {
+      setErrorEliminarCuenta("No se detectó una sesión activa válida.");
+      return;
+    }
+
+    setEliminandoCuenta(true);
+    setErrorEliminarCuenta("");
+
+    try {
+      const uidAdmin = usuarioAuth.uid;
+
+      // 1. Colecciones a purgar que pertenezcan a este usuario/negocio
+      const coleccionesAPurgar = [
+        "productos",
+        "clientes",
+        "movimientos",
+        "separes",
+        "ordenes_pendientes",
+      ];
+
+      for (const colName of coleccionesAPurgar) {
+        try {
+          const q = query(collection(db, colName), where("usuarioId", "==", uidAdmin));
+          const snap = await getDocs(q);
+          const deletes = snap.docs.map((d) => deleteDoc(doc(db, colName, d.id)));
+          await Promise.all(deletes);
+        } catch (err) {
+          console.error(`Error purgando colección ${colName}:`, err);
+        }
+      }
+
+      // 2. Eliminar colaboradores subordinados (cajeros vinculados)
+      try {
+        const qColabs = query(collection(db, "usuarios"), where("adminId", "==", uidAdmin));
+        const snapColabs = await getDocs(qColabs);
+        const colabDeletes = snapColabs.docs.map((d) => deleteDoc(doc(db, "usuarios", d.id)));
+        await Promise.all(colabDeletes);
+      } catch (err) {
+        console.error("Error purgando colaboradores:", err);
+      }
+
+      // 3. Eliminar documento del usuario admin en Firestore
+      try {
+        await deleteDoc(doc(db, "usuarios", uidAdmin));
+      } catch (err) {
+        console.error("Error eliminando documento de usuario:", err);
+      }
+
+      // 4. Intentar eliminar usuario de Firebase Authentication
+      try {
+        await usuarioAuth.delete();
+      } catch (authErr: any) {
+        console.warn("No se pudo eliminar de Auth directamente (posible sesión antigua):", authErr);
+        // Si requiere login reciente o falla, al menos los datos de Firestore ya fueron eliminados irreversiblemente
+      }
+
+      toast.success("Tu cuenta y todos tus datos han sido eliminados de forma definitiva.", { duration: 6000 });
+
+      // 5. Cerrar sesión, limpiar storage local y redirigir
+      await signOut(auth);
+      if (typeof window !== "undefined") {
+        localStorage.clear();
+        sessionStorage.clear();
+        window.location.href = "/";
+      }
+    } catch (err: any) {
+      console.error("Error en eliminación completa:", err);
+      setErrorEliminarCuenta(err?.message || "Ocurrió un error al procesar la eliminación. Intenta nuevamente.");
+      setEliminandoCuenta(false);
+    }
   };
 
   return (
@@ -1442,9 +1528,25 @@ export default function PerfilPage() {
             </div>
           )}
 
-          <button onClick={() => signOut(auth)} className="w-full bg-rose-50 dark:bg-rose-500/10 text-rose-600 dark:text-rose-400 font-bold py-5 sm:py-6 rounded-[2rem] border border-rose-200 dark:border-rose-500/20 hover:bg-rose-100 dark:hover:bg-rose-500/30 transition-colors mb-24 sm:mb-6 flex justify-center items-center gap-2 text-lg mt-6">
+          <button onClick={() => signOut(auth)} className="w-full bg-rose-50 dark:bg-rose-500/10 text-rose-600 dark:text-rose-400 font-bold py-5 sm:py-6 rounded-[2rem] border border-rose-200 dark:border-rose-500/20 hover:bg-rose-100 dark:hover:bg-rose-500/30 transition-colors mb-4 sm:mb-6 flex justify-center items-center gap-2 text-lg mt-6">
             <LogOut size={24} className="shrink-0" /> Cerrar Sesión
           </button>
+
+          {/* ENLACE DISCRETO DE PRIVACIDAD / ELIMINACIÓN DE CUENTA (LEY 1581) */}
+          <div className="text-center pb-8 sm:pb-4 pt-2">
+            <button
+              type="button"
+              onClick={() => {
+                setTextoConfirmacionEliminar("");
+                setErrorEliminarCuenta("");
+                setModalEliminarCuenta(true);
+              }}
+              className="text-[11px] text-slate-400 dark:text-slate-500 hover:text-rose-500 dark:hover:text-rose-400 transition-colors inline-flex items-center gap-1.5 cursor-pointer hover:underline opacity-80 hover:opacity-100"
+            >
+              <ShieldAlert size={13} className="shrink-0" />
+              <span>Privacidad de datos y eliminación de cuenta</span>
+            </button>
+          </div>
         </>
       )}
 
@@ -1606,6 +1708,165 @@ export default function PerfilPage() {
             <div className="grid grid-cols-2 gap-3 mt-4">
               <button onClick={() => {setModalSeguridad({visible: false, accion: null}); setPassSeguridad(""); setErrorSeguridad("");}} className="bg-slate-100 dark:bg-[#020617] hover:bg-slate-200 dark:hover:bg-[#1e293b] text-slate-700 dark:text-slate-300 font-bold py-4 rounded-xl transition-colors border dark:border-slate-800/80 text-lg">Cancelar</button>
               <button onClick={verificarSeguridadYEjecutar} disabled={cargandoSeguridad} className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 rounded-xl transition-colors flex justify-center items-center shadow-md text-lg">{cargandoSeguridad ? '...' : 'Confirmar'}</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL ELIMINAR CUENTA Y DATOS (LEY 1581 / HABEAS DATA) */}
+      {modalEliminarCuenta && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 z-[350] animate-in zoom-in-95 duration-200">
+          <div className="bg-white dark:bg-[#0f172a] p-6 sm:p-8 rounded-[2.5rem] w-full max-w-lg shadow-2xl border border-rose-200 dark:border-rose-900/60 relative max-h-[90dvh] overflow-y-auto">
+            <button 
+              onClick={() => {
+                if (!eliminandoCuenta) {
+                  setModalEliminarCuenta(false);
+                  setTextoConfirmacionEliminar("");
+                  setErrorEliminarCuenta("");
+                }
+              }} 
+              disabled={eliminandoCuenta}
+              className="absolute top-4 right-4 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-500 rounded-full p-2 transition-colors cursor-pointer disabled:opacity-40"
+            >
+              <X size={20}/>
+            </button>
+
+            <div className="w-16 h-16 bg-rose-100 dark:bg-rose-500/20 text-rose-600 dark:text-rose-400 rounded-2xl flex items-center justify-center mx-auto mb-4">
+              <ShieldAlert size={36} />
+            </div>
+
+            <h3 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white mb-2 text-center">
+              Eliminar Cuenta y Todos los Datos
+            </h3>
+            
+            <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 text-center mb-4 leading-relaxed">
+              En ejercicio de tus derechos bajo la <strong>Ley 1581 de 2012 (Habeas Data)</strong>, puedes solicitar la supresión total e irreversible de tu cuenta y toda la información asociada a tu negocio.
+            </p>
+
+            <div className="space-y-3 mb-5">
+              <div className="p-3.5 bg-rose-50 dark:bg-rose-950/30 rounded-xl border border-rose-200/80 dark:border-rose-900/40 text-xs text-rose-800 dark:text-rose-300 space-y-1.5">
+                <p className="font-bold flex items-center gap-1.5 text-rose-900 dark:text-rose-200">
+                  <AlertCircle size={15} className="shrink-0" />
+                  Se borrarán de forma inmediata y definitiva:
+                </p>
+                <ul className="list-disc list-inside space-y-0.5 pl-1">
+                  <li>Todos tus productos e inventario.</li>
+                  <li>Tus clientes, cuentas por cobrar y fiados.</li>
+                  <li>Tus planes separe e historial de ventas.</li>
+                  <li>Accesos y usuarios de tus colaboradores.</li>
+                  <li>Tu perfil y cuenta de acceso.</li>
+                </ul>
+              </div>
+
+              <div className="p-3.5 bg-amber-50 dark:bg-amber-950/30 rounded-xl border border-amber-200/80 dark:border-amber-900/40 text-xs text-amber-900 dark:text-amber-200 leading-relaxed">
+                <strong className="block mb-1">⚠️ Advertencia sobre futuros registros:</strong>
+                Si en el futuro decides volver a registrarte con este mismo correo o cuenta de Google, ingresarás como un <strong>negocio completamente nuevo desde cero</strong>. No encontrarás absolutamente nada de tu información anterior, ya que el borrado de la base de datos es definitivo e irrecuperable.
+              </div>
+            </div>
+
+            <div className="space-y-2 mb-5">
+              <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                Para confirmar, escribe exactamente: <span className="font-mono text-rose-600 dark:text-rose-400 select-all font-black">ELIMINAR DEFINITIVAMENTE</span>
+              </label>
+              <input 
+                type="text"
+                value={textoConfirmacionEliminar}
+                onChange={(e) => {
+                  setTextoConfirmacionEliminar(e.target.value);
+                  if (errorEliminarCuenta) setErrorEliminarCuenta("");
+                }}
+                disabled={eliminandoCuenta}
+                placeholder="ELIMINAR DEFINITIVAMENTE"
+                className="w-full p-3.5 bg-slate-50 dark:bg-[#020617] border border-slate-200 dark:border-slate-800 rounded-xl outline-none focus:border-rose-500 font-mono text-sm text-slate-900 dark:text-white placeholder-slate-400"
+              />
+              {errorEliminarCuenta && (
+                <p className="text-rose-500 text-xs font-bold flex items-center gap-1">
+                  <AlertCircle size={13} /> {errorEliminarCuenta}
+                </p>
+              )}
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <button 
+                type="button"
+                onClick={() => {
+                  setModalEliminarCuenta(false);
+                  setTextoConfirmacionEliminar("");
+                  setErrorEliminarCuenta("");
+                }}
+                disabled={eliminandoCuenta}
+                className="py-3 px-4 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold text-sm rounded-xl transition-colors disabled:opacity-40"
+              >
+                Cancelar
+              </button>
+              <button 
+                type="button"
+                onClick={() => {
+                  if (textoConfirmacionEliminar.trim() === "ELIMINAR DEFINITIVAMENTE") {
+                    setModalEliminarCuenta(false);
+                    setModalConfirmacionFinalEliminar(true);
+                  } else {
+                    setErrorEliminarCuenta("Debes escribir exactamente la frase de confirmación.");
+                  }
+                }}
+                disabled={textoConfirmacionEliminar.trim() !== "ELIMINAR DEFINITIVAMENTE"}
+                className="py-3 px-4 bg-rose-600 hover:bg-rose-700 active:scale-95 text-white font-bold text-sm rounded-xl transition-all shadow-md flex items-center justify-center gap-1.5 disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                Continuar <ChevronRight size={16} />
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL 2: CONFIRMACIÓN FINAL DE SEGURIDAD (ÚLTIMA OPORTUNIDAD) */}
+      {modalConfirmacionFinalEliminar && (
+        <div className="fixed inset-0 bg-black/85 backdrop-blur-md flex items-center justify-center p-4 z-[400] animate-in zoom-in-95 duration-200">
+          <div className="bg-white dark:bg-[#0f172a] p-6 sm:p-8 rounded-[2.5rem] w-full max-w-md shadow-2xl border-2 border-rose-500/80 relative text-center">
+            <div className="w-16 h-16 bg-rose-500 text-white rounded-full flex items-center justify-center mx-auto mb-4 shadow-lg shadow-rose-500/30 animate-pulse">
+              <AlertTriangle size={32} />
+            </div>
+
+            <h3 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white mb-2">
+              ¿Estás 100% seguro?
+            </h3>
+
+            <p className="text-sm font-semibold text-rose-600 dark:text-rose-400 mb-3">
+              Esta es tu última oportunidad para cancelar.
+            </p>
+
+            <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed mb-6">
+              Al presionar el botón rojo, <strong>se borrará de forma inmediata e irreversible toda la información de tu negocio</strong>. No hay vuelta atrás ni copias de seguridad recuperables.
+            </p>
+
+            <div className="space-y-3">
+              <button 
+                type="button"
+                onClick={ejecutarEliminacionCuenta}
+                disabled={eliminandoCuenta}
+                className="w-full py-4 bg-rose-600 hover:bg-rose-700 active:scale-95 text-white font-black text-sm rounded-2xl transition-all shadow-lg shadow-rose-600/30 flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+              >
+                {eliminandoCuenta ? (
+                  <>Destruyendo datos permanentemente...</>
+                ) : (
+                  <><Trash2 size={16} /> Sí, borrar todo definitivamente</>
+                )}
+              </button>
+
+              <button 
+                type="button"
+                onClick={() => {
+                  if (!eliminandoCuenta) {
+                    setModalConfirmacionFinalEliminar(false);
+                    setTextoConfirmacionEliminar("");
+                    setErrorEliminarCuenta("");
+                  }
+                }}
+                disabled={eliminandoCuenta}
+                className="w-full py-3.5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-bold text-sm rounded-2xl transition-colors cursor-pointer disabled:opacity-50"
+              >
+                No, conservar mi cuenta y datos
+              </button>
             </div>
           </div>
         </div>

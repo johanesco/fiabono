@@ -501,6 +501,9 @@ Estamos atentos para cualquier consulta.
                             setClienteTransaccion(clientesFiltradosRegistro[0]);
                             setBusquedaRegistro("");
                             setMostrarResultadosBuscador(false);
+                          } else if (busquedaRegistro.trim()) {
+                            prepararNuevoCliente(busquedaRegistro.trim());
+                            setMostrarResultadosBuscador(false);
                           }
                         }
                       }}

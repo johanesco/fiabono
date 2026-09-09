@@ -12,8 +12,9 @@ import {
   Receipt, ShoppingBag, BarChart3, Clock, TrendingUp,
   Flame, BadgePercent, Check, ArrowUpRight, Calculator,
   Sparkle, Shield, PartyPopper, Briefcase, Building2, Phone, Bookmark, Menu,
-  Tag, Gift, Banknote, CreditCard
+  Tag, Gift, Banknote, CreditCard, ShoppingCart, User
 } from 'lucide-react';
+import LogoFiabono, { IsotipoFiabono } from "@/components/LogoFiabono";
 
 export default function LandingPage() {
   const [modalLandingInfo, setModalLandingInfo] = useState<{ visible: boolean, tipo: 'login' | 'registro' | null }>({ visible: false, tipo: null });
@@ -26,6 +27,8 @@ export default function LandingPage() {
   const [mostrarPassword, setMostrarPassword] = useState(false);
   const [mostrarConfirmPassword, setMostrarConfirmPassword] = useState(false);
   const [cargandoGoogle, setCargandoGoogle] = useState(false);
+  const [aceptaTerminos, setAceptaTerminos] = useState(false);
+  const [aceptaTerminosGoogle, setAceptaTerminosGoogle] = useState(false);
 
   // Menú móvil abierto/cerrado
   const [menuMovilAbierto, setMenuMovilAbierto] = useState(false);
@@ -62,6 +65,9 @@ export default function LandingPage() {
   const toggleFaq = (index: number) => {
     setFaqAbierto(faqAbierto === index ? null : index);
   };
+
+  // Modal para Términos y Privacidad
+  const [modalLegal, setModalLegal] = useState<{ visible: boolean; titulo: string; tipo: 'terminos' | 'privacidad' | null }>({ visible: false, titulo: "", tipo: null });
 
   // Estados para Código de Suscripción / Promocional
   const [codigoInput, setCodigoInput] = useState("");
@@ -147,6 +153,7 @@ export default function LandingPage() {
       if (!authForm.negocio.trim()) { setAuthErrores(p => ({...p, general: "El nombre del negocio es obligatorio"})); hayError = true; }
       if (authForm.password.length < 6) { setAuthErrores(p => ({...p, password: "Mínimo 6 caracteres"})); hayError = true; }
       if (authForm.password !== authForm.confirmPassword) { setAuthErrores(p => ({...p, confirmPassword: "Las contraseñas no coinciden"})); hayError = true; }
+      if (!aceptaTerminos) { setAuthErrores(p => ({...p, general: "Debes aceptar los Términos del Servicio y la Política de Privacidad para crear tu cuenta."})); hayError = true; }
       if (hayError) return;
 
       try {
@@ -170,6 +177,8 @@ export default function LandingPage() {
           plan: planFinal,
           planVence: fechaVence,
           cicloPlan: cicloFacturacion,
+          terminosAceptados: true,
+          fechaAceptacionTerminos: new Date(),
           fechaRegistro: new Date(),
           ...(codigoAplicado ? { codigoPromocionalUsado: codigoAplicado.codigo } : {})
         });
@@ -293,6 +302,11 @@ export default function LandingPage() {
       return;
     }
 
+    if (!aceptaTerminosGoogle) {
+      setErrorGoogleOnboarding("Debes aceptar los Términos del Servicio y la Política de Privacidad para crear tu tienda.");
+      return;
+    }
+
     setGuardandoGoogleOnboarding(true);
     try {
       let planFinal = codigoAplicado ? codigoAplicado.planOtorgado : formGoogleOnboarding.plan;
@@ -317,6 +331,8 @@ export default function LandingPage() {
         planVence: fechaVence,
         cicloPlan: cicloFacturacion,
         creadoCon: "google",
+        terminosAceptados: true,
+        fechaAceptacionTerminos: new Date(),
         fechaRegistro: new Date(),
         ...(codigoAplicado ? { codigoPromocionalUsado: codigoAplicado.codigo } : {})
       });
@@ -388,12 +404,7 @@ export default function LandingPage() {
       <header className="sticky top-0 bg-white/85 dark:bg-[#0f172a]/85 backdrop-blur-2xl border-b border-slate-200/60 dark:border-slate-800/60 z-[500] px-3 sm:px-8 py-2.5 sm:py-3.5 transition-all shadow-sm">
         <div className="max-w-7xl mx-auto flex justify-between items-center gap-2">
           <div className="flex items-center gap-2 cursor-pointer shrink-0" onClick={() => { setMenuMovilAbierto(false); window.scrollTo({ top: 0, behavior: 'smooth' }); }}>
-            <div className="w-8 h-8 sm:w-9 sm:h-9 bg-gradient-to-tr from-emerald-600 to-teal-500 rounded-xl flex items-center justify-center shadow-lg shadow-emerald-500/25">
-              <Receipt size={18} className="text-white sm:w-5 sm:h-5"/>
-            </div>
-            <span className="text-lg sm:text-xl font-black tracking-tight text-slate-900 dark:text-white">
-              Fiabono<span className="text-emerald-600 dark:text-emerald-400">.com</span>
-            </span>
+            <LogoFiabono size={34} showText={true} showBadge={true} />
           </div>
           
           <nav className="hidden md:flex items-center gap-7 text-xs lg:text-sm font-bold text-slate-600 dark:text-slate-300">
@@ -549,7 +560,7 @@ export default function LandingPage() {
               <CheckCircle2 size={15} className="text-emerald-500" /> Sin tarjeta de crédito
             </div>
             <div className="flex items-center gap-1.5 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 px-3 py-1.5 rounded-full border border-slate-200 dark:border-slate-700">
-              <Smartphone size={15} className="text-emerald-600" /> Usa tu celular actual o PC
+              <Smartphone size={15} className="text-emerald-600" /> Web + App móvil ligera (sin gastar memoria)
             </div>
             <div className="flex items-center gap-1.5 bg-purple-50 dark:bg-purple-500/10 text-purple-700 dark:text-purple-300 px-3 py-1.5 rounded-full border border-purple-200/50">
               <ShieldCheck size={15} className="text-purple-500" /> Cuentas seguras en la nube
@@ -557,252 +568,399 @@ export default function LandingPage() {
           </div>
         </div>
 
-        {/* 4. MOCKUP INTERACTIVO MULTIVISTA (5 PESTAÑAS) */}
-        <div className="mt-14 max-w-5xl mx-auto bg-white/80 dark:bg-[#0f172a]/80 backdrop-blur-xl rounded-[2.5rem] border border-slate-200/80 dark:border-slate-800/80 p-4 sm:p-8 shadow-2xl relative overflow-hidden">
+        {/* 4. MOCKUP INTERACTIVO MULTIVISTA (100% FIEL A LA APLICACIÓN REAL) */}
+        <div className="mt-14 max-w-5xl mx-auto bg-white/95 dark:bg-[#0f172a]/95 backdrop-blur-2xl rounded-[2.5rem] border border-slate-200/80 dark:border-slate-800/80 p-4 sm:p-7 shadow-2xl relative overflow-hidden">
           
-          {/* Selector de Pestañas de Vista Previa */}
-          <div className="flex items-center justify-start sm:justify-center gap-2 overflow-x-auto pb-3 mb-6 no-scrollbar border-b border-slate-100 dark:border-slate-800">
+          {/* Selector de Pestañas de Vista Previa (Sin cortes de scroll) */}
+          <div className="flex flex-wrap items-center justify-center gap-2 pb-4 mb-6 border-b border-slate-100 dark:border-slate-800">
             {[
-              { id: 'pos', nombre: '1. Venta en Mostrador', icono: ShoppingBag },
-              { id: 'whatsapp', nombre: '2. WhatsApp: Venta, Fiado & Abono', icono: MessageCircle },
-              { id: 'factura', nombre: '3. Factura Térmica con Logo', icono: Printer },
-              { id: 'separe', nombre: '4. Ficha Plan Separe', icono: Shirt },
-              { id: 'caja', nombre: '5. Cierre de Caja del Día', icono: BarChart3 },
+              { id: 'pos', nombre: 'Punto de Venta POS', icono: ShoppingBag },
+              { id: 'whatsapp', nombre: 'Recibo WhatsApp con Link', icono: MessageCircle },
+              { id: 'factura', nombre: 'Tirilla Térmica con Logo', icono: Printer },
+              { id: 'separe', nombre: 'Ficha Plan Separe', icono: Shirt },
+              { id: 'caja', nombre: 'Caja & Reportes Reales', icono: BarChart3 },
             ].map(tab => {
               const Icon = tab.icono;
               const activo = tabMockup === tab.id;
               return (
                 <button
                   key={tab.id}
+                  type="button"
                   onClick={() => setTabMockup(tab.id as any)}
-                  className={`px-4 py-2.5 rounded-xl text-xs sm:text-sm font-black flex items-center gap-2 whitespace-nowrap transition-all cursor-pointer ${
+                  className={`px-3.5 py-2 rounded-xl text-xs font-black flex items-center gap-2 transition-all cursor-pointer ${
                     activo 
-                      ? 'bg-emerald-600 text-white shadow-md shadow-emerald-500/30' 
-                      : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'
+                      ? 'bg-emerald-600 text-white shadow-md shadow-emerald-500/30 ring-2 ring-emerald-500/20' 
+                      : 'bg-slate-100 dark:bg-slate-800/80 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'
                   }`}
                 >
-                  <Icon size={16} />
+                  <Icon size={15} />
                   <span>{tab.nombre}</span>
                 </button>
               );
             })}
           </div>
 
-          {/* Contenido Dinámico de la Pestaña */}
+          {/* 1. VISTA PUNTO DE VENTA (IDÉNTICO A APP REAL /dashboard/vender) */}
           {tabMockup === 'pos' && (
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-center animate-in fade-in duration-300">
-              <div className="lg:col-span-7 space-y-4 bg-slate-50 dark:bg-[#020617] p-5 rounded-2xl border border-slate-200/70 dark:border-slate-800/70">
-                <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-3">
-                  <span className="text-xs font-bold text-slate-500">CANASTA DE VENTA ACTIVA</span>
-                  <span className="text-[10px] font-black uppercase bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-400 px-2 py-0.5 rounded-md">1 Toque</span>
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-center animate-in fade-in duration-200">
+              <div className="lg:col-span-7 bg-white dark:bg-[#020617] rounded-2xl border border-slate-200 dark:border-slate-800 shadow-md overflow-hidden text-left">
+                {/* Cabecera real de Fiabono Vender */}
+                <div className="bg-emerald-600 text-white p-3 flex justify-between items-center text-xs">
+                  <div className="flex items-center gap-2 font-black">
+                    <ShoppingCart size={16}/>
+                    <span className="uppercase tracking-wider">VENDER</span>
+                  </div>
+                  <div className="flex items-center gap-1.5 bg-white/20 backdrop-blur-sm px-2.5 py-1 rounded-lg text-[11px] font-bold">
+                    <User size={12}/>
+                    <span>Vendedor: Administrador</span>
+                  </div>
                 </div>
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between bg-white dark:bg-[#0f172a] p-3 rounded-xl border border-slate-200/60 dark:border-slate-800 text-sm">
-                    <div>
-                      <p className="font-black text-slate-800 dark:text-white">Vestido Lino Estampado</p>
-                      <p className="text-xs text-slate-400">Talla M • Ref: VEST-09</p>
+
+                {/* Barra de Pestañas Multi-venta */}
+                <div className="bg-emerald-700/80 px-3 py-1.5 flex gap-2 text-xs border-b border-emerald-800/40">
+                  <div className="bg-white text-slate-900 px-3 py-1 rounded-lg font-black text-[11px] flex items-center gap-1.5 shadow-sm">
+                    <ShoppingCart size={12} className="text-emerald-600"/>
+                    <span>Venta #1</span>
+                    <span className="bg-emerald-100 text-emerald-800 text-[9px] px-1 py-0.2 rounded font-black">$110.000</span>
+                  </div>
+                  <div className="bg-emerald-800/50 text-white/80 px-2.5 py-1 rounded-lg text-[11px] font-bold">
+                    + Nueva Venta
+                  </div>
+                </div>
+
+                {/* Filas de la Venta */}
+                <div className="p-3.5 space-y-2.5 bg-slate-50/50 dark:bg-slate-900/30">
+                  <div className="flex items-center justify-between bg-white dark:bg-[#0f172a] p-2.5 rounded-xl border border-slate-200/80 dark:border-slate-800 text-xs">
+                    <div className="min-w-0 flex-1">
+                      <p className="font-black text-slate-900 dark:text-white truncate">Vestido Lino Estampado</p>
+                      <p className="text-[10px] text-emerald-600 font-bold">✓ 1 unidad x $65.000</p>
                     </div>
-                    <span className="font-black text-emerald-600 dark:text-emerald-400 text-base">$65.000</span>
+                    <span className="font-mono font-black text-slate-900 dark:text-white text-sm">$65.000</span>
                   </div>
-                  <div className="flex items-center justify-between bg-white dark:bg-[#0f172a] p-3 rounded-xl border border-slate-200/60 dark:border-slate-800 text-sm">
-                    <div>
-                      <p className="font-black text-slate-800 dark:text-white">Sandalias Plataforma</p>
-                      <p className="text-xs text-slate-400">#37 • Ref: ZAP-41</p>
+
+                  <div className="flex items-center justify-between bg-white dark:bg-[#0f172a] p-2.5 rounded-xl border border-slate-200/80 dark:border-slate-800 text-xs">
+                    <div className="min-w-0 flex-1">
+                      <p className="font-black text-slate-900 dark:text-white truncate">Sandalias Plataforma #37</p>
+                      <p className="text-[10px] text-emerald-600 font-bold">✓ 1 unidad x $45.000</p>
                     </div>
-                    <span className="font-black text-emerald-600 dark:text-emerald-400 text-base">$45.000</span>
+                    <span className="font-mono font-black text-slate-900 dark:text-white text-sm">$45.000</span>
+                  </div>
+
+                  {/* Selector real de forma de pago de Fiabono */}
+                  <div className="bg-white dark:bg-[#0f172a] p-2.5 rounded-xl border border-slate-200/80 dark:border-slate-800 space-y-2">
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Forma de Pago</span>
+                    <div className="grid grid-cols-4 gap-1 text-[10px] font-black text-center">
+                      <div className="bg-emerald-600 text-white py-1.5 rounded-lg flex flex-col items-center gap-0.5 shadow-xs">
+                        <Banknote size={12}/> Efectivo
+                      </div>
+                      <div className="bg-slate-100 dark:bg-slate-800 text-slate-500 py-1.5 rounded-lg flex flex-col items-center gap-0.5 border border-slate-200 dark:border-slate-700">
+                        <Smartphone size={12}/> Transf.
+                      </div>
+                      <div className="bg-slate-100 dark:bg-slate-800 text-slate-500 py-1.5 rounded-lg flex flex-col items-center gap-0.5 border border-slate-200 dark:border-slate-700">
+                        <CreditCard size={12}/> Datáfono
+                      </div>
+                      <div className="bg-slate-100 dark:bg-slate-800 text-slate-500 py-1.5 rounded-lg flex flex-col items-center gap-0.5 border border-slate-200 dark:border-slate-700">
+                        <Zap size={12}/> Crédito
+                      </div>
+                    </div>
+
+                    {/* Dinero recibido + botón Exacto de Fiabono */}
+                    <div className="flex items-center gap-2 pt-1">
+                      <div className="flex-1 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg px-2.5 py-1 flex items-center justify-between text-xs">
+                        <span className="text-slate-400 font-bold">$ Dinero recibido:</span>
+                        <span className="font-mono font-black text-slate-900 dark:text-white">120.000</span>
+                      </div>
+                      <div className="bg-emerald-100 dark:bg-emerald-500/20 text-emerald-800 dark:text-emerald-300 font-bold text-[10px] px-2 py-1.5 rounded-lg">
+                        Devuelta: $10.000
+                      </div>
+                    </div>
                   </div>
                 </div>
-                <div className="pt-3 border-t border-slate-200 dark:border-slate-800 flex justify-between items-center">
-                  <span className="text-sm font-bold text-slate-600 dark:text-slate-400">Total a Pagar:</span>
-                  <span className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-white">$110.000</span>
-                </div>
-                <div className="grid grid-cols-2 gap-3 pt-1">
-                  <div className="p-3 bg-emerald-500 text-white rounded-xl text-center font-black text-xs sm:text-sm flex items-center justify-center gap-1.5 shadow-sm">
-                    <CheckCircle2 size={16}/> Cobrar Contado
+
+                {/* Footer real con botón Vender */}
+                <div className="bg-slate-900 text-white p-3 flex items-center justify-between border-t border-slate-800">
+                  <div>
+                    <span className="text-[10px] text-slate-400 font-bold block uppercase">Total a Cobrar</span>
+                    <span className="text-xl font-black text-white">$110.000</span>
                   </div>
-                  <div className="p-3 bg-rose-500 text-white rounded-xl text-center font-black text-xs sm:text-sm flex items-center justify-center gap-1.5 shadow-sm">
-                    <ShoppingBag size={16}/> Fiar con Cupo
+                  <div className="bg-emerald-500 text-white font-black text-xs py-2.5 px-5 rounded-xl flex items-center gap-2 shadow-lg">
+                    <span>Vender</span>
+                    <CheckCircle2 size={16}/>
                   </div>
                 </div>
               </div>
+
               <div className="lg:col-span-5 space-y-3 text-left">
-                <h4 className="text-xl font-black text-slate-900 dark:text-white">Cobro ágil sin filas ni confusiones</h4>
+                <span className="text-xs font-black uppercase text-emerald-600 tracking-wider">Flujo de mostrador rápido</span>
+                <h4 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white">Así de simple cobras en tu mostrador</h4>
                 <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400 leading-relaxed font-medium">
-                  Busca productos por nombre, código de barras o código QR. Registra pagos de contado (efectivo, Nequi, Daviplata o datáfono) o fíalo a la cuenta del cliente en un solo clic verificando su cupo disponible.
+                  Buscas productos por nombre o escaneas con la cámara del celular. Eliges si pagan en <strong>Efectivo, Transferencia (Nequi/Daviplata) o Datáfono</strong>, anotas cuánto te dieron y el sistema calcula la devuelta en tiempo real.
                 </p>
                 <div className="bg-emerald-50 dark:bg-emerald-500/10 p-3 rounded-xl text-xs font-bold text-emerald-700 dark:text-emerald-300 border border-emerald-100 dark:border-emerald-500/20">
-                  💡 Descuenta el stock automáticamente y registra el ingreso en tu caja al instante.
+                  ✓ Si el cliente no paga completo, el sistema convierte automáticamente el saldo en fiado a su cuenta.
                 </div>
               </div>
             </div>
           )}
 
+          {/* 2. VISTA WHATSAPP REAL (CON BURBUJA DE CHAT, HORA Y LINK DIGITAL) */}
           {tabMockup === 'whatsapp' && (
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-center animate-in fade-in duration-300">
-              <div className="lg:col-span-6 bg-emerald-700 text-white p-5 rounded-2xl shadow-xl font-sans text-xs space-y-3 text-left">
-                <div className="flex items-center justify-between border-b border-emerald-500/40 pb-2 font-black">
-                  <span className="flex items-center gap-1.5"><MessageCircle size={16}/> WhatsApp del Cliente</span>
-                  <span className="text-[10px] bg-white/20 px-2 py-0.5 rounded">Enviado en 1 toque</span>
-                </div>
-                {/* Selector rápido para ver tipos de comprobante */}
-                <div className="space-y-2.5">
-                  <div className="bg-emerald-800/60 p-3 rounded-xl space-y-1 text-[11px] leading-relaxed border-l-4 border-amber-400">
-                    <p className="font-black text-amber-300">📝 *COMPROBANTE DE FIADO — Moda & Estilo*</p>
-                    <p>Cliente: *Camila Torres*</p>
-                    <p>• Jean Levantacola Azul x1 $\rightarrow$ $95.000</p>
-                    <p className="font-bold pt-1 border-t border-emerald-600 text-emerald-100">
-                      Saldo anterior: $50.000 • *Nuevo saldo a pagar: $145.000*
-                    </p>
-                    <p className="text-[10px] text-emerald-300">Link de verificación en línea incluido 🔗</p>
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-center animate-in fade-in duration-200">
+              <div className="lg:col-span-7 flex justify-center">
+                {/* Marco de Teléfono WhatsApp */}
+                <div className="w-full max-w-sm bg-[#EFEAE2] dark:bg-[#0b141a] rounded-[2rem] border-4 border-slate-800 shadow-2xl overflow-hidden text-left font-sans">
+                  {/* Barra superior de WhatsApp */}
+                  <div className="bg-[#075E54] text-white p-3 flex items-center justify-between text-xs">
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-8 h-8 rounded-full bg-emerald-700 flex items-center justify-center font-bold text-xs text-white">
+                        M
+                      </div>
+                      <div>
+                        <p className="font-bold text-xs leading-tight">Moda & Estilo Boutique</p>
+                        <p className="text-[10px] text-emerald-200">en línea</p>
+                      </div>
+                    </div>
+                    <span className="text-[10px] bg-white/20 px-2 py-0.5 rounded">WhatsApp</span>
                   </div>
 
-                  <div className="bg-emerald-800/60 p-3 rounded-xl space-y-1 text-[11px] leading-relaxed border-l-4 border-emerald-400">
-                    <p className="font-black text-emerald-200">💵 *COMPROBANTE DE ABONO — Moda & Estilo*</p>
-                    <p>Cliente: *Camila Torres* • Abono recibido: *$60.000* (Nequi)</p>
-                    <p className="font-bold pt-1 border-t border-emerald-600 text-emerald-100">
-                      Saldo pendiente restante: *$85.000*
-                    </p>
-                    <p className="text-[10px] text-emerald-300">¡Muchas gracias por su puntual abono! 🙌</p>
+                  {/* Área del Chat con Burbuja de Comprobante */}
+                  <div className="p-3.5 space-y-3 min-h-[290px] flex flex-col justify-end text-xs">
+                    <div className="bg-white dark:bg-[#1f2c34] text-slate-800 dark:text-slate-100 p-3 rounded-2xl rounded-tl-sm shadow-sm border border-slate-200/60 dark:border-transparent space-y-1.5 text-[11px] leading-relaxed max-w-[95%]">
+                      <p className="font-bold text-[#075E54] dark:text-emerald-400">
+                        ¡Hola, *Camila Torres*! Gracias por tu compra en *Moda & Estilo Boutique*.
+                      </p>
+                      <div className="border-t border-slate-200 dark:border-slate-700 pt-1 text-[10px] space-y-0.5 text-slate-600 dark:text-slate-300">
+                        <p className="font-black text-slate-800 dark:text-white uppercase">🛒 COMPROBANTE DE VENTA #0142</p>
+                        <p>• 1x Vestido Lino Estampado — $65.000</p>
+                        <p>• 1x Sandalias Plataforma #37 — $45.000</p>
+                        <p className="font-bold text-slate-900 dark:text-white pt-0.5 border-t border-dashed border-slate-200 dark:border-slate-700">
+                          *TOTAL PAGADO:* $110.000 (Efectivo)
+                        </p>
+                      </div>
+
+                      {/* Tarjeta con el Link Real de Fiabono */}
+                      <div className="mt-2 p-2 bg-slate-50 dark:bg-[#111b21] rounded-xl border border-slate-200 dark:border-slate-700/80">
+                        <p className="text-[10px] font-bold text-slate-500">Ver o descargar comprobante digital:</p>
+                        <span className="text-[11px] font-bold text-blue-600 dark:text-blue-400 underline break-all block">
+                          fiabono.com/t/mov_8a7f92
+                        </span>
+                        <p className="text-[9px] text-slate-400 mt-0.5">Factura digital 24/7 verificada</p>
+                      </div>
+
+                      <div className="flex justify-end items-center gap-1 text-[9px] text-slate-400 pt-0.5">
+                        <span>10:42 AM</span>
+                        <span className="text-blue-500 font-bold">✓✓</span>
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>
-              <div className="lg:col-span-6 space-y-3 text-left">
-                <h4 className="text-xl font-black text-slate-900 dark:text-white">Cero papel, cero pena al cobrar</h4>
+
+              <div className="lg:col-span-5 space-y-3 text-left">
+                <span className="text-xs font-black uppercase text-emerald-600 tracking-wider">El recibo que tus clientes aman</span>
+                <h4 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white">Envío directo al WhatsApp de tu cliente</h4>
                 <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400 leading-relaxed font-medium">
-                  Con un solo toque envías al WhatsApp de tu cliente el comprobante de <strong>Venta de contado, Fiado nuevo o Abono registrado</strong>. Cada mensaje incluye un enlace donde tu cliente puede ver su factura y saldo actualizado las 24 horas.
+                  Al terminar una venta o abonar una deuda, tocas <strong>"Enviar a WhatsApp"</strong> y se abre el chat de tu cliente con el recibo listo. Incluye el enlace digital seguro donde tu cliente puede descargar la factura en foto en cualquier momento.
                 </p>
                 <div className="bg-emerald-50 dark:bg-emerald-500/10 p-3 rounded-xl text-xs font-bold text-emerald-700 dark:text-emerald-300 border border-emerald-100 dark:border-emerald-500/20">
-                  📱 El cliente ve exactamente cuánto debe y cuánto abonó. Cuentas claras sin reclamos ni discusiones.
+                  📱 Funciona tanto para ventas de contado como para comprobantes de fiados y abonos.
                 </div>
               </div>
             </div>
           )}
 
+          {/* 3. VISTA TIRILLA TÉRMICA REAL CON LOGO Y DATOS */}
           {tabMockup === 'factura' && (
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-center animate-in fade-in duration-300">
-              <div className="lg:col-span-6 flex justify-center">
-                <div className="bg-white text-slate-900 p-5 rounded-2xl border border-slate-200 shadow-xl font-mono text-[11px] space-y-2 w-full max-w-sm text-left">
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-center animate-in fade-in duration-200">
+              <div className="lg:col-span-7 flex justify-center">
+                <div className="bg-white text-slate-900 p-5 rounded-2xl border border-slate-300 shadow-xl font-mono text-[11px] space-y-2 w-full max-w-xs text-left">
+                  {/* Encabezado con Logo y Datos */}
                   <div className="text-center pb-2 border-b border-dashed border-slate-300">
-                    {/* Simulación del Logo del Negocio */}
-                    <div className="w-12 h-12 mx-auto bg-slate-900 text-white rounded-xl flex items-center justify-center font-black text-lg mb-1.5 shadow-sm">
+                    <div className="w-10 h-10 mx-auto bg-slate-900 text-white rounded-xl flex items-center justify-center font-black text-sm mb-1">
                       M&E
                     </div>
-                    <p className="font-black text-sm tracking-wider">MODA & ESTILO BOUTIQUE</p>
-                    <p className="text-[10px] text-slate-500">NIT: 901.345.678-1 • Factura #0142</p>
-                    <p className="text-[9px] text-slate-400">Cra 15 # 45-20, Medellín • Cel: 312 456 7890</p>
+                    <p className="font-black text-xs tracking-wider">MODA & ESTILO BOUTIQUE</p>
+                    <p className="text-[10px] text-slate-500">NIT: 901.345.678-1</p>
+                    <p className="text-[9px] text-slate-500">Cra 15 # 45-20 • Tel: 312 456 7890</p>
+                    <div className="mt-1.5 pt-1 border-t border-slate-200 flex justify-between text-[10px] font-bold">
+                      <span>FACTURA: #0142</span>
+                      <span>18/08/2026</span>
+                    </div>
+                    <p className="text-[10px] text-left text-slate-600">Cliente: Camila Torres</p>
                   </div>
-                  <div className="space-y-1 py-1">
-                    <div className="flex justify-between"><span>Vestido Lino M</span><span>$65.000</span></div>
-                    <div className="flex justify-between"><span>Sandalias #37</span><span>$45.000</span></div>
-                  </div>
-                  <div className="border-t border-dashed border-slate-300 pt-2 flex justify-between font-black text-sm">
-                    <span>TOTAL:</span>
-                    <span>$110.000</span>
-                  </div>
-                  <div className="pt-2 text-center">
-                    <div className="inline-flex items-center gap-1.5 bg-slate-100 px-3 py-1 rounded text-[10px] font-bold text-slate-600">
-                      <QrCode size={13}/> Compatible con cualquier impresora térmica
+
+                  {/* Items */}
+                  <div className="space-y-1 py-1 text-[10px]">
+                    <div className="flex justify-between">
+                      <span>1x Vestido Lino M</span>
+                      <span className="font-bold">$65.000</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>1x Sandalias #37</span>
+                      <span className="font-bold">$45.000</span>
                     </div>
                   </div>
-                </div>
-              </div>
-              <div className="lg:col-span-6 space-y-3 text-left">
-                <h4 className="text-xl font-black text-slate-900 dark:text-white">Factura con el logo y datos de tu marca</h4>
-                <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400 leading-relaxed font-medium">
-                  Imprime desde tu celular por Bluetooth, o desde tu computador por cable o Wi-Fi. Personaliza tu factura con tu <strong>logo, NIT, dirección, teléfono y mensaje de agradecimiento</strong>.
-                </p>
-                <div className="bg-amber-50 dark:bg-amber-500/10 p-3 rounded-xl text-xs font-bold text-amber-700 dark:text-amber-300 border border-amber-100 dark:border-amber-500/20">
-                  🧾 Brinda la imagen seria, formal y profesional que tus clientes respetan.
-                </div>
-              </div>
-            </div>
-          )}
 
-          {tabMockup === 'separe' && (
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-center animate-in fade-in duration-300">
-              <div className="lg:col-span-6 bg-purple-900/10 dark:bg-purple-950/30 p-5 rounded-2xl border-2 border-purple-500/40 text-left space-y-3">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-black uppercase text-purple-700 dark:text-purple-300 bg-purple-100 dark:bg-purple-500/20 px-2.5 py-1 rounded-full">
-                    👑 Módulo Separe PRO
-                  </span>
-                  <span className="text-xs font-bold text-rose-500">📅 Vence en 8 días</span>
-                </div>
-                <div className="bg-white dark:bg-[#0f172a] p-3 rounded-xl border border-slate-200 dark:border-slate-800 space-y-2 text-xs">
-                  <p className="font-black text-slate-900 dark:text-white text-sm">Cliente: Camila Torres</p>
-                  <p className="text-slate-500">Prenda: Jean Levantacola Talla 8 (Azul Oscuro)</p>
-                  <div className="w-full bg-slate-100 dark:bg-slate-800 rounded-full h-3 overflow-hidden">
-                    <div className="bg-gradient-to-r from-purple-600 to-indigo-600 h-full w-[65%]"></div>
+                  {/* Totales */}
+                  <div className="border-t border-dashed border-slate-300 pt-2 space-y-0.5 text-[10px]">
+                    <div className="flex justify-between font-black text-xs">
+                      <span>TOTAL A PAGAR:</span>
+                      <span>$110.000</span>
+                    </div>
+                    <div className="flex justify-between text-slate-500 text-[9px]">
+                      <span>Medio de Pago:</span>
+                      <span>Efectivo ($120.000)</span>
+                    </div>
+                    <div className="flex justify-between text-slate-500 text-[9px]">
+                      <span>Devuelta:</span>
+                      <span>$10.000</span>
+                    </div>
                   </div>
-                  <div className="flex justify-between font-bold text-xs pt-1">
-                    <span className="text-emerald-600">Abonado: $65.000</span>
-                    <span className="text-rose-500">Saldo: $35.000</span>
-                  </div>
-                </div>
-              </div>
-              <div className="lg:col-span-6 space-y-3 text-left">
-                <h4 className="text-xl font-black text-slate-900 dark:text-white">Aparta prendas con fotos y alertas de fecha límite</h4>
-                <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400 leading-relaxed font-medium">
-                  Toma foto a la mercancía apartada con la cámara de tu celular, define fecha límite, registra abonos parciales y activa alertas antes de que se venza el plazo para liberar la prenda o avisar al cliente.
-                </p>
-                <div className="bg-purple-50 dark:bg-purple-500/10 p-3 rounded-xl text-xs font-bold text-purple-700 dark:text-purple-300 border border-purple-100 dark:border-purple-500/20">
-                  👗 Aumenta hasta un 35% la rotación de mercancía en temporadas altas y quincenas.
-                </div>
-              </div>
-            </div>
-          )}
 
-          {tabMockup === 'caja' && (
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-center animate-in fade-in duration-300">
-              <div className="lg:col-span-7 bg-slate-900 text-white p-5 sm:p-6 rounded-2xl shadow-xl space-y-4 text-left border border-slate-800">
-                <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-                  <div className="flex items-center gap-2">
-                    <div className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse"></div>
-                    <span className="text-xs font-black tracking-wider uppercase text-slate-300">BALANCE EN VIVO DE HOY</span>
-                  </div>
-                  <span className="text-[10px] bg-slate-800 text-slate-300 px-2 py-0.5 rounded font-mono">18:30 PM • Cierre</span>
-                </div>
-
-                {/* Tarjetas métricas reales de Fiabono */}
-                <div className="grid grid-cols-3 gap-2.5">
-                  <div className="bg-slate-800/80 p-3 rounded-xl border border-slate-700/50">
-                    <span className="text-[10px] text-slate-400 font-bold block">Dinero en Caja</span>
-                    <span className="text-base sm:text-lg font-black text-emerald-400">$645.000</span>
-                  </div>
-                  <div className="bg-slate-800/80 p-3 rounded-xl border border-slate-700/50">
-                    <span className="text-[10px] text-slate-400 font-bold block">Ventas de Contado</span>
-                    <span className="text-base sm:text-lg font-black text-white">$520.000</span>
-                  </div>
-                  <div className="bg-slate-800/80 p-3 rounded-xl border border-slate-700/50">
-                    <span className="text-[10px] text-slate-400 font-bold block">Fiados del Día</span>
-                    <span className="text-base sm:text-lg font-black text-amber-400">$180.000</span>
-                  </div>
-                </div>
-
-                {/* Desglose de medios de pago */}
-                <div className="bg-slate-950/60 p-3.5 rounded-xl space-y-2 border border-slate-800/60 text-xs">
-                  <span className="text-[11px] font-bold text-slate-400 block">Desglose de Medios de Pago:</span>
-                  <div className="flex justify-between items-center text-slate-300">
-                    <span className="flex items-center gap-1.5"><Banknote size={14} className="text-emerald-400"/> Efectivo físico en cajón:</span>
-                    <span className="font-mono font-black text-white">$385.000</span>
-                  </div>
-                  <div className="flex justify-between items-center text-slate-300">
-                    <span className="flex items-center gap-1.5"><Smartphone size={14} className="text-blue-400"/> Nequi / Daviplata / Bancos:</span>
-                    <span className="font-mono font-black text-white">$260.000</span>
-                  </div>
-                  <div className="flex justify-between items-center text-slate-300">
-                    <span className="flex items-center gap-1.5"><CreditCard size={14} className="text-purple-400"/> Datáfono (Tarjetas):</span>
-                    <span className="font-mono font-black text-white">$120.000</span>
+                  {/* Pie de ticket y QR */}
+                  <div className="pt-2 border-t border-dashed border-slate-300 text-center space-y-1">
+                    <div className="inline-flex items-center gap-1 bg-slate-100 px-2 py-0.5 rounded text-[9px] font-bold text-slate-600">
+                      <QrCode size={11}/> Escanea para verificar factura
+                    </div>
+                    <p className="text-[9px] text-slate-400">¡Gracias por apoyar el comercio local!</p>
                   </div>
                 </div>
               </div>
 
               <div className="lg:col-span-5 space-y-3 text-left">
-                <h4 className="text-xl font-black text-slate-900 dark:text-white">Cierra la caja en 2 segundos</h4>
+                <span className="text-xs font-black uppercase text-emerald-600 tracking-wider">Impresión física profesional</span>
+                <h4 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white">Factura térmica lista para cualquier impresora</h4>
                 <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400 leading-relaxed font-medium">
-                  Se acabaron las horas sumando tirillas o perdiendo dinero porque la plata no cuadra con el cuaderno. Fiabono separa automáticamente <strong>el dinero físico de las transferencias y los fiados</strong>.
+                  Compatible con impresoras portátiles Bluetooth (para facturar desde el celular) o impresoras USB en tu computador. Muestra tu <strong>logo, NIT, teléfono, dirección y desglose exacto</strong>.
+                </p>
+                <div className="bg-amber-50 dark:bg-amber-500/10 p-3 rounded-xl text-xs font-bold text-amber-700 dark:text-amber-300 border border-amber-100 dark:border-amber-500/20">
+                  🧾 Dale a tu negocio la presencia formal y organizada que tus clientes respetan.
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* 4. VISTA FICHA REAL DE PLAN SEPARE */}
+          {tabMockup === 'separe' && (
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-center animate-in fade-in duration-200">
+              <div className="lg:col-span-7 bg-white dark:bg-[#0f172a] p-4 rounded-2xl border-2 border-purple-500/40 shadow-xl space-y-3 text-left">
+                <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-2.5">
+                  <span className="text-xs font-black uppercase text-purple-700 dark:text-purple-300 bg-purple-100 dark:bg-purple-500/20 px-2.5 py-1 rounded-full flex items-center gap-1">
+                    <Crown size={12} className="text-amber-500 fill-current"/> Módulo Plan Separe
+                  </span>
+                  <span className="text-xs font-bold text-rose-600 bg-rose-50 dark:bg-rose-500/10 px-2 py-0.5 rounded-full border border-rose-200">
+                    📅 Plazo: Vence en 8 días
+                  </span>
+                </div>
+
+                <div className="flex gap-3 items-center">
+                  <div className="w-16 h-16 rounded-xl bg-purple-50 dark:bg-purple-950/40 border border-purple-200 dark:border-purple-800 flex items-center justify-center text-purple-600 shrink-0 font-bold text-xs">
+                    👗 Foto
+                  </div>
+                  <div className="min-w-0 flex-1 text-xs">
+                    <p className="font-black text-slate-900 dark:text-white text-sm truncate">Jean Levantacola Azul Talla 8</p>
+                    <p className="text-slate-500">Cliente: Camila Torres • Cel: 310 987 6543</p>
+                  </div>
+                </div>
+
+                {/* Barra de Progreso de Abonos */}
+                <div className="space-y-1 pt-1">
+                  <div className="flex justify-between text-xs font-bold">
+                    <span className="text-slate-500">Progreso del Separe (65% pagado):</span>
+                    <span className="text-emerald-600 font-black">$65.000 / $100.000</span>
+                  </div>
+                  <div className="w-full bg-slate-100 dark:bg-slate-800 rounded-full h-3 overflow-hidden">
+                    <div className="bg-gradient-to-r from-purple-600 to-emerald-500 h-full w-[65%] rounded-full"></div>
+                  </div>
+                </div>
+
+                <div className="flex justify-between items-center pt-2 border-t border-slate-100 dark:border-slate-800 text-xs">
+                  <div>
+                    <span className="text-[10px] text-slate-400 block font-bold">SALDO PENDIENTE:</span>
+                    <span className="font-black text-rose-600 text-base">$35.000</span>
+                  </div>
+                  <div className="flex gap-2">
+                    <span className="bg-purple-600 text-white font-bold text-[11px] px-3 py-1.5 rounded-lg shadow-sm">
+                      + Abonar
+                    </span>
+                    <span className="bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-bold text-[11px] px-2.5 py-1.5 rounded-lg">
+                      Ver Historial
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="lg:col-span-5 space-y-3 text-left">
+                <span className="text-xs font-black uppercase text-purple-600 tracking-wider">Cero prendas perdidas</span>
+                <h4 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white">Aparta prendas con fotos y fechas límite</h4>
+                <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400 leading-relaxed font-medium">
+                  Le tomas foto al vestido o calzado apartado, registras el abono inicial y fijas la fecha de vencimiento. Si el plazo vence, el sistema te avisa para recordar el cobro por WhatsApp o liberar la prenda para venderla a otro cliente.
+                </p>
+                <div className="bg-purple-50 dark:bg-purple-500/10 p-3 rounded-xl text-xs font-bold text-purple-700 dark:text-purple-300 border border-purple-100 dark:border-purple-500/20">
+                  👗 Aumenta la rotación de mercancía en quincenas y temporadas sin enredos en cuadernos.
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* 5. VISTA CIERRE DE CAJA Y REPORTES (IDÉNTICA A /dashboard/reportes) */}
+          {tabMockup === 'caja' && (
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-center animate-in fade-in duration-200">
+              <div className="lg:col-span-7 bg-slate-900 text-white p-4 sm:p-5 rounded-2xl shadow-xl space-y-3 text-left border border-slate-800">
+                <div className="flex items-center justify-between border-b border-slate-800 pb-2.5">
+                  <div className="flex items-center gap-2">
+                    <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                    <span className="text-xs font-black tracking-wider uppercase text-slate-200">RESUMEN DE CAJA (HOY)</span>
+                  </div>
+                  <div className="flex gap-1 text-[10px] font-bold">
+                    <span className="bg-emerald-600 text-white px-2 py-0.5 rounded">Hoy</span>
+                    <span className="bg-slate-800 text-slate-400 px-2 py-0.5 rounded">Semana</span>
+                    <span className="bg-slate-800 text-slate-400 px-2 py-0.5 rounded">Mes</span>
+                  </div>
+                </div>
+
+                {/* 4 Tarjetas exactas de Fiabono Reportes */}
+                <div className="grid grid-cols-2 gap-2 text-xs">
+                  <div className="bg-slate-800/90 p-2.5 rounded-xl border border-slate-700/60">
+                    <span className="text-[10px] text-slate-400 font-bold block">Dinero Neto en Caja</span>
+                    <span className="text-lg font-black text-emerald-400">$645.000</span>
+                  </div>
+                  <div className="bg-slate-800/90 p-2.5 rounded-xl border border-slate-700/60">
+                    <span className="text-[10px] text-slate-400 font-bold block">Ventas de Contado</span>
+                    <span className="text-lg font-black text-white">$520.000</span>
+                  </div>
+                  <div className="bg-slate-800/90 p-2.5 rounded-xl border border-slate-700/60">
+                    <span className="text-[10px] text-slate-400 font-bold block">Abonos Recibidos</span>
+                    <span className="text-lg font-black text-blue-400">$125.000</span>
+                  </div>
+                  <div className="bg-slate-800/90 p-2.5 rounded-xl border border-slate-700/60">
+                    <span className="text-[10px] text-slate-400 font-bold block">Total Fiados del Día</span>
+                    <span className="text-lg font-black text-amber-400">$180.000</span>
+                  </div>
+                </div>
+
+                {/* Desglose de Dinero Físico vs Bancos */}
+                <div className="bg-slate-950/70 p-3 rounded-xl border border-slate-800 space-y-1.5 text-xs">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Dinero a comprobar en cierre:</span>
+                  <div className="flex justify-between items-center text-slate-300 text-[11px]">
+                    <span className="flex items-center gap-1.5"><Banknote size={13} className="text-emerald-400"/> Efectivo físico en cajón:</span>
+                    <span className="font-mono font-black text-white">$385.000</span>
+                  </div>
+                  <div className="flex justify-between items-center text-slate-300 text-[11px]">
+                    <span className="flex items-center gap-1.5"><Smartphone size={13} className="text-blue-400"/> Transferencias (Nequi / Daviplata):</span>
+                    <span className="font-mono font-black text-white">$260.000</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="lg:col-span-5 space-y-3 text-left">
+                <span className="text-xs font-black uppercase text-emerald-600 tracking-wider">Control financiero sin descuadres</span>
+                <h4 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white">Cierra caja sabiendo qué tienes en el cajón</h4>
+                <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400 leading-relaxed font-medium">
+                  El sistema separa automáticamente las ventas de contado, los abonos y los fiados. Sabes exactamente <strong>cuánto dinero en efectivo debes contar físicamente</strong> y cuánto dinero tienes en tus cuentas bancarias.
                 </p>
                 <div className="bg-emerald-50 dark:bg-emerald-500/10 p-3 rounded-xl text-xs font-bold text-emerald-700 dark:text-emerald-300 border border-emerald-100 dark:border-emerald-500/20">
-                  📊 Sabes exactamente cuánto dinero contante y sonante debe haber en el cajón de tu negocio al irte a dormir.
+                  📊 Reportes claros por día, semana o mes para tomar decisiones con números reales.
                 </div>
               </div>
             </div>
@@ -1674,6 +1832,14 @@ export default function LandingPage() {
               a: "Te permite registrar prendas o productos apartados con foto, definir una fecha límite de pago, recibir abonos parciales y emitir comprobantes actualizados con alertas de vencimiento para evitar que la mercancía se quede estancada."
             },
             {
+              q: "¿Necesito resolución de la DIAN o trámites tributarios para empezar a usar Fiabono?",
+              a: "No. Puedes comenzar a usar Fiabono de inmediato para el control interno de tus ventas, fiados, abonos e inventario sin requerir resoluciones ni trámites complejos. Más adelante, si las exigencias de tu negocio lo requieren, el sistema podrá incorporar módulos de facturación electrónica sin que pierdas tu información."
+            },
+            {
+              q: "¿Tengo que descargar una aplicación pesada de la Play Store o App Store?",
+              a: "No tienes que saturar la memoria de tu celular. Fiabono funciona directamente desde cualquier navegador web (Chrome, Safari) y te permite instalarlo como una aplicación (PWA) en tu pantalla de inicio con 1 solo toque. Es ultraligero, rápido y se actualiza automáticamente sin descargas de cientos de megabytes."
+            },
+            {
               q: "¿Puedo probar el sistema antes de pagar un solo peso?",
               a: "Sí, totalmente. Puedes registrarte y usar el Plan Gratuito para siempre. Si deseas probar las herramientas avanzadas de Comercio o PRO, disfrutas de 14 días de prueba completa sin necesidad de ingresar tarjeta de crédito."
             }
@@ -1723,14 +1889,60 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* 12. FOOTER */}
-      <footer className="py-12 pb-24 md:pb-12 px-6 border-t border-slate-200/60 dark:border-slate-800/60 text-center text-xs text-slate-500 dark:text-slate-400 font-medium">
-        <div className="max-w-6xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
-          <div className="flex items-center gap-2">
-            <div className="w-6 h-6 bg-emerald-600 rounded-lg flex items-center justify-center text-white font-black text-[11px]">F</div>
-            <span className="font-black text-slate-800 dark:text-white">Fiabono.com</span>
+      {/* 12. FOOTER ELEGANTE Y SELLOS DE SEGURIDAD */}
+      <footer className="py-12 pb-24 md:pb-12 px-6 border-t border-slate-200/60 dark:border-slate-800/60 text-xs text-slate-500 dark:text-slate-400 font-medium">
+        <div className="max-w-6xl mx-auto space-y-6">
+          {/* Sellos de Confianza y Seguridad Cloud */}
+          <div className="flex flex-wrap items-center justify-center gap-4 sm:gap-8 pb-6 border-b border-slate-200/40 dark:border-slate-800/40 text-[11px] font-bold text-slate-400 dark:text-slate-500">
+            <span className="flex items-center gap-1.5">
+              <ShieldCheck size={14} className="text-emerald-500" /> Servidores Google Cloud
+            </span>
+            <span className="flex items-center gap-1.5">
+              <Lock size={13} className="text-blue-500" /> Encriptación SSL 256-bit
+            </span>
+            <span className="flex items-center gap-1.5">
+              <CheckCircle2 size={13} className="text-purple-500" /> Respaldo Automático 24/7
+            </span>
+            <span className="flex items-center gap-1.5">
+              <Sparkles size={13} className="text-amber-500" /> Protección de Datos (Ley 1581)
+            </span>
           </div>
-          <p>© {new Date().getFullYear()} Fiabono. Todos los derechos reservados. Desarrollado para negocios en crecimiento.</p>
+
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+            <div className="flex items-center gap-2">
+              <LogoFiabono size={26} showText={true} showBadge={false} />
+              <span className="text-[10px] text-slate-400 dark:text-slate-600 ml-1">Hecho en Colombia 🇨🇴</span>
+            </div>
+
+            {/* Enlaces Legales */}
+            <div className="flex items-center gap-5 text-slate-500 dark:text-slate-400 font-bold text-[11px]">
+              <button 
+                type="button" 
+                onClick={() => setModalLegal({ 
+                  visible: true, 
+                  titulo: "Términos y Condiciones del Servicio", 
+                  tipo: 'terminos' 
+                })} 
+                className="hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors cursor-pointer"
+              >
+                Términos del Servicio
+              </button>
+              <span>•</span>
+              <button 
+                type="button" 
+                onClick={() => setModalLegal({ 
+                  visible: true, 
+                  titulo: "Política de Tratamiento de Datos Personales", 
+                  tipo: 'privacidad' 
+                })} 
+                className="hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors cursor-pointer"
+              >
+                Política de Privacidad
+              </button>
+            </div>
+
+            <p>© {new Date().getFullYear()} Fiabono. Todos los derechos reservados.</p>
+          </div>
         </div>
       </footer>
 
@@ -1936,6 +2148,40 @@ export default function LandingPage() {
                   </div>
                   {errorCodigo && <p className="text-rose-500 text-[11px] font-bold flex items-center gap-1"><AlertCircle size={12}/>{errorCodigo}</p>}
                   {exitoCodigo && <p className="text-emerald-600 dark:text-emerald-400 text-[11px] font-bold flex items-center gap-1"><CheckCircle2 size={12}/>{exitoCodigo}</p>}
+                </div>
+              )}
+
+              {modalLandingInfo.tipo === 'registro' && (
+                <div className="flex items-start gap-2.5 p-3 rounded-2xl bg-slate-50 dark:bg-[#020617] border border-slate-200 dark:border-slate-800 text-left">
+                  <input
+                    type="checkbox"
+                    id="acepta_terminos_check"
+                    checked={aceptaTerminos}
+                    onChange={e => {
+                      setAceptaTerminos(e.target.checked);
+                      if (authErrores.general) setAuthErrores(p => ({ ...p, general: "" }));
+                    }}
+                    className="mt-0.5 w-4 h-4 rounded text-blue-600 focus:ring-blue-500 border-slate-300 dark:border-slate-700 cursor-pointer shrink-0 accent-blue-600"
+                  />
+                  <label htmlFor="acepta_terminos_check" className="text-[11px] text-slate-600 dark:text-slate-400 leading-snug cursor-pointer font-medium">
+                    He leído y acepto los{" "}
+                    <button
+                      type="button"
+                      onClick={() => setModalLegal({ visible: true, titulo: "Términos y Condiciones del Servicio", tipo: 'terminos' })}
+                      className="text-blue-600 dark:text-blue-400 font-black underline hover:opacity-80"
+                    >
+                      Términos del Servicio
+                    </button>{" "}
+                    y la{" "}
+                    <button
+                      type="button"
+                      onClick={() => setModalLegal({ visible: true, titulo: "Política de Tratamiento de Datos Personales", tipo: 'privacidad' })}
+                      className="text-blue-600 dark:text-blue-400 font-black underline hover:opacity-80"
+                    >
+                      Política de Privacidad
+                    </button>{" "}
+                    (Ley 1581 de Habeas Data).
+                  </label>
                 </div>
               )}
 
@@ -2361,9 +2607,29 @@ export default function LandingPage() {
                     </button>
                   </div>
 
-                  <p className="text-[11px] text-slate-400 dark:text-slate-500 text-center italic">
-                    * Puedes cambiar de plan o cancelar en cualquier momento sin cargos ocultos.
-                  </p>
+                  <div className="flex items-start gap-2.5 p-3 rounded-2xl bg-blue-50/60 dark:bg-blue-950/20 border border-blue-200/80 dark:border-blue-900/40 text-left">
+                    <input
+                      type="checkbox"
+                      id="acepta_terminos_google_check"
+                      checked={aceptaTerminosGoogle}
+                      onChange={e => {
+                        setAceptaTerminosGoogle(e.target.checked);
+                        if (errorGoogleOnboarding) setErrorGoogleOnboarding("");
+                      }}
+                      className="mt-0.5 w-4 h-4 rounded text-blue-600 focus:ring-blue-500 border-slate-300 dark:border-slate-700 cursor-pointer shrink-0 accent-blue-600"
+                    />
+                    <label htmlFor="acepta_terminos_google_check" className="text-[11px] text-slate-600 dark:text-slate-400 leading-snug cursor-pointer font-medium">
+                      Declaro que he leído y acepto los{" "}
+                      <a href="/terminos" target="_blank" className="text-blue-600 dark:text-blue-400 font-black underline">
+                        Términos del Servicio
+                      </a>{" "}
+                      y la{" "}
+                      <a href="/privacidad" target="_blank" className="text-blue-600 dark:text-blue-400 font-black underline">
+                        Política de Privacidad
+                      </a>{" "}
+                      (Ley 1581 de Habeas Data).
+                    </label>
+                  </div>
 
                   <div className="flex items-center gap-2 pt-2">
                     <button
@@ -2405,6 +2671,88 @@ export default function LandingPage() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* 16. MODAL LEGAL INFORMATIVO (TÉRMINOS Y PRIVACIDAD) */}
+      {modalLegal.visible && (
+        <div className="fixed inset-0 bg-slate-900/60 dark:bg-black/80 backdrop-blur-md flex items-center justify-center p-4 z-[9999] animate-in zoom-in-95 duration-200">
+          <div className="bg-white dark:bg-[#0f172a] p-6 sm:p-8 rounded-[2.5rem] w-full max-w-lg shadow-2xl border border-slate-100 dark:border-slate-800 relative max-h-[85vh] overflow-y-auto text-left">
+            <button 
+              type="button"
+              onClick={() => setModalLegal({ visible: false, titulo: "", tipo: null })} 
+              className="absolute top-6 right-6 bg-slate-100 dark:bg-[#020617] text-slate-500 hover:text-slate-800 dark:hover:text-white rounded-full p-2 transition-colors cursor-pointer"
+            >
+              <X size={20}/>
+            </button>
+
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 rounded-xl bg-emerald-100 dark:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0">
+                <ShieldCheck size={20} />
+              </div>
+              <h3 className="text-xl font-black text-slate-900 dark:text-white">
+                {modalLegal.titulo}
+              </h3>
+            </div>
+
+            {modalLegal.tipo === 'terminos' ? (
+              <div className="space-y-4 text-xs sm:text-sm text-slate-600 dark:text-slate-300 font-medium leading-relaxed">
+                <div>
+                  <h4 className="font-black text-slate-900 dark:text-white mb-1">1. Objeto del Servicio</h4>
+                  <p>Fiabono es una plataforma de software como servicio (SaaS) orientada al registro, control interno y administración de ventas, fiados, abonos, planes separe e inventarios para comercios independientes.</p>
+                </div>
+                <div>
+                  <h4 className="font-black text-slate-900 dark:text-white mb-1">2. Propiedad de la Información</h4>
+                  <p>Toda la información registrada (catálogo de productos, clientes, montos de transacciones y saldos deudores) es propiedad única y exclusiva del titular de la cuenta.</p>
+                </div>
+                <div>
+                  <h4 className="font-black text-slate-900 dark:text-white mb-1">3. Cuentas y Accesos</h4>
+                  <p>El administrador es responsable de la custodia de sus credenciales y de los permisos otorgados a sus usuarios colaboradores.</p>
+                </div>
+                <div>
+                  <h4 className="font-black text-slate-900 dark:text-white mb-1">4. Sin Ataduras ni Permanencia</h4>
+                  <p>No existen contratos de permanencia mínima obligatoria. Puedes gestionar o cancelar tu suscripción en cualquier momento.</p>
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-4 text-xs sm:text-sm text-slate-600 dark:text-slate-300 font-medium leading-relaxed">
+                <div>
+                  <h4 className="font-black text-slate-900 dark:text-white mb-1">1. Compromiso de Habeas Data (Ley 1581 de 2012)</h4>
+                  <p>Fiabono garantiza el estricto cumplimiento de la legislación colombiana sobre protección y tratamiento de datos personales.</p>
+                </div>
+                <div>
+                  <h4 className="font-black text-slate-900 dark:text-white mb-1">2. Finalidad del Tratamiento</h4>
+                  <p>Los datos solicitados se emplean exclusivamente para la operatividad de la plataforma (generación de comprobantes digitales, respaldo seguro en la nube y autenticación de accesos).</p>
+                </div>
+                <div>
+                  <h4 className="font-black text-slate-900 dark:text-white mb-1">3. Confidencialidad y No Comercialización</h4>
+                  <p>Fiabono jamás vende, cede ni comercializa información de clientes, deudas ni registros contables con terceras entidades o centrales de riesgo.</p>
+                </div>
+                <div>
+                  <h4 className="font-black text-slate-900 dark:text-white mb-1">4. Seguridad Técnica</h4>
+                  <p>Toda la comunicación está protegida mediante cifrado SSL/TLS de 256 bits y alojada en centros de datos de alta disponibilidad y seguridad de Google Cloud.</p>
+                </div>
+              </div>
+            )}
+
+            <div className="mt-6 pt-4 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between gap-3">
+              <a
+                href={modalLegal.tipo === 'terminos' ? '/terminos' : '/privacidad'}
+                className="text-[11px] font-bold text-emerald-600 dark:text-emerald-400 hover:underline flex items-center gap-1"
+              >
+                <span>Ver documento completo</span>
+                <ArrowRight size={12} />
+              </a>
+
+              <button
+                type="button"
+                onClick={() => setModalLegal({ visible: false, titulo: "", tipo: null })}
+                className="bg-slate-900 dark:bg-white text-white dark:text-slate-900 font-black text-xs px-5 py-2.5 rounded-xl cursor-pointer hover:opacity-90 transition-opacity"
+              >
+                Entendido y Cerrar
+              </button>
+            </div>
           </div>
         </div>
       )}

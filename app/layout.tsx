@@ -19,8 +19,13 @@ export const metadata = {
   ],
   manifest: "/manifest.json",
   icons: {
-    icon: "/icon-512.jpg",
-    apple: "/icon-512.jpg",
+    icon: [
+      { url: "/favicon.ico", sizes: "any" },
+      { url: "/favicon.png", type: "image/png", sizes: "32x32" },
+      { url: "/logo-verde-linea-blanca-grande.png", type: "image/png", sizes: "512x512" },
+    ],
+    shortcut: "/favicon.ico",
+    apple: "/logo-verde-linea-blanca-grande.png",
   },
   appleWebApp: {
     capable: true,

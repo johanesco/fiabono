@@ -1,5 +1,6 @@
 "use client";
 import React from "react";
+import Image from "next/image";
 import { DetalleFacturaItem, DatosFacturaProps } from "./TicketFacturaModal";
 
 interface VistaTicketCardProps {
@@ -345,12 +346,27 @@ export default function VistaTicketCard({ datos, ticketRef }: VistaTicketCardPro
       </div>
 
       {/* PIE DEL TICKET */}
-      <div className="pt-1.5 text-center text-[9px] text-slate-500 space-y-0.5">
-        <p className="font-black text-slate-800 uppercase">
+      <div className="pt-2 text-center text-[9px] text-slate-500 space-y-1 border-t border-dashed border-slate-200 mt-2">
+        <p className="font-black text-slate-800 uppercase text-[9.5px]">
           {datos.mensajePieTicket || "¡GRACIAS POR SU COMPRA!"}
         </p>
-        <p className="text-[8px] text-slate-600">Conserve este comprobante para cualquier aclaración.</p>
-        <p className="text-[7.5px] text-slate-400 font-sans mt-0.5">Generado por Fiabono.com</p>
+        <p className="text-[8px] text-slate-500">Conserve este comprobante para cualquier aclaración.</p>
+        
+        {/* Micro-sello oficial viral de Fiabono POS */}
+        <div className="pt-1 flex items-center justify-center gap-1.5 opacity-85">
+          <div className="w-3.5 h-3.5 rounded-sm bg-emerald-500 flex items-center justify-center p-0.5 overflow-hidden shrink-0 shadow-2xs">
+            <Image 
+              src="/logo-verde-linea-blanca-grande.png" 
+              alt="Fiabono" 
+              width={14} 
+              height={14} 
+              className="w-full h-full object-contain"
+            />
+          </div>
+          <p className="text-[8px] text-slate-400 font-bold tracking-tight">
+            Emitido con <span className="text-slate-600 font-black">Fiabono POS</span> • fiabono.com
+          </p>
+        </div>
       </div>
     </div>
   );

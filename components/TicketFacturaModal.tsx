@@ -588,19 +588,12 @@ Estamos atentos para cualquier consulta.
 
                 <button
                   type="button"
-                  onClick={() => {
-                    if (datosSesion?.esGratis) {
-                      setModalUpsell(true);
-                      return;
-                    }
-                    manejarImprimir();
-                  }}
+                  onClick={manejarImprimir}
                   className="flex-1 py-2.5 px-2 bg-blue-600 hover:bg-blue-700 text-white font-black rounded-xl flex items-center justify-center gap-1.5 text-xs text-center cursor-pointer"
                   title="Imprimir en impresora térmica"
                 >
                   <Printer size={14} />
                   <span>Imprimir</span>
-                  {datosSesion?.esGratis && <Crown size={12} className="text-amber-300 shrink-0" />}
                 </button>
               </div>
             </div>
@@ -641,18 +634,11 @@ Estamos atentos para cualquier consulta.
 
                 <button
                   type="button"
-                  onClick={() => {
-                    if (datosSesion?.esGratis) {
-                      setModalUpsell(true);
-                      return;
-                    }
-                    manejarImprimir();
-                  }}
+                  onClick={manejarImprimir}
                   className="py-2.5 px-4 bg-blue-600 hover:bg-blue-700 text-white font-black rounded-xl shadow-sm flex items-center justify-center gap-1.5 transition active:scale-95 text-xs text-center cursor-pointer"
                 >
                   <Printer size={15} className="shrink-0" /> 
-                  <span>{datosSesion?.esGratis ? 'Factura Imprimible' : 'Imprimir'}</span>
-                  {datosSesion?.esGratis && <Crown size={12} className="text-amber-300 shrink-0" />}
+                  <span>Imprimir</span>
                 </button>
               </div>
             </div>

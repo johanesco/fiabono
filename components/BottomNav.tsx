@@ -19,6 +19,7 @@ import {
   ChevronRight,
   ShieldCheck,
   User,
+  Users,
   ExternalLink
 } from 'lucide-react';
 import { useAuth } from "@/hooks/AuthContext";
@@ -100,6 +101,7 @@ export default function BottomNav({
   const esRutaMenuActiva = 
     pathname?.includes('/inventario') ||
     pathname?.includes('/separes') ||
+    pathname?.includes('/clientes') ||
     pathname?.includes('/reportes') ||
     pathname?.includes('/perfil') ||
     pathname?.includes('/master');
@@ -294,7 +296,28 @@ export default function BottomNav({
                 </Link>
               )}
 
-              {/* 3. REPORTES Y ESTADÍSTICAS (Solo Admin o con permiso) */}
+              {/* 3. CLIENTES & CARTERA */}
+              <Link
+                href="/dashboard/clientes"
+                className={`flex items-center justify-between p-3.5 rounded-2xl transition active:scale-[0.98] ${
+                  pathname?.startsWith('/dashboard/clientes')
+                    ? 'bg-amber-50 dark:bg-amber-500/10 text-amber-600 dark:text-amber-400 font-black'
+                    : 'bg-slate-50 dark:bg-slate-900/50 hover:bg-slate-100 dark:hover:bg-slate-800/60 text-slate-700 dark:text-slate-200 font-bold'
+                }`}
+              >
+                <div className="flex items-center gap-3">
+                  <div className="p-2 rounded-xl bg-amber-100 dark:bg-amber-500/20 text-amber-600 dark:text-amber-400">
+                    <Users size={20} />
+                  </div>
+                  <div>
+                    <p className="text-sm leading-tight">Clientes y Cartera</p>
+                    <p className="text-[11px] text-slate-400 font-normal">Saldos, riesgo y cobranza</p>
+                  </div>
+                </div>
+                <ChevronRight size={18} className="text-slate-400" />
+              </Link>
+
+              {/* 4. REPORTES Y ESTADÍSTICAS (Solo Admin o con permiso) */}
               {puedeVerReportes && (
                 <Link
                   href="/dashboard/reportes"

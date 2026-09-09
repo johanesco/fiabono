@@ -1,7 +1,7 @@
 "use client";
 import { useState, useEffect } from "react";
 import { useRouter, usePathname } from "next/navigation";
-import { Home, BarChart3, Clock, Settings, LogOut, ChevronLeft, ChevronRight, Package, Receipt, Bookmark } from 'lucide-react';
+import { Home, BarChart3, Clock, Settings, LogOut, ChevronLeft, ChevronRight, Package, Receipt, Bookmark, Users } from 'lucide-react';
 import { collection, query, where, onSnapshot } from "firebase/firestore";
 import { db } from "../../firebase";
 import { useAuth } from "@/hooks/AuthContext";
@@ -9,12 +9,16 @@ import BottomNav from "../../components/BottomNav";
 import ScrollIndicator from "../../components/ScrollIndicator";
 import GlobalExpirationWarning from "@/components/GlobalExpirationWarning";
 import GlobalAnnouncements from "@/components/GlobalAnnouncements";
+import LogoFiabono, { IsotipoFiabono } from "@/components/LogoFiabono";
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const auth = useAuth();
   const router = useRouter();
   const pathname = usePathname();
-  const [menuColapsado, setMenuColapsado] = useState(false);
+  const [fijadoExpandido, setFijadoExpandido] = useState(false);
+  const [hoverSidebar, setHoverSidebar] = useState(false);
+  const estaExpandido = fijadoExpandido || hoverSidebar;
+  const menuColapsado = !estaExpandido;
   const [ordenesPendientesCount, setOrdenesPendientesCount] = useState(0);
   const [separesActivosCount, setSeparesActivosCount] = useState(0);
 
@@ -105,13 +109,13 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     return () => unsub();
   }, [cuentaPrincipalId, puedeSepare]);
 
-  // Adaptabilidad Inteligente: en tablets (768px - 1023px) inicia colapsado, en PC (1024px+) expandido
+  // Adaptabilidad Inteligente: en tablets inicia colapsado, en pantallas grandes (1280px+) puede iniciar expandido
   useEffect(() => {
     const handleResize = () => {
-      if (window.innerWidth >= 768 && window.innerWidth < 1024) {
-        setMenuColapsado(true);
-      } else if (window.innerWidth >= 1024) {
-        setMenuColapsado(false);
+      if (window.innerWidth >= 768 && window.innerWidth < 1280) {
+        setFijadoExpandido(false);
+      } else if (window.innerWidth >= 1280) {
+        setFijadoExpandido(true);
       }
     };
     handleResize();
@@ -138,21 +142,32 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   return (
     <div className="flex h-screen w-screen bg-slate-100 dark:bg-slate-950 overflow-hidden font-sans">
 
-      {/* BARRA LATERAL INTELIGENTE (TABLETS & ESCRITORIO) */}
-      <aside className={`hidden md:flex flex-col bg-white dark:bg-[#0f172a] border-r border-slate-200 dark:border-slate-800 transition-all duration-300 z-40 shrink-0 ${menuColapsado ? 'w-20' : 'w-64'}`}>
-        <div className={`p-5 flex items-center border-b border-slate-100 dark:border-slate-800/60 ${menuColapsado ? 'justify-center' : 'justify-between'}`}>
-          {!menuColapsado && (
-            <div className="min-w-0">
-              <h1 className="text-xl font-black text-slate-900 dark:text-white truncate">Fiabono</h1>
-              <p className="text-xs font-bold text-slate-400 uppercase tracking-wider truncate">{nombreNegocio}</p>
+      {/* BARRA LATERAL INTELIGENTE (TABLETS & ESCRITORIO CON DESPLIEGUE POR HOVER O CLIC) */}
+      <aside 
+        onMouseEnter={() => setHoverSidebar(true)}
+        onMouseLeave={() => setHoverSidebar(false)}
+        className={`hidden md:flex flex-col bg-white dark:bg-[#0f172a] border-r border-slate-200 dark:border-slate-800 transition-all duration-300 z-40 shrink-0 shadow-sm ${estaExpandido ? 'w-64' : 'w-20'}`}
+      >
+        <div className={`p-4 flex items-center border-b border-slate-100 dark:border-slate-800/60 ${!estaExpandido ? 'justify-center flex-col gap-2' : 'justify-between'}`}>
+          {estaExpandido ? (
+            <div className="min-w-0 pr-2 animate-in fade-in duration-200">
+              <LogoFiabono size={30} showText={true} showBadge={false} />
+              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider truncate mt-1 pl-1">{nombreNegocio}</p>
+            </div>
+          ) : (
+            <div className="w-10 h-10 rounded-2xl overflow-hidden shadow-xs hover:scale-105 transition-transform shrink-0" title={nombreNegocio}>
+              <IsotipoFiabono size={40} />
             </div>
           )}
           <button
-            onClick={() => setMenuColapsado(!menuColapsado)}
-            title={menuColapsado ? "Expandir menú" : "Colapsar menú"}
-            className="p-2 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-600 dark:text-slate-300 transition-all active:scale-95"
+            onClick={() => {
+              setFijadoExpandido(!fijadoExpandido);
+              setHoverSidebar(false);
+            }}
+            title={fijadoExpandido ? "Fijar menú colapsado" : "Fijar menú siempre abierto"}
+            className="p-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-500 dark:text-slate-400 transition-all active:scale-95 cursor-pointer"
           >
-            {menuColapsado ? <ChevronRight size={18} /> : <ChevronLeft size={18} />}
+            {fijadoExpandido ? <ChevronLeft size={16} /> : <ChevronRight size={16} />}
           </button>
         </div>
 
@@ -227,6 +242,15 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               )}
             </button>
           )}
+
+          <button
+            onClick={() => router.push('/dashboard/clientes')}
+            title="Clientes & Cartera"
+            className={`w-full flex items-center gap-3.5 p-3 rounded-2xl font-bold transition-all active:scale-95 ${menuColapsado ? 'justify-center' : ''} ${rutaActiva('/dashboard/clientes') ? 'bg-amber-50 dark:bg-amber-500/10 text-amber-600 dark:text-amber-400 shadow-sm' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800/50'}`}
+          >
+            <Users size={22} className="shrink-0" />
+            {!menuColapsado && <span>Clientes & Cartera</span>}
+          </button>
 
           {puedeVerReportes && (
             <button

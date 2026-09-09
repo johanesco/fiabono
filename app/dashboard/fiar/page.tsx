@@ -1631,6 +1631,10 @@ Estamos atentos para cualquier consulta.
                                                     setClienteTransaccion(clientesFiltradosRegistro[0]);
                                                     setBusquedaRegistro("");
                                                     setMostrarResultadosBuscador(false);
+                                                } else if (busquedaRegistro.trim()) {
+                                                    setNombreNuevo(busquedaRegistro.trim());
+                                                    setModalNuevoCliente(true);
+                                                    setMostrarResultadosBuscador(false);
                                                 }
                                             }
                                         }}
