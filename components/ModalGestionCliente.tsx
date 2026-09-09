@@ -303,7 +303,7 @@ export default function ModalGestionCliente({
                 disabled={procesando || !nombre.trim()}
                 className="w-full py-4 bg-blue-600 hover:bg-blue-700 text-white font-black rounded-2xl shadow-lg shadow-blue-500/20 flex justify-center items-center gap-2 text-sm transition-all active:scale-95 disabled:opacity-50 cursor-pointer"
               >
-                Guardar Cambios <ArrowRight size={18} />
+                Guardar <ArrowRight size={18} />
               </button>
             </div>
           </form>

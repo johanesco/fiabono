@@ -177,7 +177,7 @@ export default function ReportesPage() {
         etiquetaVentas: `Ventas de ${mesActualNombre}`,
         etiquetaFiados: `Fiados de ${mesActualNombre}`,
         etiquetaAbonos: `Abonos de ${mesActualNombre}`,
-        etiquetaCaja: `Dinero Neto en Caja (${mesActualNombre})`,
+        etiquetaCaja: `Caja Neta (${mesActualNombre})`,
         rangoDescriptivo: `Lo que va de ${mesActualNombre} ${hoyDate.getFullYear()}`,
         badgePeriodo: `${mesActualNombre} ${hoyDate.getFullYear()}`
       };
@@ -187,16 +187,16 @@ export default function ReportesPage() {
         etiquetaVentas: `Ventas del ${hoyDate.getFullYear()}`,
         etiquetaFiados: `Fiados del ${hoyDate.getFullYear()}`,
         etiquetaAbonos: `Abonos del ${hoyDate.getFullYear()}`,
-        etiquetaCaja: `Dinero Neto en Caja (${hoyDate.getFullYear()})`,
+        etiquetaCaja: `Caja Neta (${hoyDate.getFullYear()})`,
         rangoDescriptivo: `Lo que va del año ${hoyDate.getFullYear()}`,
         badgePeriodo: `Año ${hoyDate.getFullYear()}`
       };
     }
     return {
-      etiquetaVentas: "Ventas Totales (Histórico)",
-      etiquetaFiados: "Fiados Totales (Histórico)",
-      etiquetaAbonos: "Abonos Totales (Histórico)",
-      etiquetaCaja: "Dinero Neto en Caja (Histórico)",
+      etiquetaVentas: "Ventas Totales",
+      etiquetaFiados: "Fiados Totales",
+      etiquetaAbonos: "Abonos Totales",
+      etiquetaCaja: "Caja Neta (Histórico)",
       rangoDescriptivo: "Histórico Total Acumulado",
       badgePeriodo: "Histórico Completo"
     };
@@ -633,21 +633,21 @@ export default function ReportesPage() {
       {/* BLOQUE 1: CARTERA EN LA CALLE & SALUD DE COBRO */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-6">
         {/* Tarjeta Cartera */}
-        <div className="bg-white dark:bg-[#0f172a] p-6 sm:p-7 rounded-[2rem] sm:rounded-[2.5rem] border border-slate-100 dark:border-slate-800/60 shadow-sm flex items-center justify-between relative overflow-hidden">
+        <div className="bg-white dark:bg-[#0f172a] p-5 sm:p-7 rounded-[2rem] sm:rounded-[2.5rem] border border-slate-100 dark:border-slate-800/60 shadow-sm flex items-center justify-between relative overflow-hidden">
           <div className="absolute right-0 top-0 bottom-0 w-2 bg-amber-500"></div>
-          <div>
-            <span className="text-xs font-extrabold text-slate-400 uppercase tracking-widest">Cartera en la Calle</span>
-            <p className="text-2xl sm:text-3xl font-black text-amber-500 mt-1">${carteraActiva.toLocaleString('es-CO')}</p>
-            <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 font-medium">Deuda total de tus clientes.</p>
+          <div className="min-w-0 flex-1 pr-2">
+            <span className="text-[10px] sm:text-xs font-extrabold text-slate-400 uppercase tracking-widest block truncate">Cartera en la Calle</span>
+            <p className="text-2xl sm:text-3xl font-black text-amber-500 mt-1 truncate">${carteraActiva.toLocaleString('es-CO')}</p>
+            <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 font-medium truncate">Deuda total de tus clientes.</p>
           </div>
-          <div className="p-3.5 bg-amber-50 dark:bg-amber-500/10 text-amber-600 rounded-2xl shrink-0"><Wallet size={30} /></div>
+          <div className="p-3 sm:p-3.5 bg-amber-50 dark:bg-amber-500/10 text-amber-600 rounded-2xl shrink-0"><Wallet size={28} className="sm:w-[30px] sm:h-[30px]" /></div>
         </div>
 
         {/* Tarjeta Clientes */}
-        <div className="bg-white dark:bg-[#0f172a] p-6 sm:p-7 rounded-[2rem] sm:rounded-[2.5rem] border border-slate-100 dark:border-slate-800/60 shadow-sm flex items-center justify-between relative overflow-hidden">
+        <div className="bg-white dark:bg-[#0f172a] p-5 sm:p-7 rounded-[2rem] sm:rounded-[2.5rem] border border-slate-100 dark:border-slate-800/60 shadow-sm flex items-center justify-between relative overflow-hidden">
           <div className="absolute right-0 top-0 bottom-0 w-2 bg-slate-800 dark:bg-slate-500"></div>
-          <div>
-            <span className="text-xs font-extrabold text-slate-400 uppercase tracking-widest">Directorio de Clientes</span>
+          <div className="min-w-0 flex-1 pr-2">
+            <span className="text-[10px] sm:text-xs font-extrabold text-slate-400 uppercase tracking-widest block truncate">Directorio de Clientes</span>
             <div className="flex items-baseline gap-4 mt-1">
               <div>
                 <span className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-white">{totalClientesRegistrados}</span>
@@ -660,87 +660,95 @@ export default function ReportesPage() {
               </div>
             </div>
           </div>
-          <div className="p-3.5 bg-slate-100 dark:bg-slate-800/50 text-slate-600 dark:text-slate-300 rounded-2xl shrink-0"><Users size={30} /></div>
+          <div className="p-3 sm:p-3.5 bg-slate-100 dark:bg-slate-800/50 text-slate-600 dark:text-slate-300 rounded-2xl shrink-0"><Users size={28} className="sm:w-[30px] sm:h-[30px]" /></div>
         </div>
 
         {/* Tarjeta Eficiencia de Cobro */}
-        <div className="bg-white dark:bg-[#0f172a] p-6 sm:p-7 rounded-[2rem] sm:rounded-[2.5rem] border border-slate-100 dark:border-slate-800/60 shadow-sm flex items-center justify-between relative overflow-hidden">
+        <div className="bg-white dark:bg-[#0f172a] p-5 sm:p-7 rounded-[2rem] sm:rounded-[2.5rem] border border-slate-100 dark:border-slate-800/60 shadow-sm flex items-center justify-between relative overflow-hidden">
           <div className="absolute right-0 top-0 bottom-0 w-2 bg-emerald-500"></div>
-          <div>
-            <span className="text-xs font-extrabold text-slate-400 uppercase tracking-widest">Salud de Cartera</span>
+          <div className="min-w-0 flex-1 pr-2">
+            <span className="text-[10px] sm:text-xs font-extrabold text-slate-400 uppercase tracking-widest block truncate">Salud de Cartera</span>
             <div className="flex items-baseline gap-2 mt-1">
               <span className="text-2xl sm:text-3xl font-black text-emerald-600 dark:text-emerald-400">{ratioRecaudo}%</span>
               <span className="text-[11px] font-bold text-slate-400">tasa recaudo</span>
             </div>
-            <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 font-medium">Abonos recibidos vs crédito otorgado.</p>
+            <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 font-medium truncate">Abonos recibidos vs créditos.</p>
           </div>
-          <div className="p-3.5 bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 rounded-2xl shrink-0"><Activity size={30} /></div>
+          <div className="p-3 sm:p-3.5 bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 rounded-2xl shrink-0"><Activity size={28} className="sm:w-[30px] sm:h-[30px]" /></div>
         </div>
       </div>
 
       {/* BLOQUE 2: MÉTRICAS FINANCIERAS DINÁMICAS (HOY / SEMANA / MES / AÑO / HISTÓRICO) */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
         {/* Ventas */}
-        <div className="bg-gradient-to-br from-emerald-500 to-green-600 p-5 sm:p-6 rounded-[2rem] shadow-lg flex flex-col justify-between text-white relative overflow-hidden">
+        <div className="bg-gradient-to-br from-emerald-500 to-green-600 p-4 sm:p-6 rounded-3xl sm:rounded-[2rem] shadow-lg flex flex-col justify-between text-white relative overflow-hidden">
           <div className="flex justify-between items-start mb-2">
-            <div className="flex flex-col gap-1">
-              <span className="text-xs font-black uppercase tracking-widest text-emerald-100 opacity-90">{metaPeriodo.etiquetaVentas}</span>
+            <div className="flex flex-col gap-1 min-w-0">
+              <span className="text-[10px] sm:text-xs font-black uppercase tracking-widest text-emerald-100 opacity-90 truncate">
+                {metaPeriodo.etiquetaVentas}
+              </span>
               <span className="inline-block bg-white/25 backdrop-blur-md px-2 py-0.5 rounded-lg text-[10px] font-bold w-max shadow-sm border border-white/10">
                 {countVentas} {countVentas === 1 ? 'venta' : 'ventas'}
               </span>
             </div>
-            <div className="p-2.5 bg-white/20 backdrop-blur-sm rounded-xl shrink-0"><ShoppingCart size={18} /></div>
+            <div className="p-2 sm:p-2.5 bg-white/20 backdrop-blur-sm rounded-xl shrink-0"><ShoppingCart size={16} className="sm:w-[18px] sm:h-[18px]" /></div>
           </div>
-          <p className="text-2xl sm:text-3xl font-black tracking-tight mt-3">${totalVentas.toLocaleString('es-CO')}</p>
+          <p className="text-xl sm:text-3xl font-black tracking-tight mt-2 sm:mt-3 truncate">${totalVentas.toLocaleString('es-CO')}</p>
         </div>
 
         {/* Fiados */}
-        <div className="bg-gradient-to-br from-rose-500 to-red-600 p-5 sm:p-6 rounded-[2rem] shadow-lg flex flex-col justify-between text-white relative overflow-hidden">
+        <div className="bg-gradient-to-br from-rose-500 to-red-600 p-4 sm:p-6 rounded-3xl sm:rounded-[2rem] shadow-lg flex flex-col justify-between text-white relative overflow-hidden">
           <div className="flex justify-between items-start mb-2">
-            <div className="flex flex-col gap-1">
-              <span className="text-xs font-black uppercase tracking-widest text-rose-100 opacity-90">{metaPeriodo.etiquetaFiados}</span>
+            <div className="flex flex-col gap-1 min-w-0">
+              <span className="text-[10px] sm:text-xs font-black uppercase tracking-widest text-rose-100 opacity-90 truncate">
+                {metaPeriodo.etiquetaFiados}
+              </span>
               <span className="inline-block bg-white/25 backdrop-blur-md px-2 py-0.5 rounded-lg text-[10px] font-bold w-max shadow-sm border border-white/10">
                 {countFiados} {countFiados === 1 ? 'fiado' : 'fiados'}
               </span>
             </div>
-            <div className="p-2.5 bg-white/20 backdrop-blur-sm rounded-xl shrink-0"><ShoppingBag size={18} /></div>
+            <div className="p-2 sm:p-2.5 bg-white/20 backdrop-blur-sm rounded-xl shrink-0"><ShoppingBag size={16} className="sm:w-[18px] sm:h-[18px]" /></div>
           </div>
-          <p className="text-2xl sm:text-3xl font-black tracking-tight mt-3">${totalFiados.toLocaleString('es-CO')}</p>
+          <p className="text-xl sm:text-3xl font-black tracking-tight mt-2 sm:mt-3 truncate">${totalFiados.toLocaleString('es-CO')}</p>
         </div>
 
         {/* Abonos */}
-        <div className="bg-gradient-to-br from-blue-500 to-blue-700 p-5 sm:p-6 rounded-[2rem] shadow-lg flex flex-col justify-between text-white relative overflow-hidden">
+        <div className="bg-gradient-to-br from-blue-500 to-blue-700 p-4 sm:p-6 rounded-3xl sm:rounded-[2rem] shadow-lg flex flex-col justify-between text-white relative overflow-hidden">
           <div className="flex justify-between items-start mb-2">
-            <div className="flex flex-col gap-1">
-              <span className="text-xs font-black uppercase tracking-widest text-blue-100 opacity-90">{metaPeriodo.etiquetaAbonos}</span>
+            <div className="flex flex-col gap-1 min-w-0">
+              <span className="text-[10px] sm:text-xs font-black uppercase tracking-widest text-blue-100 opacity-90 truncate">
+                {metaPeriodo.etiquetaAbonos}
+              </span>
               <span className="inline-block bg-white/25 backdrop-blur-md px-2 py-0.5 rounded-lg text-[10px] font-bold w-max shadow-sm border border-white/10">
                 {countAbonos} {countAbonos === 1 ? 'abono' : 'abonos'}
               </span>
             </div>
-            <div className="p-2.5 bg-white/20 backdrop-blur-sm rounded-xl shrink-0"><Banknote size={18} /></div>
+            <div className="p-2 sm:p-2.5 bg-white/20 backdrop-blur-sm rounded-xl shrink-0"><Banknote size={16} className="sm:w-[18px] sm:h-[18px]" /></div>
           </div>
-          <p className="text-2xl sm:text-3xl font-black tracking-tight mt-3">${totalAbonos.toLocaleString('es-CO')}</p>
+          <p className="text-xl sm:text-3xl font-black tracking-tight mt-2 sm:mt-3 truncate">${totalAbonos.toLocaleString('es-CO')}</p>
         </div>
 
         {/* Dinero Neto en Caja */}
-        <div className="bg-gradient-to-br from-slate-800 to-slate-900 p-5 sm:p-6 rounded-[2rem] shadow-lg flex flex-col justify-between text-white border border-slate-700 relative overflow-hidden">
+        <div className="bg-gradient-to-br from-slate-800 to-slate-900 p-4 sm:p-6 rounded-3xl sm:rounded-[2rem] shadow-lg flex flex-col justify-between text-white border border-slate-700 relative overflow-hidden">
           <div className="flex justify-between items-start mb-2">
-            <div className="flex flex-col gap-1">
-              <span className="text-[11px] font-black uppercase tracking-widest text-slate-300 opacity-90">{metaPeriodo.etiquetaCaja}</span>
-              <div className="flex items-center gap-1.5 flex-wrap">
+            <div className="flex flex-col gap-1 min-w-0">
+              <span className="text-[10px] sm:text-[11px] font-black uppercase tracking-widest text-slate-300 opacity-90 truncate">
+                {metaPeriodo.etiquetaCaja}
+              </span>
+              <div className="flex items-center gap-1 flex-wrap">
                 <span className="inline-block bg-white/15 backdrop-blur-md px-2 py-0.5 rounded-lg text-[10px] font-bold w-max shadow-sm border border-white/5 text-slate-300">
-                  {countIngresos} ingresos
+                  {countIngresos} ing.
                 </span>
                 {totalEgresos > 0 && (
-                  <span className="inline-block bg-rose-500/25 text-rose-300 border border-rose-500/30 px-1.5 py-0.5 rounded-md text-[9px] font-bold">
+                  <span className="inline-block bg-rose-500/25 text-rose-300 border border-rose-500/30 px-1 py-0.5 rounded-md text-[9px] font-bold truncate">
                     -${totalEgresos.toLocaleString('es-CO')}
                   </span>
                 )}
               </div>
             </div>
-            <div className="p-2.5 bg-white/10 backdrop-blur-sm rounded-xl shrink-0"><TrendingUp size={18} /></div>
+            <div className="p-2 sm:p-2.5 bg-white/10 backdrop-blur-sm rounded-xl shrink-0"><TrendingUp size={16} className="sm:w-[18px] sm:h-[18px]" /></div>
           </div>
-          <p className="text-2xl sm:text-3xl font-black tracking-tight mt-3 text-emerald-400">${ingresosCaja.toLocaleString('es-CO')}</p>
+          <p className="text-xl sm:text-3xl font-black tracking-tight mt-2 sm:mt-3 text-emerald-400 truncate">${ingresosCaja.toLocaleString('es-CO')}</p>
         </div>
       </div>
 
