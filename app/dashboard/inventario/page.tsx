@@ -157,6 +157,7 @@ export default function InventarioPage() {
   const [sku, setSku] = useState("");
   const [stock, setStock] = useState("");
   const [precioVenta, setPrecioVenta] = useState("");
+  const [costoCompra, setCostoCompra] = useState("");
   const [tipoProducto, setTipoProducto] = useState<'producto' | 'servicio'>('producto');
   const [categoria, setCategoria] = useState('');
   const [inventariable, setInventariable] = useState(true);
@@ -219,7 +220,7 @@ export default function InventarioPage() {
     setLimiteRender(20);
   }, [busqueda, filtrosCategoria, filtrosStock]);
 
-  const cargarInventario = async (uid: string, reintento = 0) => {
+  const cargarInventario = async (uid?: string | null, reintento = 0) => {
     if (!uid) return;
     try {
       setCargando(true);
@@ -649,7 +650,7 @@ export default function InventarioPage() {
 
     const cantAgregada = esInventariable ? Math.max(1, Number(stock) || 1) : 0;
 
-    if (prodExistente) {
+      if (prodExistente) {
       // Si el producto ya existe en inventario, se agrega como existente
       agregarOActualizarProductoEnCarga({
         id: `carga_${prodExistente.id}`,
@@ -659,6 +660,7 @@ export default function InventarioPage() {
         sku: prodExistente.sku || prodExistente.codigoBarras || skuLimpio,
         stock: cantAgregada,
         precioVenta: Number(precioVenta.replace(/\D/g, '')) || prodExistente.precioVenta || 0,
+        costoCompra: Number(costoCompra.replace(/\D/g, '')) || prodExistente.costoCompra || 0,
         tipoProducto: prodExistente.tipoProducto || tipoProducto,
         categoria: prodExistente.categoria || categoria || 'General',
         inventariable: prodExistente.inventariable !== false,
@@ -673,6 +675,7 @@ export default function InventarioPage() {
         sku: (skuLimpio || `SKU-${Math.floor(1000 + Math.random() * 9000)}`).toUpperCase(),
         stock: esInventariable ? Math.max(0, Number(stock) || 0) : 0,
         precioVenta: Number(precioVenta.replace(/\D/g, '')) || 0,
+        costoCompra: Number(costoCompra.replace(/\D/g, '')) || 0,
         tipoProducto,
         categoria: categoria.trim() || 'General',
         inventariable: esInventariable,
@@ -687,6 +690,7 @@ export default function InventarioPage() {
     setSku('');
     setStock('');
     setPrecioVenta('');
+    setCostoCompra('');
     setCategoria('');
     setErrores({ nombre: '', categoria: '', stock: '', precio: '' });
   };
@@ -742,8 +746,10 @@ export default function InventarioPage() {
       usuarioId: cuentaPrincipalId,
       nombre: nombre.trim(),
       sku: skuLimpio,
+      codigoBarras: skuLimpio,
       stock: esInventariable ? Math.max(0, Number(stock) || 0) : 0,
       precioVenta: Number(precioVenta.replace(/\D/g, '')) || 0,
+      costoCompra: Number(costoCompra.replace(/\D/g, '')) || 0,
       tipoProducto,
       categoria: (categoria.trim() || 'General'),
       inventariable: esInventariable,
@@ -792,6 +798,7 @@ export default function InventarioPage() {
           codigoBarras: prod.sku,
           stock: cantInicial,
           precioVenta: Number(prod.precioVenta) || 0,
+          costoCompra: Number(prod.costoCompra) || 0,
           tipoProducto: prod.tipoProducto || 'producto',
           categoria: prod.categoria || 'General',
           inventariable: esInv,
@@ -804,7 +811,6 @@ export default function InventarioPage() {
             usuarioId: cuentaPrincipalId,
             tipo: 'ingreso_inventario',
             categoria: 'recepcion_mercancia',
-            monto: 0,
             descripcion: `Creación y recepción: +${cantInicial} unidades de ${prod.nombre.trim()}`,
             fecha: new Date(),
             registradoPor: datosSesion?.nombreUsuario || "Usuario",
@@ -878,6 +884,7 @@ export default function InventarioPage() {
         const esInventariable = tipoProducto === 'producto' && inventariable;
         const cantStock = esInventariable ? Math.max(0, Number(stock) || 0) : 0;
         const precioNum = Number(precioVenta.replace(/\D/g, '')) || 0;
+        const costoNum = Number(costoCompra.replace(/\D/g, '')) || 0;
         const nombreGuardar = nombre.trim();
         const docRef = doc(db, "inventario", editandoId);
         await updateDoc(docRef, {
@@ -885,6 +892,7 @@ export default function InventarioPage() {
           sku: sku.trim() || `SKU-${Math.floor(1000 + Math.random() * 9000)}`,
           stock: cantStock,
           precioVenta: precioNum,
+          costoCompra: costoNum,
           tipoProducto,
           categoria: categoria.trim() || 'General',
           inventariable: esInventariable,
@@ -918,14 +926,14 @@ export default function InventarioPage() {
         }
       }
 
+      await cargarInventario(cuentaPrincipalId);
       limpiarFormulario();
-      if (cuentaPrincipalId) await cargarInventario(cuentaPrincipalId);
       if (cerrarAlFinal) {
         setModalProducto(false);
       }
     } catch (error) {
-      console.error(error);
-      toast.error("Error al guardar en el inventario.");
+      console.error("Error guardando producto:", error);
+      toast.error("Error al guardar el producto. Inténtalo de nuevo.");
     } finally {
       setGuardando(false);
     }
@@ -963,6 +971,7 @@ export default function InventarioPage() {
     setSku(prod.sku || "");
     setStock(prod.stock?.toString() || "0");
     setPrecioVenta(prod.precioVenta?.toString() || "");
+    setCostoCompra(prod.costoCompra ? prod.costoCompra.toString() : "");
     setTipoProducto(prod.tipoProducto === 'servicio' ? 'servicio' : 'producto');
     setCategoria(prod.categoria || 'General');
     setInventariable(prod.inventariable !== false);
@@ -975,6 +984,7 @@ export default function InventarioPage() {
     setSku("");
     setStock("");
     setPrecioVenta("");
+    setCostoCompra("");
     setTipoProducto('producto');
     setCategoria('');
     setInventariable(true);
@@ -4685,19 +4695,19 @@ export default function InventarioPage() {
                     )}
                   </div>
 
-                  {/* Fila 2: SKU / Código de Barras */}
+                  {/* Fila 2: Código de Producto */}
                   <div className="rounded-xl sm:rounded-2xl border border-slate-200 bg-slate-50 p-2 sm:p-3.5 dark:border-slate-800 dark:bg-slate-900/40 space-y-1 sm:space-y-1.5">
                     <div className="flex items-center justify-between">
                       <label className="text-[10px] sm:text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider block">
-                        Código de Barras / SKU
+                        Código de Producto
                       </label>
                       <div className="flex items-center gap-1.5 sm:gap-2">
                         <button
                           type="button"
                           onClick={() => {
-                            const nuevoSku = `SKU-${Math.floor(1000 + Math.random() * 9000)}`;
+                            const nuevoSku = `COD-${Math.floor(1000 + Math.random() * 9000)}`;
                             setSku(nuevoSku);
-                            toast.success(`Código: ${nuevoSku}`, { icon: '✨' });
+                            toast.success(`Código generado: ${nuevoSku}`, { icon: '✨' });
                           }}
                           className="text-[10px] sm:text-[11px] font-bold text-indigo-600 dark:text-indigo-400 hover:underline flex items-center gap-1 cursor-pointer"
                           title="Generar código automático"
@@ -4721,7 +4731,7 @@ export default function InventarioPage() {
                       type="text" 
                       value={sku} 
                       onChange={(e) => setSku(e.target.value)} 
-                      placeholder="Ej. 7701234567890 o CAM-001" 
+                      placeholder="Código de barras o referencia (ej. 77012345 o CAM-01)" 
                       className="w-full p-2 sm:p-3 bg-white dark:bg-[#020617] border border-slate-200 dark:border-slate-700 rounded-xl outline-none font-mono font-bold text-xs sm:text-base focus:border-emerald-500 text-slate-900 dark:text-white transition-all shadow-xs" 
                     />
 
@@ -4893,7 +4903,7 @@ export default function InventarioPage() {
                     {errores.categoria && <p className="mt-1 text-[11px] text-rose-500 font-bold flex items-center gap-1">⚠️ {errores.categoria}</p>}
                   </div>
 
-                  {/* Fila 4 (Móvil): Tipo, Stock y Precio en 3 columnas compactas sin scroll */}
+                  {/* Fila 4 (Móvil): Tipo, Stock y Precio en 3 columnas compactas */}
                   <div className="grid grid-cols-3 gap-1.5 sm:hidden">
                     {/* Tipo */}
                     <div className="rounded-xl border border-slate-200 bg-slate-50 p-1.5 dark:border-slate-800 dark:bg-slate-900/40 space-y-0.5">
@@ -4949,7 +4959,7 @@ export default function InventarioPage() {
                     {/* Precio Venta */}
                     <div className="rounded-xl border border-slate-200 bg-slate-50 p-1.5 dark:border-slate-800 dark:bg-slate-900/40 space-y-0.5">
                       <label className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider block truncate">
-                        Precio ($)
+                        Venta ($)
                       </label>
                       <input 
                         type="text" 
@@ -4965,6 +4975,33 @@ export default function InventarioPage() {
                       {errores.precio && <p className="text-[9px] text-rose-500 font-bold leading-tight mt-0.5">⚠️ Requerido</p>}
                     </div>
                   </div>
+
+                  {/* Fila Costo de Compra Móvil (Exclusivo Admin) */}
+                  {datosSesion?.esAdmin !== false && (
+                    <div className="sm:hidden rounded-xl border border-indigo-200 dark:border-indigo-900/50 bg-indigo-50/40 dark:bg-indigo-950/20 p-2 space-y-1">
+                      <div className="flex items-center justify-between">
+                        <label className="text-[10px] font-bold text-indigo-700 dark:text-indigo-300 uppercase tracking-wider flex items-center gap-1">
+                          💰 Costo de Compra ($)
+                        </label>
+                        <span className="text-[9px] font-black px-1.5 py-0.2 rounded bg-indigo-200/80 dark:bg-indigo-900/60 text-indigo-800 dark:text-indigo-200">
+                          Solo Admin
+                        </span>
+                      </div>
+                      <input 
+                        type="text" 
+                        inputMode="numeric" 
+                        value={formatearMonedaInput(costoCompra)} 
+                        onChange={(e) => setCostoCompra(e.target.value.replace(/\D/g, ''))} 
+                        placeholder="¿Cuánto te costó? (opcional)" 
+                        className="w-full p-1.5 bg-white dark:bg-[#020617] border border-indigo-200 dark:border-indigo-800 rounded-lg outline-none font-bold text-xs text-slate-900 dark:text-white focus:border-indigo-500" 
+                      />
+                      {precioVenta && costoCompra && Number(precioVenta.replace(/\D/g, '')) > 0 && (
+                        <p className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400">
+                          Ganancia estimada: ${(Number(precioVenta.replace(/\D/g, '')) - Number(costoCompra.replace(/\D/g, ''))).toLocaleString('es-CO')}
+                        </p>
+                      )}
+                    </div>
+                  )}
 
                   {/* Filas 4 y 5 (Escritorio): Diseño completo y espacioso */}
                   <div className="hidden sm:block space-y-3">
@@ -5015,7 +5052,7 @@ export default function InventarioPage() {
                       </div>
                     </div>
 
-                    <div className="grid grid-cols-2 gap-2.5 sm:gap-3">
+                    <div className={`grid ${datosSesion?.esAdmin !== false ? 'grid-cols-3' : 'grid-cols-2'} gap-2.5 sm:gap-3`}>
                       {tipoProducto === 'producto' && inventariable ? (
                         <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3 dark:border-slate-800 dark:bg-slate-900/40 space-y-1">
                           <label className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider block">
@@ -5059,6 +5096,28 @@ export default function InventarioPage() {
                         />
                         {errores.precio && <p className="mt-1 text-[11px] text-rose-500 font-bold flex items-center gap-1">⚠️ {errores.precio}</p>}
                       </div>
+
+                      {/* Costo de Compra Escritorio (Solo Admin) */}
+                      {datosSesion?.esAdmin !== false && (
+                        <div className="rounded-2xl border border-indigo-200 dark:border-indigo-900/50 bg-indigo-50/40 dark:bg-indigo-950/20 p-3 space-y-1">
+                          <div className="flex items-center justify-between">
+                            <label className="text-xs font-bold text-indigo-700 dark:text-indigo-300 uppercase tracking-wider block">
+                              Costo Compra ($)
+                            </label>
+                            <span className="text-[9px] font-black px-1.5 py-0.5 rounded bg-indigo-200/80 dark:bg-indigo-900/60 text-indigo-800 dark:text-indigo-200">
+                              Solo Admin
+                            </span>
+                          </div>
+                          <input 
+                            type="text" 
+                            inputMode="numeric" 
+                            value={formatearMonedaInput(costoCompra)} 
+                            onChange={(e) => setCostoCompra(e.target.value.replace(/\D/g, ''))} 
+                            placeholder="Costo real (opcional)" 
+                            className="w-full p-2.5 sm:p-3 bg-white dark:bg-[#020617] border border-indigo-200 dark:border-indigo-800 rounded-xl outline-none font-bold text-sm sm:text-base text-slate-900 dark:text-white focus:border-indigo-500" 
+                          />
+                        </div>
+                      )}
                     </div>
                   </div>
 
@@ -5069,6 +5128,9 @@ export default function InventarioPage() {
                     <span>Categoría: <strong>{categoria || 'General'}</strong></span>
                     <span>Stock: <strong>{stock || '0'} un.</strong></span>
                     <span>Precio: <strong className="text-emerald-600 dark:text-emerald-400 font-black">${formatearMonedaInput(precioVenta) || '0'}</strong></span>
+                    {datosSesion?.esAdmin !== false && costoCompra && (
+                      <span>Costo: <strong className="text-indigo-600 dark:text-indigo-400 font-bold">${formatearMonedaInput(costoCompra)}</strong></span>
+                    )}
                   </div>
 
                 </div>

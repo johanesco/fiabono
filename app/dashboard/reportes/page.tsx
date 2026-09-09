@@ -776,67 +776,67 @@ export default function ReportesPage() {
 
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
           {/* 1. Efectivo */}
-          <div className="p-3.5 sm:p-4 rounded-2xl bg-slate-50 dark:bg-[#020617] border border-slate-100 dark:border-slate-800/80 flex flex-col justify-between">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
-                <Banknote size={14} className="text-emerald-500" /> Efectivo
+          <div className="p-3 sm:p-4 rounded-2xl bg-slate-50 dark:bg-[#020617] border border-slate-100 dark:border-slate-800/80 flex flex-col justify-between">
+            <div className="flex items-center justify-between gap-1 mb-2">
+              <span className="text-[10px] sm:text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider flex items-center gap-1 truncate min-w-0">
+                <Banknote size={13} className="text-emerald-500 shrink-0" /> <span className="truncate">Efectivo</span>
               </span>
-              <span className="text-[10px] font-black px-1.5 py-0.5 rounded bg-emerald-100 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300">
+              <span className="text-[9px] sm:text-[10px] font-black px-1.5 py-0.5 rounded bg-emerald-100 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 shrink-0">
                 {ingresosCaja > 0 ? Math.round((Math.max(0, totalEfectivo) / ingresosCaja) * 100) : 0}%
               </span>
             </div>
-            <p className="text-lg sm:text-xl font-black text-slate-900 dark:text-white tracking-tight">
+            <p className="text-base sm:text-xl font-black text-slate-900 dark:text-white tracking-tight truncate">
               ${Math.max(0, totalEfectivo).toLocaleString('es-CO')}
             </p>
-            <span className="text-[10px] text-slate-400 mt-1 font-medium">Billetes en gaveta</span>
+            <span className="text-[9px] sm:text-[10px] text-slate-400 mt-1 font-medium truncate">Billetes en gaveta</span>
           </div>
 
           {/* 2. Transferencias */}
-          <div className="p-3.5 sm:p-4 rounded-2xl bg-slate-50 dark:bg-[#020617] border border-slate-100 dark:border-slate-800/80 flex flex-col justify-between">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
-                <Smartphone size={14} className="text-blue-500" /> Transferencias
+          <div className="p-3 sm:p-4 rounded-2xl bg-slate-50 dark:bg-[#020617] border border-slate-100 dark:border-slate-800/80 flex flex-col justify-between">
+            <div className="flex items-center justify-between gap-1 mb-2">
+              <span className="text-[10px] sm:text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider flex items-center gap-1 truncate min-w-0">
+                <Smartphone size={13} className="text-blue-500 shrink-0" /> <span className="truncate">Transferencias</span>
               </span>
-              <span className="text-[10px] font-black px-1.5 py-0.5 rounded bg-blue-100 dark:bg-blue-500/20 text-blue-700 dark:text-blue-300">
+              <span className="text-[9px] sm:text-[10px] font-black px-1.5 py-0.5 rounded bg-blue-100 dark:bg-blue-500/20 text-blue-700 dark:text-blue-300 shrink-0">
                 {ingresosCaja > 0 ? Math.round((totalTransferencia / ingresosCaja) * 100) : 0}%
               </span>
             </div>
-            <p className="text-lg sm:text-xl font-black text-slate-900 dark:text-white tracking-tight">
+            <p className="text-base sm:text-xl font-black text-slate-900 dark:text-white tracking-tight truncate">
               ${totalTransferencia.toLocaleString('es-CO')}
             </p>
-            <span className="text-[10px] text-slate-400 mt-1 font-medium">Nequi / Daviplata / Bancos</span>
+            <span className="text-[9px] sm:text-[10px] text-slate-400 mt-1 font-medium truncate">Nequi / Daviplata</span>
           </div>
 
           {/* 3. Datáfono */}
-          <div className="p-3.5 sm:p-4 rounded-2xl bg-slate-50 dark:bg-[#020617] border border-slate-100 dark:border-slate-800/80 flex flex-col justify-between">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
-                <CreditCard size={14} className="text-purple-500" /> Datáfono
+          <div className="p-3 sm:p-4 rounded-2xl bg-slate-50 dark:bg-[#020617] border border-slate-100 dark:border-slate-800/80 flex flex-col justify-between">
+            <div className="flex items-center justify-between gap-1 mb-2">
+              <span className="text-[10px] sm:text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider flex items-center gap-1 truncate min-w-0">
+                <CreditCard size={13} className="text-purple-500 shrink-0" /> <span className="truncate">Datáfono</span>
               </span>
-              <span className="text-[10px] font-black px-1.5 py-0.5 rounded bg-purple-100 dark:bg-purple-500/20 text-purple-700 dark:text-purple-300">
+              <span className="text-[9px] sm:text-[10px] font-black px-1.5 py-0.5 rounded bg-purple-100 dark:bg-purple-500/20 text-purple-700 dark:text-purple-300 shrink-0">
                 {ingresosCaja > 0 ? Math.round((totalDatafono / ingresosCaja) * 100) : 0}%
               </span>
             </div>
-            <p className="text-lg sm:text-xl font-black text-slate-900 dark:text-white tracking-tight">
+            <p className="text-base sm:text-xl font-black text-slate-900 dark:text-white tracking-tight truncate">
               ${totalDatafono.toLocaleString('es-CO')}
             </p>
-            <span className="text-[10px] text-slate-400 mt-1 font-medium">Tarjetas de Débito/Crédito</span>
+            <span className="text-[9px] sm:text-[10px] text-slate-400 mt-1 font-medium truncate">Tarjetas Débito/Crédito</span>
           </div>
 
           {/* 4. Crédito Externo */}
-          <div className="p-3.5 sm:p-4 rounded-2xl bg-slate-50 dark:bg-[#020617] border border-slate-100 dark:border-slate-800/80 flex flex-col justify-between">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
-                <Zap size={14} className="text-amber-500" /> Crédito Ext.
+          <div className="p-3 sm:p-4 rounded-2xl bg-slate-50 dark:bg-[#020617] border border-slate-100 dark:border-slate-800/80 flex flex-col justify-between">
+            <div className="flex items-center justify-between gap-1 mb-2">
+              <span className="text-[10px] sm:text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider flex items-center gap-1 truncate min-w-0">
+                <Zap size={13} className="text-amber-500 shrink-0" /> <span className="truncate">Crédito Ext.</span>
               </span>
-              <span className="text-[10px] font-black px-1.5 py-0.5 rounded bg-amber-100 dark:bg-amber-500/20 text-amber-700 dark:text-amber-300">
+              <span className="text-[9px] sm:text-[10px] font-black px-1.5 py-0.5 rounded bg-amber-100 dark:bg-amber-500/20 text-amber-700 dark:text-amber-300 shrink-0">
                 {ingresosCaja > 0 ? Math.round((totalCreditoExterno / ingresosCaja) * 100) : 0}%
               </span>
             </div>
-            <p className="text-lg sm:text-xl font-black text-slate-900 dark:text-white tracking-tight">
+            <p className="text-base sm:text-xl font-black text-slate-900 dark:text-white tracking-tight truncate">
               ${totalCreditoExterno.toLocaleString('es-CO')}
             </p>
-            <span className="text-[10px] text-slate-400 mt-1 font-medium">Addi / SisteCrédito</span>
+            <span className="text-[9px] sm:text-[10px] text-slate-400 mt-1 font-medium truncate">Addi / SisteCrédito</span>
           </div>
         </div>
       </div>
