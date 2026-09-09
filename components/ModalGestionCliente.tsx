@@ -44,7 +44,8 @@ export default function ModalGestionCliente({
 }: ModalGestionClienteProps) {
   const router = useRouter();
   const { datosSesion } = useAuth() || {};
-  const [pasoEdicion, setPasoEdicion] = useState<'autenticar' | 'formulario'>('autenticar');
+  const [pasoEdicion, setPasoEdicion] = useState<'autenticar' | 'formulario'>('formulario');
+  const [mostrarConfirmacionGuardar, setMostrarConfirmacionGuardar] = useState(false);
   const [nombre, setNombre] = useState("");
   const [celular, setCelular] = useState("");
   const [password, setPassword] = useState("");
@@ -66,7 +67,8 @@ export default function ModalGestionCliente({
       setTextoConfirmacion("");
       setCheckboxResponsabilidad(false);
       setErrorPassword("");
-      setPasoEdicion('autenticar');
+      setMostrarConfirmacionGuardar(false);
+      setPasoEdicion('formulario');
     }
   }, [cliente, isOpen, modo]);
 
@@ -79,54 +81,8 @@ export default function ModalGestionCliente({
   const deuda = cliente.deudaTotal || 0;
   const tieneDeuda = deuda > 0;
 
-  // 1. Manejar autenticación para desbloquear la edición
-  const handleDesbloquearEdicion = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setErrorPassword("");
-
-    // Si el usuario ingresó con Google o es el administrador principal autenticado
-    if (esGoogleUser) {
-      setPasoEdicion('formulario');
-      toast.success("Edición desbloqueada con cuenta Google verificada.");
-      return;
-    }
-
-    if (!password.trim()) {
-      setErrorPassword("Ingresa tu contraseña de administrador.");
-      return;
-    }
-
-    setProcesando(true);
-    try {
-      if (!currentUser || !currentUser.email) {
-        throw new Error("No hay una sesión activa de administrador.");
-      }
-
-      const credenciales = EmailAuthProvider.credential(currentUser.email, password);
-      await reauthenticateWithCredential(currentUser, credenciales);
-
-      // Contraseña correcta -> desbloqueamos el formulario
-      setPasoEdicion('formulario');
-      setPassword("");
-      toast.success("Edición desbloqueada.");
-    } catch (error: any) {
-      console.error("Error al autenticar:", error);
-      if (
-        error.code === 'auth/wrong-password' || 
-        error.code === 'auth/invalid-credential' || 
-        error.code === 'auth/invalid-login-credentials'
-      ) {
-        setErrorPassword("Contraseña incorrecta. Acción no autorizada.");
-      } else {
-        toast.error("Error al validar contraseña. Intenta nuevamente.");
-      }
-    } finally {
-      setProcesando(false);
-    }
-  };
-
-  // 2. Guardar los cambios editados del cliente
-  const handleGuardarEdicion = async (e: React.FormEvent) => {
+  // 1. Manejar pre-guardado: abre el modal de confirmación
+  const handlePreGuardar = (e: React.FormEvent) => {
     e.preventDefault();
 
     if (!nombre.trim()) {
@@ -134,6 +90,22 @@ export default function ModalGestionCliente({
       return;
     }
 
+    const huboCambios = 
+      nombre.trim() !== (cliente.nombre || "").trim() || 
+      celular.trim() !== (cliente.celular || "").trim();
+
+    if (!huboCambios) {
+      toast("No se detectaron cambios en el cliente.", { icon: "ℹ️" });
+      onClose();
+      return;
+    }
+
+    // Desplegar modal emergente de confirmación
+    setMostrarConfirmacionGuardar(true);
+  };
+
+  // 2. Confirmación final aprobada por el usuario
+  const handleEjecutarGuardar = async () => {
     setProcesando(true);
     try {
       const datosActualizados: Partial<Cliente> = {
@@ -150,6 +122,7 @@ export default function ModalGestionCliente({
         ...cliente,
         ...datosActualizados
       };
+      setMostrarConfirmacionGuardar(false);
       onSuccess(clienteFinal, false);
       onClose();
     } catch (error) {
@@ -249,30 +222,20 @@ export default function ModalGestionCliente({
         
         {/* ENCABEZADO */}
         <div className={`p-5 sm:p-6 flex justify-between items-center text-white shrink-0 ${
-          modo === 'editar' 
-            ? (pasoEdicion === 'autenticar' ? 'bg-amber-600 dark:bg-amber-700' : 'bg-blue-600 dark:bg-blue-700')
-            : 'bg-rose-600 dark:bg-rose-700'
+          modo === 'editar' ? 'bg-blue-600 dark:bg-blue-700' : 'bg-rose-600 dark:bg-rose-700'
         }`}>
           <div className="flex items-center gap-3">
             <div className="p-2.5 bg-white/20 rounded-2xl backdrop-blur-sm">
-              {modo === 'editar' ? (
-                pasoEdicion === 'autenticar' ? <KeyRound size={24} /> : <Edit3 size={24} />
-              ) : (
-                <AlertOctagon size={24} />
-              )}
+              {modo === 'editar' ? <Edit3 size={24} /> : <AlertOctagon size={24} />}
             </div>
             <div>
               <h3 className="text-lg sm:text-xl font-black tracking-tight">
-                {modo === 'editar' 
-                  ? (pasoEdicion === 'autenticar' ? "Desbloquear Edición" : "Modificar Cliente")
-                  : (tieneDeuda ? "¡Advertencia de Seguridad!" : "Eliminar Cliente")}
+                {modo === 'editar' ? "Modificar Cliente" : (tieneDeuda ? "¡Advertencia de Seguridad!" : "Eliminar Cliente")}
               </h3>
               <p className="text-xs text-white/80 font-medium">
-                {modo === 'editar' && pasoEdicion === 'autenticar' 
-                  ? "Paso 1: Seguridad de Administrador"
-                  : modo === 'editar' 
-                  ? "Paso 2: Edita los datos" 
-                  : (tieneDeuda ? "Cliente con deuda activa" : "Requiere clave de administrador")}
+                {modo === 'editar' 
+                  ? "Actualiza los datos del cliente" 
+                  : (tieneDeuda ? "Cliente con deuda activa" : "Requiere confirmación de administrador")}
               </p>
             </div>
           </div>
@@ -285,79 +248,9 @@ export default function ModalGestionCliente({
           </button>
         </div>
 
-        {/* CASO 1: MODO EDITAR - PASO 1 (SOLICITAR CONTRASEÑA O CONFIRMAR SI ES GOOGLE) */}
-        {modo === 'editar' && pasoEdicion === 'autenticar' && (
-          <form onSubmit={handleDesbloquearEdicion} className="p-5 sm:p-6 space-y-4 overflow-y-auto">
-            {esGoogleUser ? (
-              <div className="p-4 bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-900/50 rounded-2xl flex items-start gap-3">
-                <ShieldCheck className="text-emerald-600 dark:text-emerald-400 shrink-0 mt-0.5" size={22} />
-                <div className="text-sm text-slate-700 dark:text-slate-300">
-                  <p className="font-bold text-emerald-800 dark:text-emerald-300">Sesión Verificada con Google</p>
-                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-                    Has iniciado sesión como Administrador con tu cuenta Google (<strong>{currentUser?.email}</strong>). Puedes desbloquear la edición de <strong>{cliente.nombre}</strong> con un clic.
-                  </p>
-                </div>
-              </div>
-            ) : (
-              <>
-                <div className="p-4 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900/50 rounded-2xl flex items-start gap-3">
-                  <Lock className="text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" size={20} />
-                  <div className="text-sm text-slate-700 dark:text-slate-300">
-                    <p className="font-bold text-amber-800 dark:text-amber-300">Autorización requerida</p>
-                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-                      Ingresa tu contraseña de administrador para habilitar la edición de <strong>{cliente.nombre}</strong>.
-                    </p>
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
-                    <Lock size={14} className="text-amber-500" /> Contraseña de Administrador
-                  </label>
-                  <input
-                    type="password"
-                    value={password}
-                    onChange={(e) => {
-                      setPassword(e.target.value);
-                      if (errorPassword) setErrorPassword("");
-                    }}
-                    placeholder="Ingresa tu contraseña"
-                    required
-                    autoFocus
-                    className="w-full p-4 bg-slate-50 dark:bg-[#020617] border border-slate-200 dark:border-slate-800 rounded-2xl outline-none focus:border-amber-500 dark:text-white font-medium text-base transition-colors"
-                  />
-                  {errorPassword && (
-                    <p className="text-xs text-rose-500 font-bold mt-1.5 flex items-center gap-1">
-                      <AlertTriangle size={12} /> {errorPassword}
-                    </p>
-                  )}
-                </div>
-              </>
-            )}
-
-            <div className="grid grid-cols-2 gap-3 pt-2">
-              <button
-                type="button"
-                onClick={onClose}
-                disabled={procesando}
-                className="w-full py-4 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 font-bold rounded-2xl transition-colors text-sm cursor-pointer"
-              >
-                Cancelar
-              </button>
-              <button
-                type="submit"
-                disabled={procesando || (!esGoogleUser && !password.trim())}
-                className="w-full py-4 bg-amber-600 hover:bg-amber-700 text-white font-black rounded-2xl shadow-lg shadow-amber-500/20 flex justify-center items-center gap-2 text-sm transition-all active:scale-95 disabled:opacity-50 cursor-pointer"
-              >
-                {procesando ? "Validando..." : <>Desbloquear <Unlock size={18} /></>}
-              </button>
-            </div>
-          </form>
-        )}
-
-        {/* CASO 2: MODO EDITAR - PASO 2 (CAMPOS HABILITADOS PARA MODIFICAR CON CONFIRMACIÓN) */}
-        {modo === 'editar' && pasoEdicion === 'formulario' && (
-          <form onSubmit={handleGuardarEdicion} className="p-5 sm:p-6 space-y-4 animate-in fade-in zoom-in-95 duration-200 overflow-y-auto">
+        {/* CASO 1: MODO EDITAR (FORMULARIO LIMPIO CON PRE-GUARDADO) */}
+        {modo === 'editar' && (
+          <form onSubmit={handlePreGuardar} className="p-5 sm:p-6 space-y-4 animate-in fade-in duration-200 overflow-y-auto">
             <div>
               <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
                 <User size={14} /> Nombre del Cliente
@@ -386,12 +279,12 @@ export default function ModalGestionCliente({
               />
             </div>
 
-            {/* AVISO DE CONFIRMACIÓN DE CAMBIOS */}
+            {/* Aviso sutil de cambio detectado */}
             {(nombre.trim() !== (cliente.nombre || "").trim() || celular.trim() !== (cliente.celular || "").trim()) && (
               <div className="p-3 bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-800/80 rounded-2xl text-xs text-blue-800 dark:text-blue-300 flex items-center gap-2">
                 <ShieldAlert size={16} className="shrink-0 text-blue-600 dark:text-blue-400" />
                 <span>
-                  Confirmarás la actualización de <strong>{cliente.nombre}</strong> a <strong>{nombre.trim() || '...'}</strong>.
+                  Modificando datos de <strong>{cliente.nombre}</strong>. Se te solicitará confirmación al guardar.
                 </span>
               </div>
             )}
@@ -410,7 +303,7 @@ export default function ModalGestionCliente({
                 disabled={procesando || !nombre.trim()}
                 className="w-full py-4 bg-blue-600 hover:bg-blue-700 text-white font-black rounded-2xl shadow-lg shadow-blue-500/20 flex justify-center items-center gap-2 text-sm transition-all active:scale-95 disabled:opacity-50 cursor-pointer"
               >
-                {procesando ? "Guardando..." : <>Confirmar y Guardar <CheckCircle2 size={18} /></>}
+                Guardar Cambios <ArrowRight size={18} />
               </button>
             </div>
           </form>
@@ -554,6 +447,78 @@ export default function ModalGestionCliente({
         )}
 
       </div>
+
+      {/* POPUP MODAL EMERGENTE DE CONFIRMACIÓN AL GUARDAR */}
+      {mostrarConfirmacionGuardar && (
+        <div className="fixed inset-0 bg-slate-950/85 backdrop-blur-md flex items-center justify-center p-4 z-[9999999] animate-in fade-in duration-200">
+          <div className="bg-white dark:bg-[#0f172a] rounded-3xl w-full max-w-sm shadow-2xl border border-slate-200 dark:border-slate-800 p-6 space-y-5 animate-in zoom-in-95 duration-200">
+            
+            <div className="flex items-center gap-3.5">
+              <div className="p-3 bg-blue-100 dark:bg-blue-950/60 rounded-2xl text-blue-600 dark:text-blue-400 shrink-0">
+                <ShieldCheck size={28} />
+              </div>
+              <div>
+                <h4 className="text-base sm:text-lg font-black text-slate-900 dark:text-white leading-tight">
+                  ¿Confirmar cambios?
+                </h4>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                  Revisa los datos antes de actualizar
+                </p>
+              </div>
+            </div>
+
+            <div className="bg-slate-50 dark:bg-[#020617] rounded-2xl p-4 border border-slate-100 dark:border-slate-800/80 space-y-3 text-xs">
+              <div>
+                <span className="text-[10px] uppercase font-bold text-slate-400 block mb-0.5">Cliente</span>
+                <div className="flex items-center gap-2">
+                  <span className="text-slate-400 line-through truncate max-w-[120px]">{cliente.nombre}</span>
+                  <ArrowRight size={14} className="text-blue-500 shrink-0" />
+                  <span className="font-bold text-slate-900 dark:text-white truncate">{nombre.trim()}</span>
+                </div>
+              </div>
+
+              {(celular.trim() || cliente.celular) && (
+                <div className="pt-2 border-t border-slate-200/60 dark:border-slate-800/60">
+                  <span className="text-[10px] uppercase font-bold text-slate-400 block mb-0.5">Teléfono / WhatsApp</span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-slate-400 line-through truncate max-w-[120px]">
+                      {cliente.celular || "(Sin número)"}
+                    </span>
+                    <ArrowRight size={14} className="text-blue-500 shrink-0" />
+                    <span className="font-bold text-slate-900 dark:text-white truncate">
+                      {celular.trim() || "(Sin número)"}
+                    </span>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-relaxed text-center">
+              Esta modificación quedará registrada y visible en todas las órdenes, ventas y deudas asociadas.
+            </p>
+
+            <div className="grid grid-cols-2 gap-3 pt-1">
+              <button
+                type="button"
+                onClick={() => setMostrarConfirmacionGuardar(false)}
+                disabled={procesando}
+                className="w-full py-3 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold rounded-xl text-xs transition-colors cursor-pointer"
+              >
+                Volver
+              </button>
+              <button
+                type="button"
+                onClick={handleEjecutarGuardar}
+                disabled={procesando}
+                className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white font-black rounded-xl text-xs shadow-lg shadow-blue-500/25 flex items-center justify-center gap-1.5 transition-all active:scale-95 cursor-pointer"
+              >
+                {procesando ? "Guardando..." : <>Sí, Guardar <CheckCircle2 size={16} /></>}
+              </button>
+            </div>
+
+          </div>
+        </div>
+      )}
     </div>
   );
 
