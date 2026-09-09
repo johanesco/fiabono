@@ -355,7 +355,7 @@ export default function ModalGestionCliente({
           </form>
         )}
 
-        {/* CASO 2: MODO EDITAR - PASO 2 (CAMPOS HABILITADOS PARA MODIFICAR) */}
+        {/* CASO 2: MODO EDITAR - PASO 2 (CAMPOS HABILITADOS PARA MODIFICAR CON CONFIRMACIÓN) */}
         {modo === 'editar' && pasoEdicion === 'formulario' && (
           <form onSubmit={handleGuardarEdicion} className="p-5 sm:p-6 space-y-4 animate-in fade-in zoom-in-95 duration-200 overflow-y-auto">
             <div>
@@ -386,21 +386,31 @@ export default function ModalGestionCliente({
               />
             </div>
 
+            {/* AVISO DE CONFIRMACIÓN DE CAMBIOS */}
+            {(nombre.trim() !== (cliente.nombre || "").trim() || celular.trim() !== (cliente.celular || "").trim()) && (
+              <div className="p-3 bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-800/80 rounded-2xl text-xs text-blue-800 dark:text-blue-300 flex items-center gap-2">
+                <ShieldAlert size={16} className="shrink-0 text-blue-600 dark:text-blue-400" />
+                <span>
+                  Confirmarás la actualización de <strong>{cliente.nombre}</strong> a <strong>{nombre.trim() || '...'}</strong>.
+                </span>
+              </div>
+            )}
+
             <div className="grid grid-cols-2 gap-3 pt-3">
               <button
                 type="button"
                 onClick={onClose}
                 disabled={procesando}
-                className="w-full py-4 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 font-bold rounded-2xl transition-colors text-sm"
+                className="w-full py-4 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 font-bold rounded-2xl transition-colors text-sm cursor-pointer"
               >
                 Cancelar
               </button>
               <button
                 type="submit"
-                disabled={procesando}
-                className="w-full py-4 bg-blue-600 hover:bg-blue-700 text-white font-black rounded-2xl shadow-lg shadow-blue-500/20 flex justify-center items-center gap-2 text-sm transition-all active:scale-95 disabled:opacity-50"
+                disabled={procesando || !nombre.trim()}
+                className="w-full py-4 bg-blue-600 hover:bg-blue-700 text-white font-black rounded-2xl shadow-lg shadow-blue-500/20 flex justify-center items-center gap-2 text-sm transition-all active:scale-95 disabled:opacity-50 cursor-pointer"
               >
-                {procesando ? "Guardando..." : <>Guardar Cambios <CheckCircle2 size={18} /></>}
+                {procesando ? "Guardando..." : <>Confirmar y Guardar <CheckCircle2 size={18} /></>}
               </button>
             </div>
           </form>

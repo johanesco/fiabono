@@ -128,8 +128,15 @@ export default function PerfilPage() {
   }, [datosSesion]);
 
   useEffect(() => {
-    const temaGuardado = localStorage.getItem('temaFiabono') as any;
-    if (temaGuardado) setTemaApariencia(temaGuardado);
+    // Sincronización robusta de tema
+    const temaGuardado = (localStorage.getItem('temaFiabono') || localStorage.getItem('tema')) as any;
+    if (temaGuardado) {
+      setTemaApariencia(temaGuardado);
+      if (temaGuardado === 'oscura') document.documentElement.classList.add('dark');
+      else if (temaGuardado === 'clara') document.documentElement.classList.remove('dark');
+    } else if (typeof document !== 'undefined' && document.documentElement.classList.contains('dark')) {
+      setTemaApariencia('oscura');
+    }
     setTemaCargado(true); 
     
     if (adminId && !esCajero) {
@@ -140,6 +147,7 @@ export default function PerfilPage() {
   useEffect(() => {
     if (!temaCargado) return; 
     localStorage.setItem('temaFiabono', temaApariencia);
+    localStorage.setItem('tema', temaApariencia);
     const aplicarTema = () => {
       if (temaApariencia === 'oscura') document.documentElement.classList.add('dark');
       else if (temaApariencia === 'clara') document.documentElement.classList.remove('dark');

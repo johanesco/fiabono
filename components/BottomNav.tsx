@@ -78,9 +78,11 @@ export default function BottomNav({
       if (nuevo === 'oscura') {
         document.documentElement.classList.add('dark');
         localStorage.setItem('tema', 'oscura');
+        localStorage.setItem('temaFiabono', 'oscura');
       } else {
         document.documentElement.classList.remove('dark');
         localStorage.setItem('tema', 'clara');
+        localStorage.setItem('temaFiabono', 'clara');
       }
       setTemaActual(nuevo);
     }

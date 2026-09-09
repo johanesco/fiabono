@@ -18,7 +18,11 @@ import {
   Bookmark, 
   ArrowUpRight,
   Info,
-  X
+  X,
+  CreditCard,
+  Smartphone,
+  Layers,
+  Zap
 } from 'lucide-react';
 import toast from "react-hot-toast";
 import { collection, query, where, onSnapshot } from "firebase/firestore";
@@ -224,6 +228,21 @@ export default function ReportesPage() {
   // Dinero Neto en Caja: (Ventas Directas + Abonos) - Egresos/Devoluciones
   const ingresosCaja = Math.max(0, (totalVentas + totalAbonos) - totalEgresos);
   const countIngresos = countVentas + countAbonos;
+
+  // Desglose estratégico de ingresos por Métodos de Pago (Ventas de contado + Abonos recibidos)
+  const movsIngresos = [...movsVentas, ...movsAbonos];
+  const totalEfectivo = movsIngresos
+    .filter(m => !m.metodoPago || m.metodoPago === 'efectivo')
+    .reduce((acc, m) => acc + (m.monto || 0), 0) - totalEgresos;
+  const totalTransferencia = movsIngresos
+    .filter(m => m.metodoPago === 'transferencia')
+    .reduce((acc, m) => acc + (m.monto || 0), 0);
+  const totalDatafono = movsIngresos
+    .filter(m => m.metodoPago === 'datafono')
+    .reduce((acc, m) => acc + (m.monto || 0), 0);
+  const totalCreditoExterno = movsIngresos
+    .filter(m => m.metodoPago === 'credito_externo')
+    .reduce((acc, m) => acc + (m.monto || 0), 0);
 
   // Tasa de recuperación de crédito / Salud de cartera (Abonos vs Fiados)
   const ratioRecaudo = totalFiados > 0 ? Math.min(100, Math.round((totalAbonos / totalFiados) * 100)) : 100;
@@ -725,6 +744,95 @@ export default function ReportesPage() {
         </div>
       </div>
 
+      {/* BLOQUE EXCLUSIVO: DESGLOSE POR MÉTODOS DE PAGO (CUADRE DE CAJA) */}
+      <div className="bg-white dark:bg-[#0f172a] p-5 sm:p-6 rounded-[2rem] sm:rounded-3xl border border-slate-100 dark:border-slate-800/80 shadow-sm flex flex-col gap-4">
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 border-b border-slate-100 dark:border-slate-800/60 pb-3">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-xl bg-emerald-100 dark:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 flex items-center justify-center font-black">
+              <Banknote size={18} />
+            </div>
+            <div>
+              <h3 className="text-sm sm:text-base font-black text-slate-900 dark:text-white flex items-center gap-1.5">
+                Desglose de Métodos de Pago
+                <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 font-normal">({metaPeriodo.badgePeriodo})</span>
+              </h3>
+              <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                Distribución del dinero ingresado a caja para tu arqueo y cuadre físico vs cuentas bancarias.
+              </p>
+            </div>
+          </div>
+          <span className="text-xs font-black text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-500/10 px-3 py-1 rounded-xl border border-emerald-200 dark:border-emerald-500/20">
+            Total en Caja: ${ingresosCaja.toLocaleString('es-CO')}
+          </span>
+        </div>
+
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
+          {/* 1. Efectivo */}
+          <div className="p-3.5 sm:p-4 rounded-2xl bg-slate-50 dark:bg-[#020617] border border-slate-100 dark:border-slate-800/80 flex flex-col justify-between">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+                <Banknote size={14} className="text-emerald-500" /> Efectivo
+              </span>
+              <span className="text-[10px] font-black px-1.5 py-0.5 rounded bg-emerald-100 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300">
+                {ingresosCaja > 0 ? Math.round((Math.max(0, totalEfectivo) / ingresosCaja) * 100) : 0}%
+              </span>
+            </div>
+            <p className="text-lg sm:text-xl font-black text-slate-900 dark:text-white tracking-tight">
+              ${Math.max(0, totalEfectivo).toLocaleString('es-CO')}
+            </p>
+            <span className="text-[10px] text-slate-400 mt-1 font-medium">Billetes en gaveta</span>
+          </div>
+
+          {/* 2. Transferencias */}
+          <div className="p-3.5 sm:p-4 rounded-2xl bg-slate-50 dark:bg-[#020617] border border-slate-100 dark:border-slate-800/80 flex flex-col justify-between">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+                <Smartphone size={14} className="text-blue-500" /> Transferencias
+              </span>
+              <span className="text-[10px] font-black px-1.5 py-0.5 rounded bg-blue-100 dark:bg-blue-500/20 text-blue-700 dark:text-blue-300">
+                {ingresosCaja > 0 ? Math.round((totalTransferencia / ingresosCaja) * 100) : 0}%
+              </span>
+            </div>
+            <p className="text-lg sm:text-xl font-black text-slate-900 dark:text-white tracking-tight">
+              ${totalTransferencia.toLocaleString('es-CO')}
+            </p>
+            <span className="text-[10px] text-slate-400 mt-1 font-medium">Nequi / Daviplata / Bancos</span>
+          </div>
+
+          {/* 3. Datáfono */}
+          <div className="p-3.5 sm:p-4 rounded-2xl bg-slate-50 dark:bg-[#020617] border border-slate-100 dark:border-slate-800/80 flex flex-col justify-between">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+                <CreditCard size={14} className="text-purple-500" /> Datáfono
+              </span>
+              <span className="text-[10px] font-black px-1.5 py-0.5 rounded bg-purple-100 dark:bg-purple-500/20 text-purple-700 dark:text-purple-300">
+                {ingresosCaja > 0 ? Math.round((totalDatafono / ingresosCaja) * 100) : 0}%
+              </span>
+            </div>
+            <p className="text-lg sm:text-xl font-black text-slate-900 dark:text-white tracking-tight">
+              ${totalDatafono.toLocaleString('es-CO')}
+            </p>
+            <span className="text-[10px] text-slate-400 mt-1 font-medium">Tarjetas de Débito/Crédito</span>
+          </div>
+
+          {/* 4. Crédito Externo */}
+          <div className="p-3.5 sm:p-4 rounded-2xl bg-slate-50 dark:bg-[#020617] border border-slate-100 dark:border-slate-800/80 flex flex-col justify-between">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+                <Zap size={14} className="text-amber-500" /> Crédito Ext.
+              </span>
+              <span className="text-[10px] font-black px-1.5 py-0.5 rounded bg-amber-100 dark:bg-amber-500/20 text-amber-700 dark:text-amber-300">
+                {ingresosCaja > 0 ? Math.round((totalCreditoExterno / ingresosCaja) * 100) : 0}%
+              </span>
+            </div>
+            <p className="text-lg sm:text-xl font-black text-slate-900 dark:text-white tracking-tight">
+              ${totalCreditoExterno.toLocaleString('es-CO')}
+            </p>
+            <span className="text-[10px] text-slate-400 mt-1 font-medium">Addi / SisteCrédito</span>
+          </div>
+        </div>
+      </div>
+
       {/* BLOQUE ADICIONAL EXCLUSIVO PRO: RESUMEN DE PLAN SEPARE */}
       {esPro && (
         <div className="p-5 sm:p-6 bg-gradient-to-br from-purple-50 via-indigo-50/40 to-white dark:from-purple-950/20 dark:via-indigo-950/10 dark:to-[#0f172a] rounded-[2rem] sm:rounded-3xl border border-purple-200/80 dark:border-purple-800/60 shadow-sm flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4">
@@ -868,57 +976,63 @@ export default function ReportesPage() {
           </div>
         </div>
 
-        {/* PANEL DE DATOS SELECCIONADOS (ESTABLE) */}
-        <div className="w-full bg-slate-900 dark:bg-black rounded-3xl border border-slate-800 p-4 sm:p-6 min-h-[140px] flex flex-col justify-center relative overflow-hidden transition-all shadow-xl">
+        {/* PANEL DE DATOS SELECCIONADOS (ESTABLE Y MODERNO) */}
+        <div className="w-full bg-gradient-to-br from-slate-900 via-slate-800 to-indigo-950 dark:from-[#090d16] dark:via-[#0f172a] dark:to-[#1e1b4b] rounded-3xl border border-indigo-500/20 dark:border-indigo-500/30 p-4 sm:p-6 min-h-[140px] flex flex-col justify-center relative overflow-hidden transition-all shadow-xl backdrop-blur-md">
           {itemInspeccionado ? (
-            <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 sm:gap-6 relative z-10 animate-in fade-in">
+            <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 sm:gap-6 relative z-10 animate-in fade-in duration-200">
               {/* Info del Día/Mes */}
-              <div className="flex items-center gap-3 w-full md:w-auto border-b md:border-b-0 border-slate-800 pb-4 md:pb-0">
-                <div className="p-3 sm:p-4 bg-indigo-500/20 rounded-2xl text-indigo-400 shrink-0">
-                  <Calendar size={24} />
+              <div className="flex items-center gap-3 w-full md:w-auto border-b md:border-b-0 border-white/10 pb-3 md:pb-0">
+                <div className="p-3 bg-indigo-500/25 rounded-2xl text-indigo-300 shrink-0 ring-1 ring-indigo-400/30">
+                  <Calendar size={22} />
                 </div>
-                <div className="flex-1">
-                  <div className="flex items-center gap-2 mb-1">
-                    <span className="text-[10px] sm:text-xs font-black text-indigo-400 uppercase tracking-widest">
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 mb-0.5">
+                    <span className="text-[10px] sm:text-xs font-black text-indigo-300 uppercase tracking-widest truncate">
                       {itemInspeccionado.label}
                     </span>
                     {mejorDiaPeriodo && itemInspeccionado.ventas === mejorDiaPeriodo.ventas && itemInspeccionado.ventas > 0 && (
-                      <span className="bg-amber-500/20 text-amber-400 text-[9px] font-black px-2 py-0.5 rounded-md border border-amber-500/30 flex items-center gap-1 uppercase tracking-wider">
+                      <span className="bg-amber-500/20 text-amber-300 text-[9px] font-black px-2 py-0.5 rounded-md border border-amber-500/30 flex items-center gap-1 uppercase tracking-wider shrink-0">
                         <Crown size={10} className="fill-current" /> Récord
                       </span>
                     )}
                   </div>
-                  <h4 className="text-lg sm:text-xl font-black text-white capitalize leading-tight">
+                  <h4 className="text-base sm:text-xl font-black text-white capitalize leading-tight truncate">
                     {itemInspeccionado.fechaFormato || itemInspeccionado.label}
                   </h4>
                 </div>
               </div>
 
               {/* Métricas */}
-              <div className="flex flex-row flex-wrap md:flex-nowrap items-center justify-between w-full md:w-auto gap-4 sm:gap-8">
-                <div className="flex-1 min-w-[30%]">
+              <div className="grid grid-cols-3 gap-2 sm:gap-6 w-full md:w-auto items-center">
+                <div className="bg-white/5 rounded-2xl p-2.5 sm:p-3 border border-white/5">
                   <span className="text-[10px] sm:text-xs uppercase font-black text-emerald-400 block mb-0.5">Ventas</span>
-                  <span className="text-lg sm:text-xl font-black text-white block">
+                  <span className="text-sm sm:text-lg font-black text-white block truncate">
                     ${Math.round(itemInspeccionado.ventas).toLocaleString('es-CO')}
                   </span>
                   {itemInspeccionado.countVentas !== undefined && (
-                    <span className="text-[10px] text-slate-500 font-bold">
-                      {itemInspeccionado.countVentas} transacciones
+                    <span className="text-[9px] sm:text-[10px] text-slate-400 font-bold block truncate">
+                      {itemInspeccionado.countVentas} mov.
                     </span>
                   )}
                 </div>
 
-                <div className="flex-1 min-w-[25%]">
+                <div className="bg-white/5 rounded-2xl p-2.5 sm:p-3 border border-white/5">
                   <span className="text-[10px] sm:text-xs uppercase font-black text-rose-400 block mb-0.5">Fiados</span>
-                  <span className="text-base sm:text-xl font-black text-white block">
+                  <span className="text-sm sm:text-lg font-black text-white block truncate">
                     ${Math.round(itemInspeccionado.fiados).toLocaleString('es-CO')}
+                  </span>
+                  <span className="text-[9px] sm:text-[10px] text-slate-400 font-bold block truncate">
+                    Crédito
                   </span>
                 </div>
 
-                <div className="flex-1 min-w-[25%]">
-                  <span className="text-[10px] sm:text-xs uppercase font-black text-blue-400 block mb-0.5">Abonos</span>
-                  <span className="text-base sm:text-xl font-black text-white block">
+                <div className="bg-white/5 rounded-2xl p-2.5 sm:p-3 border border-white/5">
+                  <span className="text-[10px] sm:text-xs uppercase font-black text-sky-400 block mb-0.5">Abonos</span>
+                  <span className="text-sm sm:text-lg font-black text-white block truncate">
                     ${Math.round(itemInspeccionado.abonos).toLocaleString('es-CO')}
+                  </span>
+                  <span className="text-[9px] sm:text-[10px] text-slate-400 font-bold block truncate">
+                    Cobrado
                   </span>
                 </div>
               </div>
@@ -926,18 +1040,20 @@ export default function ReportesPage() {
               {/* Botón cerrar */}
               <button
                 onClick={() => setItemInspeccionado(null)}
-                className="absolute top-0 right-0 md:relative md:top-auto md:right-auto p-2 md:px-4 md:py-2 md:bg-white/10 md:hover:bg-white/20 rounded-xl text-slate-400 hover:text-white text-xs font-bold transition-colors cursor-pointer"
-                title="Cerrar y ver total"
+                className="absolute top-0 right-0 md:relative md:top-auto md:right-auto p-1.5 md:px-3.5 md:py-2 bg-white/10 hover:bg-white/20 rounded-xl text-slate-300 hover:text-white text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5"
+                title="Cerrar y volver a vista general"
               >
-                <span className="hidden md:inline">Ver Total</span>
-                <X size={20} className="md:hidden" />
+                <X size={16} />
+                <span className="hidden md:inline">Cerrar</span>
               </button>
             </div>
           ) : (
-            <div className="flex flex-col items-center justify-center text-center text-slate-500 h-full animate-in fade-in">
-              <BarChart3 size={32} className="opacity-20 mb-3" />
-              <p className="text-sm sm:text-base font-bold">Resumen Interactivo</p>
-              <p className="text-xs font-medium mt-1">Toca cualquier barra de la gráfica para ver su desglose exacto aquí.</p>
+            <div className="flex flex-col items-center justify-center text-center text-slate-400 h-full py-4 animate-in fade-in duration-200">
+              <div className="w-10 h-10 rounded-2xl bg-indigo-500/10 flex items-center justify-center text-indigo-400 mb-2 ring-1 ring-indigo-500/20">
+                <BarChart3 size={20} />
+              </div>
+              <p className="text-sm sm:text-base font-black text-white">Resumen Interactivo</p>
+              <p className="text-xs text-slate-400 mt-1 max-w-sm">Toca o pasa el cursor sobre cualquier barra de la gráfica para inspeccionar sus ventas, fiados y abonos exactos.</p>
             </div>
           )}
         </div>
