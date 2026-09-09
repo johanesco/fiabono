@@ -323,23 +323,23 @@ function SkeletonTicketCard() {
     <div
       style={{
         overflowAnchor: 'none',
-        paddingTop: 'max(calc(env(safe-area-inset-top, 0px) + 16px), 24px)',
-        paddingBottom: 'max(calc(env(safe-area-inset-bottom, 0px) + 24px), 32px)',
+        paddingTop: 'max(calc(env(safe-area-inset-top, 0px) + 72px), 80px)',
+        paddingBottom: 'max(calc(env(safe-area-inset-bottom, 0px) + 20px), 28px)',
       }}
       className="min-h-[100dvh] bg-slate-100 dark:bg-slate-950 text-slate-900 dark:text-slate-100 flex flex-col items-center justify-start px-3 select-none font-sans overflow-x-hidden"
     >
       {/* HEADER DE LA PÁGINA PÚBLICA */}
-      <header className="ticket-print-hide w-full max-w-[340px] sm:max-w-[380px] flex items-center justify-between pb-2 mb-1.5 shrink-0">
+      <header className="ticket-print-hide w-full max-w-[340px] sm:max-w-[380px] flex items-center justify-between pb-1.5 mb-1 shrink-0">
         <div className="flex items-center gap-1.5">
-          <div className="w-6 h-6 sm:w-7 sm:h-7 rounded-lg bg-emerald-600 text-white flex items-center justify-center font-black text-xs shadow-sm">
+          <div className="w-5 h-5 sm:w-6 sm:h-6 rounded-lg bg-emerald-600 text-white flex items-center justify-center font-black text-[11px] shadow-sm">
             F
           </div>
           <span className="font-black text-xs sm:text-sm tracking-tight text-slate-800 dark:text-slate-100">
             Fiabono
           </span>
         </div>
-        <div className="flex items-center gap-1 text-[9.5px] sm:text-[10.5px] font-bold text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-500/10 px-2.5 py-0.5 rounded-full border border-emerald-200 dark:border-emerald-800/50">
-          <ShieldCheck size={12} />
+        <div className="flex items-center gap-1 text-[9px] sm:text-[10px] font-bold text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-200 dark:border-emerald-800/50">
+          <ShieldCheck size={11} />
           <span>Comprobante Verificado</span>
         </div>
       </header>
@@ -387,7 +387,7 @@ function SkeletonTicketCard() {
           </div>
 
           {/* BOTÓN DE ACCIÓN PARA EL CLIENTE */}
-          <div className="ticket-print-hide w-full mt-2.5 sm:mt-4">
+          <div className="ticket-print-hide w-full mt-2 sm:mt-3">
             <button
               type="button"
               disabled={generandoDescarga}
@@ -400,7 +400,7 @@ function SkeletonTicketCard() {
           </div>
 
           {/* PIE DE PÁGINA INFORMATIVO Y PROMOCIONAL */}
-          <footer className="ticket-print-hide text-center py-3 text-slate-400 dark:text-slate-500 text-[10px] space-y-0.5">
+          <footer className="ticket-print-hide text-center py-2 text-slate-400 dark:text-slate-500 text-[9.5px] space-y-0.5">
             <p>Recibo digital emitido mediante Fiabono.</p>
             <p className="font-semibold text-slate-600 dark:text-slate-400">
               ¿Tienes un negocio? Administra tus ventas y fiados gratis en{" "}
