@@ -379,8 +379,8 @@ export default function LandingPage() {
     <div className="min-h-screen bg-slate-50 dark:bg-[#020617] text-slate-900 dark:text-slate-100 font-sans transition-colors duration-500 overflow-x-hidden selection:bg-blue-600 selection:text-white">
       
       {/* 1. TOP ANNOUNCEMENT BANNER */}
-      <div className="bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 text-white text-[11px] sm:text-xs font-black py-2 px-4 text-center flex items-center justify-center gap-2">
-        <span>🇨🇴 El sistema POS colombiano para almacenes, tiendas y negocios</span>
+      <div className="bg-gradient-to-r from-emerald-600 via-teal-600 to-slate-900 text-white text-[11px] sm:text-xs font-black py-2 px-4 text-center flex items-center justify-center gap-2">
+        <span>🇨🇴 El software POS colombiano para tiendas de barrio, almacenes de ropa y negocios</span>
         <span className="hidden sm:inline-block bg-white/20 px-2 py-0.5 rounded-full text-[10px] uppercase font-bold">14 días de prueba gratis</span>
       </div>
 
@@ -388,29 +388,29 @@ export default function LandingPage() {
       <header className="sticky top-0 bg-white/85 dark:bg-[#0f172a]/85 backdrop-blur-2xl border-b border-slate-200/60 dark:border-slate-800/60 z-[500] px-3 sm:px-8 py-2.5 sm:py-3.5 transition-all shadow-sm">
         <div className="max-w-7xl mx-auto flex justify-between items-center gap-2">
           <div className="flex items-center gap-2 cursor-pointer shrink-0" onClick={() => { setMenuMovilAbierto(false); window.scrollTo({ top: 0, behavior: 'smooth' }); }}>
-            <div className="w-8 h-8 sm:w-9 sm:h-9 bg-gradient-to-tr from-blue-600 to-indigo-600 rounded-xl flex items-center justify-center shadow-lg shadow-blue-500/25">
+            <div className="w-8 h-8 sm:w-9 sm:h-9 bg-gradient-to-tr from-emerald-600 to-teal-500 rounded-xl flex items-center justify-center shadow-lg shadow-emerald-500/25">
               <Receipt size={18} className="text-white sm:w-5 sm:h-5"/>
             </div>
             <span className="text-lg sm:text-xl font-black tracking-tight text-slate-900 dark:text-white">
-              Fiabono<span className="text-blue-600 dark:text-blue-400">.com</span>
+              Fiabono<span className="text-emerald-600 dark:text-emerald-400">.com</span>
             </span>
           </div>
           
           <nav className="hidden md:flex items-center gap-7 text-xs lg:text-sm font-bold text-slate-600 dark:text-slate-300">
-            <button onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })} className="hover:text-blue-600 dark:hover:text-blue-400 transition-colors cursor-pointer">Inicio</button>
-            <button onClick={() => document.getElementById('comparativa')?.scrollIntoView({behavior: 'smooth'})} className="hover:text-blue-600 dark:hover:text-blue-400 transition-colors cursor-pointer">Cuaderno vs POS</button>
-            <button onClick={() => document.getElementById('features')?.scrollIntoView({behavior: 'smooth'})} className="hover:text-blue-600 dark:hover:text-blue-400 transition-colors cursor-pointer">Funciones</button>
-            <button onClick={() => document.getElementById('calculadora')?.scrollIntoView({behavior: 'smooth'})} className="hover:text-blue-600 dark:hover:text-blue-400 transition-colors cursor-pointer">Calculadora</button>
-            <button onClick={() => document.getElementById('nichos')?.scrollIntoView({behavior: 'smooth'})} className="hover:text-blue-600 dark:hover:text-blue-400 transition-colors cursor-pointer">Tu Negocio</button>
-            <button onClick={() => document.getElementById('planes')?.scrollIntoView({behavior: 'smooth'})} className="hover:text-blue-600 dark:hover:text-blue-400 transition-colors cursor-pointer">Planes</button>
-            <button onClick={() => document.getElementById('faq')?.scrollIntoView({behavior: 'smooth'})} className="hover:text-blue-600 dark:hover:text-blue-400 transition-colors cursor-pointer">Preguntas</button>
+            <button onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })} className="hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors cursor-pointer">Inicio</button>
+            <button onClick={() => document.getElementById('comparativa')?.scrollIntoView({behavior: 'smooth'})} className="hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors cursor-pointer">Cuaderno vs POS</button>
+            <button onClick={() => document.getElementById('features')?.scrollIntoView({behavior: 'smooth'})} className="hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors cursor-pointer">Funciones</button>
+            <button onClick={() => document.getElementById('calculadora')?.scrollIntoView({behavior: 'smooth'})} className="hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors cursor-pointer">Calculadora</button>
+            <button onClick={() => document.getElementById('nichos')?.scrollIntoView({behavior: 'smooth'})} className="hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors cursor-pointer">Tu Negocio</button>
+            <button onClick={() => document.getElementById('planes')?.scrollIntoView({behavior: 'smooth'})} className="hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors cursor-pointer">Planes</button>
+            <button onClick={() => document.getElementById('faq')?.scrollIntoView({behavior: 'smooth'})} className="hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors cursor-pointer">Preguntas</button>
           </nav>
 
           <div className="flex items-center gap-1 sm:gap-3 shrink-0">
             <button 
               type="button" 
               onClick={() => { setMenuMovilAbierto(false); setModalLandingInfo({ visible: true, tipo: 'login' }); }} 
-              className="text-xs sm:text-sm font-black text-slate-700 dark:text-slate-200 hover:text-blue-600 dark:hover:text-blue-400 transition-colors px-2 sm:px-3 py-1.5 sm:py-2 cursor-pointer"
+              className="text-xs sm:text-sm font-black text-slate-700 dark:text-slate-200 hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors px-2 sm:px-3 py-1.5 sm:py-2 cursor-pointer"
             >
               <span className="hidden sm:inline">Iniciar Sesión</span>
               <span className="sm:hidden">Ingresar</span>
@@ -418,7 +418,7 @@ export default function LandingPage() {
             <button 
               type="button" 
               onClick={() => { setMenuMovilAbierto(false); abrirRegistroConPlan('gratis'); }} 
-              className="bg-blue-600 hover:bg-blue-700 text-white text-xs sm:text-sm font-black py-1.5 sm:py-2.5 px-2.5 sm:px-5 rounded-xl shadow-md shadow-blue-600/25 transition-transform active:scale-95 cursor-pointer whitespace-nowrap"
+              className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs sm:text-sm font-black py-1.5 sm:py-2.5 px-2.5 sm:px-5 rounded-xl shadow-md shadow-emerald-600/25 transition-transform active:scale-95 cursor-pointer whitespace-nowrap"
             >
               <span className="hidden sm:inline">Empezar Gratis</span>
               <span className="sm:hidden">Registro</span>
@@ -470,7 +470,7 @@ export default function LandingPage() {
               </button>
               <button
                 onClick={() => { setMenuMovilAbierto(false); abrirRegistroConPlan('gratis'); }}
-                className="w-full text-center py-2.5 rounded-xl text-xs font-black bg-blue-600 text-white shadow-md hover:bg-blue-700"
+                className="w-full text-center py-2.5 rounded-xl text-xs font-black bg-emerald-600 text-white shadow-md hover:bg-emerald-700"
               >
                 Crear Cuenta Gratis
               </button>
@@ -480,27 +480,56 @@ export default function LandingPage() {
       </header>
 
       {/* 3. HERO SECTION DE ALTO IMPACTO EMOCIONAL */}
-      <section className="pt-16 sm:pt-24 pb-16 px-4 sm:px-6 max-w-7xl mx-auto relative">
-        <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[400px] bg-gradient-to-tr from-blue-500/20 via-indigo-500/15 to-emerald-500/20 rounded-full blur-3xl pointer-events-none -z-10"></div>
+      <section className="pt-14 sm:pt-20 pb-16 px-4 sm:px-6 max-w-7xl mx-auto relative">
+        <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[400px] bg-gradient-to-tr from-emerald-500/20 via-teal-500/15 to-blue-500/20 rounded-full blur-3xl pointer-events-none -z-10"></div>
         
         <div className="flex flex-col items-center text-center max-w-4xl mx-auto">
-          <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-rose-50 dark:bg-rose-500/10 text-rose-600 dark:text-rose-400 font-black text-xs uppercase tracking-widest mb-6 border border-rose-200/60 dark:border-rose-500/20 shadow-sm animate-in fade-in slide-in-from-bottom-2 duration-300">
-            <Flame size={14} className="fill-current text-rose-500" /> El fin de las pérdidas y el desorden
+          {/* Badge superior SEO */}
+          <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 font-black text-xs uppercase tracking-widest mb-6 border border-emerald-200/60 dark:border-emerald-500/20 shadow-sm animate-in fade-in slide-in-from-bottom-2 duration-300">
+            <Store size={14} className="text-emerald-600" /> Software POS para Tiendas, Tiendas de Barrio & Almacenes
           </div>
 
           <h1 className="text-4xl sm:text-6xl md:text-7xl font-black tracking-tight text-slate-900 dark:text-white mb-6 leading-[1.1] sm:leading-[1.06]">
-            Deja de perder plata en cuadernos y cuentas <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-600 via-indigo-600 to-emerald-500">embolatadas</span>.
+            Deja de perder plata en cuadernos y cuentas <span className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-500">embolatadas</span>.
           </h1>
 
-          <p className="text-base sm:text-xl text-slate-600 dark:text-slate-300 max-w-2xl mx-auto mb-10 font-medium leading-relaxed">
-            El sistema POS más rápido y fácil de Colombia para <strong>vender, fiar y cobrar por WhatsApp</strong>. Controla tu inventario, imprime facturas y etiquetas QR, y gestiona tu <strong>Plan Separe</strong> sin perder una sola prenda.
+          <p className="text-base sm:text-xl text-slate-600 dark:text-slate-300 max-w-3xl mx-auto mb-6 font-medium leading-relaxed">
+            El sistema POS colombiano más fácil para <strong>tiendas de barrio, minimarkets y almacenes de ropa</strong>. Vende rápido, controla el cupo de fiado por WhatsApp y aparta mercancía con <strong>Plan Separe con foto</strong> sin enredos.
           </p>
+
+          {/* Chips Interactivos de Nicho en el Hero (Quick Discovery) */}
+          <div className="w-full max-w-3xl mx-auto mb-8">
+            <p className="text-[11px] font-black uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-2.5">
+              Ideal para tu tipo de negocio:
+            </p>
+            <div className="flex flex-wrap items-center justify-center gap-2">
+              {[
+                { label: '🏪 Tiendas de Barrio', id: 'tienda' },
+                { label: '👗 Almacenes de Ropa & Calzado', id: 'moda' },
+                { label: '🔩 Ferreterías & Papelerías', id: 'ferreteria' },
+                { label: '💄 Cosméticos & Catálogo', id: 'belleza' },
+                { label: '🎁 Misceláneas & Variedades', id: 'tienda' }
+              ].map((chip, idx) => (
+                <button
+                  key={idx}
+                  type="button"
+                  onClick={() => {
+                    setTabNicho(chip.id as any);
+                    document.getElementById('nichos')?.scrollIntoView({ behavior: 'smooth' });
+                  }}
+                  className="bg-white dark:bg-[#0f172a] hover:bg-emerald-50 dark:hover:bg-emerald-950/40 text-slate-700 dark:text-slate-200 hover:text-emerald-700 dark:hover:text-emerald-300 px-3.5 py-1.5 rounded-full text-xs font-bold border border-slate-200 dark:border-slate-800 hover:border-emerald-300 transition-all shadow-sm cursor-pointer"
+                >
+                  {chip.label}
+                </button>
+              ))}
+            </div>
+          </div>
 
           <div className="flex flex-col sm:flex-row items-center gap-3.5 w-full sm:w-auto">
             <button 
               type="button" 
               onClick={() => abrirRegistroConPlan('gratis')} 
-              className="w-full sm:w-auto bg-blue-600 hover:bg-blue-700 text-white text-base sm:text-lg font-black py-4 px-8 rounded-2xl shadow-xl shadow-blue-600/30 transition-transform active:scale-95 flex items-center justify-center gap-2 cursor-pointer"
+              className="w-full sm:w-auto bg-emerald-600 hover:bg-emerald-700 text-white text-base sm:text-lg font-black py-4 px-8 rounded-2xl shadow-xl shadow-emerald-600/30 transition-transform active:scale-95 flex items-center justify-center gap-2 cursor-pointer"
             >
               <span>🚀 Crear mi Cuenta Gratis</span>
               <ArrowRight size={20}/>
@@ -519,8 +548,8 @@ export default function LandingPage() {
             <div className="flex items-center gap-1.5 bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 px-3 py-1.5 rounded-full border border-emerald-200/50">
               <CheckCircle2 size={15} className="text-emerald-500" /> Sin tarjeta de crédito
             </div>
-            <div className="flex items-center gap-1.5 bg-blue-50 dark:bg-blue-500/10 text-blue-700 dark:text-blue-300 px-3 py-1.5 rounded-full border border-blue-200/50">
-              <Smartphone size={15} className="text-blue-500" /> Usa tu celular actual o PC
+            <div className="flex items-center gap-1.5 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 px-3 py-1.5 rounded-full border border-slate-200 dark:border-slate-700">
+              <Smartphone size={15} className="text-emerald-600" /> Usa tu celular actual o PC
             </div>
             <div className="flex items-center gap-1.5 bg-purple-50 dark:bg-purple-500/10 text-purple-700 dark:text-purple-300 px-3 py-1.5 rounded-full border border-purple-200/50">
               <ShieldCheck size={15} className="text-purple-500" /> Cuentas seguras en la nube
@@ -547,7 +576,7 @@ export default function LandingPage() {
                   onClick={() => setTabMockup(tab.id as any)}
                   className={`px-4 py-2.5 rounded-xl text-xs sm:text-sm font-black flex items-center gap-2 whitespace-nowrap transition-all cursor-pointer ${
                     activo 
-                      ? 'bg-blue-600 text-white shadow-md shadow-blue-500/30' 
+                      ? 'bg-emerald-600 text-white shadow-md shadow-emerald-500/30' 
                       : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'
                   }`}
                 >
@@ -1453,19 +1482,19 @@ export default function LandingPage() {
 
       {/* 11. CTA FINAL DE ALTA CONVERSIÓN */}
       <section className="py-20 px-4 sm:px-6 max-w-5xl mx-auto text-center">
-        <div className="bg-gradient-to-br from-blue-600 via-indigo-600 to-purple-700 text-white p-8 sm:p-14 rounded-[3rem] shadow-2xl relative overflow-hidden">
+        <div className="bg-gradient-to-br from-emerald-600 via-teal-600 to-slate-900 text-white p-8 sm:p-14 rounded-[3rem] shadow-2xl relative overflow-hidden">
           <div className="max-w-2xl mx-auto space-y-4">
             <h2 className="text-3xl sm:text-5xl font-black tracking-tight leading-tight">
               Organiza tu negocio hoy mismo en menos de 2 minutos.
             </h2>
-            <p className="text-blue-100 text-sm sm:text-base font-medium">
+            <p className="text-emerald-100 text-sm sm:text-base font-medium">
               Crea tu cuenta gratuita sin tarjeta de crédito y toma el control total de tus ventas, cobranzas y clientes.
             </p>
             <div className="pt-4 flex justify-center">
               <button 
                 type="button" 
                 onClick={() => abrirRegistroConPlan('gratis')}
-                className="bg-white text-blue-700 hover:bg-blue-50 text-base sm:text-lg font-black py-4 px-8 rounded-2xl shadow-xl transition-transform active:scale-95 cursor-pointer"
+                className="bg-white text-emerald-700 hover:bg-emerald-50 text-base sm:text-lg font-black py-4 px-8 rounded-2xl shadow-xl transition-transform active:scale-95 cursor-pointer"
               >
                 Comenzar Gratis Ahora
               </button>
@@ -1478,7 +1507,7 @@ export default function LandingPage() {
       <footer className="py-12 pb-24 md:pb-12 px-6 border-t border-slate-200/60 dark:border-slate-800/60 text-center text-xs text-slate-500 dark:text-slate-400 font-medium">
         <div className="max-w-6xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-2">
-            <div className="w-6 h-6 bg-blue-600 rounded-lg flex items-center justify-center text-white font-black text-[11px]">F</div>
+            <div className="w-6 h-6 bg-emerald-600 rounded-lg flex items-center justify-center text-white font-black text-[11px]">F</div>
             <span className="font-black text-slate-800 dark:text-white">Fiabono.com</span>
           </div>
           <p>© {new Date().getFullYear()} Fiabono. Todos los derechos reservados. Desarrollado para negocios en crecimiento.</p>
@@ -1494,7 +1523,7 @@ export default function LandingPage() {
         <button
           type="button"
           onClick={() => abrirRegistroConPlan('gratis')}
-          className="bg-blue-600 text-white font-black text-xs py-2.5 px-4 rounded-xl shadow-md shadow-blue-600/30 active:scale-95 cursor-pointer"
+          className="bg-emerald-600 text-white font-black text-xs py-2.5 px-4 rounded-xl shadow-md shadow-emerald-600/30 active:scale-95 cursor-pointer"
         >
           Crear Cuenta
         </button>

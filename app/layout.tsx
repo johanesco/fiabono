@@ -5,8 +5,18 @@ import ServiceWorkerRegistrar from "@/components/ServiceWorkerRegistrar";
 import InstallPrompt from "@/components/InstallPrompt";
 
 export const metadata = {
-  title: "Fiabono",
-  description: "Sistema de gestión y control de inventario y fiados",
+  title: "Fiabono | Software POS para Tiendas de Barrio, Control de Fiados y Plan Separe",
+  description: "El sistema POS más fácil de Colombia para tiendas de barrio, minimarkets y almacenes de ropa. Controla ventas, inventario, cobro de fiados por WhatsApp y Plan Separe desde tu celular o computador.",
+  keywords: [
+    "sistema pos colombia",
+    "software para tienda de barrio",
+    "control de fiados",
+    "plan separe ropa y calzado",
+    "software pos gratis",
+    "programa para tienda",
+    "facturas por whatsapp",
+    "control de inventario facil"
+  ],
   manifest: "/manifest.json",
   icons: {
     icon: "/icon-512.jpg",
