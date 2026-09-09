@@ -129,3 +129,8 @@ html, body {
 .pr-safe {
   padding-right: env(safe-area-inset-right, 0px);
 }
+
+/* Elevación de la barra flotante móvil por encima del BottomNav + safe-area */
+.bottom-floating-bar {
+  bottom: calc(64px + env(safe-area-inset-bottom, 0px));
+}

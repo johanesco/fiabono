@@ -2246,7 +2246,7 @@ Estamos atentos para cualquier consulta.
       </div>
 
       {/* BARRA FLOTANTE MÓVIL */}
-      <div className="lg:hidden fixed bottom-[76px] sm:bottom-[84px] left-3 right-3 sm:left-4 sm:right-4 max-w-lg mx-auto bg-white/95 dark:bg-[#0f172a]/95 backdrop-blur-xl border border-slate-200/90 dark:border-slate-800/90 p-2.5 rounded-2xl shadow-xl z-40 flex items-center justify-between gap-3">
+      <div className="lg:hidden fixed bottom-floating-bar left-3 right-3 sm:left-4 sm:right-4 max-w-lg mx-auto bg-white/95 dark:bg-[#0f172a]/95 backdrop-blur-xl border border-slate-200/90 dark:border-slate-800/90 p-2.5 rounded-2xl shadow-xl z-40 flex items-center justify-between gap-3">
         <div className="flex flex-col min-w-0 shrink pl-1">
           <span className="text-[9px] font-black uppercase text-slate-400 tracking-wider">Total Separe</span>
           <span className="text-base font-black text-violet-600 truncate">${totalSepare.toLocaleString('es-CO')}</span>

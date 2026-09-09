@@ -106,77 +106,77 @@ export default function BottomNav({
     <>
       {/* BARRA INFERIOR MODERNA (DOCK MINIMALISTA) */}
       <nav className="fixed bottom-0 left-0 right-0 bg-white/95 dark:bg-[#0f172a]/95 backdrop-blur-xl border-t border-slate-200/80 dark:border-slate-800/80 shadow-[0_-10px_40px_rgba(0,0,0,0.06)] dark:shadow-[0_-10px_40px_rgba(0,0,0,0.5)] z-[100] pb-safe transition-all duration-300">
-        <div className="max-w-md mx-auto flex items-center justify-around px-2 py-1.5">
+        <div className="max-w-md mx-auto flex items-center justify-around px-2 py-1">
           
           {/* 1. INICIO */}
           <Link 
             href="/dashboard/inicio" 
-            className={`flex-1 py-1.5 flex flex-col items-center gap-1 transition-all active:scale-90 ${
+            className={`flex-1 py-1 flex flex-col items-center gap-0.5 transition-all active:scale-90 ${
               pathname?.includes('/inicio') 
                 ? 'text-blue-600 dark:text-blue-400 font-black' 
                 : 'text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300 font-semibold'
             }`}
           >
             <div className={`p-1 rounded-xl transition-colors ${pathname?.includes('/inicio') ? 'bg-blue-50 dark:bg-blue-500/10' : ''}`}>
-              <HomeIcon size={21} className={pathname?.includes('/inicio') ? 'stroke-[2.5]' : 'stroke-2'} /> 
+              <HomeIcon size={19} className={pathname?.includes('/inicio') ? 'stroke-[2.5]' : 'stroke-2'} /> 
             </div>
-            <span className="text-[10px] tracking-tight leading-none">Inicio</span>
+            <span className="text-[9.5px] tracking-tight leading-none">Inicio</span>
           </Link>
 
           {/* 2. ÓRDENES (Solo si es Admin o si el colaborador tiene órdenes pendientes) */}
           {mostrarPestanaOrdenes && (
             <Link 
               href="/dashboard/ordenes" 
-              className={`flex-1 py-1.5 flex flex-col items-center gap-1 transition-all active:scale-90 relative ${
+              className={`flex-1 py-1 flex flex-col items-center gap-0.5 transition-all active:scale-90 relative ${
                 pathname?.includes('/ordenes') 
                   ? 'text-amber-600 dark:text-amber-400 font-black' 
                   : 'text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300 font-semibold'
               }`}
             >
               <div className={`relative p-1 rounded-xl transition-colors ${pathname?.includes('/ordenes') ? 'bg-amber-50 dark:bg-amber-500/10' : ''}`}>
-                <Receipt size={21} className={pathname?.includes('/ordenes') ? 'stroke-[2.5]' : 'stroke-2'} />
+                <Receipt size={19} className={pathname?.includes('/ordenes') ? 'stroke-[2.5]' : 'stroke-2'} />
                 {ordenesPendientesCount > 0 && (
-                  <span className="absolute -top-1 -right-2 min-w-[16px] h-[16px] px-1 bg-rose-500 text-white text-[9px] font-black rounded-full flex items-center justify-center shadow-xs animate-pulse">
+                  <span className="absolute -top-1 -right-2 min-w-[15px] h-[15px] px-1 bg-rose-500 text-white text-[8.5px] font-black rounded-full flex items-center justify-center shadow-xs animate-pulse">
                     {ordenesPendientesCount}
                   </span>
                 )}
               </div>
-              <span className="text-[10px] tracking-tight leading-none">Órdenes</span>
+              <span className="text-[9.5px] tracking-tight leading-none">Órdenes</span>
             </Link>
           )}
 
           {/* 3. HISTORIAL */}
           <Link 
             href="/dashboard/historial" 
-            className={`flex-1 py-1.5 flex flex-col items-center gap-1 transition-all active:scale-90 ${
+            className={`flex-1 py-1 flex flex-col items-center gap-0.5 transition-all active:scale-90 ${
               pathname?.includes('/historial') 
                 ? 'text-emerald-600 dark:text-emerald-400 font-black' 
                 : 'text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300 font-semibold'
             }`}
           >
             <div className={`p-1 rounded-xl transition-colors ${pathname?.includes('/historial') ? 'bg-emerald-50 dark:bg-emerald-500/10' : ''}`}>
-              <Clock size={21} className={pathname?.includes('/historial') ? 'stroke-[2.5]' : 'stroke-2'} /> 
+              <Clock size={19} className={pathname?.includes('/historial') ? 'stroke-[2.5]' : 'stroke-2'} /> 
             </div>
-            <span className="text-[10px] tracking-tight leading-none">Historial</span>
+            <span className="text-[9.5px] tracking-tight leading-none">Historial</span>
           </Link>
 
           {/* 4. MENÚ MÓVIL (DRAWER) */}
           <button
             type="button"
             onClick={() => setDrawerAbierto(true)}
-            className={`flex-1 py-1.5 flex flex-col items-center gap-1 transition-all active:scale-90 cursor-pointer ${
+            className={`flex-1 py-1 flex flex-col items-center gap-0.5 transition-all active:scale-90 cursor-pointer ${
               esRutaMenuActiva || drawerAbierto
                 ? 'text-slate-900 dark:text-white font-black' 
                 : 'text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300 font-semibold'
             }`}
           >
             <div className={`relative p-1 rounded-xl transition-colors ${esRutaMenuActiva || drawerAbierto ? 'bg-slate-100 dark:bg-slate-800' : ''}`}>
-              <Menu size={21} className={esRutaMenuActiva ? 'stroke-[2.5]' : 'stroke-2'} />
+              <Menu size={19} className={esRutaMenuActiva ? 'stroke-[2.5]' : 'stroke-2'} />
               {separesActivosCount > 0 && puedeGestionarSepares && (
                 <span className="absolute -top-0.5 -right-1.5 w-2 h-2 bg-violet-600 rounded-full"></span>
               )}
             </div>
-            <span className="text-[10px] tracking-tight leading-none">Menú</span>
+            <span className="text-[9.5px] tracking-tight leading-none">Menú</span>
           </button>
 
         </div>
