@@ -5,7 +5,7 @@ import { doc, getDoc } from "firebase/firestore";
 import { db } from "@/firebase";
 import { DatosFacturaProps } from "@/components/TicketFacturaModal";
 import VistaTicketCard from "@/components/VistaTicketCard";
-import { Download, ArrowLeft, Loader2, AlertCircle, ShieldCheck } from "lucide-react";
+import { Download, ArrowLeft, Loader2, AlertCircle, ShieldCheck, MessageCircle, ArrowRight } from "lucide-react";
 import { toBlob } from "html-to-image";
 import toast from "react-hot-toast";
 
@@ -386,8 +386,8 @@ function SkeletonTicketCard() {
             <VistaTicketCard datos={datosFactura} ticketRef={ticketRef} />
           </div>
 
-          {/* BOTÓN DE ACCIÓN PARA EL CLIENTE */}
-          <div className="ticket-print-hide w-full mt-2 sm:mt-3">
+          {/* BOTONES DE ACCIÓN PARA EL CLIENTE */}
+          <div className="ticket-print-hide w-full mt-2.5 space-y-1.5">
             <button
               type="button"
               disabled={generandoDescarga}
@@ -397,17 +397,56 @@ function SkeletonTicketCard() {
               {generandoDescarga ? <Loader2 size={15} className="animate-spin shrink-0" /> : <Download size={15} className="shrink-0" />}
               <span>{generandoDescarga ? "Guardando imagen..." : "Guardar Comprobante"}</span>
             </button>
+
+            {/* BOTÓN SECUNDARIO: CONTACTAR A LA TIENDA (SI TIENE TELÉFONO) */}
+            {(() => {
+              const tel = (datosFactura.telefonoNegocio || "").replace(/\D/g, "");
+              if (!tel) return null;
+              const waUrl = `https://wa.me/57${tel.startsWith("57") ? tel.slice(2) : tel}?text=${encodeURIComponent(
+                `Hola ${datosFactura.nombreNegocio || ""}, tengo una consulta sobre mi comprobante #${
+                  datosFactura.idTransaccion ? datosFactura.idTransaccion.slice(0, 8).toUpperCase() : ""
+                }`
+              )}`;
+              return (
+                <a
+                  href={waUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="w-full py-2 px-3 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 dark:bg-emerald-500/10 dark:text-emerald-300 dark:hover:bg-emerald-500/20 font-bold rounded-xl border border-emerald-200/80 dark:border-emerald-800/60 shadow-xs flex items-center justify-center gap-1.5 transition active:scale-95 text-[11px] text-center"
+                >
+                  <MessageCircle size={14} className="text-emerald-600 dark:text-emerald-400 shrink-0" />
+                  <span className="truncate">Contactar a {datosFactura.nombreNegocio || "la tienda"}</span>
+                </a>
+              );
+            })()}
           </div>
 
-          {/* PIE DE PÁGINA INFORMATIVO Y PROMOCIONAL */}
-          <footer className="ticket-print-hide text-center py-2 text-slate-400 dark:text-slate-500 text-[9.5px] space-y-0.5">
-            <p>Recibo digital emitido mediante Fiabono.</p>
-            <p className="font-semibold text-slate-600 dark:text-slate-400">
-              ¿Tienes un negocio? Administra tus ventas y fiados gratis en{" "}
-              <a href="/" className="text-emerald-600 dark:text-emerald-400 font-bold hover:underline">
-                Fiabono.com
-              </a>
-            </p>
+          {/* TARJETA ELEGANTE DE ADQUISICIÓN / FIABONO */}
+          <div className="ticket-print-hide w-full mt-3 p-2.5 sm:p-3 rounded-2xl bg-white/90 dark:bg-slate-900/90 backdrop-blur-md border border-slate-200/80 dark:border-slate-800/80 shadow-sm flex items-center justify-between gap-2.5">
+            <div className="flex items-center gap-2 min-w-0">
+              <div className="w-7 h-7 rounded-lg bg-emerald-600 text-white flex items-center justify-center font-black text-xs shrink-0 shadow-sm">
+                F
+              </div>
+              <div className="min-w-0">
+                <p className="text-[11px] font-black text-slate-800 dark:text-slate-100 truncate">
+                  ¿Tienes un negocio o vendes?
+                </p>
+                <p className="text-[9.5px] text-slate-500 dark:text-slate-400 truncate">
+                  Controla ventas y fiados gratis en Fiabono
+                </p>
+              </div>
+            </div>
+            <a
+              href="/"
+              className="px-2.5 py-1.5 bg-slate-900 hover:bg-slate-800 dark:bg-emerald-600 dark:hover:bg-emerald-700 text-white font-black rounded-xl text-[10px] shrink-0 transition active:scale-95 shadow-sm flex items-center gap-1"
+            >
+              <span>Probar</span>
+              <ArrowRight size={11} />
+            </a>
+          </div>
+
+          <footer className="ticket-print-hide text-center py-2 text-slate-400 dark:text-slate-500 text-[8.5px]">
+            Comprobante digital verificado emitido mediante Fiabono.com
           </footer>
         </main>
       )}
