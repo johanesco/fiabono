@@ -323,13 +323,13 @@ function SkeletonTicketCard() {
     <div
       style={{
         overflowAnchor: 'none',
-        paddingTop: 'max(calc(env(safe-area-inset-top, 0px) + 72px), 80px)',
+        paddingTop: 'max(calc(env(safe-area-inset-top, 0px) + 110px), 115px)',
         paddingBottom: 'max(calc(env(safe-area-inset-bottom, 0px) + 20px), 28px)',
       }}
       className="min-h-[100dvh] bg-slate-100 dark:bg-slate-950 text-slate-900 dark:text-slate-100 flex flex-col items-center justify-start px-3 select-none font-sans overflow-x-hidden"
     >
       {/* HEADER DE LA PÁGINA PÚBLICA */}
-      <header className="ticket-print-hide w-full max-w-[340px] sm:max-w-[380px] flex items-center justify-between pb-1.5 mb-1 shrink-0">
+      <header className="ticket-print-hide w-full max-w-[340px] sm:max-w-[380px] flex items-center justify-between px-1 pb-2 mb-1.5 shrink-0">
         <div className="flex items-center gap-1.5">
           <div className="w-5 h-5 sm:w-6 sm:h-6 rounded-lg bg-emerald-600 text-white flex items-center justify-center font-black text-[11px] shadow-sm">
             F
@@ -338,7 +338,7 @@ function SkeletonTicketCard() {
             Fiabono
           </span>
         </div>
-        <div className="flex items-center gap-1 text-[9px] sm:text-[10px] font-bold text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-200 dark:border-emerald-800/50">
+        <div className="flex items-center gap-1 text-[9px] sm:text-[10px] font-bold text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-500/10 px-2.5 py-0.5 rounded-full border border-emerald-200 dark:border-emerald-800/50">
           <ShieldCheck size={11} />
           <span>Comprobante Verificado</span>
         </div>
