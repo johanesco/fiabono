@@ -1,5 +1,5 @@
 // servicios/db.ts
-import { collection, addDoc, getDocs, query, doc, updateDoc, where, deleteDoc, getDoc, setDoc, runTransaction, orderBy, limit, startAfter } from "firebase/firestore";
+import { collection, addDoc, getDocs, query, doc, updateDoc, where, deleteDoc, getDoc, setDoc, runTransaction, orderBy, limit, startAfter, increment } from "firebase/firestore";
 import { db } from "../firebase"; 
 import { Cliente, Movimiento } from "../types";
 
@@ -121,9 +121,16 @@ export const API_DB = {
         ultimoDoc: nuevoUltimoDoc,
         hayMas
       };
-    } catch (error) {
-      console.warn("Consulta paginada usando fallback en memoria:", error);
-      const qFallback = query(collection(db, "movimientos"), where("usuarioId", "==", usuarioId));
+    } catch (error: any) {
+      console.warn("Consulta paginada usando fallback acotado:", error?.message || error);
+      // PARCHE P1-PERF: Nunca descargar la colección entera sin límite.
+      // Se acota a máximo (tamanoPagina * 2) para proteger la memoria y cuota.
+      const maxDocsFallback = Math.min(tamanoPagina * 2, 60);
+      const qFallback = query(
+        collection(db, "movimientos"), 
+        where("usuarioId", "==", usuarioId),
+        limit(maxDocsFallback)
+      );
       const snapFallback = await getDocs(qFallback);
       let listaM: Movimiento[] = [];
       snapFallback.forEach((d) => listaM.push({ id: d.id, ...d.data() } as Movimiento));
@@ -134,7 +141,7 @@ export const API_DB = {
       return {
         movimientos: listaM.slice(0, tamanoPagina),
         ultimoDoc: null,
-        hayMas: listaM.length > tamanoPagina
+        hayMas: false
       };
     }
   },
@@ -175,7 +182,135 @@ export const API_DB = {
   },
 
   // --------------------------------------------------------
-  // REGISTRO SEGURO Y ATÓMICO CON TRANSACCIÓN
+  // TRANSACCIÓN ATÓMICA UNIFICADA: VENTA + STOCK + FIADO (P1-TX-01)
+  // --------------------------------------------------------
+  ejecutarVentaCompletaAtomo: async (params: {
+    usuarioId: string;
+    clienteId?: string;
+    registradoPor: string;
+    montoVentaReal: number;
+    descripcionVenta: string;
+    detalles: any[];
+    metodoPago: string;
+    referenciaPago?: string;
+    subtotal?: number;
+    valorIva?: number;
+    porcentajeIva?: number;
+    descuentoTipo?: string | null;
+    descuentoValor?: number;
+    montoDescuento?: number;
+    // Items de inventario a descontar:
+    itemsInventario: Array<{
+      productoId: string;
+      cantidad: number;
+    }>;
+    // Si hay fiado / crédito adicional:
+    fiarFaltante?: boolean;
+    montoFiado?: number;
+    descripcionFiado?: string;
+  }): Promise<{
+    movimientoVentaId?: string;
+    movimientoFiadoId?: string;
+    nuevoSaldoCliente?: number;
+  }> => {
+    return await runTransaction(db, async (transaction) => {
+      // 1. REGLA FIRESTORE OBLIGATORIA: TODAS LAS LECTURAS PRIMERO
+      let nuevoSaldoCliente: number | undefined = undefined;
+      let clienteRef: any = null;
+
+      if (
+        params.fiarFaltante &&
+        params.clienteId &&
+        params.clienteId !== 'mostrador' &&
+        typeof params.montoFiado === 'number' &&
+        params.montoFiado > 0
+      ) {
+        clienteRef = doc(db, "clientes", params.clienteId);
+        const clienteSnap = await transaction.get(clienteRef);
+        if (clienteSnap.exists()) {
+          const cData = clienteSnap.data() as any;
+          const deudaActual = Number(cData?.deudaTotal || 0);
+          nuevoSaldoCliente = deudaActual + params.montoFiado;
+        }
+
+      }
+
+      // 2. TODAS LAS ESCRITURAS DESPUÉS
+      // a) Descontar stock de los productos inventariables
+      for (const item of params.itemsInventario) {
+        if (item.productoId && item.cantidad > 0) {
+          const prodRef = doc(db, "inventario", item.productoId);
+          transaction.update(prodRef, {
+            stock: increment(-item.cantidad)
+          });
+        }
+      }
+
+      // b) Si hay saldo a crédito, actualizar deudaTotal del cliente
+      if (clienteRef && nuevoSaldoCliente !== undefined) {
+        transaction.update(clienteRef, {
+          deudaTotal: nuevoSaldoCliente
+        });
+      }
+
+      // c) Crear movimiento de venta (si se recibió algún pago)
+      let movimientoVentaId: string | undefined = undefined;
+      if (params.montoVentaReal > 0) {
+        const movVentaRef = doc(collection(db, "movimientos"));
+        movimientoVentaId = movVentaRef.id;
+        const movVentaData: Record<string, any> = {
+          clienteId: params.clienteId || 'mostrador',
+          usuarioId: params.usuarioId,
+          tipo: 'venta',
+          monto: params.montoVentaReal,
+          descripcion: params.descripcionVenta,
+          detalles: params.detalles,
+          fecha: new Date(),
+          registradoPor: params.registradoPor,
+          metodoPago: params.metodoPago,
+          referenciaPago: params.referenciaPago || null,
+          subtotal: params.subtotal,
+          valorIva: params.valorIva,
+          porcentajeIva: params.porcentajeIva,
+          descuentoTipo: params.descuentoTipo || null,
+          descuentoValor: params.descuentoValor,
+          montoDescuento: params.montoDescuento
+        };
+        Object.keys(movVentaData).forEach(k => movVentaData[k] === undefined && delete movVentaData[k]);
+        transaction.set(movVentaRef, movVentaData);
+      }
+
+      // d) Crear movimiento de fiado (si faltante quedó a crédito)
+      let movimientoFiadoId: string | undefined = undefined;
+      if (params.fiarFaltante && params.clienteId && params.montoFiado && params.montoFiado > 0) {
+        const movFiadoRef = doc(collection(db, "movimientos"));
+        movimientoFiadoId = movFiadoRef.id;
+        const movFiadoData: Record<string, any> = {
+          clienteId: params.clienteId,
+          usuarioId: params.usuarioId,
+          tipo: 'fiado',
+          monto: params.montoFiado,
+          descripcion: params.descripcionFiado || 'Saldo pendiente de venta',
+          detalles: params.detalles,
+          fecha: new Date(),
+          registradoPor: params.registradoPor,
+          metodoPago: 'fiado',
+          saldoResultante: nuevoSaldoCliente
+        };
+        Object.keys(movFiadoData).forEach(k => movFiadoData[k] === undefined && delete movFiadoData[k]);
+        transaction.set(movFiadoRef, movFiadoData);
+      }
+
+      return {
+        movimientoVentaId,
+        movimientoFiadoId,
+        nuevoSaldoCliente
+      };
+    });
+  },
+
+  // --------------------------------------------------------
+  // REGISTRO SEGURO Y ATÓMICO CON TRANSACCIÓN (INDIVIDUAL)
   // --------------------------------------------------------
   registrarMovimientoConTransaccion: async (
     datosMovimiento: Omit<Movimiento, 'id'>,

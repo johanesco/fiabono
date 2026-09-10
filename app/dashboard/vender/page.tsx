@@ -1083,77 +1083,51 @@ function VenderContenido() {
       let idTransaccionVenta = "";
       const refPagoCompleta = [subMetodoPago, referenciaPago.trim()].filter(Boolean).join(' — ') || undefined;
 
-      if (montoVentaReal > 0) {
-        const resVenta = await API_DB.registrarMovimientoConTransaccion({
-          clienteId: clienteTransaccion ? clienteTransaccion.id : 'mostrador',
-          usuarioId: cuentaPrincipalId!,
-          tipo: 'venta',
-          monto: montoVentaReal,
-          descripcion: descripcionUnificada + (fiarFaltante ? ` (Pago parcial de $${totalFilasRegistro.toLocaleString('es-CO')})` : '') + (montoDescuentoTotal > 0 ? ` [Dto: -$${montoDescuentoTotal.toLocaleString('es-CO')}]` : ''),
-          detalles: detallesParaComprobante,
-          fecha: new Date(),
-          registradoPor: nombreUsuario,
-          metodoPago: metodoPago,
-          referenciaPago: refPagoCompleta,
-          subtotal: subtotalCalculado,
-          valorIva: ivaCalculado,
-          porcentajeIva: tasaIvaPorcentaje,
-          descuentoTipo: mostrarDescuento && montoDescuentoTotal > 0 ? tipoDescuento : null,
-          descuentoValor: mostrarDescuento && montoDescuentoTotal > 0 ? (tipoDescuento === 'porcentaje' ? Number(valorDescuento) : montoDescuentoTotal) : undefined,
-          montoDescuento: montoDescuentoTotal > 0 ? montoDescuentoTotal : undefined
-        });
-        idTransaccionVenta = resVenta.movimientoId;
-      }
-
-      // CORRECCIÓN C-2: Descontar inventario con WriteBatch atómico
-      // Si falla la conexión, todas las escrituras de stock se revierten juntas
-      // (el movimiento de venta ya se registró antes — en una mejora futura, 
-      //  ambos deberían estar en el mismo batch con runTransaction)
+      // PARCHE P1-TX-01: Descuento de stock, registro de venta y fiado
+      // unificados en una sola transacción atómica de Firestore.
+      // Si la conexión cae o falla cualquier paso, todo se revierte automáticamente.
       const cantidadesPorProducto: Record<string, number> = {};
       for (const fila of filasValidas) {
-        const item = inventario.find(p => p.nombre.toLowerCase() === fila.descripcion.toLowerCase());
+        const item = inventario.find(p => p.nombre.toLowerCase().trim() === fila.descripcion.toLowerCase().trim());
         const esInventariable = item && item.tipoProducto !== 'servicio' && item.inventariable !== false;
         if (esInventariable && item.id) {
           cantidadesPorProducto[item.id] = (cantidadesPorProducto[item.id] || 0) + fila.cantidad;
         }
       }
 
-      if (Object.keys(cantidadesPorProducto).length > 0) {
-        const batch = writeBatch(db);
-        for (const [pId, cant] of Object.entries(cantidadesPorProducto)) {
-          batch.update(doc(db, "inventario", pId), { stock: increment(-cant) });
-        }
-        await batch.commit();
-      }
+      const itemsInventario = Object.entries(cantidadesPorProducto).map(([productoId, cantidad]) => ({
+        productoId,
+        cantidad
+      }));
 
+      const resAtomo = await API_DB.ejecutarVentaCompletaAtomo({
+        usuarioId: cuentaPrincipalId!,
+        clienteId: clienteTransaccion ? clienteTransaccion.id : 'mostrador',
+        registradoPor: nombreUsuario || "Vendedor",
+        montoVentaReal,
+        descripcionVenta: descripcionUnificada + (fiarFaltante ? ` (Pago parcial de $${totalFilasRegistro.toLocaleString('es-CO')})` : '') + (montoDescuentoTotal > 0 ? ` [Dto: -$${montoDescuentoTotal.toLocaleString('es-CO')}]` : ''),
+        detalles: detallesParaComprobante,
+        metodoPago: metodoPago,
+        referenciaPago: refPagoCompleta,
+        subtotal: subtotalCalculado,
+        valorIva: ivaCalculado,
+        porcentajeIva: tasaIvaPorcentaje,
+        descuentoTipo: mostrarDescuento && montoDescuentoTotal > 0 ? tipoDescuento : null,
+        descuentoValor: mostrarDescuento && montoDescuentoTotal > 0 ? (tipoDescuento === 'porcentaje' ? Number(valorDescuento) : montoDescuentoTotal) : undefined,
+        montoDescuento: montoDescuentoTotal > 0 ? montoDescuentoTotal : undefined,
+        itemsInventario,
+        fiarFaltante,
+        montoFiado: faltante,
+        descripcionFiado: `Saldo pendiente de venta: ${descripcionUnificada}`
+      });
+
+      idTransaccionVenta = resAtomo.movimientoVentaId || resAtomo.movimientoFiadoId || "";
       let saldoFinalCliente = clienteTransaccion?.deudaTotal || 0;
-
-      if (fiarFaltante && clienteTransaccion) {
-        const resFiado = await API_DB.registrarMovimientoConTransaccion(
-          {
-            clienteId: clienteTransaccion.id,
-            usuarioId: cuentaPrincipalId!,
-            tipo: 'fiado',
-            monto: faltante,
-            descripcion: `Saldo pendiente de venta: ${descripcionUnificada}`,
-            detalles: detallesParaComprobante,
-            fecha: new Date(),
-            registradoPor: nombreUsuario,
-            metodoPago: 'fiado'
-          },
-          {
-            ajustarSaldoCliente: true,
-            cambioDeuda: faltante
-          }
-        );
-        if (resFiado.nuevoSaldoCliente !== undefined) {
-          saldoFinalCliente = resFiado.nuevoSaldoCliente;
-        } else {
-          saldoFinalCliente = deudaTotalActual;
-        }
+      if (resAtomo.nuevoSaldoCliente !== undefined && clienteTransaccion) {
+        saldoFinalCliente = resAtomo.nuevoSaldoCliente;
         clienteFinalActualizado = { ...clienteTransaccion, deudaTotal: saldoFinalCliente };
-        if (!idTransaccionVenta) idTransaccionVenta = resFiado.movimientoId;
       }
+
 
       const ticketDatos = {
         nombreNegocio: nombreNegocio || "Mi Negocio",

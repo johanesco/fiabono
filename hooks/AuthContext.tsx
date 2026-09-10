@@ -97,9 +97,12 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
             const daysLeft = Math.ceil(timeRemaining / (1000 * 3600 * 24));
             if (daysLeft <= 0) {
               planAdmin = 'gratis';
-              await updateDoc(doc(db, "usuarios", idParaConsultar), { plan: 'gratis' });
+              // PARCHE P1-AUTH: Un colaborador NO debe intentar escribir en el
+              // documento del admin (eso viola las reglas y arrojaba permission-denied).
+              // El downgrade persistente lo hace el admin al iniciar sesión.
             }
           }
+
 
           // REGLA CRÍTICA DE NEGOCIO: Si el negocio está en Plan Gratis, el colaborador no puede acceder
           if (planAdmin === 'gratis') {
@@ -200,7 +203,10 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
             toast.error("Tu acceso no está permitido fuera del horario laboral configurado.", { duration: 5000 });
           } else if (e.message === "NegocioNoExiste" || e.message === "No existe") {
             toast.error("Usuario o negocio no encontrado.", { duration: 4000 });
+          } else if (e.code === "permission-denied") {
+            toast.error("Tu acceso ha sido restringido o no tienes permisos en este negocio.", { duration: 5000 });
           }
+
 
           await signOut(auth);
           setDatosSesion(null);
