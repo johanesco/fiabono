@@ -2101,6 +2101,16 @@ export default function InventarioPage() {
     if (!cuentaPrincipalId) {
       return toast.error("Error de sesión: No se encontró la cuenta principal.");
     }
+    if (!datosSesion?.esPro) {
+      toast.error("La importación masiva desde Excel es exclusiva del Plan PRO Almacén.", { icon: '🔒' });
+      setModalUpsell({
+        visible: true,
+        titulo: "Carga Masiva en Excel (Plan PRO)",
+        mensaje: "Importa cientos o miles de productos con stock y precios en segundos desde un archivo Excel con el Plan PRO Almacén.",
+        plan: 'pro'
+      });
+      return;
+    }
     if (productosAImportar.length === 0) {
       return toast.error("No hay productos cargados para importar.");
     }

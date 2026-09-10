@@ -986,9 +986,29 @@ Muchas gracias por tu compra. Estamos atentos para cualquier consulta.
             ? parseFloat(orden.pagoCliente.replace(/\D/g, '')) 
             : (orden.tipo === 'fiado' ? 0 : orden.total));
 
+      // Preparar consolidado de stock a descontar
+      const cantidadesPorProducto: Record<string, number> = {};
+      for (const item of orden.items) {
+        const pInv = inventario.find(p => p.nombre.toLowerCase() === item.descripcion.toLowerCase());
+        const esInv = pInv && pInv.tipoProducto !== 'servicio' && pInv.inventariable !== false;
+        if (esInv && pInv.id) {
+          cantidadesPorProducto[pInv.id] = (cantidadesPorProducto[pInv.id] || 0) + item.cantidad;
+        }
+      }
+      const descontarStockItems = Object.entries(cantidadesPorProducto).map(([productoId, cantidad]) => ({
+        productoId,
+        cantidad
+      }));
+
+      let payloadSepare: any = undefined;
+      let movimientoAbonoSepare: any = undefined;
+      let movimientoPrincipal: any = undefined;
+      let movimientoFiadoSecundario: any = undefined;
+      let ajusteCliente: { clienteId: string; cambioDeuda: number } | undefined = undefined;
+
       if ((orden as any).tipo === 'separe') {
         const payloadExistente = (orden as any).payloadSepare || {};
-        const payloadSepare: any = {
+        payloadSepare = {
           usuarioId: cuentaPrincipalId,
           creadoPor: orden.nombreColaborador || "Colaborador",
           vendedor: (orden as any).vendedor || orden.nombreColaborador || "Vendedor",
@@ -1027,12 +1047,8 @@ Muchas gracias por tu compra. Estamos atentos para cualquier consulta.
           notas: orden.notas || payloadExistente.notas || ""
         };
 
-        const docSepare = await addDoc(collection(db, "separes"), payloadSepare);
-        idTransaccionGenerada = docSepare.id;
-
-        // Registrar movimiento de abono inicial en la colección de movimientos si hubo pago
         if (pagoNum && pagoNum > 0) {
-          const payloadMovAbono: any = {
+          movimientoAbonoSepare = {
             clienteId: orden.clienteId || null,
             clienteNombre: orden.clienteNombre || 'Cliente',
             usuarioId: cuentaPrincipalId,
@@ -1043,42 +1059,36 @@ Muchas gracias por tu compra. Estamos atentos para cualquier consulta.
             fecha: new Date(),
             registradoPor: orden.nombreColaborador || nombreUsuario || "Colaborador",
             metodoPago: orden.metodoPago || 'efectivo',
-            idSepareOrigen: docSepare.id,
+            subMetodoPago: (orden.metodoPago !== 'efectivo' && orden.subMetodoPago) ? orden.subMetodoPago : null,
+            referenciaPago: (orden.metodoPago !== 'efectivo' && orden.referenciaPago) ? orden.referenciaPago : null,
             idOrdenOrigen: orden.id
           };
-          if (orden.subMetodoPago) payloadMovAbono.subMetodoPago = orden.subMetodoPago;
-          if (orden.referenciaPago) payloadMovAbono.referenciaPago = orden.referenciaPago;
-          await addDoc(collection(db, "movimientos"), payloadMovAbono);
         }
 
       } else if (orden.tipo === 'fiado' || pagoNum === 0) {
         // 1. Fiado Total
-        const resFiado = await API_DB.registrarMovimientoConTransaccion(
-          {
-            clienteId: orden.clienteId!,
-            usuarioId: cuentaPrincipalId,
-            tipo: 'fiado',
-            monto: orden.total,
-            descripcion: descripcionUnificada + ` (Aprobada de ${orden.nombreColaborador})` + (orden.montoDescuento > 0 ? ` [Dto: -$${orden.montoDescuento.toLocaleString('es-CO')}]` : ''),
-            detalles: detallesParaComprobante,
-            fecha: new Date(),
-            registradoPor: orden.nombreColaborador,
-            metodoPago: 'fiado',
-            descuentoTipo: orden.descuentoTipo,
-            descuentoValor: orden.descuentoValor ?? undefined,
-            montoDescuento: orden.montoDescuento > 0 ? orden.montoDescuento : undefined
-          },
-          {
-            ajustarSaldoCliente: true,
-            cambioDeuda: orden.total
-          }
-        );
-        idTransaccionGenerada = resFiado.movimientoId;
-        saldoClienteResultante = resFiado.nuevoSaldoCliente;
+        movimientoPrincipal = {
+          clienteId: orden.clienteId!,
+          usuarioId: cuentaPrincipalId,
+          tipo: 'fiado',
+          monto: orden.total,
+          descripcion: descripcionUnificada + ` (Aprobada de ${orden.nombreColaborador})` + (orden.montoDescuento > 0 ? ` [Dto: -$${orden.montoDescuento.toLocaleString('es-CO')}]` : ''),
+          detalles: detallesParaComprobante,
+          fecha: new Date(),
+          registradoPor: orden.nombreColaborador,
+          metodoPago: 'fiado',
+          descuentoTipo: orden.descuentoTipo,
+          descuentoValor: orden.descuentoValor ?? undefined,
+          montoDescuento: orden.montoDescuento > 0 ? orden.montoDescuento : undefined
+        };
+        ajusteCliente = {
+          clienteId: orden.clienteId!,
+          cambioDeuda: orden.total
+        };
       } else if (pagoNum > 0 && pagoNum < orden.total) {
         // 2. Venta y Fiado Mixto
         const saldoFiar = orden.total - pagoNum;
-        const resVenta = await API_DB.registrarMovimientoConTransaccion({
+        movimientoPrincipal = {
           clienteId: orden.clienteId || 'mostrador',
           usuarioId: cuentaPrincipalId,
           tipo: 'venta',
@@ -1092,31 +1102,27 @@ Muchas gracias por tu compra. Estamos atentos para cualquier consulta.
           descuentoTipo: orden.descuentoTipo,
           descuentoValor: orden.descuentoValor ?? undefined,
           montoDescuento: orden.montoDescuento > 0 ? orden.montoDescuento : undefined
-        });
-        idTransaccionGenerada = resVenta.movimientoId;
+        };
 
         if (orden.clienteId && orden.clienteId !== 'mostrador') {
-          const resFiado = await API_DB.registrarMovimientoConTransaccion(
-            {
-              clienteId: orden.clienteId,
-              usuarioId: cuentaPrincipalId,
-              tipo: 'fiado',
-              monto: saldoFiar,
-              descripcion: `Saldo pendiente orden #${orden.id.substring(0, 5)} (Total: $${orden.total.toLocaleString('es-CO')}, Pagado: $${pagoNum.toLocaleString('es-CO')})`,
-              fecha: new Date(),
-              registradoPor: orden.nombreColaborador,
-              metodoPago: 'fiado'
-            },
-            {
-              ajustarSaldoCliente: true,
-              cambioDeuda: saldoFiar
-            }
-          );
-          saldoClienteResultante = resFiado.nuevoSaldoCliente;
+          movimientoFiadoSecundario = {
+            clienteId: orden.clienteId,
+            usuarioId: cuentaPrincipalId,
+            tipo: 'fiado',
+            monto: saldoFiar,
+            descripcion: `Saldo pendiente orden #${orden.id.substring(0, 5)} (Total: $${orden.total.toLocaleString('es-CO')}, Pagado: $${pagoNum.toLocaleString('es-CO')})`,
+            fecha: new Date(),
+            registradoPor: orden.nombreColaborador,
+            metodoPago: 'fiado'
+          };
+          ajusteCliente = {
+            clienteId: orden.clienteId,
+            cambioDeuda: saldoFiar
+          };
         }
       } else {
         // 3. Venta Completa
-        const resVenta = await API_DB.registrarMovimientoConTransaccion({
+        movimientoPrincipal = {
           clienteId: orden.clienteId || 'mostrador',
           usuarioId: cuentaPrincipalId,
           tipo: 'venta',
@@ -1133,33 +1139,24 @@ Muchas gracias por tu compra. Estamos atentos para cualquier consulta.
           descuentoTipo: orden.descuentoTipo,
           descuentoValor: orden.descuentoValor ?? undefined,
           montoDescuento: orden.montoDescuento > 0 ? orden.montoDescuento : undefined
-        });
-        idTransaccionGenerada = resVenta.movimientoId;
+        };
       }
 
-      // 3. Descontar stock consolidado de inventario físico
-      const cantidadesPorProducto: Record<string, number> = {};
-      for (const item of orden.items) {
-        const pInv = inventario.find(p => p.nombre.toLowerCase() === item.descripcion.toLowerCase());
-        const esInv = pInv && pInv.tipoProducto !== 'servicio' && pInv.inventariable !== false;
-        if (esInv && pInv.id) {
-          cantidadesPorProducto[pInv.id] = (cantidadesPorProducto[pInv.id] || 0) + item.cantidad;
-        }
-      }
-
-      for (const [pId, cant] of Object.entries(cantidadesPorProducto)) {
-        await updateDoc(doc(db, "inventario", pId), {
-          stock: increment(-cant)
-        });
-      }
-
-      // 4. Actualizar estado de la orden a 'aprobado'
-      await updateDoc(doc(db, "ordenes_pendientes", orden.id), {
-        estado: 'aprobado',
-        fechaProcesado: new Date(),
+      // Ejecución Unificada en una sola Transacción Atómica de Firestore
+      const resAtomo = await API_DB.ejecutarAprobacionOrdenAtomo({
+        ordenId: orden.id,
+        usuarioId: cuentaPrincipalId,
         aprobadoPor: nombreUsuario,
-        idTransaccion: idTransaccionGenerada
+        descontarStockItems,
+        movimientoPrincipal,
+        movimientoFiadoSecundario,
+        payloadSepare,
+        movimientoAbonoSepare,
+        ajusteCliente
       });
+
+      idTransaccionGenerada = resAtomo.idTransaccionGenerada;
+      saldoClienteResultante = resAtomo.nuevoSaldoCliente;
 
       toast.success(`¡Orden de ${orden.nombreColaborador} aprobada y registrada!`, { icon: '✅' });
 

@@ -263,7 +263,13 @@ export default function MasterPage() {
     return { label: `Activo (${daysLeft}d)`, color: 'bg-emerald-100 text-emerald-700' };
   };
 
-  if (cargando) return <div className="p-10 text-center font-bold">Cargando God Mode...</div>;
+  if (cargando || !datosSesion || datosSesion.correoNegocio !== 'johanescobar1@gmail.com') {
+    return (
+      <div className="flex items-center justify-center min-h-[60vh]">
+        <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-amber-500"></div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex-1 overflow-y-auto bg-slate-50 dark:bg-[#020617] p-4 sm:p-8">

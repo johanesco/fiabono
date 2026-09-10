@@ -3,9 +3,8 @@ import { useState, useEffect } from "react";
 import { X, Sparkles, ShieldCheck, Ticket, CheckCircle2, Store, Crown, MessageCircle, Lock } from "lucide-react";
 import toast from "react-hot-toast";
 import { customConfirm } from "@/utils/customConfirm";
-import { API_DB } from "../servicios/db";
-import { doc, updateDoc, collection, getDocs, query, where, writeBatch } from "firebase/firestore";
-import { db } from "../firebase";
+import { doc, updateDoc, collection, getDocs, query, where } from "firebase/firestore";
+import { auth, db } from "../firebase";
 import { useAuth } from "@/hooks/AuthContext";
 
 interface ModalSuscripcionProps {
@@ -101,68 +100,38 @@ export default function ModalSuscripcion({ isOpen, onClose, cuentaPrincipalId, p
     setError(null);
     setCargando(true);
     try {
-      const emailUsuario = datosSesion?.correoNegocio || "";
-      const resultado = await API_DB.verificarCodigoPromocional(codigoBono.trim().toUpperCase(), emailUsuario);
-
-      if (resultado.valido) {
-        const planOtorgado = (resultado as any).planOtorgado || 'pro';
-        const diasOtorgados = (resultado as any).diasOtorgados || 30;
-
-        let baseDate = new Date();
-        // Si el usuario renueva el MISMO plan, le sumamos los días a su fecha actual (incluso si está en periodo de gracia)
-        if (datosSesion?.planActual === planOtorgado && datosSesion?.datosUsuarioOriginales?.planVence) {
-           const timeVence = datosSesion.datosUsuarioOriginales.planVence.toDate ? 
-                             datosSesion.datosUsuarioOriginales.planVence.toDate().getTime() : 
-                             new Date(datosSesion.datosUsuarioOriginales.planVence).getTime();
-           const diasRestantesReales = Math.ceil((timeVence - new Date().getTime()) / (1000 * 3600 * 24));
-           
-           // Si le quedan días, o está en el periodo de gracia (-1 o -2 días), usamos su vieja fecha de vencimiento
-           // para que el tiempo gastado del periodo de gracia se descuente automáticamente del nuevo ciclo.
-           if (diasRestantesReales >= -2) {
-             baseDate = new Date(timeVence);
-           }
-        }
-
-        const nuevaFechaVencimiento = new Date(baseDate);
-        nuevaFechaVencimiento.setDate(nuevaFechaVencimiento.getDate() + diasOtorgados);
-
-        const cicloAsignado = diasOtorgados >= 365 ? "anual" : "mensual";
-        const esUnSoloUso = (resultado as any).unSoloUso !== false;
-
-        const batch = writeBatch(db);
-        // Actualizar usuario
-        batch.update(doc(db, "usuarios", cuentaPrincipalId), {
-          plan: planOtorgado,
-          planVence: nuevaFechaVencimiento,
-          cicloPlan: cicloAsignado
-        });
-        
-        // Quemar el código si es de un solo uso
-        if (esUnSoloUso) {
-          batch.update(doc(db, "codigos_promocionales", codigoBono.trim().toUpperCase()), {
-            activo: false
-          });
-        }
-
-        await batch.commit();
-
-        const nombrePlanLabel = planOtorgado === 'pro' ? 'Plan PRO Almacén' : 'Plan Comercio';
-        toast.success(`¡Felicidades! Tu ${nombrePlanLabel} ha sido activado por ${diasOtorgados} días 🚀`);
-        handleClose();
-        window.location.reload();
-      } else {
-        if ((resultado as any).reason === 'not_found') {
-          setError("El código ingresado no existe.");
-        } else if ((resultado as any).reason === 'inactive') {
-          setError("El código ingresado ya fue usado o está inactivo.");
-        } else if ((resultado as any).reason === 'unauthorized_email') {
-          setError("Este código no está autorizado para tu correo.");
-        } else {
-          setError("El código ingresado no es válido o ya expiró.");
-        }
+      const idToken = await auth.currentUser?.getIdToken();
+      if (!idToken) {
+        setError("Debes tener una sesión activa para canjear un código.");
+        setCargando(false);
+        return;
       }
+
+      const res = await fetch('/api/canjear-cupon', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${idToken}`
+        },
+        body: JSON.stringify({
+          codigo: codigoBono.trim().toUpperCase(),
+          usuarioId: cuentaPrincipalId
+        })
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        setError(data.error || "Ocurrió un error al canjear el cupón.");
+        return;
+      }
+
+      const nombrePlanLabel = data.plan === 'pro' ? 'Plan PRO Almacén' : 'Plan Comercio';
+      toast.success(`¡Felicidades! Tu ${nombrePlanLabel} ha sido activado por ${data.dias} días 🚀`, { duration: 5000 });
+      handleClose();
+      window.location.reload();
     } catch (error) {
-      setError("Ocurrió un error al procesar el bono.");
+      setError("Ocurrió un error al procesar el bono. Intenta de nuevo.");
     } finally {
       setCargando(false);
     }

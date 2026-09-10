@@ -635,6 +635,133 @@ export const API_DB = {
     });
   },
 
+  // --------------------------------------------------------
+  // TRANSACCIÓN ATÓMICA: APROBACIÓN DE ÓRDENES DE CAJEROS (P1-TX-06)
+  // --------------------------------------------------------
+  ejecutarAprobacionOrdenAtomo: async (params: {
+    ordenId: string;
+    usuarioId: string;
+    aprobadoPor: string;
+    descontarStockItems: Array<{ productoId: string; cantidad: number }>;
+    movimientoPrincipal?: any;
+    movimientoFiadoSecundario?: any;
+    payloadSepare?: any;
+    movimientoAbonoSepare?: any;
+    ajusteCliente?: {
+      clienteId: string;
+      cambioDeuda: number;
+    };
+  }): Promise<{
+    idTransaccionGenerada: string;
+    nuevoSaldoCliente?: number;
+  }> => {
+    return await runTransaction(db, async (transaction) => {
+      // 1. Lectura y validación del estado de la orden
+      const ordenRef = doc(db, "ordenes_pendientes", params.ordenId);
+      const ordenSnap = await transaction.get(ordenRef);
+
+      if (!ordenSnap.exists()) {
+        throw new Error("La orden ya no existe o fue eliminada.");
+      }
+
+      const ordenData = ordenSnap.data() as any;
+      if (ordenData.estado !== 'pendiente') {
+        throw new Error(`La orden ya no está pendiente (estado actual: ${ordenData.estado}).`);
+      }
+
+      // 2. Lectura y validación de stock para productos a descontar
+      const stockDocsMap = new Map<string, any>();
+      for (const item of params.descontarStockItems) {
+        if (item.productoId && item.cantidad > 0) {
+          const invRef = doc(db, "inventario", item.productoId);
+          const invSnap = await transaction.get(invRef);
+          if (invSnap.exists()) {
+            const dataInv = invSnap.data() as any;
+            const stockActual = Number(dataInv.stock || 0);
+            if (dataInv.tipoProducto !== 'servicio' && dataInv.inventariable !== false) {
+              if (item.cantidad > stockActual) {
+                throw new Error(`¡Sin stock suficiente de "${dataInv.nombre}"! Solicitado: ${item.cantidad}, Quedan: ${stockActual}`);
+              }
+            }
+            stockDocsMap.set(item.productoId, invRef);
+          }
+        }
+      }
+
+      // 3. Lectura de cliente si hay ajuste de deuda
+      let clienteRef: any = null;
+      let nuevoSaldoCliente: number | undefined = undefined;
+      if (params.ajusteCliente && params.ajusteCliente.clienteId && params.ajusteCliente.clienteId !== 'mostrador') {
+        clienteRef = doc(db, "clientes", params.ajusteCliente.clienteId);
+        const clienteSnap = await transaction.get(clienteRef);
+        if (clienteSnap.exists()) {
+          const cData = clienteSnap.data() as any;
+          const deudaPrevia = Number(cData.deudaTotal || 0);
+          nuevoSaldoCliente = Math.max(0, deudaPrevia + params.ajusteCliente.cambioDeuda);
+        }
+      }
+
+      // 4. Escrituras:
+      // a) Descontar stock atómicamente
+      for (const item of params.descontarStockItems) {
+        const invRef = stockDocsMap.get(item.productoId);
+        if (invRef && item.cantidad > 0) {
+          transaction.update(invRef, {
+            stock: increment(-item.cantidad)
+          });
+        }
+      }
+
+      // b) Ajustar deuda cliente atómicamente
+      if (clienteRef && nuevoSaldoCliente !== undefined) {
+        transaction.update(clienteRef, {
+          deudaTotal: nuevoSaldoCliente,
+          fechaUltimoMovimiento: new Date()
+        });
+      }
+
+      let idTransaccionGenerada = "";
+
+      // c) Plan Separe
+      if (params.payloadSepare) {
+        const separeRef = doc(collection(db, "separes"));
+        idTransaccionGenerada = separeRef.id;
+        transaction.set(separeRef, params.payloadSepare);
+
+        if (params.movimientoAbonoSepare) {
+          const movAbonoRef = doc(collection(db, "movimientos"));
+          transaction.set(movAbonoRef, {
+            ...params.movimientoAbonoSepare,
+            idSepareOrigen: separeRef.id
+          });
+        }
+      } else if (params.movimientoPrincipal) {
+        // d) Venta / Fiado
+        const movRef = doc(collection(db, "movimientos"));
+        idTransaccionGenerada = movRef.id;
+        transaction.set(movRef, params.movimientoPrincipal);
+
+        if (params.movimientoFiadoSecundario) {
+          const movFiadoRef = doc(collection(db, "movimientos"));
+          transaction.set(movFiadoRef, params.movimientoFiadoSecundario);
+        }
+      }
+
+      // e) Actualizar orden a 'aprobado'
+      transaction.update(ordenRef, {
+        estado: 'aprobado',
+        fechaProcesado: new Date(),
+        aprobadoPor: params.aprobadoPor,
+        idTransaccion: idTransaccionGenerada
+      });
+
+      return {
+        idTransaccionGenerada,
+        nuevoSaldoCliente
+      };
+    });
+  },
+
 
   // --------------------------------------------------------
   // NUEVA LÓGICA DE BONOS / SUSCRIPCIÓN
