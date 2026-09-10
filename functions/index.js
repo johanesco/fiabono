@@ -11,6 +11,20 @@ function mapDayIndexToLabel(dt) {
 }
 
 exports.runScheduler = functions.https.onRequest(async (req, res) => {
+  // PARCHE P1-SEC-04: Validar el token secreto antes de ejecutar.
+  // Configura SCHEDULER_SECRET en las variables de entorno de Cloud Functions:
+  //   firebase functions:config:set scheduler.secret="TU_TOKEN_SECRETO_AQUI"
+  // Y en el cron job de Google Cloud Scheduler, agrega el header:
+  //   Authorization: Bearer TU_TOKEN_SECRETO_AQUI
+  const tokenSecreto = process.env.SCHEDULER_SECRET;
+  if (tokenSecreto) {
+    const authHeader = req.headers['authorization'] || '';
+    const tokenRecibido = authHeader.replace('Bearer ', '').trim();
+    if (tokenRecibido !== tokenSecreto) {
+      return res.status(401).send({ ok: false, error: 'No autorizado' });
+    }
+  }
+
   try {
     const TZ = process.env.TIMEZONE || 'UTC';
     const now = DateTime.now().setZone(TZ);
@@ -55,3 +69,4 @@ exports.runScheduler = functions.https.onRequest(async (req, res) => {
     res.status(500).send({ ok: false, error: e.toString() });
   }
 });
+

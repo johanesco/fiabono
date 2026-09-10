@@ -173,19 +173,22 @@ export default function ModalGestionCliente({
           await reauthenticateWithCredential(currentUser, credenciales);
         }
 
-        // CORRECCIÓN A-4: Si el cliente tiene deuda, registrar un asiento contable (condonación/pérdida)
-        // para que el cuadre de caja y los reportes de cartera histórica no queden descuadrados al eliminarlo.
+        // PARCHE P0-FIN-02: El asiento contable de condonación/castigo de cartera
+        // ya NO usa tipo='abono' ni metodoPago='efectivo' porque eso inflaba
+        // el reporte de "Efectivo Recaudado" del día con dinero que nunca entró.
+        // Ahora se registra como 'egreso' con metodoPago='ajuste_contable',
+        // que los reportes de caja excluyen de las sumas de dinero físico.
         if (tieneDeuda && (cliente.deudaTotal || 0) > 0) {
           await API_DB.registrarMovimientoConTransaccion(
             {
               clienteId: cliente.id,
               usuarioId: cliente.usuarioId,
-              tipo: 'abono',
+              tipo: 'egreso',
               monto: cliente.deudaTotal || 0,
-              descripcion: 'Ajuste contable automático por eliminación de cliente con deuda (Condonación / Pérdida)',
+              descripcion: `Castigo de cartera / Condonación por eliminación de cliente con deuda (${cliente.nombre})`,
               fecha: new Date(),
               registradoPor: currentUser.displayName || "Administrador",
-              metodoPago: 'efectivo'
+              metodoPago: 'ajuste_contable' as any
             },
             {
               ajustarSaldoCliente: false // El cliente será eliminado, no hace falta actualizar su doc

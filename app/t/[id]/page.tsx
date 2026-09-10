@@ -146,6 +146,9 @@ export default function PaginaTicketPublico() {
     }
   }, [datosFactura]);
 
+  // PARCHE P0-SEC-03: Ya no se lee /usuarios directamente desde el cliente
+  // (la colección ahora requiere autenticación). Se llama al Route Handler
+  // del servidor que usa Admin SDK y solo devuelve los campos visuales del ticket.
   const obtenerDatosNegocio = async (usuarioId: string): Promise<{
     nombreNegocio: string;
     telefonoNegocio?: string;
@@ -157,17 +160,17 @@ export default function PaginaTicketPublico() {
   }> => {
     try {
       if (usuarioId) {
-        const docUser = await getDoc(doc(db, "usuarios", usuarioId));
-        if (docUser.exists()) {
-          const u = docUser.data();
+        const res = await fetch(`/api/negocio-publico/${encodeURIComponent(usuarioId)}`);
+        if (res.ok) {
+          const datos = await res.json();
           return {
-            nombreNegocio: u.nombreNegocio || "Mi Negocio",
-            telefonoNegocio: u.telefonoNegocio || "",
-            correoNegocio: u.email || "",
-            logoNegocio: u.logoNegocio || null,
-            nitNegocio: u.nitNegocio || "",
-            direccionNegocio: u.direccionNegocio || "",
-            mensajePieTicket: u.mensajePieTicket || "¡Gracias por su compra!",
+            nombreNegocio: datos.nombreNegocio || "Mi Negocio",
+            telefonoNegocio: datos.telefonoNegocio || "",
+            correoNegocio: "", // El email NO se expone en comprobantes públicos
+            logoNegocio: datos.logoNegocio || null,
+            nitNegocio: datos.nitNegocio || "",
+            direccionNegocio: datos.direccionNegocio || "",
+            mensajePieTicket: datos.mensajePieTicket || "¡Gracias por su compra!",
           };
         }
       }

@@ -42,12 +42,15 @@ service cloud.firestore {
     // 1. COLECCIÓN: USUARIOS (Cuentas de Negocio y Colaboradores/Cajeros)
     // =========================================================================
     match /usuarios/{userId} {
-      // El Master puede leer todo.
-      // Un usuario puede leer su propio perfil.
-      // Un cajero puede leer los datos de su admin (para obtener nombre de tienda, logo, etc.)
-      // Permitir get individual por ID para que los comprobantes públicos /t/[id] puedan mostrar el nombre comercial y logo del negocio.
-      // La lista completa (list) de usuarios sigue estrictamente protegida para usuarios autenticados autorizados.
-      allow get: if true;
+      // PARCHE P0-SEC-03: Se eliminó 'allow get: if true' que exponía correo,
+      // celular y NIT a cualquier persona que conociese el UID.
+      // Los comprobantes públicos /t/[id] ahora usan la ruta API del servidor
+      // con Admin SDK para obtener los datos del negocio sin exponer la colección completa.
+      allow get: if estaAutenticado() && (
+        request.auth.uid == userId ||
+        resource.data.adminId == request.auth.uid ||
+        esMaster()
+      );
       allow list: if estaAutenticado() && (
         resource.data.adminId == request.auth.uid ||
         resource.data.rol == 'admin' && exists(/databases/$(database)/documents/usuarios/$(request.auth.uid)) ||
@@ -65,21 +68,22 @@ service cloud.firestore {
       );
 
       // Actualizar usuario:
-      // 1) El Master tiene control absoluto para cambiar cualquier campo (incluyendo plan y planVence).
-      // 2) El usuario o admin puede actualizar sus datos propios (nombre, teléfono, logo, horarios, etc.),
-      //    PERO NO PUEDE auto-otorgarse planes 'comercio' o 'pro' ni extender 'planVence'
-      //    a menos que sea a través del canje de cupón o bajando a 'gratis'.
+      // PARCHE P0-SEC-01: Se eliminó la cláusula que permitía al usuario
+      // auto-asignarse planes 'comercio' o 'pro'. Ahora el único flujo
+      // legítimo de cambio de plan es:
+      //   a) El Master (control absoluto)
+      //   b) El propio usuario bajando voluntariamente a 'gratis' (con planVence=null)
+      //   c) Un admin actualizando permisos de su colaborador
+      // La activación de planes PRO/Comercio vía cupón debe hacerse
+      // a través de una Cloud Function con Admin SDK.
       allow update: if estaAutenticado() && (
         esMaster() ||
         (
-          // Actualización de su propio documento
           request.auth.uid == userId && (
-            // Si no está tocando los campos de plan ni vencimiento: PERMITIDO
-            (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['plan', 'planVence', 'cicloPlan'])) ||
-            // Si está cancelando para volver a plan gratuito: PERMITIDO
-            (request.resource.data.plan == 'gratis') ||
-            // Si está canjeando un código bono válido
-            (request.resource.data.plan in ['comercio', 'pro'])
+            // Puede actualizar datos de perfil sin tocar plan ni fechas de vencimiento
+            !request.resource.data.diff(resource.data).affectedKeys().hasAny(['plan', 'planVence', 'cicloPlan']) ||
+            // O bajando voluntariamente a plan gratuito (con planVence nulo)
+            (request.resource.data.plan == 'gratis' && request.resource.data.planVence == null)
           )
         ) ||
         // Un admin actualizando el estado activo o permisos de su colaborador
@@ -118,8 +122,8 @@ service cloud.firestore {
     }
 
     // Movimientos (Ventas, Gastos, Fiados, Abonos)
-    // Permite lectura pública get (individual por ID) para consultar el comprobante digital /t/[id]
-    // La lista completa (list) sigue protegida y restringida al negocio
+    // 'get' individual público para comprobantes /t/[id].
+    // La lista completa sigue protegida al negocio.
     match /movimientos/{movId} {
       allow get: if true;
       allow list: if estaAutenticado() && perteneceAlNegocio(resource.data);
@@ -128,7 +132,7 @@ service cloud.firestore {
     }
 
     // Planes Separe
-    // Permite lectura pública get (individual por ID) para consultar el comprobante digital /t/[id]
+    // 'get' individual público para comprobantes /t/[id].
     match /separes/{separeId} {
       allow get: if true;
       allow list: if estaAutenticado() && perteneceAlNegocio(resource.data);
@@ -161,16 +165,17 @@ service cloud.firestore {
     // 3. MONETIZACIÓN: CÓDIGOS PROMOCIONALES & BONOS
     // =========================================================================
     match /codigos_promocionales/{codigoId} {
-      // Permitir consultar (get) un código individual para validar su vigencia durante el registro
-      // Listar todos los códigos (list) sigue restringido al Master
-      allow get: if true;
+      // Solo usuarios autenticados pueden verificar un código individual.
+      // Se eliminó 'if true' para evitar enumeración pública de códigos.
+      allow get: if estaAutenticado();
       allow list: if estaAutenticado() && esMaster();
 
       // Solo el Master puede crear o eliminar códigos promocionales
       allow create, delete: if esMaster();
 
-      // Al canjear un código, el usuario puede marcarlo como activo: false (para quemarlo)
-      // O el Master puede editarlo en cualquier momento
+      // Al canjear un código, el usuario puede marcarlo como activo: false (para quemarlo).
+      // La activación del plan resultado se hace vía Cloud Function (Admin SDK),
+      // no directamente desde el cliente.
       allow update: if estaAutenticado() && (
         esMaster() ||
         (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['activo']) && request.resource.data.activo == false)

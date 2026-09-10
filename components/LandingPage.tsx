@@ -12,7 +12,7 @@ import {
   Receipt, ShoppingBag, BarChart3, Clock, TrendingUp,
   Flame, BadgePercent, Check, ArrowUpRight, Calculator,
   Sparkle, Shield, PartyPopper, Briefcase, Building2, Phone, Bookmark, Menu,
-  Tag, Gift, Banknote, CreditCard, ShoppingCart, User
+  Tag, Gift, Banknote, CreditCard, ShoppingCart, User, Mail
 } from 'lucide-react';
 import LogoFiabono, { IsotipoFiabono } from "@/components/LogoFiabono";
 
@@ -1368,7 +1368,7 @@ export default function LandingPage() {
               </ul>
             </div>
             <div className="pt-3 border-t border-slate-100 dark:border-slate-800 text-[11px] font-bold text-emerald-600 dark:text-emerald-400">
-              ✓ Descuento atómico de stock
+              ✓ Stock actualizado en tiempo real con cada venta
             </div>
           </div>
 
@@ -1597,6 +1597,10 @@ export default function LandingPage() {
               <li className="flex items-center gap-2.5"><CheckCircle2 size={16} className="text-emerald-200 shrink-0"/> Logo y datos de tu negocio en facturas</li>
               <li className="flex items-center gap-2.5"><CheckCircle2 size={16} className="text-emerald-200 shrink-0"/> Reportes de Caja Neta, Deudas y Cartera Activa</li>
               <li className="flex items-center gap-2.5"><CheckCircle2 size={16} className="text-emerald-200 shrink-0"/> Alertas de Stock Bajo y Productos Agotados</li>
+              <li className="flex items-center gap-2.5 opacity-60">
+                <X size={16} className="text-white/60 shrink-0"/>
+                <span className="text-white/70">Plan Separe con Fotos (solo en PRO)</span>
+              </li>
             </ul>
 
             <button 
@@ -1754,6 +1758,12 @@ export default function LandingPage() {
                   <td className="py-3.5 px-4 text-center text-slate-300 dark:text-slate-600">—</td>
                   <td className="py-3.5 px-4 text-center text-purple-600 font-bold">✓ Exclusivo PRO</td>
                 </tr>
+                <tr className="hover:bg-slate-50 dark:hover:bg-slate-800/30">
+                  <td className="py-3.5 px-4 text-slate-800 dark:text-slate-200 font-bold">Aprobación de ventas de cajeros (Órdenes Pendientes)</td>
+                  <td className="py-3.5 px-4 text-center text-emerald-500 font-bold">✓ Incluido</td>
+                  <td className="py-3.5 px-4 text-center text-emerald-500 font-bold">✓ Incluido</td>
+                  <td className="py-3.5 px-4 text-center text-emerald-500 font-bold">✓ Incluido</td>
+                </tr>
               </tbody>
             </table>
           </div>
@@ -1842,6 +1852,10 @@ export default function LandingPage() {
             {
               q: "¿Puedo probar el sistema antes de pagar un solo peso?",
               a: "Sí, totalmente. Puedes registrarte y usar el Plan Gratuito para siempre. Si deseas probar las herramientas avanzadas de Comercio o PRO, disfrutas de 14 días de prueba completa sin necesidad de ingresar tarjeta de crédito."
+            },
+            {
+              q: "¿Cómo me contacto con el equipo de soporte si tengo dudas o necesito ayuda?",
+              a: "Nuestro equipo de atención está disponible para ayudarte. Puedes escribirnos directamente al correo oficial de soporte y atención: fiabono.app@gmail.com para resolver cualquier inquietud sobre tu cuenta, planes o configuración."
             }
           ].map((item, idx) => (
             <div 
@@ -1908,14 +1922,23 @@ export default function LandingPage() {
             </span>
           </div>
 
-          <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+          <div className="flex flex-col md:flex-row items-center justify-between gap-4">
             <div className="flex items-center gap-2">
               <LogoFiabono size={26} showText={true} showBadge={false} />
               <span className="text-[10px] text-slate-400 dark:text-slate-600 ml-1">Hecho en Colombia 🇨🇴</span>
             </div>
 
-            {/* Enlaces Legales */}
-            <div className="flex items-center gap-5 text-slate-500 dark:text-slate-400 font-bold text-[11px]">
+            {/* Enlaces de Contacto y Legales */}
+            <div className="flex flex-wrap items-center justify-center gap-4 sm:gap-5 text-slate-500 dark:text-slate-400 font-bold text-[11px]">
+              <a 
+                href="mailto:fiabono.app@gmail.com" 
+                className="inline-flex items-center gap-1.5 text-slate-700 dark:text-slate-200 hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors"
+                title="Escríbenos a soporte y atención oficial"
+              >
+                <Mail size={13} className="text-emerald-500 shrink-0" />
+                <span>Contacto: <strong className="underline underline-offset-2">fiabono.app@gmail.com</strong></span>
+              </a>
+              <span className="hidden sm:inline text-slate-300 dark:text-slate-700">•</span>
               <button 
                 type="button" 
                 onClick={() => setModalLegal({ 
@@ -1927,7 +1950,7 @@ export default function LandingPage() {
               >
                 Términos del Servicio
               </button>
-              <span>•</span>
+              <span className="hidden sm:inline text-slate-300 dark:text-slate-700">•</span>
               <button 
                 type="button" 
                 onClick={() => setModalLegal({ 
@@ -2711,15 +2734,15 @@ export default function LandingPage() {
                   <p>El administrador es responsable de la custodia de sus credenciales y de los permisos otorgados a sus usuarios colaboradores.</p>
                 </div>
                 <div>
-                  <h4 className="font-black text-slate-900 dark:text-white mb-1">4. Sin Ataduras ni Permanencia</h4>
-                  <p>No existen contratos de permanencia mínima obligatoria. Puedes gestionar o cancelar tu suscripción en cualquier momento.</p>
+                  <h4 className="font-black text-slate-900 dark:text-white mb-1">4. Sin Ataduras ni Permanencia y Soporte</h4>
+                  <p>No existen contratos de permanencia mínima obligatoria. Puedes gestionar tu suscripción en cualquier momento. Para soporte y consultas: <strong className="text-emerald-600 dark:text-emerald-400">fiabono.app@gmail.com</strong>.</p>
                 </div>
               </div>
             ) : (
               <div className="space-y-4 text-xs sm:text-sm text-slate-600 dark:text-slate-300 font-medium leading-relaxed">
                 <div>
                   <h4 className="font-black text-slate-900 dark:text-white mb-1">1. Compromiso de Habeas Data (Ley 1581 de 2012)</h4>
-                  <p>Fiabono garantiza el estricto cumplimiento de la legislación colombiana sobre protección y tratamiento de datos personales.</p>
+                  <p>Fiabono garantiza el estricto cumplimiento de la legislación colombiana sobre protección y tratamiento de datos personales. Canal de atención: <strong className="text-emerald-600 dark:text-emerald-400">fiabono.app@gmail.com</strong>.</p>
                 </div>
                 <div>
                   <h4 className="font-black text-slate-900 dark:text-white mb-1">2. Finalidad del Tratamiento</h4>

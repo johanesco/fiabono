@@ -85,7 +85,7 @@ export default function PrivacidadPage() {
               La plataforma <strong>Fiabono</strong> (en adelante, &ldquo;Fiabono&rdquo;), accesible a través de <code>fiabono.com</code>, con domicilio principal en la República de Colombia, actúa como Responsable del tratamiento de los datos personales de los usuarios titulares de las cuentas y como Encargado del tratamiento respecto de los datos de terceros ingresados por los comerciantes para la generación de comprobantes.
             </p>
             <p>
-              Canal oficial para peticiones, consultas y quejas de Habeas Data: <strong>privacidad@fiabono.com</strong>.
+              Canal oficial para peticiones, consultas y quejas de Habeas Data: <strong>fiabono.app@gmail.com</strong>.
             </p>
           </section>
 

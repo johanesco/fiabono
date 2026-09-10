@@ -247,17 +247,22 @@ export default function ReportesPage() {
   const countIngresos = countVentas + countAbonos;
 
   // Desglose estratégico de ingresos por Métodos de Pago (Ventas de contado + Abonos recibidos)
-  const movsIngresos = [...movsVentas, ...movsAbonos];
-  const totalEfectivo = movsIngresos
+  // PARCHE P0-FIN-02: Se excluyen movimientos con metodoPago='ajuste_contable' (castigos de cartera)
+  // de las sumas de dinero físico. Esos movimientos son contables, no representan dinero real.
+  const movsIngresosReales = [...movsVentas, ...movsAbonos].filter(
+    m => m.metodoPago !== 'ajuste_contable'
+  );
+  const movsEgresosReales = movsEgresos.filter(m => m.metodoPago !== 'ajuste_contable');
+  const totalEfectivo = movsIngresosReales
     .filter(m => !m.metodoPago || m.metodoPago === 'efectivo')
-    .reduce((acc, m) => acc + (m.monto || 0), 0) - totalEgresos;
-  const totalTransferencia = movsIngresos
+    .reduce((acc, m) => acc + (m.monto || 0), 0) - movsEgresosReales.reduce((acc, m) => acc + (m.monto || 0), 0);
+  const totalTransferencia = movsIngresosReales
     .filter(m => m.metodoPago === 'transferencia')
     .reduce((acc, m) => acc + (m.monto || 0), 0);
-  const totalDatafono = movsIngresos
+  const totalDatafono = movsIngresosReales
     .filter(m => m.metodoPago === 'datafono')
     .reduce((acc, m) => acc + (m.monto || 0), 0);
-  const totalCreditoExterno = movsIngresos
+  const totalCreditoExterno = movsIngresosReales
     .filter(m => m.metodoPago === 'credito_externo')
     .reduce((acc, m) => acc + (m.monto || 0), 0);
 
