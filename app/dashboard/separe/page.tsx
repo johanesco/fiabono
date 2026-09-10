@@ -16,6 +16,7 @@ import { useAuth } from "@/hooks/AuthContext";
 import TicketFacturaModal, { DatosFacturaProps } from "@/components/TicketFacturaModal";
 import { Html5Qrcode } from "html5-qrcode";
 import { abrirEnlaceWhatsApp } from "@/utils/whatsapp";
+import { API_DB } from "../../../servicios/db";
 
 export default function SeparePage() {
   return (
@@ -1279,48 +1280,35 @@ function SepareContenido() {
       let separeIdFinal = "";
 
       if (puedeVentaDirecta) {
-        const docRef = await addDoc(collection(db, "separes"), payloadSepare);
-        separeIdFinal = docRef.id;
-
-        // Si hubo abono inicial, registrar el ingreso en la caja contable (colección movimientos)
-        if (abonoInicialNum > 0) {
-          const payloadMovAbono: any = {
-            clienteId: clienteSeleccionado.id,
-            clienteNombre: clienteSeleccionado.nombre,
-            usuarioId: cuentaPrincipalId,
-            tipo: 'abono',
-            subtipo: 'abono_inicial_separe',
-            monto: abonoInicialNum,
-            descripcion: `Abono inicial Plan Separe - ${clienteSeleccionado.nombre}`,
-            detalles: itemsGuardar,
-            fecha: new Date(),
-            registradoPor: vendedorActivo || nombreUsuario || "Vendedor",
-            metodoPago: metodoPago,
-            idSepareOrigen: separeIdFinal
-          };
-          if (metodoPago !== 'efectivo' && subMetodoPago.trim()) payloadMovAbono.subMetodoPago = subMetodoPago.trim();
-          if (metodoPago !== 'efectivo' && referenciaPago.trim()) payloadMovAbono.referenciaPago = referenciaPago.trim();
-
-          await addDoc(collection(db, "movimientos"), payloadMovAbono);
-        }
-
-        // Descontar inventario físico de forma atómica y precisa
+        // Descontar inventario físico de forma unificada
         const cantidadesPorProducto: Record<string, number> = {};
         for (const item of itemsGuardar) {
-          const pInv = inventario.find(p => p.nombre.toLowerCase() === item.descripcion.toLowerCase());
+          const pInv = inventario.find(p => p.nombre.toLowerCase().trim() === item.descripcion.toLowerCase().trim());
           const esInv = pInv && pInv.tipoProducto !== 'servicio' && pInv.inventariable !== false;
           if (esInv && pInv.id) {
             cantidadesPorProducto[pInv.id] = (cantidadesPorProducto[pInv.id] || 0) + item.cantidad;
           }
         }
-        for (const [pId, cant] of Object.entries(cantidadesPorProducto)) {
-          await updateDoc(doc(db, "inventario", pId), {
-            stock: increment(-cant)
-          });
-        }
+        const itemsInventario = Object.entries(cantidadesPorProducto).map(([productoId, cantidad]) => ({
+          productoId,
+          cantidad
+        }));
 
+        // PARCHE P1-TX-03: Creación de Separe + Abono inicial + Stock atómico
+        const resSepare = await API_DB.ejecutarCreacionSepareAtomo({
+          separeData: payloadSepare,
+          abonoInicial: abonoInicialNum,
+          metodoPago: metodoPago,
+          subMetodoPago: subMetodoPago.trim() || undefined,
+          referenciaPago: referenciaPago.trim() || undefined,
+          registradoPor: vendedorActivo || nombreUsuario || "Vendedor",
+          itemsInventario
+        });
+
+        separeIdFinal = resSepare.separeId;
         toast.success("¡Plan Separe registrado con éxito! 🏷️");
       } else {
+
         // Enviar como orden pendiente para que el administrador la apruebe
         const docOrden: any = {
           tipo: 'separe',

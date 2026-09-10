@@ -359,6 +359,284 @@ export const API_DB = {
   },
 
   // --------------------------------------------------------
+  // TRANSACCIÓN ATÓMICA: ABONO A PLAN SEPARE (P1-TX-02)
+  // --------------------------------------------------------
+  ejecutarAbonoSepareAtomo: async (params: {
+    separeId: string;
+    clienteId?: string;
+    usuarioId: string;
+    montoAbono: number;
+    metodoPago: string;
+    subMetodoPago?: string;
+    referenciaPago?: string;
+    registradoPor: string;
+    clienteNombre: string;
+    detallesItems?: any[];
+  }): Promise<{
+    movimientoId: string;
+    nuevoSaldoPendiente: number;
+    nuevoMontoPagado: number;
+  }> => {
+    return await runTransaction(db, async (transaction) => {
+      // 1. REGLA FIRESTORE: Lectura obligatoria primero
+      const separeRef = doc(db, "separes", params.separeId);
+      const separeSnap = await transaction.get(separeRef);
+
+      if (!separeSnap.exists()) {
+        throw new Error("El Plan Separe no existe o fue eliminado.");
+      }
+
+      const separeData = separeSnap.data() as any;
+      const saldoActual = Number(separeData.saldoPendiente || 0);
+      const montoPagadoActual = Number(separeData.montoPagado || 0);
+      const nuevoSaldoPendiente = Math.max(0, saldoActual - params.montoAbono);
+      const nuevoMontoPagado = montoPagadoActual + params.montoAbono;
+
+      const nuevoAbonoItem: Record<string, any> = {
+        id: `abono_${Date.now()}`,
+        monto: params.montoAbono,
+        metodoPago: params.metodoPago,
+        fecha: new Date(),
+        registradoPor: params.registradoPor || "Vendedor"
+      };
+      if (params.subMetodoPago?.trim()) nuevoAbonoItem.subMetodoPago = params.subMetodoPago.trim();
+      if (params.referenciaPago?.trim()) nuevoAbonoItem.referenciaPago = params.referenciaPago.trim();
+
+      const abonosActualizados = Array.isArray(separeData.abonos) 
+        ? [...separeData.abonos, nuevoAbonoItem] 
+        : [nuevoAbonoItem];
+
+      // 2. Escrituras: Actualizar Separe + Registrar Movimiento
+      transaction.update(separeRef, {
+        abonos: abonosActualizados,
+        montoPagado: nuevoMontoPagado,
+        saldoPendiente: nuevoSaldoPendiente
+      });
+
+      const movRef = doc(collection(db, "movimientos"));
+      const movPayload: Record<string, any> = {
+        clienteId: params.clienteId || null,
+        clienteNombre: params.clienteNombre,
+        usuarioId: params.usuarioId,
+        tipo: 'abono',
+        monto: params.montoAbono,
+        descripcion: `Abono a Plan Separe - ${params.clienteNombre}`,
+        detalles: params.detallesItems || separeData.items || [],
+        fecha: new Date(),
+        registradoPor: params.registradoPor,
+        metodoPago: params.metodoPago,
+        idSepareOrigen: params.separeId,
+        saldoResultanteSepare: nuevoSaldoPendiente
+      };
+      if (params.subMetodoPago?.trim()) movPayload.subMetodoPago = params.subMetodoPago.trim();
+      if (params.referenciaPago?.trim()) movPayload.referenciaPago = params.referenciaPago.trim();
+
+      transaction.set(movRef, movPayload);
+
+      return {
+        movimientoId: movRef.id,
+        nuevoSaldoPendiente,
+        nuevoMontoPagado
+      };
+    });
+  },
+
+  // --------------------------------------------------------
+  // TRANSACCIÓN ATÓMICA: CREACIÓN DE PLAN SEPARE + STOCK + ABONO (P1-TX-03)
+  // --------------------------------------------------------
+  ejecutarCreacionSepareAtomo: async (params: {
+    separeData: Record<string, any>;
+    abonoInicial: number;
+    metodoPago: string;
+    subMetodoPago?: string;
+    referenciaPago?: string;
+    registradoPor: string;
+    itemsInventario: Array<{ productoId: string; cantidad: number }>;
+  }): Promise<{
+    separeId: string;
+    movimientoAbonoId?: string;
+  }> => {
+    return await runTransaction(db, async (transaction) => {
+      // 1. Crear documento de Separe
+      const separeRef = doc(collection(db, "separes"));
+      const separePayload = {
+        ...params.separeData,
+        fechaCreacion: new Date()
+      };
+      transaction.set(separeRef, separePayload);
+
+      // 2. Si hubo abono inicial, registrar el ingreso contable indivisible
+      let movimientoAbonoId: string | undefined = undefined;
+      if (params.abonoInicial > 0) {
+        const movRef = doc(collection(db, "movimientos"));
+        movimientoAbonoId = movRef.id;
+        const movPayload: Record<string, any> = {
+          clienteId: params.separeData.clienteId || null,
+          clienteNombre: params.separeData.clienteNombre || "Cliente",
+          usuarioId: params.separeData.usuarioId,
+          tipo: 'abono',
+          subtipo: 'abono_inicial_separe',
+          monto: params.abonoInicial,
+          descripcion: `Abono inicial Plan Separe - ${params.separeData.clienteNombre || 'Cliente'}`,
+          detalles: params.separeData.items || [],
+          fecha: new Date(),
+          registradoPor: params.registradoPor,
+          metodoPago: params.metodoPago,
+          idSepareOrigen: separeRef.id
+        };
+        if (params.subMetodoPago?.trim()) movPayload.subMetodoPago = params.subMetodoPago.trim();
+        if (params.referenciaPago?.trim()) movPayload.referenciaPago = params.referenciaPago.trim();
+
+        transaction.set(movRef, movPayload);
+      }
+
+      // 3. Descontar stock de inventario de forma unificada
+      for (const item of params.itemsInventario) {
+        if (item.productoId && item.cantidad > 0) {
+          const invRef = doc(db, "inventario", item.productoId);
+          transaction.update(invRef, {
+            stock: increment(-item.cantidad)
+          });
+        }
+      }
+
+      return {
+        separeId: separeRef.id,
+        movimientoAbonoId
+      };
+    });
+  },
+
+  // --------------------------------------------------------
+  // TRANSACCIÓN ATÓMICA: CANCELACIÓN DE PLAN SEPARE + STOCK + DEVOLUCIÓN (P1-TX-04)
+  // --------------------------------------------------------
+  ejecutarCancelacionSepareAtomo: async (params: {
+    separeId: string;
+    usuarioId: string;
+    motivo: string;
+    registradoPor: string;
+    itemsDevolver: Array<{ productoId: string; cantidad: number }>;
+  }): Promise<{
+    montoDevuelto: number;
+    movimientoEgresoId?: string;
+  }> => {
+    return await runTransaction(db, async (transaction) => {
+      // 1. Lectura del Separe
+      const separeRef = doc(db, "separes", params.separeId);
+      const separeSnap = await transaction.get(separeRef);
+
+      if (!separeSnap.exists()) {
+        throw new Error("El Plan Separe no existe.");
+      }
+
+      const separeData = separeSnap.data() as any;
+      const montoDevuelto = Number(separeData.montoPagado || 0);
+
+      // 2. Marcar separe como cancelado
+      transaction.update(separeRef, {
+        estado: 'cancelado',
+        fechaCancelado: new Date(),
+        notaCancelacion: params.motivo,
+        montoPagadoAlCancelar: montoDevuelto
+      });
+
+      // 3. Si hubo dinero recibido, asentar egreso/devolución contable
+      let movimientoEgresoId: string | undefined = undefined;
+      if (montoDevuelto > 0) {
+        const movRef = doc(collection(db, "movimientos"));
+        movimientoEgresoId = movRef.id;
+        transaction.set(movRef, {
+          clienteId: separeData.clienteId || null,
+          clienteNombre: separeData.clienteNombre || "Cliente",
+          usuarioId: params.usuarioId,
+          tipo: 'egreso',
+          categoria: 'devolucion_separe',
+          concepto: `Devolución cancelación Plan Separe - ${separeData.clienteNombre || 'Cliente'}`,
+          monto: montoDevuelto,
+          descripcion: `Devolución de $${montoDevuelto.toLocaleString('es-CO')} por cancelación de separe (${params.motivo})`,
+          fecha: new Date(),
+          registradoPor: params.registradoPor,
+          metodoPago: 'efectivo',
+          idSepareOrigen: params.separeId
+        });
+      }
+
+      // 4. Restaurar stock a inventario de forma segura
+      for (const item of params.itemsDevolver) {
+        if (item.productoId && item.cantidad > 0) {
+          const invRef = doc(db, "inventario", item.productoId);
+          transaction.update(invRef, {
+            stock: increment(item.cantidad)
+          });
+        }
+      }
+
+      return {
+        montoDevuelto,
+        movimientoEgresoId
+      };
+    });
+  },
+
+  // --------------------------------------------------------
+  // TRANSACCIÓN ATÓMICA: ENTREGA / LIQUIDACIÓN DE PLAN SEPARE (P1-TX-05)
+  // --------------------------------------------------------
+  ejecutarEntregaSepareAtomo: async (params: {
+    separeId: string;
+    usuarioId: string;
+    registradoPor: string;
+  }): Promise<{
+    entregaMovimientoId: string;
+  }> => {
+    return await runTransaction(db, async (transaction) => {
+      const separeRef = doc(db, "separes", params.separeId);
+      const separeSnap = await transaction.get(separeRef);
+
+      if (!separeSnap.exists()) {
+        throw new Error("El Plan Separe no existe.");
+      }
+
+      const separeData = separeSnap.data() as any;
+
+      // 1. Crear movimiento de entrega (sin duplicar ingresos de caja)
+      const movRef = doc(collection(db, "movimientos"));
+      transaction.set(movRef, {
+        clienteId: separeData.clienteId || null,
+        clienteNombre: separeData.clienteNombre || "Cliente",
+        usuarioId: params.usuarioId,
+        tipo: 'entrega_separe',
+        origen: 'separe',
+        monto: 0,
+        valorMercancia: Number(separeData.total || 0),
+        descripcion: `Plan Separe entregado - ${separeData.clienteNombre || 'Cliente'}`,
+        detalles: (separeData.items || []).map((it: any) => ({
+          descripcion: it.descripcion,
+          valor: (Number(it.valor) || 0) * (it.cantidad || 1),
+          cantidad: it.cantidad || 1,
+          valorUnitario: Number(it.valor) || 0
+        })),
+        fecha: new Date(),
+        registradoPor: params.registradoPor,
+        metodoPago: 'separe_liquidado',
+        idSepareOrigen: params.separeId
+      });
+
+      // 2. Marcar separe como completado
+      transaction.update(separeRef, {
+        estado: 'completado',
+        fechaCompletado: new Date(),
+        idTransaccionCierre: movRef.id,
+        saldoPendiente: 0
+      });
+
+      return {
+        entregaMovimientoId: movRef.id
+      };
+    });
+  },
+
+
+  // --------------------------------------------------------
   // NUEVA LÓGICA DE BONOS / SUSCRIPCIÓN
   // --------------------------------------------------------
   verificarCodigoPromocional: async (codigo: string, emailUsuario: string) => {

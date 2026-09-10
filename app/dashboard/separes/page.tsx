@@ -16,6 +16,7 @@ import { useAuth } from "@/hooks/AuthContext";
 import TicketFacturaModal, { DatosFacturaProps } from "@/components/TicketFacturaModal";
 import { Separe, AbonoSepare } from "@/types";
 import { abrirEnlaceWhatsApp } from "@/utils/whatsapp";
+import { API_DB } from "../../../servicios/db";
 
 export default function SeparesPage() {
   return (
@@ -432,41 +433,17 @@ Estamos atentos para cualquier consulta.
     }
 
     try {
-      const separeRef = doc(db, "separes", separeSeleccionado.id);
-      
-      // 1. Crear movimiento de entrega en historial (sin duplicar caja porque el dinero ya ingresó en los abonos)
-      const docMov = await addDoc(collection(db, "movimientos"), {
-        clienteId: separeSeleccionado.clienteId,
-        clienteNombre: separeSeleccionado.clienteNombre,
-        usuarioId: cuentaPrincipalId,
-        tipo: 'entrega_separe',
-        origen: 'separe',
-        monto: 0,
-        valorMercancia: separeSeleccionado.total || 0,
-        descripcion: `Plan Separe entregado - ${separeSeleccionado.clienteNombre}`,
-        detalles: (separeSeleccionado.items || []).map((it: any) => ({
-          descripcion: it.descripcion,
-          valor: (Number(it.valor) || 0) * it.cantidad,
-          cantidad: it.cantidad,
-          valorUnitario: Number(it.valor) || 0
-        })),
-        fecha: new Date(),
-        registradoPor: nombreUsuario,
-        metodoPago: 'separe_liquidado',
-        idSepareOrigen: separeSeleccionado.id
-      });
-
-      // 2. Actualizar estado del separe a completado
-      await updateDoc(separeRef, {
-        estado: 'completado',
-        fechaCompletado: new Date(),
-        idTransaccionCierre: docMov.id,
-        saldoPendiente: 0
+      // PARCHE P1-TX-05: Liquidación y entrega de Separe atómica
+      const resEntrega = await API_DB.ejecutarEntregaSepareAtomo({
+        separeId: separeSeleccionado.id,
+        usuarioId: cuentaPrincipalId!,
+        registradoPor: nombreUsuario || "Administrador"
       });
 
       reproducirSonidoCelebracion();
       toast.success("¡Plan Separe entregado con éxito! 🛍️");
       setModalCompletar(false);
+
 
       const ticketEntregaDatos: DatosFacturaProps = {
         nombreNegocio,
@@ -491,8 +468,9 @@ Estamos atentos para cualquier consulta.
         montoTotal: separeSeleccionado.total || 0,
         pagoRecibido: separeSeleccionado.total || 0,
         saldoNuevo: 0,
-        idTransaccion: docMov.id,
+        idTransaccion: resEntrega.entregaMovimientoId,
         metodoPago: 'efectivo'
+
       };
 
       setModalExitoEntrega({
@@ -548,81 +526,36 @@ Gracias por tu compra y preferencia.
     setProcesandoCancelacion(true);
 
     try {
-      const separeRef = doc(db, "separes", separeSeleccionado.id);
       const motivo = notaCancelacion.trim() || "Cancelado por el cliente";
-      const montoDevuelto = separeSeleccionado.montoPagado || 0;
+      const montoDevuelto = Number(separeSeleccionado.montoPagado || 0);
 
-      // 1. Si hubo dinero abonado, registrar egreso/movimiento de devolución
-      if (montoDevuelto > 0) {
-        await addDoc(collection(db, "movimientos"), {
-          clienteId: separeSeleccionado.clienteId,
-          usuarioId: cuentaPrincipalId,
-          tipo: 'egreso',
-          categoria: 'devolucion_separe',
-          concepto: `Devolución cancelación Plan Separe - ${separeSeleccionado.clienteNombre}`,
-          monto: montoDevuelto,
-          descripcion: `Devolución de $${montoDevuelto.toLocaleString('es-CO')} por cancelación de separe (${motivo})`,
-          fecha: new Date(),
-          registradoPor: nombreUsuario,
-          metodoPago: 'efectivo',
-          idSepareOrigen: separeSeleccionado.id
-        });
-      }
+      // Recopilar productos para reintegro de stock
 
-      // 2. Actualizar estado del separe a cancelado
-      await updateDoc(separeRef, {
-        estado: 'cancelado',
-        fechaCancelado: new Date(),
-        notaCancelacion: motivo,
-        montoPagadoAlCancelar: montoDevuelto
-      });
-
-      // CORRECCIÓN A-6: Devolver stock leyendo cada producto por su ID directamente,
-      // en lugar de descargar TODO el catálogo de inventario con getDocs.
+      const itemsDevolver: Array<{ productoId: string; cantidad: number }> = [];
       if (separeSeleccionado.items && Array.isArray(separeSeleccionado.items)) {
         for (const item of separeSeleccionado.items) {
-          let prodRef = null;
-
-          // Intentar por ID directo primero (más eficiente)
-          if (item.idProducto) {
-            const docSnap = await import("firebase/firestore").then(({ getDoc }) =>
-              getDoc(doc(db, "inventario", item.idProducto))
-            );
-            if (docSnap.exists()) {
-              const data = docSnap.data();
-              if (data.tipoProducto !== 'servicio' && data.inventariable !== false) {
-                await updateDoc(doc(db, "inventario", item.idProducto), {
-                  stock: increment(item.cantidad || 1)
-                });
-              }
-              continue;
-            }
-          }
-
-          // Fallback: buscar por nombre del producto (solo si no hay ID)
-          if (item.descripcion) {
-            const { getDocs: gd, query: q2, collection: col, where: wh } = await import("firebase/firestore");
-            const qNombre = q2(
-              col(db, "inventario"),
-              wh("usuarioId", "==", cuentaPrincipalId),
-              wh("nombre", "==", item.descripcion.trim())
-            );
-            const snapNombre = await gd(qNombre);
-            if (!snapNombre.empty) {
-              const prodDoc = snapNombre.docs[0];
-              const data = prodDoc.data();
-              if (data.tipoProducto !== 'servicio' && data.inventariable !== false) {
-                await updateDoc(doc(db, "inventario", prodDoc.id), {
-                  stock: increment(item.cantidad || 1)
-                });
-              }
-            }
+          const pId = item.idProducto || item.productoId;
+          if (pId) {
+            itemsDevolver.push({
+              productoId: pId,
+              cantidad: item.cantidad || 1
+            });
           }
         }
       }
 
+      // PARCHE P1-TX-04: Cancelación de Separe + Devolución contable + Stock reintegrado en una sola transacción
+      await API_DB.ejecutarCancelacionSepareAtomo({
+        separeId: separeSeleccionado.id,
+        usuarioId: cuentaPrincipalId!,
+        motivo,
+        registradoPor: nombreUsuario || "Administrador",
+        itemsDevolver
+      });
+
       reproducirSonidoAlerta();
       setModalCancelar(false);
+
       setNotaCancelacion("");
 
       // 3. Abrir ventana de notificación de cancelación

@@ -1760,10 +1760,11 @@ export default function LandingPage() {
                 </tr>
                 <tr className="hover:bg-slate-50 dark:hover:bg-slate-800/30">
                   <td className="py-3.5 px-4 text-slate-800 dark:text-slate-200 font-bold">Aprobación de ventas de cajeros (Órdenes Pendientes)</td>
-                  <td className="py-3.5 px-4 text-center text-emerald-500 font-bold">✓ Incluido</td>
+                  <td className="py-3.5 px-4 text-center text-slate-300 dark:text-slate-600">—</td>
                   <td className="py-3.5 px-4 text-center text-emerald-500 font-bold">✓ Incluido</td>
                   <td className="py-3.5 px-4 text-center text-emerald-500 font-bold">✓ Incluido</td>
                 </tr>
+
               </tbody>
             </table>
           </div>

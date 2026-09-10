@@ -189,46 +189,30 @@ function AbonarContenido() {
           return;
         }
 
-        const nuevoAbono: any = {
-          id: `abono_${Date.now()}`,
-          monto: abonoReal,
+        // PARCHE P1-TX-02: Abono a Separe atómico con runTransaction
+        // Separe y Movimiento se actualizan juntos; si falla uno, no se cobra ni se descuenta.
+        const resAbonoSepare = await API_DB.ejecutarAbonoSepareAtomo({
+          separeId: separeSeleccionado.id,
+          clienteId: clienteTransaccion.id || undefined,
+          clienteNombre: clienteTransaccion.nombre,
+          usuarioId: cuentaPrincipalId!,
+          montoAbono: abonoReal,
           metodoPago: metodoPago,
-          fecha: new Date(),
-          registradoPor: nombreUsuario || "Vendedor"
-        };
-        if (subMetodoPago?.trim()) nuevoAbono.subMetodoPago = subMetodoPago.trim();
-        if (referenciaPago?.trim()) nuevoAbono.referenciaPago = referenciaPago.trim();
-
-        const separeRef = doc(db, "separes", separeSeleccionado.id);
-        await updateDoc(separeRef, {
-          abonos: arrayUnion(nuevoAbono),
-          montoPagado: increment(abonoReal),
-          saldoPendiente: increment(-abonoReal)
+          subMetodoPago: subMetodoPago?.trim() || undefined,
+          referenciaPago: refPagoCompleta || undefined,
+          registradoPor: nombreUsuario || "Vendedor",
+          detallesItems: (separeSeleccionado.items || []).map((it: any) => ({
+            descripcion: it.descripcion || "Artículo",
+            cantidad: it.cantidad || 1,
+            valor: (Number(it.valor) || 0) * (it.cantidad || 1),
+            valorUnitario: Number(it.valor) || 0
+          }))
         });
 
-        // Cálculo local solo para mostrar en el modal de éxito/ticket
-        // La fuente de verdad ya fue actualizada atómicamente en Firestore arriba
-        const nuevoSaldoPendiente = Math.max(0, (separeSeleccionado.saldoPendiente || 0) - abonoReal);
-
-        // Registrar en movimientos
-        const payloadMov: any = {
-          clienteId: clienteTransaccion.id || null,
-          usuarioId: cuentaPrincipalId,
-          tipo: 'abono',
-          monto: abonoReal,
-          descripcion: `Abono a Plan Separe (${metodoPagoLabel}) - ${clienteTransaccion.nombre}`,
-          fecha: new Date(),
-          registradoPor: nombreUsuario || "Vendedor",
-          metodoPago: metodoPago,
-          idSepareOrigen: separeSeleccionado.id
-        };
-        if (refPagoCompleta) {
-          payloadMov.referenciaPago = refPagoCompleta;
-        }
-
-        await addDoc(collection(db, "movimientos"), payloadMov);
+        const nuevoSaldoPendiente = resAbonoSepare.nuevoSaldoPendiente;
 
         reproducirSonidoExito();
+
 
         const ticketDatos = {
           nombreNegocio: nombreNegocio || "Mi Negocio",
@@ -253,7 +237,7 @@ function AbonarContenido() {
           montoTotal: abonoReal,
           pagoRecibido: abonoReal,
           saldoNuevo: nuevoSaldoPendiente,
-          idTransaccion: separeSeleccionado.id,
+          idTransaccion: resAbonoSepare.movimientoId,
           metodoPago: metodoPago,
           referenciaPago: refPagoCompleta || undefined
         };
