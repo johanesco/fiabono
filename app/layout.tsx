@@ -1,3 +1,4 @@
+import Script from "next/script";
 import "./globals.css";
 import { Toaster } from "react-hot-toast";
 import { AuthProvider } from "../hooks/AuthContext";
@@ -57,12 +58,15 @@ export default function RootLayout({
   return (
     <html lang="es" suppressHydrationWarning>
       <head>
-        <script
+        <Script
+          id="theme-initializer"
+          strategy="beforeInteractive"
           dangerouslySetInnerHTML={{
             __html: `(function(){try{var t=localStorage.getItem('temaFiabono')||localStorage.getItem('tema');if(t==='oscura'||(!t&&window.matchMedia('(prefers-color-scheme: dark)').matches)){document.documentElement.classList.add('dark')}else{document.documentElement.classList.remove('dark')}}catch(e){}})()`,
           }}
         />
       </head>
+
       <body className="font-sans antialiased bg-slate-100 dark:bg-slate-950">
         <ServiceWorkerRegistrar />
         <AuthProvider>
