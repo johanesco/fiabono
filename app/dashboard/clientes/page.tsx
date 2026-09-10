@@ -470,6 +470,19 @@ Quedamos pendientes para revisar detalles o responder cualquier duda.
       return;
     }
 
+    // CONTROL DE CALIDAD Y NEGOCIO: Validar cupo máximo de clientes en Plan Gratis (15 clientes)
+    const esGratis = datosSesion?.esGratis ?? (datosSesion?.planActual === 'gratis' || datosSesion?.planActual === 'basico');
+    const limite = datosSesion?.limiteClientes ?? (esGratis ? 15 : Infinity);
+    if (esGratis && clientes.length >= limite) {
+      toast.error(
+        `Has alcanzado el límite de ${limite} clientes del Plan Gratuito. Pasa al Plan Comercio o PRO para clientes ilimitados.`,
+        { duration: 6000, icon: '🔒' }
+      );
+      setModalNuevoAbierto(false);
+      return;
+    }
+
+
     try {
       setGuardandoCliente(true);
       const docRef = await addDoc(collection(db, "clientes"), {

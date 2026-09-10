@@ -222,9 +222,13 @@ export default function ReportesPage() {
   const metaPeriodo = obtenerMetadatosPeriodo(filtroGeneral);
   const movimientosGenerales = filtrarPorTiempo(todosMovimientos, filtroGeneral);
 
-  const carteraActiva = clientes.reduce((acc, c) => acc + (c.deudaTotal > 0 ? c.deudaTotal : 0), 0);
+  const carteraActiva = clientes.reduce((acc, c) => {
+    const d = Number(c.deudaTotal || 0);
+    return acc + (d > 0 ? d : 0);
+  }, 0);
   const totalClientesRegistrados = clientes.length;
-  const clientesConCredito = clientes.filter(c => c.deudaTotal > 0).length;
+  const clientesConCredito = clientes.filter(c => Number(c.deudaTotal || 0) > 0).length;
+
 
   const movsVentas = movimientosGenerales.filter(m => m.tipo === 'venta');
   const movsFiados = movimientosGenerales.filter(m => m.tipo === 'fiado');
