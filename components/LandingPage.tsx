@@ -1,6 +1,6 @@
 "use client";
 import React, { useState } from "react";
-import { signInWithEmailAndPassword, createUserWithEmailAndPassword, signInWithPopup, signInWithRedirect, getRedirectResult, onAuthStateChanged, GoogleAuthProvider, signOut } from "firebase/auth";
+import { signInWithEmailAndPassword, createUserWithEmailAndPassword, signInWithPopup, signInWithRedirect, getRedirectResult, onAuthStateChanged, browserLocalPersistence, setPersistence, GoogleAuthProvider, signOut } from "firebase/auth";
 import { doc, getDoc, getDocFromServer, setDoc, updateDoc } from "firebase/firestore";
 import { auth, db } from "../firebase";
 import { 
@@ -280,13 +280,17 @@ export default function LandingPage() {
       }
     };
 
-    getRedirectResult(auth).then(resultado => {
-      procesarSiEsNecesario(resultado?.user || auth.currentUser);
-    }).catch((error: any) => {
-      if (cancelado) return;
-      console.error("Error al recuperar autenticación de Google:", error);
-      setAuthErrores(p => ({ ...p, general: `No se pudo acceder con Google (${error.code || error.message || 'Error'}). Intenta de nuevo o ingresa con correo.` }));
-    });
+    (async () => {
+      try {
+        await setPersistence(auth, browserLocalPersistence);
+        const resultado = await getRedirectResult(auth);
+        procesarSiEsNecesario(resultado?.user || auth.currentUser);
+      } catch (error: any) {
+        if (cancelado) return;
+        console.error("Error al recuperar autenticación de Google:", error);
+        setAuthErrores(p => ({ ...p, general: `No se pudo acceder con Google (${error.code || error.message || 'Error'}). Intenta de nuevo o ingresa con correo.` }));
+      }
+    })();
 
     const unsubscribe = onAuthStateChanged(auth, procesarSiEsNecesario);
 
@@ -302,6 +306,7 @@ export default function LandingPage() {
     try {
       const provider = new GoogleAuthProvider();
       provider.setCustomParameters({ prompt: 'select_account' });
+      await setPersistence(auth, browserLocalPersistence);
       const esMovilOTablet = typeof window !== 'undefined' && /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
       if (esMovilOTablet) {
         await signInWithRedirect(auth, provider);
