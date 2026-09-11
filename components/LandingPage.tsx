@@ -1,7 +1,7 @@
 "use client";
 import React, { useState } from "react";
 import { signInWithEmailAndPassword, createUserWithEmailAndPassword, signInWithPopup, signInWithRedirect, getRedirectResult, GoogleAuthProvider, signOut } from "firebase/auth";
-import { doc, getDoc, setDoc, updateDoc } from "firebase/firestore";
+import { doc, getDoc, getDocFromServer, setDoc, updateDoc } from "firebase/firestore";
 import { auth, db } from "../firebase";
 import { 
   CheckCircle2, ChevronRight, Star, BookX, PenTool, 
@@ -222,7 +222,17 @@ export default function LandingPage() {
     const userDocRef = doc(db, "usuarios", user.uid);
     let userDocSnap;
     try {
-      userDocSnap = await getDoc(userDocRef);
+      let ultimoError: unknown;
+      for (let intento = 0; intento < 3; intento += 1) {
+        try {
+          userDocSnap = await getDocFromServer(userDocRef);
+          break;
+        } catch (error) {
+          ultimoError = error;
+          if (intento < 2) await new Promise(resolve => setTimeout(resolve, 500));
+        }
+      }
+      if (!userDocSnap) throw ultimoError;
     } catch (error: any) {
       console.error("Google autenticó al usuario, pero Firestore no respondió:", error);
       setAuthErrores(p => ({
