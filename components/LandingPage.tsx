@@ -1,6 +1,6 @@
 "use client";
 import React, { useState } from "react";
-import { signInWithEmailAndPassword, createUserWithEmailAndPassword, signInWithPopup, signInWithRedirect, getRedirectResult, GoogleAuthProvider, signOut } from "firebase/auth";
+import { signInWithEmailAndPassword, createUserWithEmailAndPassword, signInWithPopup, signInWithRedirect, getRedirectResult, onAuthStateChanged, GoogleAuthProvider, signOut } from "firebase/auth";
 import { doc, getDoc, getDocFromServer, setDoc, updateDoc } from "firebase/firestore";
 import { auth, db } from "../firebase";
 import { 
@@ -271,18 +271,29 @@ export default function LandingPage() {
 
   React.useEffect(() => {
     let cancelado = false;
+    let uidProcesado: string | null = null;
+
+    const procesarSiEsNecesario = (user: typeof auth.currentUser) => {
+      if (!cancelado && user && user.uid !== uidProcesado) {
+        uidProcesado = user.uid;
+        procesarUsuarioGoogle(user);
+      }
+    };
 
     getRedirectResult(auth).then(resultado => {
-      if (!cancelado && resultado?.user) {
-        procesarUsuarioGoogle(resultado.user);
-      }
+      procesarSiEsNecesario(resultado?.user || auth.currentUser);
     }).catch((error: any) => {
       if (cancelado) return;
       console.error("Error al recuperar autenticación de Google:", error);
       setAuthErrores(p => ({ ...p, general: `No se pudo acceder con Google (${error.code || error.message || 'Error'}). Intenta de nuevo o ingresa con correo.` }));
     });
 
-    return () => { cancelado = true; };
+    const unsubscribe = onAuthStateChanged(auth, procesarSiEsNecesario);
+
+    return () => {
+      cancelado = true;
+      unsubscribe();
+    };
   }, []);
 
   const iniciarConGoogle = async () => {
