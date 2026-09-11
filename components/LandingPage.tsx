@@ -1,6 +1,6 @@
 "use client";
 import React, { useState } from "react";
-import { signInWithEmailAndPassword, createUserWithEmailAndPassword, signInWithPopup, GoogleAuthProvider, signOut } from "firebase/auth";
+import { signInWithEmailAndPassword, createUserWithEmailAndPassword, signInWithPopup, signInWithRedirect, getRedirectResult, GoogleAuthProvider, signOut } from "firebase/auth";
 import { doc, getDoc, setDoc, updateDoc } from "firebase/firestore";
 import { auth, db } from "../firebase";
 import { 
@@ -218,59 +218,77 @@ export default function LandingPage() {
     }
   };
 
+  const procesarUsuarioGoogle = async (user: { uid: string; email: string | null; displayName: string | null; photoURL: string | null }) => {
+    const userDocRef = doc(db, "usuarios", user.uid);
+    let userDocSnap;
+    try {
+      userDocSnap = await getDoc(userDocRef);
+    } catch (error: any) {
+      console.error("Google autenticó al usuario, pero Firestore no respondió:", error);
+      setAuthErrores(p => ({
+        ...p,
+        general: `Google autenticó tu cuenta, pero no se pudo consultar tu perfil en Fiabono (${error.message || error.code || 'Error de base de datos'}). Intenta de nuevo en unos minutos.`
+      }));
+      return;
+    }
+
+    if (!userDocSnap.exists()) {
+      const nombreSugerido = user.displayName || "";
+
+      setGoogleUserPendiente({
+        uid: user.uid,
+        email: user.email || "",
+        nombre: nombreSugerido,
+        foto: user.photoURL || undefined
+      });
+
+      setFormGoogleOnboarding({
+        nombreUsuario: nombreSugerido,
+        nombreNegocio: "",
+        tipoNegocio: "Moda y Calzado",
+        telefonoNegocio: "",
+        moduloSepare: true,
+        plan: codigoAplicado ? codigoAplicado.planOtorgado : (planSeleccionadoRegistro || 'comercio')
+      });
+      setPasoGoogleOnboarding(1);
+      setErrorGoogleOnboarding("");
+      cerrarModal();
+      setModalGoogleOnboarding(true);
+    } else {
+      cerrarModal();
+    }
+  };
+
+  React.useEffect(() => {
+    let cancelado = false;
+
+    getRedirectResult(auth).then(resultado => {
+      if (!cancelado && resultado?.user) {
+        procesarUsuarioGoogle(resultado.user);
+      }
+    }).catch((error: any) => {
+      if (cancelado) return;
+      console.error("Error al recuperar autenticación de Google:", error);
+      setAuthErrores(p => ({ ...p, general: `No se pudo acceder con Google (${error.code || error.message || 'Error'}). Intenta de nuevo o ingresa con correo.` }));
+    });
+
+    return () => { cancelado = true; };
+  }, []);
+
   const iniciarConGoogle = async () => {
     setAuthErrores({ email: "", password: "", confirmPassword: "", general: "" });
     setCargandoGoogle(true);
     try {
       const provider = new GoogleAuthProvider();
       provider.setCustomParameters({ prompt: 'select_account' });
-      const resultado = await signInWithPopup(auth, provider);
-      const user = resultado.user;
-
-      // Verificar si ya existe el usuario en Firestore
-      const userDocRef = doc(db, "usuarios", user.uid);
-      let userDocSnap;
-      try {
-        userDocSnap = await getDoc(userDocRef);
-      } catch (error: any) {
-        console.error("Google autenticó al usuario, pero Firestore no respondió:", error);
-        setAuthErrores(p => ({
-          ...p,
-          general: `Google autenticó tu cuenta, pero no se pudo consultar tu perfil en Fiabono (${error.message || error.code || 'Error de base de datos'}). Intenta de nuevo en unos minutos.`
-        }));
+      const esMovilOTablet = typeof window !== 'undefined' && /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+      if (esMovilOTablet) {
+        await signInWithRedirect(auth, provider);
         return;
       }
 
-      if (!userDocSnap.exists()) {
-        // Usuario nuevo con Google: abrir modal de bienvenida y configuración de negocio
-        const nombreSugerido = user.displayName || "";
-        const primerNombre = user.displayName ? user.displayName.split(' ')[0] : "";
-        const negocioSugerido = primerNombre ? `Comercio de ${primerNombre}` : "Mi Comercio";
-        
-        setGoogleUserPendiente({
-          uid: user.uid,
-          email: user.email || "",
-          nombre: nombreSugerido,
-          foto: user.photoURL || undefined
-        });
-
-        setFormGoogleOnboarding({
-          nombreUsuario: nombreSugerido,
-          nombreNegocio: "",
-          tipoNegocio: "Moda y Calzado",
-          telefonoNegocio: "",
-          moduloSepare: true,
-          plan: codigoAplicado ? codigoAplicado.planOtorgado : (planSeleccionadoRegistro || 'comercio')
-        });
-
-        setPasoGoogleOnboarding(1);
-        setErrorGoogleOnboarding("");
-        cerrarModal();
-        setModalGoogleOnboarding(true);
-      } else {
-        // Usuario ya registrado: cerrar modal de landing (AuthContext se encarga de redirigir)
-        cerrarModal();
-      }
+      const resultado = await signInWithPopup(auth, provider);
+      await procesarUsuarioGoogle(resultado.user);
     } catch (error: any) {
       console.error("Error al autenticar con Google:", error);
       if (error.code === 'auth/popup-closed-by-user' || error.code === 'auth/cancelled-popup-request') {
