@@ -461,7 +461,7 @@ export default function LandingPage() {
             <LogoFiabono size={34} showText={true} showBadge={true} />
           </div>
           
-          <nav className="hidden md:flex items-center gap-7 text-xs lg:text-sm font-bold text-slate-600 dark:text-slate-300">
+          <nav className="hidden xl:flex items-center gap-7 text-xs lg:text-sm font-bold text-slate-600 dark:text-slate-300">
             <button onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })} className="hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors cursor-pointer">Inicio</button>
             <button onClick={() => document.getElementById('comparativa')?.scrollIntoView({behavior: 'smooth'})} className="hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors cursor-pointer">Cuaderno vs POS</button>
             <button onClick={() => document.getElementById('features')?.scrollIntoView({behavior: 'smooth'})} className="hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors cursor-pointer">Funciones</button>
@@ -477,21 +477,21 @@ export default function LandingPage() {
               onClick={() => { setMenuMovilAbierto(false); setModalLandingInfo({ visible: true, tipo: 'login' }); }} 
               className="text-xs sm:text-sm font-black text-slate-700 dark:text-slate-200 hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors px-2 sm:px-3 py-1.5 sm:py-2 cursor-pointer"
             >
-              <span className="hidden sm:inline">Iniciar Sesión</span>
-              <span className="sm:hidden">Ingresar</span>
+              <span className="hidden xl:inline">Iniciar Sesión</span>
+              <span className="xl:hidden">Entrar</span>
             </button>
             <button 
               type="button" 
               onClick={() => { setMenuMovilAbierto(false); abrirRegistroConPlan('gratis'); }} 
               className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs sm:text-sm font-black py-1.5 sm:py-2.5 px-2.5 sm:px-5 rounded-xl shadow-md shadow-emerald-600/25 transition-transform active:scale-95 cursor-pointer whitespace-nowrap"
             >
-              <span className="hidden sm:inline">Empezar Gratis</span>
-              <span className="sm:hidden">Registro</span>
+              <span className="hidden xl:inline">Empezar Gratis</span>
+              <span className="xl:hidden">Crear cuenta</span>
             </button>
             <button
               type="button"
               onClick={() => setMenuMovilAbierto(!menuMovilAbierto)}
-              className="md:hidden p-1.5 sm:p-2 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-colors cursor-pointer"
+              className="xl:hidden p-1.5 sm:p-2 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-colors cursor-pointer"
               aria-label="Abrir menú"
             >
               {menuMovilAbierto ? <X size={20} /> : <Menu size={20} />}
@@ -501,7 +501,7 @@ export default function LandingPage() {
 
         {/* MENÚ MÓVIL DESPLEGABLE */}
         {menuMovilAbierto && (
-          <div className="md:hidden border-t border-slate-200/80 dark:border-slate-800/80 mt-3 pt-3 pb-2 space-y-1 animate-in slide-in-from-top-2 duration-200">
+          <div className="xl:hidden border-t border-slate-200/80 dark:border-slate-800/80 mt-3 pt-3 pb-2 space-y-1 animate-in slide-in-from-top-2 duration-200">
             {[
               { label: 'Inicio', target: 'top' },
               { label: 'Cuaderno vs POS', target: 'comparativa' },
