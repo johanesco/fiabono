@@ -139,6 +139,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     );
   }
 
+  if (!datosSesion) return null;
+
   return (
     <div className="flex h-screen w-screen bg-slate-100 dark:bg-slate-950 overflow-hidden font-sans">
 

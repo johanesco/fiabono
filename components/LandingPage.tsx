@@ -458,7 +458,8 @@ export default function LandingPage() {
       <header className="sticky top-0 bg-white/85 dark:bg-[#0f172a]/85 backdrop-blur-2xl border-b border-slate-200/60 dark:border-slate-800/60 z-[500] px-3 sm:px-8 py-2.5 sm:py-3.5 transition-all shadow-sm">
         <div className="max-w-7xl mx-auto flex justify-between items-center gap-2">
           <div className="flex items-center gap-2 cursor-pointer shrink-0" onClick={() => { setMenuMovilAbierto(false); window.scrollTo({ top: 0, behavior: 'smooth' }); }}>
-            <LogoFiabono size={34} showText={true} showBadge={true} />
+            <span className="sm:hidden"><IsotipoFiabono size={34} /></span>
+            <span className="hidden sm:inline-flex"><LogoFiabono size={34} showText={true} showBadge={true} /></span>
           </div>
           
           <nav className="hidden xl:flex items-center gap-7 text-xs lg:text-sm font-bold text-slate-600 dark:text-slate-300">
@@ -486,7 +487,8 @@ export default function LandingPage() {
               className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs sm:text-sm font-black py-1.5 sm:py-2.5 px-2.5 sm:px-5 rounded-xl shadow-md shadow-emerald-600/25 transition-transform active:scale-95 cursor-pointer whitespace-nowrap"
             >
               <span className="hidden xl:inline">Empezar Gratis</span>
-              <span className="xl:hidden">Crear cuenta</span>
+              <span className="hidden sm:inline xl:hidden">Crear cuenta</span>
+              <span className="sm:hidden">Crear</span>
             </button>
             <button
               type="button"
