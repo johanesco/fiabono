@@ -244,12 +244,6 @@ export default function ReportesPage() {
   const totalAbonos = movsAbonos.reduce((acc, m) => acc + (m.monto || 0), 0);
   const countAbonos = movsAbonos.length;
 
-  const totalEgresos = movsEgresos.reduce((acc, m) => acc + (m.monto || 0), 0);
-
-  // Dinero Neto en Caja: (Ventas Directas + Abonos) - Egresos/Devoluciones
-  const ingresosCaja = Math.max(0, (totalVentas + totalAbonos) - totalEgresos);
-  const countIngresos = countVentas + countAbonos;
-
   // Desglose estratégico de ingresos por Métodos de Pago (Ventas de contado + Abonos recibidos)
   // PARCHE P0-FIN-02: Se excluyen movimientos con metodoPago='ajuste_contable' (castigos de cartera)
   // de las sumas de dinero físico. Esos movimientos son contables, no representan dinero real.
@@ -257,6 +251,14 @@ export default function ReportesPage() {
     m => m.metodoPago !== 'ajuste_contable'
   );
   const movsEgresosReales = movsEgresos.filter(m => m.metodoPago !== 'ajuste_contable');
+  const totalEgresos = movsEgresos.reduce((acc, m) => acc + (m.monto || 0), 0);
+  const totalEgresosReales = movsEgresosReales.reduce((acc, m) => acc + (m.monto || 0), 0);
+  const totalAbonosReales = movsIngresosReales.filter(m => m.tipo === 'abono').reduce((acc, m) => acc + (m.monto || 0), 0);
+
+  // Dinero Neto en Caja: (Ventas Directas + Abonos Reales) - Egresos Reales en dinero
+  const ingresosCaja = Math.max(0, (totalVentas + totalAbonosReales) - totalEgresosReales);
+  const countIngresos = countVentas + movsIngresosReales.filter(m => m.tipo === 'abono').length;
+
   const totalEfectivo = movsIngresosReales
     .filter(m => !m.metodoPago || m.metodoPago === 'efectivo')
     .reduce((acc, m) => acc + (m.monto || 0), 0) - movsEgresosReales.reduce((acc, m) => acc + (m.monto || 0), 0);

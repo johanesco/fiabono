@@ -232,14 +232,32 @@ export const API_DB = {
           const deudaActual = Number(cData?.deudaTotal || 0);
           nuevoSaldoCliente = deudaActual + params.montoFiado;
         }
+      }
 
+      // Lectura y validación de existencias en fase de lectura para evitar sobreventas concurrentes
+      const stockDocsMap = new Map<string, any>();
+      for (const item of params.itemsInventario) {
+        if (item.productoId && item.cantidad > 0) {
+          const prodRef = doc(db, "inventario", item.productoId);
+          const prodSnap = await transaction.get(prodRef);
+          if (prodSnap.exists()) {
+            const dataInv = prodSnap.data() as any;
+            const stockActual = Number(dataInv.stock || 0);
+            if (dataInv.tipoProducto !== 'servicio' && dataInv.inventariable !== false) {
+              if (item.cantidad > stockActual) {
+                throw new Error(`¡Sin stock suficiente de "${dataInv.nombre}"! Solicitado: ${item.cantidad}, Quedan: ${stockActual}`);
+              }
+            }
+            stockDocsMap.set(item.productoId, prodRef);
+          }
+        }
       }
 
       // 2. TODAS LAS ESCRITURAS DESPUÉS
       // a) Descontar stock de los productos inventariables
       for (const item of params.itemsInventario) {
         if (item.productoId && item.cantidad > 0) {
-          const prodRef = doc(db, "inventario", item.productoId);
+          const prodRef = stockDocsMap.get(item.productoId) || doc(db, "inventario", item.productoId);
           transaction.update(prodRef, {
             stock: increment(-item.cantidad)
           });
@@ -334,8 +352,8 @@ export const API_DB = {
         if (clienteSnap.exists()) {
           const clienteData = clienteSnap.data();
           const deudaActual = Number(clienteData.deudaTotal || 0);
-          nuevoSaldo = deudaActual + opciones.cambioDeuda;
-          transaction.update(clienteRef, { deudaTotal: nuevoSaldo });
+          nuevoSaldo = Math.max(0, deudaActual + opciones.cambioDeuda);
+          transaction.update(clienteRef, { deudaTotal: nuevoSaldo, fechaUltimoMovimiento: new Date() });
         }
       }
 

@@ -125,7 +125,9 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
           // Si el plan venció hace MÁS de 2 días, forzar downgrade
           if (daysLeft < -2) {
             planActual = 'gratis';
-            await updateDoc(doc(db, "usuarios", idParaConsultar), { plan: 'gratis' });
+            if (data.rol !== 'cajero') {
+              await updateDoc(doc(db, "usuarios", idParaConsultar), { plan: 'gratis', planVence: null });
+            }
           } else {
             diasRestantesPlan = daysLeft;
             if (daysLeft <= 8) avisoExpiracion = true;

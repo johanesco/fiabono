@@ -140,7 +140,11 @@ export default function InicioPage() {
 
   const cargarMovimientosClienteDirecto = async (clienteId: string) => {
     try {
-      const qM = query(collection(db, "movimientos"), where("clienteId", "==", clienteId));
+      const qM = query(
+        collection(db, "movimientos"),
+        where("usuarioId", "==", cuentaPrincipalId),
+        where("clienteId", "==", clienteId)
+      );
       const snapM = await getDocs(qM);
       const lista: any[] = [];
       snapM.forEach(doc => lista.push({ id: doc.id, ...doc.data() }));
@@ -151,7 +155,11 @@ export default function InicioPage() {
     }
 
     try {
-      const qS = query(collection(db, "separes"), where("clienteId", "==", clienteId));
+      const qS = query(
+        collection(db, "separes"),
+        where("usuarioId", "==", cuentaPrincipalId),
+        where("clienteId", "==", clienteId)
+      );
       const snapS = await getDocs(qS);
       const listaS: any[] = [];
       snapS.forEach(doc => listaS.push({ id: doc.id, ...doc.data() }));

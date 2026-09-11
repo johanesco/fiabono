@@ -973,29 +973,7 @@ function FiarContenido() {
             }
             const descripcionUnificada = resumenNombres.join(", ");
 
-            // Transacción atómica: fiar y actualizar deuda del cliente
-            const resFiado = await API_DB.registrarMovimientoConTransaccion(
-                {
-                    clienteId: clienteTransaccion.id,
-                    usuarioId: cuentaPrincipalId!,
-                    tipo: 'fiado',
-                    monto: faltante,
-                    descripcion: descripcionUnificada + (montoDescuentoTotal > 0 ? ` [Dto: -$${montoDescuentoTotal.toLocaleString('es-CO')}]` : ''),
-                    detalles: detallesParaComprobante,
-                    fecha: new Date(),
-                    registradoPor: nombreUsuario,
-                    metodoPago: 'fiado',
-                    descuentoTipo: mostrarDescuento && montoDescuentoTotal > 0 ? tipoDescuento : null,
-                    descuentoValor: mostrarDescuento && montoDescuentoTotal > 0 ? (tipoDescuento === 'porcentaje' ? Number(valorDescuento) : montoDescuentoTotal) : undefined,
-                    montoDescuento: montoDescuentoTotal > 0 ? montoDescuentoTotal : undefined
-                },
-                {
-                    ajustarSaldoCliente: true,
-                    cambioDeuda: faltante
-                }
-            );
-
-            // Descontar inventario consolidado por ID de forma atómica
+            // Consolidar inventario por ID para descuento atómico
             const cantidadesPorProducto: Record<string, number> = {};
             for (const fila of filasValidas) {
                 const item = inventario.find(p => p.nombre.toLowerCase() === fila.descripcion.toLowerCase());
@@ -1004,14 +982,28 @@ function FiarContenido() {
                     cantidadesPorProducto[item.id] = (cantidadesPorProducto[item.id] || 0) + fila.cantidad;
                 }
             }
+            const itemsInventario = Object.entries(cantidadesPorProducto).map(([productoId, cantidad]) => ({
+                productoId,
+                cantidad
+            }));
 
-            if (Object.keys(cantidadesPorProducto).length > 0) {
-                const batch = writeBatch(db);
-                for (const [pId, cant] of Object.entries(cantidadesPorProducto)) {
-                    batch.update(doc(db, "inventario", pId), { stock: increment(-cant) });
-                }
-                await batch.commit();
-            }
+            // Ejecución Unificada en una sola Transacción Atómica de Firestore (Fiado + Stock + Deuda)
+            const resFiado = await API_DB.ejecutarVentaCompletaAtomo({
+                usuarioId: cuentaPrincipalId!,
+                clienteId: clienteTransaccion.id,
+                registradoPor: nombreUsuario || 'Vendedor',
+                montoVentaReal: 0,
+                descripcionVenta: '',
+                detalles: detallesParaComprobante,
+                metodoPago: 'fiado',
+                fiarFaltante: true,
+                montoFiado: faltante,
+                descripcionFiado: descripcionUnificada + (montoDescuentoTotal > 0 ? ` [Dto: -$${montoDescuentoTotal.toLocaleString('es-CO')}]` : ''),
+                itemsInventario,
+                descuentoTipo: mostrarDescuento && montoDescuentoTotal > 0 ? tipoDescuento : null,
+                descuentoValor: mostrarDescuento && montoDescuentoTotal > 0 ? (tipoDescuento === 'porcentaje' ? Number(valorDescuento) : montoDescuentoTotal) : undefined,
+                montoDescuento: montoDescuentoTotal > 0 ? montoDescuentoTotal : undefined
+            });
 
             const saldoFinal = resFiado.nuevoSaldoCliente !== undefined ? resFiado.nuevoSaldoCliente : ((clienteTransaccion.deudaTotal || 0) + faltante);
             const clienteFinalActualizado = { ...clienteTransaccion, deudaTotal: saldoFinal };
@@ -1037,7 +1029,7 @@ function FiarContenido() {
                 descuentoValor: mostrarDescuento && montoDescuentoTotal > 0 ? (tipoDescuento === 'porcentaje' ? Number(valorDescuento) : montoDescuentoTotal) : undefined,
                 montoDescuento: montoDescuentoTotal > 0 ? montoDescuentoTotal : undefined,
                 saldoNuevo: saldoFinal,
-                idTransaccion: resFiado.movimientoId,
+                idTransaccion: resFiado.movimientoFiadoId || '',
                 metodoPago: 'fiado' as const
             };
 

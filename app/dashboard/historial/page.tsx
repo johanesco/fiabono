@@ -86,7 +86,11 @@ export default function HistorialPage() {
       
       if (clienteActivo) {
          try {
-           const qM = query(collection(db, "movimientos"), where("clienteId", "==", clienteActivo.id));
+           const qM = query(
+             collection(db, "movimientos"),
+             where("usuarioId", "==", uid),
+             where("clienteId", "==", clienteActivo.id)
+           );
            const snapM = await getDocs(qM);
            const movs: any[] = [];
            snapM.forEach(doc => movs.push({ id: doc.id, ...doc.data() }));
@@ -175,7 +179,11 @@ export default function HistorialPage() {
     if (cliente) {
       setClienteActivo(cliente);
       try {
-        const qM = query(collection(db, "movimientos"), where("clienteId", "==", clienteId));
+        const qM = query(
+          collection(db, "movimientos"),
+          where("usuarioId", "==", cuentaPrincipalId),
+          where("clienteId", "==", clienteId)
+        );
         const snapM = await getDocs(qM);
         const movs: any[] = [];
         snapM.forEach(doc => movs.push({ id: doc.id, ...doc.data() }));
@@ -191,7 +199,11 @@ export default function HistorialPage() {
 
       // Cargar separes asociados a este cliente
       try {
-        const qS = query(collection(db, "separes"), where("clienteId", "==", clienteId));
+        const qS = query(
+          collection(db, "separes"),
+          where("usuarioId", "==", cuentaPrincipalId),
+          where("clienteId", "==", clienteId)
+        );
         const snapS = await getDocs(qS);
         const listaS: any[] = [];
         snapS.forEach(doc => listaS.push({ id: doc.id, ...doc.data() }));
