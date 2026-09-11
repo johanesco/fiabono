@@ -481,6 +481,13 @@ export default function LandingPage() {
               <span className="hidden xl:inline">Iniciar Sesión</span>
               <span className="xl:hidden">Entrar</span>
             </button>
+            <button
+              type="button"
+              onClick={() => { setMenuMovilAbierto(false); document.getElementById('planes')?.scrollIntoView({ behavior: 'smooth' }); }}
+              className="xl:hidden text-xs sm:text-sm font-black text-emerald-700 dark:text-emerald-400 hover:text-emerald-800 dark:hover:text-emerald-300 transition-colors px-1.5 sm:px-3 py-1.5 sm:py-2 cursor-pointer whitespace-nowrap"
+            >
+              Planes
+            </button>
             <button 
               type="button" 
               onClick={() => { setMenuMovilAbierto(false); abrirRegistroConPlan('gratis'); }} 
