@@ -229,7 +229,17 @@ export default function LandingPage() {
 
       // Verificar si ya existe el usuario en Firestore
       const userDocRef = doc(db, "usuarios", user.uid);
-      const userDocSnap = await getDoc(userDocRef);
+      let userDocSnap;
+      try {
+        userDocSnap = await getDoc(userDocRef);
+      } catch (error: any) {
+        console.error("Google autenticó al usuario, pero Firestore no respondió:", error);
+        setAuthErrores(p => ({
+          ...p,
+          general: `Google autenticó tu cuenta, pero no se pudo consultar tu perfil en Fiabono (${error.message || error.code || 'Error de base de datos'}). Intenta de nuevo en unos minutos.`
+        }));
+        return;
+      }
 
       if (!userDocSnap.exists()) {
         // Usuario nuevo con Google: abrir modal de bienvenida y configuración de negocio

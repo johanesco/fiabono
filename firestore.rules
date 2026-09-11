@@ -29,6 +29,14 @@ service cloud.firestore {
       return (u != null && u.rol == 'cajero' && u.adminId != null) ? u.adminId : request.auth.uid;
     }
 
+    // Permite que un colaborador cargue los datos del negocio al iniciar sesión.
+    function esColaboradorDe(userId) {
+      return estaAutenticado()
+        && exists(/databases/$(database)/documents/usuarios/$(request.auth.uid))
+        && get(/databases/$(database)/documents/usuarios/$(request.auth.uid)).data.rol == 'cajero'
+        && get(/databases/$(database)/documents/usuarios/$(request.auth.uid)).data.adminId == userId;
+    }
+
     // Verifica si el recurso pertenece al tenant/negocio del usuario actual
     function perteneceAlNegocio(docData) {
       return estaAutenticado() && (
@@ -49,6 +57,7 @@ service cloud.firestore {
       allow get: if estaAutenticado() && (
         request.auth.uid == userId ||
         resource.data.adminId == request.auth.uid ||
+        esColaboradorDe(userId) ||
         esMaster()
       );
       allow list: if estaAutenticado() && (
