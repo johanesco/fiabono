@@ -22,19 +22,37 @@ const obtenerLogoYNegocio = async (id: string) => {
     if (comprobante?.usuarioId) {
       const usuario = await db.collection('usuarios').doc(comprobante.usuarioId).get();
       let datos = usuario.data();
+      // usuarioIdBranding es el uid al que pertenece el logo (el admin del
+      // negocio, no el cajero que hizo la venta).
+      let usuarioIdBranding = comprobante.usuarioId;
       if (datos?.rol === 'cajero' && datos.adminId) {
         const adminSnap = await db.collection('usuarios').doc(datos.adminId).get();
-        if (adminSnap.exists) datos = adminSnap.data();
+        if (adminSnap.exists) {
+          datos = adminSnap.data();
+          usuarioIdBranding = datos?.adminId ?? usuarioIdBranding;
+        }
       }
+
+      // Si el logo esta en Storage, usamos el proxy /api/logo-negocio para
+      // que la imagen se sirva desde nuestro propio dominio (mismo motivo
+      // que en /api/negocio-publico: evitar bloqueos de CORS). Usamos el
+      // dominio del propio deployment (VERCEL_URL) para que esto funcione
+      // igual en Preview (fiabono-dev-qa) que en Produccion (fiabono.com).
+      const baseUrl = process.env.VERCEL_URL
+        ? `https://${process.env.VERCEL_URL}`
+        : 'https://fiabono.com';
+
+      const logoNegocio = typeof datos?.logoUrl === 'string' && datos.logoUrl.trim()
+        ? `${baseUrl}/api/logo-negocio/${usuarioIdBranding}`
+        : typeof datos?.logoNegocio === 'string' && datos.logoNegocio.trim()
+          ? datos.logoNegocio.trim()
+          : typeof datos?.logo === 'string' && datos.logo.trim()
+            ? datos.logo.trim()
+            : null;
+
       return {
         nombreNegocio: datos?.nombreNegocio || 'Comprobante digital',
-        logoNegocio: typeof datos?.logoUrl === 'string' && datos.logoUrl.trim()
-          ? datos.logoUrl.trim()
-          : typeof datos?.logoNegocio === 'string' && datos.logoNegocio.trim()
-            ? datos.logoNegocio.trim()
-            : typeof datos?.logo === 'string' && datos.logo.trim()
-              ? datos.logo.trim()
-              : null,
+        logoNegocio,
       };
     }
   } catch (error) {
