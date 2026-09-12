@@ -31,7 +31,7 @@ const obtenerLogoYNegocio = async (id: string) => {
         logoNegocio: typeof datos?.logoUrl === 'string' && datos.logoUrl.trim()
           ? datos.logoUrl.trim()
           : typeof datos?.logoNegocio === 'string' && datos.logoNegocio.trim()
-            ? datos.logoUrl.trim()
+            ? datos.logoNegocio.trim()
             : typeof datos?.logo === 'string' && datos.logo.trim()
               ? datos.logo.trim()
               : null,

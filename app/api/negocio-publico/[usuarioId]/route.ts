@@ -6,6 +6,10 @@
 import { NextResponse } from 'next/server';
 import { getAdminDb } from '@/lib/firebase-admin';
 
+// Evita que Vercel almacene en cache una respuesta antigua (por ejemplo,
+// antes de que el negocio subiera su logo a Storage).
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
 
 export async function GET(
   _request: Request,
@@ -43,7 +47,7 @@ export async function GET(
     const logoNegocio = typeof u.logoUrl === 'string' && u.logoUrl.trim()
       ? u.logoUrl.trim()
       : typeof u.logoNegocio === 'string' && u.logoNegocio.trim()
-        ? u.logoUrl.trim()
+        ? u.logoNegocio.trim()
         : typeof u.logo === 'string' && u.logo.trim()
           ? u.logo.trim()
           : '/logo-verde-linea-blanca-grande.png';
