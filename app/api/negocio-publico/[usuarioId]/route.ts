@@ -44,8 +44,12 @@ export async function GET(
 
     // IMPORTANTE: Solo se exponen campos visuales del comprobante.
     // Correo, uid, plan, planVence, etc. NUNCA salen de este endpoint.
+    //
+    // Si el logo esta en Firebase Storage (logoUrl), lo servimos a traves de
+    // /api/logo-negocio para evitar el bloqueo de CORS que hace el navegador
+    // al usar <img crossOrigin="anonymous"> directo contra Storage.
     const logoNegocio = typeof u.logoUrl === 'string' && u.logoUrl.trim()
-      ? u.logoUrl.trim()
+      ? `/api/logo-negocio/${usuarioId}`
       : typeof u.logoNegocio === 'string' && u.logoNegocio.trim()
         ? u.logoNegocio.trim()
         : typeof u.logo === 'string' && u.logo.trim()
