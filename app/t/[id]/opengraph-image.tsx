@@ -75,7 +75,7 @@ const obtenerLogoYNegocio = async (id: string) => {
 
 export default async function OpenGraphImage({ params }: Props) {
   const { id } = await params;
-  const { nombreNegocio, logoUrl } = await obtenerLogoYNegocio(id);
+  const { logoUrl } = await obtenerLogoYNegocio(id);
 
   // logoUrl puede ya venir en Base64 (campo antiguo "logoNegocio"), en cuyo
   // caso se usa directo; si es una URL de Storage, se descarga aqui.
@@ -87,6 +87,10 @@ export default async function OpenGraphImage({ params }: Props) {
     logo = await obtenerLogoFallbackComoDataUri();
   }
 
+  // Solo se muestra el logo del negocio, centrado y lo mas grande posible
+  // dentro del lienzo (sin nombre ni textos adicionales), para que WhatsApp
+  // aproveche la mayor cantidad de pixeles reales del logo al recortar su
+  // miniatura y se vea lo menos pixelado posible.
   return new ImageResponse(
     (
       <div
@@ -96,41 +100,16 @@ export default async function OpenGraphImage({ params }: Props) {
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          background: '#f1f5f9',
-          color: '#0f172a',
-          fontFamily: 'sans-serif',
+          background: '#ffffff',
         }}
       >
-        <div
-          style={{
-            width: 1040,
-            height: 470,
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            justifyContent: 'center',
-            background: '#ffffff',
-            border: '2px solid #dbe4ea',
-            borderRadius: 28,
-          }}
-        >
-          <img
-            src={logo}
-            alt=""
-            width={180}
-            height={120}
-            style={{ objectFit: 'contain', marginBottom: 24 }}
-          />
-          <div style={{ display: 'flex', fontSize: 42, fontWeight: 800 }}>
-            {nombreNegocio}
-          </div>
-          <div style={{ display: 'flex', marginTop: 18, fontSize: 24, color: '#059669' }}>
-            Comprobante digital verificado
-          </div>
-          <div style={{ display: 'flex', marginTop: 34, fontSize: 20, color: '#64748b' }}>
-            Emitido mediante Fiabono.com
-          </div>
-        </div>
+        <img
+          src={logo}
+          alt=""
+          width={size.height}
+          height={size.height}
+          style={{ objectFit: 'contain' }}
+        />
       </div>
     ),
     size,
