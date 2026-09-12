@@ -1,4 +1,5 @@
 import { ImageResponse } from 'next/og';
+import { headers } from 'next/headers';
 import { getAdminDb } from '@/lib/firebase-admin';
 
 export const runtime = 'nodejs';
@@ -11,7 +12,7 @@ type Props = {
   params: Promise<{ id: string }>;
 };
 
-const obtenerLogoYNegocio = async (id: string) => {
+const obtenerLogoYNegocio = async (id: string, baseUrl: string) => {
   try {
     const db = getAdminDb();
     const movimiento = await db.collection('movimientos').doc(id).get();
@@ -36,12 +37,9 @@ const obtenerLogoYNegocio = async (id: string) => {
       // Si el logo esta en Storage, usamos el proxy /api/logo-negocio para
       // que la imagen se sirva desde nuestro propio dominio (mismo motivo
       // que en /api/negocio-publico: evitar bloqueos de CORS). Usamos el
-      // dominio del propio deployment (VERCEL_URL) para que esto funcione
-      // igual en Preview (fiabono-dev-qa) que en Produccion (fiabono.com).
-      const baseUrl = process.env.VERCEL_URL
-        ? `https://${process.env.VERCEL_URL}`
-        : 'https://fiabono.com';
-
+      // host real de la peticion (no VERCEL_URL, que apunta al dominio
+      // interno del deployment y puede fallar al hacer fetch desde el
+      // propio servidor).
       const logoNegocio = typeof datos?.logoUrl === 'string' && datos.logoUrl.trim()
         ? `${baseUrl}/api/logo-negocio/${usuarioIdBranding}`
         : typeof datos?.logoNegocio === 'string' && datos.logoNegocio.trim()
@@ -64,8 +62,11 @@ const obtenerLogoYNegocio = async (id: string) => {
 
 export default async function OpenGraphImage({ params }: Props) {
   const { id } = await params;
-  const { nombreNegocio, logoNegocio } = await obtenerLogoYNegocio(id);
-  const logoFallback = new URL('/logo-verde-linea-blanca-grande.png', 'https://fiabono.com').toString();
+  const encabezados = await headers();
+  const host = encabezados.get('host') || 'fiabono.com';
+  const baseUrl = `https://${host}`;
+  const { nombreNegocio, logoNegocio } = await obtenerLogoYNegocio(id, baseUrl);
+  const logoFallback = new URL('/logo-verde-linea-blanca-grande.png', baseUrl).toString();
   const logo = logoNegocio || logoFallback;
 
   return new ImageResponse(
