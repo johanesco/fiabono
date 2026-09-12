@@ -167,7 +167,7 @@ export default function PaginaTicketPublico() {
             nombreNegocio: datos.nombreNegocio || "Mi Negocio",
             telefonoNegocio: datos.telefonoNegocio || "",
             correoNegocio: "", // El email NO se expone en comprobantes públicos
-            logoNegocio: datos.logoNegocio || null,
+            logoNegocio: datos.logoNegocio || '/logo-verde-linea-blanca-grande.png',
             nitNegocio: datos.nitNegocio || "",
             direccionNegocio: datos.direccionNegocio || "",
             mensajePieTicket: datos.mensajePieTicket || "¡Gracias por su compra!",

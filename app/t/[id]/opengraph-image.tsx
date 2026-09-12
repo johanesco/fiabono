@@ -21,7 +21,11 @@ const obtenerLogoYNegocio = async (id: string) => {
 
     if (comprobante?.usuarioId) {
       const usuario = await db.collection('usuarios').doc(comprobante.usuarioId).get();
-      const datos = usuario.data();
+      let datos = usuario.data();
+      if (datos?.rol === 'cajero' && datos.adminId) {
+        const adminSnap = await db.collection('usuarios').doc(datos.adminId).get();
+        if (adminSnap.exists) datos = adminSnap.data();
+      }
       return {
         nombreNegocio: datos?.nombreNegocio || 'Comprobante digital',
         logoNegocio: datos?.logoNegocio || null,

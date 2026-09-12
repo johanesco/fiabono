@@ -24,18 +24,26 @@ export async function GET(
     if (!docSnap.exists) {
       return NextResponse.json({
         nombreNegocio: 'Comprobante de Venta',
+        logoNegocio: '/logo-verde-linea-blanca-grande.png',
         mensajePieTicket: 'Gracias por su preferencia!',
       });
     }
 
-    const u = docSnap.data()!;
+    let u = docSnap.data()!;
+
+    // Las transacciones de un colaborador pueden guardar su UID; el branding
+    // siempre pertenece a la cuenta principal del negocio.
+    if (u.rol === 'cajero' && u.adminId) {
+      const adminSnap = await db.collection('usuarios').doc(u.adminId).get();
+      if (adminSnap.exists) u = adminSnap.data()!;
+    }
 
     // IMPORTANTE: Solo se exponen campos visuales del comprobante.
     // Correo, uid, plan, planVence, etc. NUNCA salen de este endpoint.
     return NextResponse.json({
       nombreNegocio: u.nombreNegocio || 'Mi Negocio',
       telefonoNegocio: u.telefonoNegocio || '',
-      logoNegocio: u.logoNegocio || null,
+      logoNegocio: u.logoNegocio || '/logo-verde-linea-blanca-grande.png',
       nitNegocio: u.nitNegocio || '',
       direccionNegocio: u.direccionNegocio || '',
       mensajePieTicket: u.mensajePieTicket || 'Gracias por su compra!',
