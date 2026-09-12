@@ -148,7 +148,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       <aside 
         onMouseEnter={() => setHoverSidebar(true)}
         onMouseLeave={() => setHoverSidebar(false)}
-        className={`hidden md:flex flex-col bg-white dark:bg-[#0f172a] border-r border-slate-200 dark:border-slate-800 transition-all duration-300 z-40 shrink-0 shadow-sm ${estaExpandido ? 'w-64' : 'w-20'}`}
+        className={`hidden lg:flex flex-col bg-white dark:bg-[#0f172a] border-r border-slate-200 dark:border-slate-800 transition-all duration-300 z-40 shrink-0 shadow-sm ${estaExpandido ? 'w-64' : 'w-20'}`}
       >
         <div className={`p-4 flex items-center border-b border-slate-100 dark:border-slate-800/60 ${!estaExpandido ? 'justify-center flex-col gap-2' : 'justify-between'}`}>
           {estaExpandido ? (
@@ -309,7 +309,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       </aside>
 
       {/* CONTENEDOR PRINCIPAL */}
-      <main className="flex-1 flex flex-col h-full relative p-0 md:p-4 lg:p-6 pb-16 md:pb-0 overflow-hidden">
+      <main className="flex-1 flex flex-col h-full relative p-0 md:p-4 lg:p-6 pb-16 lg:pb-0 overflow-hidden">
         <GlobalExpirationWarning />
         <GlobalAnnouncements />
         {/* Desplazamiento fluido sin solapamiento con BottomNav */}
@@ -318,7 +318,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         </div>
 
         {/* Barra de navegación inferior móvil */}
-        <div className="md:hidden">
+        <div className="lg:hidden">
           <BottomNav 
             puedeVerReportes={puedeVerReportes} 
             esAdmin={esAdmin}
