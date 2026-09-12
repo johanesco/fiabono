@@ -216,7 +216,7 @@ export default function PerfilPage() {
     if (usuarioAuth) {
       try {
         const logoBlob = await fetch(logoBase64).then(response => response.blob());
-        const logoRef = ref(storage, `logos/${usuarioAuth.uid}.png`);
+        const logoRef = ref(storage, `logos/${usuarioAuth.uid}`);
         await uploadBytes(logoRef, logoBlob, { contentType: logoBlob.type || 'image/png' });
         const logoUrl = await getDownloadURL(logoRef);
         await updateDoc(doc(db, "usuarios", usuarioAuth.uid), { logoNegocio: logoBase64, logoUrl });
