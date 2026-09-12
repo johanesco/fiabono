@@ -4,6 +4,8 @@ import { collection, getDocs, query, doc, updateDoc, where, setDoc, deleteDoc } 
 import { signOut, updatePassword, EmailAuthProvider, reauthenticateWithCredential, getAuth, createUserWithEmailAndPassword } from "firebase/auth";
 import { getApps, initializeApp } from "firebase/app";
 import { db, auth } from "../../../firebase";
+import { storage } from "../../../firebase";
+import { getDownloadURL, ref, uploadBytes } from "firebase/storage";
 import { UserCog, LogOut, Sun, Monitor, Moon, Edit2, Mail, ShieldAlert, CheckCircle2, AlertCircle, Star, Lock, UserPlus, ChevronUp, ChevronDown, ChevronRight, AlertTriangle, Trash2, Info, X, Clock, Upload, Image as ImageIcon, Building2, MapPin, Receipt, PhoneCall, Camera, Smartphone, ArrowUpFromLine, MoreHorizontal, Download, Crown, Store, Sparkles, Bookmark } from 'lucide-react';
 import ModalHorarios from '@/components/ModalHorarios';
 import { useAuth } from "../../../hooks/AuthContext";
@@ -213,9 +215,11 @@ export default function PerfilPage() {
     setImagenParaAjustar(null);
     if (usuarioAuth) {
       try {
-        await updateDoc(doc(db, "usuarios", usuarioAuth.uid), { 
-          logoNegocio: logoBase64 
-        });
+        const logoBlob = await fetch(logoBase64).then(response => response.blob());
+        const logoRef = ref(storage, `logos/${usuarioAuth.uid}.png`);
+        await uploadBytes(logoRef, logoBlob, { contentType: logoBlob.type || 'image/png' });
+        const logoUrl = await getDownloadURL(logoRef);
+        await updateDoc(doc(db, "usuarios", usuarioAuth.uid), { logoNegocio: logoBase64, logoUrl });
         setDatosSesion((prev: any) => ({
           ...prev, 
           logoNegocio: logoBase64

@@ -28,9 +28,9 @@ const obtenerLogoYNegocio = async (id: string) => {
       }
       return {
         nombreNegocio: datos?.nombreNegocio || 'Comprobante digital',
-        logoNegocio: typeof datos?.logoNegocio === 'string' && datos.logoNegocio.trim()
-          ? datos.logoNegocio.trim()
-          : typeof datos?.logoUrl === 'string' && datos.logoUrl.trim()
+        logoNegocio: typeof datos?.logoUrl === 'string' && datos.logoUrl.trim()
+          ? datos.logoUrl.trim()
+          : typeof datos?.logoNegocio === 'string' && datos.logoNegocio.trim()
             ? datos.logoUrl.trim()
             : typeof datos?.logo === 'string' && datos.logo.trim()
               ? datos.logo.trim()

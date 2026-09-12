@@ -40,9 +40,9 @@ export async function GET(
 
     // IMPORTANTE: Solo se exponen campos visuales del comprobante.
     // Correo, uid, plan, planVence, etc. NUNCA salen de este endpoint.
-    const logoNegocio = typeof u.logoNegocio === 'string' && u.logoNegocio.trim()
-      ? u.logoNegocio.trim()
-      : typeof u.logoUrl === 'string' && u.logoUrl.trim()
+    const logoNegocio = typeof u.logoUrl === 'string' && u.logoUrl.trim()
+      ? u.logoUrl.trim()
+      : typeof u.logoNegocio === 'string' && u.logoNegocio.trim()
         ? u.logoUrl.trim()
         : typeof u.logo === 'string' && u.logo.trim()
           ? u.logo.trim()
