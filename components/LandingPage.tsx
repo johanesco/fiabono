@@ -308,7 +308,8 @@ export default function LandingPage() {
       provider.setCustomParameters({ prompt: 'select_account' });
       await setPersistence(auth, browserLocalPersistence);
       const esMovilOTablet = typeof window !== 'undefined' && /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
-      if (esMovilOTablet) {
+      const esIOS = typeof window !== 'undefined' && /iPhone|iPad|iPod/i.test(navigator.userAgent);
+      if (esMovilOTablet && !esIOS) {
         await signInWithRedirect(auth, provider);
         return;
       }

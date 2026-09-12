@@ -179,6 +179,7 @@ export default function PaginaTicketPublico() {
     }
     return {
       nombreNegocio: "Comprobante de Venta",
+      logoNegocio: "/logo-verde-linea-blanca-grande.png",
       mensajePieTicket: "¡Gracias por su preferencia!"
     };
   };
