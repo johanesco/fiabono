@@ -40,10 +40,18 @@ export async function GET(
 
     // IMPORTANTE: Solo se exponen campos visuales del comprobante.
     // Correo, uid, plan, planVence, etc. NUNCA salen de este endpoint.
+    const logoNegocio = typeof u.logoNegocio === 'string' && u.logoNegocio.trim()
+      ? u.logoNegocio.trim()
+      : typeof u.logoUrl === 'string' && u.logoUrl.trim()
+        ? u.logoUrl.trim()
+        : typeof u.logo === 'string' && u.logo.trim()
+          ? u.logo.trim()
+          : '/logo-verde-linea-blanca-grande.png';
+
     return NextResponse.json({
       nombreNegocio: u.nombreNegocio || 'Mi Negocio',
       telefonoNegocio: u.telefonoNegocio || '',
-      logoNegocio: u.logoNegocio || '/logo-verde-linea-blanca-grande.png',
+      logoNegocio,
       nitNegocio: u.nitNegocio || '',
       direccionNegocio: u.direccionNegocio || '',
       mensajePieTicket: u.mensajePieTicket || 'Gracias por su compra!',
