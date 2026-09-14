@@ -1290,17 +1290,17 @@ Estamos atentos para cualquier consulta.
                 </button>
             </div>
 
-            {/* CUERPO PRINCIPAL (Scroll continuo en móvil, 2 columnas en Desktop) */}
-            <div 
-                ref={contenedorScrollRef}
-                onScroll={handleScrollContenedor}
-                className="flex flex-col lg:flex-row flex-1 min-h-0 overflow-y-auto lg:overflow-hidden pb-40 lg:pb-0 relative"
-            >
-
-                {/* COLUMNA IZQUIERDA: ARTÍCULOS A FIAR */}
-                <div className="flex-1 flex flex-col bg-slate-50/60 dark:bg-[#020617]/50 lg:min-h-0 lg:overflow-hidden shrink-0">
-
-                    <div ref={scrollArticulosRef} className="p-3 sm:p-5 lg:p-6 xl:p-8 space-y-3 sm:space-y-4 lg:flex-1 lg:overflow-y-auto min-h-0">
+                {/* CUERPO PRINCIPAL (Flujo vertical amplio en Móviles y Tablets Verticales, 2 columnas en Escritorio/Horizontal) */}
+                <div 
+                    ref={contenedorScrollRef}
+                    onScroll={handleScrollContenedor}
+                    className="flex flex-col lg:flex-row flex-1 min-h-0 overflow-y-auto lg:overflow-hidden pb-24 md:pb-4 lg:pb-0 relative"
+                >
+                    
+                    {/* COLUMNA IZQUIERDA: ARTÍCULOS O CONCEPTOS */}
+                    <div className="flex-1 flex flex-col bg-slate-50/60 dark:bg-[#020617]/50 lg:min-h-0 lg:overflow-hidden shrink-0">
+                        
+                        <div ref={scrollArticulosRef} className="p-3 sm:p-4 md:p-5 lg:p-6 xl:p-8 space-y-3 sm:space-y-4 lg:flex-1 lg:overflow-y-auto min-h-0">
                         <div className="max-w-4xl mx-auto space-y-3 sm:space-y-4">
                             <h4 className="font-bold text-slate-400 uppercase text-[10px] md:text-xs tracking-wider">Artículos a Fiar</h4>
 
@@ -1587,10 +1587,10 @@ Estamos atentos para cualquier consulta.
                     </div>
                 </div>
 
-                {/* COLUMNA DERECHA: CLIENTE + FORMA DE PAGO + TOTAL FIJO */}
+                {/* COLUMNA DERECHA / SECCIÓN INFERIOR: CLIENTE + TOTAL */}
                 <div className="w-full lg:w-[360px] xl:w-[380px] bg-white dark:bg-[#0f172a] lg:border-l border-slate-200 dark:border-slate-800 flex flex-col shrink-0 lg:min-h-0 lg:overflow-hidden">
 
-                    <div className="p-3 lg:p-3.5 flex flex-col gap-2.5 lg:flex-1 lg:overflow-y-auto">
+                    <div className="p-3 sm:p-5 lg:p-3.5 flex flex-col gap-3 lg:flex-1 lg:overflow-y-auto max-w-4xl lg:max-w-none mx-auto w-full">
 
                         {/* CLIENTE (OBLIGATORIO) */}
                         <div className={`flex flex-col bg-slate-50 dark:bg-[#020617] p-2.5 rounded-xl border transition-colors ${!clienteTransaccion ? 'border-rose-300 dark:border-rose-800/80 bg-rose-50/20' : 'border-slate-200 dark:border-slate-800/80'}`}>
@@ -1663,7 +1663,7 @@ Estamos atentos para cualquier consulta.
 
                     </div>
 
-                    {/* FOOTER FIJO EN LA PARTE INFERIOR DE LA COLUMNA DERECHA (DESKTOP) */}
+                    {/* FOOTER FIJO EN SIDEBAR (SOLO DESKTOP / PANTALLA ANCHA >= 1024px) */}
                     <div className="hidden lg:flex flex-col bg-slate-900 dark:bg-black text-white px-4 py-3.5 shrink-0 border-t border-slate-800 z-30">
                         {montoDescuentoTotal > 0 && (
                             <div className="text-[10px] text-slate-400 mb-2 space-y-0.5 border-b border-slate-800 pb-2">
@@ -1689,8 +1689,30 @@ Estamos atentos para cualquier consulta.
                 </div>
             </div>
 
-            {/* BARRA FLOTANTE MÓVIL SUSPENDIDA */}
-            <div className="lg:hidden fixed bottom-floating-bar left-3 right-3 sm:left-4 sm:right-4 max-w-lg mx-auto bg-white/95 dark:bg-[#0f172a]/95 backdrop-blur-xl border border-slate-200/90 dark:border-slate-800/90 p-2.5 sm:p-3 rounded-2xl sm:rounded-3xl shadow-[0_10px_25px_-5px_rgba(0,0,0,0.15)] dark:shadow-[0_10px_25px_-5px_rgba(0,0,0,0.6)] z-40 flex items-center justify-between gap-3">
+            {/* BARRA INFERIOR DOCKED EN TABLETS VERTICALES (768px - 1023px) - EVITA ESPACIOS VACÍOS Y ANCLA AL BORDE INFERIOR */}
+            <div className="hidden md:flex lg:hidden bg-slate-900 dark:bg-black text-white px-5 sm:px-6 py-3.5 shrink-0 border-t border-slate-800 z-30 items-center justify-between gap-4">
+                <div className="flex items-center gap-3 sm:gap-4 min-w-0">
+                    <div className="flex flex-col">
+                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Monto a Fiar</span>
+                        <span className="text-2xl sm:text-3xl font-black text-rose-400 leading-none">${totalFilasRegistro.toLocaleString('es-CO')}</span>
+                    </div>
+                    {montoDescuentoTotal > 0 && (
+                        <span className="text-[11px] font-bold text-rose-400 bg-rose-950/80 border border-rose-800/60 px-2 py-1 rounded-lg truncate">
+                            -${montoDescuentoTotal.toLocaleString('es-CO')} Dto
+                        </span>
+                    )}
+                </div>
+
+                <button 
+                    onClick={procesarRegistro} 
+                    className={`min-w-[190px] sm:min-w-[240px] ${puedeVentaDirecta ? 'bg-rose-600 hover:bg-rose-700' : 'bg-amber-500 hover:bg-amber-600'} active:scale-95 text-white font-black text-base py-3 px-5 rounded-xl shadow-lg flex justify-center items-center gap-2 transition-all cursor-pointer`}
+                >
+                    <span>{puedeVentaDirecta ? 'Fiar' : 'Enviar Orden'}</span> {puedeVentaDirecta ? <CheckCircle2 size={19}/> : <Receipt size={19}/>}
+                </button>
+            </div>
+
+            {/* BARRA FLOTANTE MÓVIL SUSPENDIDA (SOLO PARA CELULARES PEQUEÑOS < 768px) */}
+            <div className="md:hidden fixed bottom-floating-bar left-3 right-3 sm:left-4 sm:right-4 max-w-lg mx-auto bg-white/95 dark:bg-[#0f172a]/95 backdrop-blur-xl border border-slate-200/90 dark:border-slate-800/90 p-2.5 sm:p-3 rounded-2xl sm:rounded-3xl shadow-[0_10px_25px_-5px_rgba(0,0,0,0.15)] dark:shadow-[0_10px_25px_-5px_rgba(0,0,0,0.6)] z-40 flex items-center justify-between gap-3">
                 <div className="flex flex-col min-w-0 shrink pl-1">
                     {montoDescuentoTotal > 0 && (
                         <div className="text-[9px] text-slate-500 dark:text-slate-400 leading-tight space-y-0.5 mb-0.5">

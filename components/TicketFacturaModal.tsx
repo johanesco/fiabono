@@ -489,29 +489,137 @@ Estamos atentos para cualquier consulta.
             height: auto !important;
             overflow: visible !important;
           }
-          /* Ocultar header y footer del modal en la impresión */
-          .ticket-print-hide {
+          /* Ocultar cualquier barra de desplazamiento en la impresión */
+          ::-webkit-scrollbar {
             display: none !important;
+            width: 0 !important;
+            height: 0 !important;
+          }
+          * {
+            scrollbar-width: none !important;
+          }
+          /* Ocultar header y footer del modal en la impresión */
+          .ticket-print-hide,
+          .ticket-print-hide * {
+            display: none !important;
+            opacity: 0 !important;
+            visibility: hidden !important;
+            height: 0 !important;
+            width: 0 !important;
+            overflow: hidden !important;
           }
           #seccion-ticket-impresion {
             display: block !important;
             visibility: visible !important;
-            position: absolute !important;
-            left: 0 !important;
-            top: 0 !important;
-            width: 100% !important;
-            max-width: 80mm !important;
-            margin: 0 auto !important;
-            padding: 2mm 3mm !important;
+            opacity: 1 !important;
+            position: static !important;
+            left: auto !important;
+            top: auto !important;
+            width: 76mm !important;
+            max-width: 76mm !important;
+            margin: 0 !important;
+            padding: 0 !important;
             background: #ffffff !important;
             color: #000000 !important;
-            font-size: 11px !important;
-            line-height: 1.25 !important;
+            font-size: 12px !important;
+            line-height: 1.35 !important;
+            font-weight: 700 !important;
+            letter-spacing: 0.01em !important;
+            text-rendering: geometricPrecision !important;
+            -webkit-font-smoothing: antialiased !important;
             box-shadow: none !important;
             border: none !important;
+            border-radius: 0 !important;
+            overflow: visible !important;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+            color-adjust: exact !important;
           }
           #seccion-ticket-impresion * {
             visibility: visible !important;
+            opacity: 1 !important;
+            color: #000000 !important;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+            color-adjust: exact !important;
+            text-shadow: none !important;
+          }
+          /* Rounded corners: eliminar en impresión */
+          #seccion-ticket-impresion,
+          #seccion-ticket-impresion .rounded-2xl,
+          #seccion-ticket-impresion .rounded-lg,
+          #seccion-ticket-impresion .rounded {
+            border-radius: 0 !important;
+          }
+          /* Logo grande: respetar tamaño en impresión */
+          #seccion-ticket-impresion img {
+            max-height: 22mm !important;
+            width: auto !important;
+            object-fit: contain !important;
+          }
+          /* Bloque total: en pantalla es negro con texto blanco, pero en impresora térmica
+             un bloque totalmente negro borra el texto blanco por sangrado del cabezal térmico.
+             En impresión lo convertimos en un recuadro de borde negro grueso con texto negro limpio. */
+          #seccion-ticket-impresion .bg-slate-900 {
+            background-color: #ffffff !important;
+            color: #000000 !important;
+            border: 2px solid #000000 !important;
+            box-shadow: none !important;
+          }
+          #seccion-ticket-impresion .bg-slate-900 * {
+            color: #000000 !important;
+            font-weight: 900 !important;
+          }
+          /* Textos pequeños: subir al mínimo legible en térmica */
+          #seccion-ticket-impresion .text-\[7px\],
+          #seccion-ticket-impresion .text-\[7\.5px\],
+          #seccion-ticket-impresion .text-\[8px\],
+          #seccion-ticket-impresion .text-\[8\.5px\],
+          #seccion-ticket-impresion .text-\[9px\],
+          #seccion-ticket-impresion .text-\[9\.5px\] {
+            font-size: 10px !important;
+          }
+          #seccion-ticket-impresion .text-\[10px\],
+          #seccion-ticket-impresion .text-\[10\.5px\],
+          #seccion-ticket-impresion .text-\[11px\] {
+            font-size: 11.5px !important;
+          }
+          #seccion-ticket-impresion .text-sm {
+            font-size: 12.5px !important;
+          }
+          #seccion-ticket-impresion .text-base {
+            font-size: 14px !important;
+          }
+          #seccion-ticket-impresion h1 {
+            font-size: 16px !important;
+            font-weight: 900 !important;
+            letter-spacing: 0.05em !important;
+          }
+          /* BLINDAJE MONOCROMÁTICO: Las impresoras térmicas NO tienen tinta gris.
+             Cualquier color gris (#444, #666, slate-400) se imprime como un entramado de puntos (semitonos)
+             que hace ver el texto borroso o transparente. Forzamos NEGRO PURO #000000 en TODO el texto. */
+          #seccion-ticket-impresion,
+          #seccion-ticket-impresion *,
+          #seccion-ticket-impresion span,
+          #seccion-ticket-impresion p,
+          #seccion-ticket-impresion div,
+          #seccion-ticket-impresion .text-slate-400,
+          #seccion-ticket-impresion .text-slate-500,
+          #seccion-ticket-impresion .text-slate-600,
+          #seccion-ticket-impresion .text-slate-700,
+          #seccion-ticket-impresion .text-slate-800,
+          #seccion-ticket-impresion .text-slate-900,
+          #seccion-ticket-impresion .text-emerald-700,
+          #seccion-ticket-impresion .text-rose-700,
+          #seccion-ticket-impresion .font-black {
+            color: #000000 !important;
+          }
+          /* Líneas y bordes: 100% negros para nitidez total */
+          #seccion-ticket-impresion .border-slate-200,
+          #seccion-ticket-impresion .border-slate-300,
+          #seccion-ticket-impresion .border-slate-400,
+          #seccion-ticket-impresion .border-slate-800 {
+            border-color: #000000 !important;
           }
           @page {
             margin: 0;

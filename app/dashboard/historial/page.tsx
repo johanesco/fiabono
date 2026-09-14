@@ -667,7 +667,20 @@ Quedamos pendientes para revisar detalles o responder cualquier duda.
                 <div className="flex items-center gap-3">
                   <div>
                     <h3 className="text-2xl font-black">{clienteActivo.nombre}</h3>
-                    <p className="text-slate-400 text-sm">{clienteActivo.celular || "Sin celular registrado"}</p>
+                    <div className="flex items-center gap-2 mt-0.5">
+                      <p className="text-slate-400 text-sm">{clienteActivo.celular || "Sin celular registrado"}</p>
+                      {clienteActivo.celular && datosSesion?.rol !== 'cajero' && (
+                        <button
+                          type="button"
+                          onClick={() => abrirWhatsApp(generarTextoComprobante('estado', clienteActivo), clienteActivo.celular)}
+                          title="Enviar WhatsApp al cliente"
+                          className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-400 font-bold text-[11px] transition cursor-pointer border border-emerald-500/30 active:scale-95"
+                        >
+                          <MessageCircle size={12} className="text-[#25D366] fill-[#25D366]/30" />
+                          <span>WhatsApp</span>
+                        </button>
+                      )}
+                    </div>
                   </div>
                   {datosSesion?.rol !== 'cajero' && (
                     <div className="flex items-center gap-1.5 ml-2">
@@ -709,38 +722,40 @@ Quedamos pendientes para revisar detalles o responder cualquier duda.
                 })()}
               </div>
 
-              {/* BARRA DE ACCIONES RÁPIDAS Y WHATSAPP (SOLO ESCRITORIO) */}
-              <div className="hidden md:flex items-center justify-between gap-3 px-6 py-3.5 bg-slate-50 dark:bg-[#020617] border-b border-slate-200 dark:border-slate-800 shrink-0">
-                <div className="flex items-center gap-2">
+              {/* BARRA DE ACCIONES RÁPIDAS Y WHATSAPP (SOLO ESCRITORIO / TABLET) */}
+              <div className="hidden md:flex flex-col xl:flex-row xl:items-center xl:justify-between gap-2.5 px-6 py-3 bg-slate-50 dark:bg-[#020617] border-b border-slate-200 dark:border-slate-800 shrink-0">
+                <div className="grid grid-cols-4 gap-2 w-full xl:w-auto xl:flex xl:items-center">
                   <button 
                     type="button"
                     onClick={() => router.push(`/dashboard/vender?clienteId=${clienteActivo.id}`)} 
-                    className="px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-white font-black rounded-xl text-xs uppercase shadow-xs transition active:scale-95 cursor-pointer text-center"
+                    className="px-3 sm:px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-white font-black rounded-xl text-xs uppercase shadow-xs transition active:scale-95 cursor-pointer text-center"
                   >
                     Vender
                   </button>
                   <button 
                     type="button"
                     onClick={() => router.push(`/dashboard/fiar?clienteId=${clienteActivo.id}`)} 
-                    className="px-4 py-2 bg-rose-500 hover:bg-rose-600 text-white font-black rounded-xl text-xs uppercase shadow-xs transition active:scale-95 cursor-pointer text-center"
+                    className="px-3 sm:px-4 py-2 bg-rose-500 hover:bg-rose-600 text-white font-black rounded-xl text-xs uppercase shadow-xs transition active:scale-95 cursor-pointer text-center"
                   >
                     Fiar
                   </button>
                   <button 
                     type="button"
                     onClick={() => router.push(`/dashboard/abonar?clienteId=${clienteActivo.id}`)} 
-                    className="px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white font-black rounded-xl text-xs uppercase shadow-xs transition active:scale-95 cursor-pointer text-center"
+                    className="px-3 sm:px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white font-black rounded-xl text-xs uppercase shadow-xs transition active:scale-95 cursor-pointer text-center"
                   >
                     Abonar
                   </button>
-                  {puedeSepare && (
+                  {puedeSepare ? (
                     <button 
                       type="button"
                       onClick={() => router.push(`/dashboard/separe?clienteId=${clienteActivo.id}`)} 
-                      className="px-4 py-2 bg-violet-600 hover:bg-violet-700 text-white font-black rounded-xl text-xs uppercase shadow-xs transition active:scale-95 cursor-pointer text-center"
+                      className="px-3 sm:px-4 py-2 bg-violet-600 hover:bg-violet-700 text-white font-black rounded-xl text-xs uppercase shadow-xs transition active:scale-95 cursor-pointer text-center"
                     >
                       Separe
                     </button>
+                  ) : (
+                    <div className="hidden xl:block" />
                   )}
                 </div>
 
@@ -748,9 +763,9 @@ Quedamos pendientes para revisar detalles o responder cualquier duda.
                   <button 
                     type="button"
                     onClick={() => abrirWhatsApp(generarTextoComprobante('estado', clienteActivo), clienteActivo.celular)} 
-                    className="py-2 px-3.5 bg-[#25D366]/15 hover:bg-[#25D366]/25 text-[#128C7E] dark:text-[#25D366] font-black rounded-xl border border-[#25D366]/40 transition active:scale-98 cursor-pointer flex items-center gap-2 text-xs shadow-xs"
+                    className="w-full xl:w-auto py-2 px-4 bg-emerald-50 hover:bg-emerald-100/80 dark:bg-emerald-950/40 dark:hover:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300 font-bold rounded-xl border border-emerald-300/80 dark:border-emerald-700/50 transition active:scale-[0.99] cursor-pointer flex items-center justify-center gap-2 text-xs shadow-xs shrink-0 whitespace-nowrap"
                   >
-                    <MessageCircle size={16} className="text-[#25D366] fill-[#25D366]/30" />
+                    <MessageCircle size={16} className="text-[#25D366] fill-[#25D366]/30 shrink-0" />
                     <span>Enviar estado de cuenta por WhatsApp</span>
                   </button>
                 )}

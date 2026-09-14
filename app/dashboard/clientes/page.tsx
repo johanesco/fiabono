@@ -1511,15 +1511,15 @@ Quedamos pendientes para revisar detalles o responder cualquier duda.
           ========================================================================= */}
       {clienteActivoDetalle && (
         <div 
-          className="lg:hidden fixed inset-0 z-[150] flex items-end justify-center bg-slate-950/70 backdrop-blur-xs animate-in fade-in duration-150 p-0"
+          className="lg:hidden fixed inset-0 z-[150] flex items-end md:items-center justify-center bg-slate-950/70 backdrop-blur-xs animate-in fade-in duration-150 p-0 md:p-6"
           onClick={() => setClienteFicha(null)}
         >
           <div 
-            className="bg-white dark:bg-[#0f172a] w-full rounded-t-[2.5rem] max-h-[90vh] border-t border-slate-200 dark:border-slate-800 shadow-2xl flex flex-col overflow-hidden animate-in slide-in-from-bottom duration-200"
+            className="bg-white dark:bg-[#0f172a] w-full md:max-w-2xl rounded-t-[2.5rem] md:rounded-[2.5rem] max-h-[90vh] md:max-h-[85vh] border-t md:border border-slate-200 dark:border-slate-800 shadow-2xl flex flex-col overflow-hidden animate-in slide-in-from-bottom duration-200"
             onClick={(e) => e.stopPropagation()}
           >
-            {/* Tirador táctil */}
-            <div className="w-12 h-1 bg-slate-300 dark:bg-slate-700 rounded-full mx-auto mt-2.5 shrink-0" />
+            {/* Tirador táctil solo en móvil */}
+            <div className="md:hidden w-12 h-1 bg-slate-300 dark:bg-slate-700 rounded-full mx-auto mt-2.5 shrink-0" />
 
             {/* Ficha idéntica */}
             {renderFichaCliente(clienteActivoDetalle, separesClienteActivo, true)}

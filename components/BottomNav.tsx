@@ -108,23 +108,26 @@ export default function BottomNav({
 
   return (
     <>
-      {/* BARRA INFERIOR MODERNA (DOCK MINIMALISTA) */}
-      <nav className="fixed bottom-0 left-0 right-0 bg-white/95 dark:bg-[#0f172a]/95 backdrop-blur-xl border-t border-slate-200/80 dark:border-slate-800/80 shadow-[0_-10px_40px_rgba(0,0,0,0.06)] dark:shadow-[0_-10px_40px_rgba(0,0,0,0.5)] z-[100] pb-safe transition-all duration-300">
-        <div className="max-w-md mx-auto flex items-center justify-around px-2 py-1">
+      {/* BARRA INFERIOR MODERNA / DOCK CÁPSULA INTELIGENTE (MÓVIL & TABLET VERTICAL) */}
+      <nav className="fixed bottom-0 left-0 right-0 md:bottom-3 md:left-1/2 md:-translate-x-1/2 md:max-w-xl md:w-[92%] bg-white/95 dark:bg-[#0f172a]/95 backdrop-blur-xl border-t md:border border-slate-200/80 dark:border-slate-800/80 md:rounded-2xl shadow-[0_-10px_40px_rgba(0,0,0,0.06)] dark:shadow-[0_-10px_40px_rgba(0,0,0,0.5)] md:shadow-2xl z-[100] pb-safe transition-all duration-300">
+        <div className="w-full flex items-center justify-around px-2 py-1 md:py-1.5">
           
           {/* 1. INICIO */}
           <Link 
             href="/dashboard/inicio" 
-            className={`flex-1 py-1 flex flex-col items-center gap-0.5 transition-all active:scale-90 ${
+            className={`flex-1 py-1 flex flex-col items-center gap-0.5 transition-all active:scale-90 relative ${
               pathname?.includes('/inicio') 
                 ? 'text-blue-600 dark:text-blue-400 font-black' 
                 : 'text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300 font-semibold'
             }`}
           >
-            <div className={`p-1 rounded-xl transition-colors ${pathname?.includes('/inicio') ? 'bg-blue-50 dark:bg-blue-500/10' : ''}`}>
+            <div className={`p-1 md:p-1.5 rounded-xl transition-all ${pathname?.includes('/inicio') ? 'bg-blue-50 dark:bg-blue-500/10 scale-105' : ''}`}>
               <HomeIcon size={19} className={pathname?.includes('/inicio') ? 'stroke-[2.5]' : 'stroke-2'} /> 
             </div>
-            <span className="text-[9.5px] tracking-tight leading-none">Inicio</span>
+            <span className="text-[9.5px] md:text-[10px] tracking-tight leading-none">Inicio</span>
+            {pathname?.includes('/inicio') && (
+              <span className="w-4 h-0.5 bg-blue-600 dark:bg-blue-400 rounded-full mt-0.5 animate-in fade-in zoom-in duration-200"></span>
+            )}
           </Link>
 
           {/* 2. ÓRDENES (Solo si es Admin o si el colaborador tiene órdenes pendientes) */}
@@ -137,7 +140,7 @@ export default function BottomNav({
                   : 'text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300 font-semibold'
               }`}
             >
-              <div className={`relative p-1 rounded-xl transition-colors ${pathname?.includes('/ordenes') ? 'bg-amber-50 dark:bg-amber-500/10' : ''}`}>
+              <div className={`relative p-1 md:p-1.5 rounded-xl transition-all ${pathname?.includes('/ordenes') ? 'bg-amber-50 dark:bg-amber-500/10 scale-105' : ''}`}>
                 <Receipt size={19} className={pathname?.includes('/ordenes') ? 'stroke-[2.5]' : 'stroke-2'} />
                 {ordenesPendientesCount > 0 && (
                   <span className="absolute -top-1 -right-2 min-w-[15px] h-[15px] px-1 bg-rose-500 text-white text-[8.5px] font-black rounded-full flex items-center justify-center shadow-xs animate-pulse">
@@ -145,42 +148,73 @@ export default function BottomNav({
                   </span>
                 )}
               </div>
-              <span className="text-[9.5px] tracking-tight leading-none">Órdenes</span>
+              <span className="text-[9.5px] md:text-[10px] tracking-tight leading-none">Órdenes</span>
+              {pathname?.includes('/ordenes') && (
+                <span className="w-4 h-0.5 bg-amber-600 dark:bg-amber-400 rounded-full mt-0.5 animate-in fade-in zoom-in duration-200"></span>
+              )}
             </Link>
           )}
 
-          {/* 3. HISTORIAL */}
+          {/* 3. PLANES SEPARE (Acceso rápido si el negocio lo tiene activo) */}
+          {puedeGestionarSepares && (
+            <Link 
+              href="/dashboard/separes" 
+              className={`flex-1 py-1 flex flex-col items-center gap-0.5 transition-all active:scale-90 relative ${
+                pathname?.includes('/separe') 
+                  ? 'text-violet-600 dark:text-violet-400 font-black' 
+                  : 'text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300 font-semibold'
+              }`}
+            >
+              <div className={`relative p-1 md:p-1.5 rounded-xl transition-all ${pathname?.includes('/separe') ? 'bg-violet-50 dark:bg-violet-500/10 scale-105' : ''}`}>
+                <Bookmark size={19} className={pathname?.includes('/separe') ? 'stroke-[2.5]' : 'stroke-2'} />
+                {separesActivosCount > 0 && (
+                  <span className="absolute -top-1 -right-2 min-w-[15px] h-[15px] px-1 bg-violet-600 text-white text-[8.5px] font-black rounded-full flex items-center justify-center shadow-xs">
+                    {separesActivosCount}
+                  </span>
+                )}
+              </div>
+              <span className="text-[9.5px] md:text-[10px] tracking-tight leading-none">Separes</span>
+              {pathname?.includes('/separe') && (
+                <span className="w-4 h-0.5 bg-violet-600 dark:bg-violet-400 rounded-full mt-0.5 animate-in fade-in zoom-in duration-200"></span>
+              )}
+            </Link>
+          )}
+
+          {/* 4. HISTORIAL */}
           <Link 
             href="/dashboard/historial" 
-            className={`flex-1 py-1 flex flex-col items-center gap-0.5 transition-all active:scale-90 ${
+            className={`flex-1 py-1 flex flex-col items-center gap-0.5 transition-all active:scale-90 relative ${
               pathname?.includes('/historial') 
                 ? 'text-emerald-600 dark:text-emerald-400 font-black' 
                 : 'text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300 font-semibold'
             }`}
           >
-            <div className={`p-1 rounded-xl transition-colors ${pathname?.includes('/historial') ? 'bg-emerald-50 dark:bg-emerald-500/10' : ''}`}>
+            <div className={`p-1 md:p-1.5 rounded-xl transition-all ${pathname?.includes('/historial') ? 'bg-emerald-50 dark:bg-emerald-500/10 scale-105' : ''}`}>
               <Clock size={19} className={pathname?.includes('/historial') ? 'stroke-[2.5]' : 'stroke-2'} /> 
             </div>
-            <span className="text-[9.5px] tracking-tight leading-none">Historial</span>
+            <span className="text-[9.5px] md:text-[10px] tracking-tight leading-none">Historial</span>
+            {pathname?.includes('/historial') && (
+              <span className="w-4 h-0.5 bg-emerald-600 dark:bg-emerald-400 rounded-full mt-0.5 animate-in fade-in zoom-in duration-200"></span>
+            )}
           </Link>
 
-          {/* 4. MENÚ MÓVIL (DRAWER) */}
+          {/* 5. MENÚ MÓVIL (DRAWER) */}
           <button
             type="button"
             onClick={() => setDrawerAbierto(true)}
-            className={`flex-1 py-1 flex flex-col items-center gap-0.5 transition-all active:scale-90 cursor-pointer ${
+            className={`flex-1 py-1 flex flex-col items-center gap-0.5 transition-all active:scale-90 cursor-pointer relative ${
               esRutaMenuActiva || drawerAbierto
                 ? 'text-slate-900 dark:text-white font-black' 
                 : 'text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300 font-semibold'
             }`}
           >
-            <div className={`relative p-1 rounded-xl transition-colors ${esRutaMenuActiva || drawerAbierto ? 'bg-slate-100 dark:bg-slate-800' : ''}`}>
+            <div className={`relative p-1 md:p-1.5 rounded-xl transition-all ${esRutaMenuActiva || drawerAbierto ? 'bg-slate-100 dark:bg-slate-800 scale-105' : ''}`}>
               <Menu size={19} className={esRutaMenuActiva ? 'stroke-[2.5]' : 'stroke-2'} />
-              {separesActivosCount > 0 && puedeGestionarSepares && (
-                <span className="absolute -top-0.5 -right-1.5 w-2 h-2 bg-violet-600 rounded-full"></span>
-              )}
             </div>
-            <span className="text-[9.5px] tracking-tight leading-none">Menú</span>
+            <span className="text-[9.5px] md:text-[10px] tracking-tight leading-none">Menú</span>
+            {(esRutaMenuActiva || drawerAbierto) && (
+              <span className="w-4 h-0.5 bg-slate-900 dark:bg-white rounded-full mt-0.5 animate-in fade-in zoom-in duration-200"></span>
+            )}
           </button>
 
         </div>

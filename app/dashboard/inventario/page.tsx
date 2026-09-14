@@ -2452,8 +2452,8 @@ export default function InventarioPage() {
         <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
           {esAdmin && (
             <>
-              {/* En Desktop (>= md): Botones directos con labels */}
-              <div className="hidden md:flex items-center gap-1.5">
+              {/* En Desktop (>= lg): Botones directos con labels */}
+              <div className="hidden lg:flex items-center gap-1.5">
                 <button 
                   onClick={() => setModalGestionCategorias(true)} 
                   className="bg-white/20 hover:bg-white/30 px-3 py-2 rounded-xl font-bold text-xs flex items-center gap-1.5 transition-colors backdrop-blur-sm shadow-sm cursor-pointer"
@@ -2524,8 +2524,8 @@ export default function InventarioPage() {
                 </button>
               </div>
 
-              {/* En Móvil (< md): Menú Desplegable de Herramientas */}
-              <div className="relative md:hidden">
+              {/* En Móvil y Tablet Portrait (< lg): Menú Desplegable de Herramientas */}
+              <div className="relative lg:hidden">
                 <button 
                   type="button"
                   onClick={() => setMenuHerramientasMovil(!menuHerramientasMovil)}

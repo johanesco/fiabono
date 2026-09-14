@@ -1015,7 +1015,7 @@ export default function ReportesPage() {
       </div>
 
       {/* BLOQUE 1: CARTERA EN LA CALLE & SALUD DE COBRO */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
         {/* Tarjeta Cartera */}
         <div className="bg-white dark:bg-[#0f172a] p-5 sm:p-7 rounded-[2rem] sm:rounded-[2.5rem] border border-slate-100 dark:border-slate-800/60 shadow-sm flex items-center justify-between relative overflow-hidden">
           <div className="absolute right-0 top-0 bottom-0 w-2 bg-amber-500"></div>
@@ -1048,7 +1048,7 @@ export default function ReportesPage() {
         </div>
 
         {/* Tarjeta Eficiencia de Cobro */}
-        <div className="bg-white dark:bg-[#0f172a] p-5 sm:p-7 rounded-[2rem] sm:rounded-[2.5rem] border border-slate-100 dark:border-slate-800/60 shadow-sm flex items-center justify-between relative overflow-hidden">
+        <div className="bg-white dark:bg-[#0f172a] p-5 sm:p-7 rounded-[2rem] sm:rounded-[2.5rem] border border-slate-100 dark:border-slate-800/60 shadow-sm flex items-center justify-between relative overflow-hidden sm:col-span-2 lg:col-span-1">
           <div className="absolute right-0 top-0 bottom-0 w-2 bg-emerald-500"></div>
           <div className="min-w-0 flex-1 pr-2">
             <span className="text-[10px] sm:text-xs font-extrabold text-slate-400 uppercase tracking-widest block truncate">Salud de Cartera</span>
@@ -1158,7 +1158,7 @@ export default function ReportesPage() {
           </span>
         </div>
 
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
           {/* 1. Efectivo */}
           <div className="p-3 sm:p-4 rounded-2xl bg-slate-50 dark:bg-[#020617] border border-slate-100 dark:border-slate-800/80 flex flex-col justify-between">
             <div className="flex items-center justify-between gap-1 mb-2">

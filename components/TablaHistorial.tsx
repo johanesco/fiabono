@@ -16,12 +16,12 @@ export default function TablaHistorial({ movimientos, getNombreCliente, onRowCli
       <table className="w-full text-left border-collapse">
         <thead>
           <tr className="bg-slate-50 dark:bg-[#020617] border-b border-slate-200 dark:border-slate-800">
-            <th className="py-2.5 px-4 font-black text-slate-500 uppercase text-[11px] tracking-wider">Fecha y Hora</th>
-            <th className="py-2.5 px-4 font-black text-slate-500 uppercase text-[11px] tracking-wider">Cliente / Concepto</th>
-            <th className="py-2.5 px-4 font-black text-slate-500 uppercase text-[11px] tracking-wider">Descripción</th>
-            <th className="py-2.5 px-4 font-black text-slate-500 uppercase text-[11px] tracking-wider">Tipo</th>
-            <th className="py-2.5 px-4 font-black text-slate-500 uppercase text-[11px] tracking-wider text-right">Monto / Unidades</th>
-            <th className="py-2.5 px-4 font-black text-slate-500 uppercase text-[11px] tracking-wider text-center">Factura</th>
+            <th className="py-2.5 px-2.5 sm:px-3 lg:px-4 font-black text-slate-500 uppercase text-[10px] sm:text-[11px] tracking-wider whitespace-nowrap">Fecha y Hora</th>
+            <th className="py-2.5 px-2.5 sm:px-3 lg:px-4 font-black text-slate-500 uppercase text-[10px] sm:text-[11px] tracking-wider">Cliente / Concepto</th>
+            <th className="py-2.5 px-2.5 sm:px-3 lg:px-4 font-black text-slate-500 uppercase text-[10px] sm:text-[11px] tracking-wider">Descripción</th>
+            <th className="py-2.5 px-2.5 sm:px-3 lg:px-4 font-black text-slate-500 uppercase text-[10px] sm:text-[11px] tracking-wider">Tipo</th>
+            <th className="py-2.5 px-2.5 sm:px-3 lg:px-4 font-black text-slate-500 uppercase text-[10px] sm:text-[11px] tracking-wider text-right whitespace-nowrap">Monto</th>
+            <th className="py-2.5 px-2.5 sm:px-3 lg:px-4 font-black text-slate-500 uppercase text-[10px] sm:text-[11px] tracking-wider text-center w-12">Doc</th>
           </tr>
         </thead>
         <tbody>
@@ -42,34 +42,34 @@ export default function TablaHistorial({ movimientos, getNombreCliente, onRowCli
                   esIngresoInv ? 'hover:bg-sky-50/40 dark:hover:bg-sky-950/20' : 'hover:bg-slate-50 dark:hover:bg-[#1e293b]/50'
                 }`}
               >
-                <td className="py-2.5 px-4 text-xs text-slate-500 dark:text-slate-400 whitespace-nowrap">
-                  <div className="flex items-center gap-1.5">
+                <td className="py-2.5 px-2.5 sm:px-3 lg:px-4 text-xs text-slate-500 dark:text-slate-400 whitespace-nowrap">
+                  <div className="flex flex-col sm:flex-row sm:items-center gap-0.5 sm:gap-1.5">
                     <span className="font-bold text-slate-800 dark:text-slate-200">
                       {mov.fecha?.toDate ? mov.fecha.toDate().toLocaleDateString('es-CO') : (mov.fecha instanceof Date ? mov.fecha.toLocaleDateString('es-CO') : '')}
                     </span>
-                    <span className="text-[10.5px] font-semibold text-slate-400">
+                    <span className="text-[10px] sm:text-[10.5px] font-semibold text-slate-400">
                       {mov.fecha?.toDate ? mov.fecha.toDate().toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' }) : (mov.fecha instanceof Date ? mov.fecha.toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' }) : '')}
                     </span>
                   </div>
                   {mov.registradoPor && (
-                    <div className="text-[10px] font-medium text-slate-400/90 truncate max-w-[150px]">
+                    <div className="text-[9.5px] sm:text-[10px] font-medium text-slate-400/90 truncate max-w-[100px] sm:max-w-[140px]">
                       👤 {esIngresoInv ? `Recibido: ${mov.registradoPor}` : mov.registradoPor}
                     </div>
                   )}
                 </td>
-                <td className="py-2.5 px-4 font-bold text-sm text-slate-800 dark:text-slate-200">
+                <td className="py-2.5 px-2.5 sm:px-3 lg:px-4 font-bold text-xs sm:text-sm text-slate-800 dark:text-slate-200">
                   {esIngresoInv ? (
-                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-sky-100 text-sky-800 dark:bg-sky-950/50 dark:text-sky-300 text-[11px] font-black">
-                      📦 Entrada Mercancía
+                    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-lg bg-sky-100 text-sky-800 dark:bg-sky-950/50 dark:text-sky-300 text-[10px] sm:text-[11px] font-black">
+                      📦 Entrada
                     </span>
                   ) : (
-                    <span className="truncate block max-w-[180px] lg:max-w-[240px]">
+                    <span className="truncate block max-w-[100px] sm:max-w-[140px] lg:max-w-[220px]">
                       {getNombreCliente(mov.clienteId, mov.tipo)}
                     </span>
                   )}
                 </td>
-                <td className="py-2.5 px-4 text-xs text-slate-600 dark:text-slate-300">
-                  <div className="truncate max-w-[200px] xl:max-w-[320px]">
+                <td className="py-2.5 px-2.5 sm:px-3 lg:px-4 text-xs text-slate-600 dark:text-slate-300">
+                  <div className="truncate max-w-[100px] sm:max-w-[150px] xl:max-w-[300px]">
                     {esIngresoInv ? (
                       <span className="font-semibold text-slate-800 dark:text-slate-200">
                         {(mov as any).nombreProducto || 'Recepción de Mercancía'}
@@ -77,8 +77,8 @@ export default function TablaHistorial({ movimientos, getNombreCliente, onRowCli
                     ) : mov.descripcion}
                   </div>
                 </td>
-                <td className="py-2.5 px-4">
-                  <span className={`px-2 py-0.5 rounded-md text-[10.5px] font-black uppercase ${
+                <td className="py-2.5 px-2.5 sm:px-3 lg:px-4 whitespace-nowrap">
+                  <span className={`px-1.5 sm:px-2 py-0.5 rounded-md text-[9.5px] sm:text-[10.5px] font-black uppercase ${
                     esIngresoInv ? 'bg-sky-100 text-sky-700 dark:bg-sky-950/40 dark:text-sky-300' :
                     mov.tipo === 'egreso' ? 'bg-amber-100 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300' :
                     mov.tipo === 'entrega_separe' ? 'bg-purple-100 text-purple-700 dark:bg-purple-950/40 dark:text-purple-300' :
@@ -86,13 +86,13 @@ export default function TablaHistorial({ movimientos, getNombreCliente, onRowCli
                     mov.tipo === 'fiado' ? 'bg-rose-100 text-rose-600 dark:bg-rose-950/40 dark:text-rose-300' : 
                     mov.tipo === 'venta' ? 'bg-emerald-100 text-emerald-600 dark:bg-emerald-950/40 dark:text-emerald-300' : 'bg-blue-100 text-blue-600 dark:bg-blue-950/40 dark:text-blue-300'
                   }`}>
-                    {esIngresoInv ? '📦 INVENTARIO' :
+                    {esIngresoInv ? '📦 INV' :
                      mov.tipo === 'egreso' ? 'EGRESO' :
                      mov.tipo === 'entrega_separe' ? 'ENTREGA' :
                      (mov.separeId || mov.descripcion?.toLowerCase().includes('separe') ? '✦ SEPARE' : mov.tipo)}
                   </span>
                 </td>
-                <td className={`py-2.5 px-4 font-black text-right text-sm lg:text-base ${
+                <td className={`py-2.5 px-2.5 sm:px-3 lg:px-4 font-black text-right text-xs sm:text-sm lg:text-base whitespace-nowrap ${
                   esIngresoInv ? 'text-sky-600 dark:text-sky-400' :
                   mov.tipo === 'egreso' ? 'text-amber-600 dark:text-amber-400' :
                   mov.tipo === 'fiado' ? 'text-rose-500' : 
@@ -102,7 +102,7 @@ export default function TablaHistorial({ movimientos, getNombreCliente, onRowCli
                 }`}>
                   {esIngresoInv ? `+${(mov as any).cantidadAgregada || 1} un.` : `${mov.tipo === 'fiado' || mov.tipo === 'egreso' ? '-' : '+'}$${mov.monto.toLocaleString('es-CO')}`}
                 </td>
-                <td className="py-2.5 px-4 text-center" onClick={(e) => e.stopPropagation()}>
+                <td className="py-2.5 px-2.5 sm:px-3 lg:px-4 text-center w-12" onClick={(e) => e.stopPropagation()}>
                   {!esIngresoInv && onImprimir ? (
                     <button
                       type="button"

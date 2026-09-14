@@ -309,7 +309,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       </aside>
 
       {/* CONTENEDOR PRINCIPAL */}
-      <main className="flex-1 flex flex-col h-full relative p-0 md:p-4 lg:p-6 pb-16 lg:pb-0 overflow-hidden">
+      <main className="flex-1 flex flex-col h-full relative p-0 md:p-3 lg:p-6 pb-16 md:pb-24 lg:pb-0 overflow-hidden">
         <GlobalExpirationWarning />
         <GlobalAnnouncements />
         {/* Desplazamiento fluido sin solapamiento con BottomNav */}
