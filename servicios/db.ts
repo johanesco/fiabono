@@ -405,6 +405,14 @@ export const API_DB = {
       }
 
       const separeData = separeSnap.data() as any;
+
+      if (separeData.estado === 'cancelado') {
+        throw new Error("No se pueden registrar abonos a un Plan Separe cancelado.");
+      }
+      if (separeData.estado === 'completado') {
+        throw new Error("Este Plan Separe ya se encuentra completamente pagado y entregado.");
+      }
+
       const saldoActual = Number(separeData.saldoPendiente || 0);
       const montoPagadoActual = Number(separeData.montoPagado || 0);
       const nuevoSaldoPendiente = Math.max(0, saldoActual - params.montoAbono);
@@ -548,6 +556,14 @@ export const API_DB = {
       }
 
       const separeData = separeSnap.data() as any;
+
+      if (separeData.estado === 'cancelado') {
+        throw new Error("Este Plan Separe ya fue cancelado previamente.");
+      }
+      if (separeData.estado === 'completado') {
+        throw new Error("Un Plan Separe ya entregado no puede ser cancelado.");
+      }
+
       const montoDevuelto = Number(separeData.montoPagado || 0);
 
       // 2. Marcar separe como cancelado
@@ -615,6 +631,13 @@ export const API_DB = {
       }
 
       const separeData = separeSnap.data() as any;
+
+      if (separeData.estado === 'completado') {
+        throw new Error("Este Plan Separe ya fue entregado y liquidado previamente.");
+      }
+      if (separeData.estado === 'cancelado') {
+        throw new Error("Este Plan Separe se encuentra cancelado y no puede ser entregado.");
+      }
 
       // 1. Crear movimiento de entrega (sin duplicar ingresos de caja)
       const movRef = doc(collection(db, "movimientos"));

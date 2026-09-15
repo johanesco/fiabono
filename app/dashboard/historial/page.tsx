@@ -13,6 +13,7 @@ import { Cliente, Movimiento } from "../../../types";
 import TablaHistorial from "../../../components/TablaHistorial";
 import TicketFacturaModal, { DatosFacturaProps } from "@/components/TicketFacturaModal";
 import ModalGestionCliente from "@/components/ModalGestionCliente";
+import { abrirEnlaceWhatsApp } from "@/utils/whatsapp";
 
 export default function HistorialPage() {
   const [mounted, setMounted] = useState(false);
@@ -305,13 +306,7 @@ Quedamos pendientes para revisar detalles o responder cualquier duda.
   };
 
   const abrirWhatsApp = (texto: string, celular?: string) => {
-    const mensajeLimpio = normalizarMensajeWhatsApp(texto);
-    const celularLimpio = celular ? celular.replace(/\D/g, '') : '';
-    const url = celularLimpio ? `https://wa.me/57${celularLimpio}?text=${encodeURIComponent(mensajeLimpio)}` : `https://wa.me/?text=${encodeURIComponent(mensajeLimpio)}`;
-
-    if (typeof window !== 'undefined') {
-      window.location.href = url;
-    }
+    abrirEnlaceWhatsApp(celular || '', texto);
   };
 
   const directorioFiltrado = clientes.filter(c => 

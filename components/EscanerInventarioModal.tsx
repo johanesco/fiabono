@@ -119,17 +119,39 @@ export default function EscanerInventarioModal({
       const el = document.getElementById(scannerId);
       if (!el) return;
 
-      const html5Qr = new Html5Qrcode(scannerId);
+      const html5Qr = new Html5Qrcode(scannerId, {
+        verbose: false,
+        formatsToSupport: [
+          Html5QrcodeSupportedFormats.QR_CODE,
+          Html5QrcodeSupportedFormats.EAN_13,
+          Html5QrcodeSupportedFormats.EAN_8,
+          Html5QrcodeSupportedFormats.CODE_128,
+          Html5QrcodeSupportedFormats.CODE_39,
+          Html5QrcodeSupportedFormats.UPC_A,
+          Html5QrcodeSupportedFormats.UPC_E,
+          Html5QrcodeSupportedFormats.CODABAR,
+          Html5QrcodeSupportedFormats.ITF
+        ],
+        experimentalFeatures: {
+          useBarCodeDetectorIfSupported: true
+        }
+      });
       html5QrCodeRef.current = html5Qr;
 
       const qrConfig = {
-        fps: 20,
+        fps: 15,
         qrbox: (viewfinderWidth: number, viewfinderHeight: number) => {
-          const edge = Math.min(viewfinderWidth, viewfinderHeight);
-          const size = Math.floor(edge * 0.75);
-          return { width: size, height: size };
+          // Caja amplia y rectangular que permite leer tanto códigos de barras 1D horizontales como QR cuadrados
+          const width = Math.floor(viewfinderWidth * 0.88);
+          const height = Math.floor(Math.min(viewfinderHeight * 0.72, width * 0.65));
+          return { width: Math.max(width, 220), height: Math.max(height, 140) };
         },
-        aspectRatio: 1.0
+        aspectRatio: 1.0,
+        videoConstraints: {
+          facingMode: "environment",
+          width: { min: 640, ideal: 1280, max: 1920 },
+          height: { min: 480, ideal: 720, max: 1080 }
+        }
       };
 
       const onScanSuccess = (decodedText: string) => {
@@ -287,30 +309,21 @@ export default function EscanerInventarioModal({
       }
     }
 
-    // 2. Fallback a Firestore
-    const variantes = [cod, `SKU-${cod}`, `SKU${cod}`, cod.toUpperCase(), codSinPrefijo];
-    for (const v of variantes) {
-      if (!v) continue;
-      let q = query(
-        collection(db, "inventario"),
-        where("usuarioId", "==", cuentaPrincipalId),
-        where("codigoBarras", "==", v)
-      );
-      let snap = await getDocs(q);
-      if (!snap.empty) {
-        const d = snap.docs[0].data();
-        return { id: snap.docs[0].id, ...d };
-      }
-
-      q = query(
-        collection(db, "inventario"),
-        where("usuarioId", "==", cuentaPrincipalId),
-        where("sku", "==", v)
-      );
-      snap = await getDocs(q);
-      if (!snap.empty) {
-        const d = snap.docs[0].data();
-        return { id: snap.docs[0].id, ...d };
+    // 2. Fallback a Firestore solo si el inventario local en memoria estaba vacío
+    if (!inventario || inventario.length === 0) {
+      try {
+        const q = query(
+          collection(db, "inventario"),
+          where("usuarioId", "==", cuentaPrincipalId),
+          where("sku", "==", cod)
+        );
+        const snap = await getDocs(q);
+        if (!snap.empty) {
+          const d = snap.docs[0].data();
+          return { id: snap.docs[0].id, ...d };
+        }
+      } catch (e) {
+        console.error("Error consultando fallback Firestore:", e);
       }
     }
 
@@ -588,7 +601,7 @@ export default function EscanerInventarioModal({
         <div className="flex-1 overflow-y-auto w-full flex flex-col items-center py-1 px-0.5 space-y-2.5 scrollbar-thin scrollbar-thumb-slate-700">
           
           {/* VISOR DE CÁMARA CUADRADO CON BARRIDO LÁSER */}
-          <div className="w-full max-w-[240px] sm:max-w-[270px] relative rounded-2xl overflow-hidden bg-black aspect-square flex items-center justify-center border border-slate-800 shadow-inner shrink-0">
+          <div className="w-full max-w-[320px] sm:max-w-[360px] relative rounded-2xl overflow-hidden bg-black aspect-square flex items-center justify-center border border-slate-800 shadow-inner shrink-0">
             
             <div id="qr-reader-inbound" className="w-full h-full [&_video]:object-cover [&_video]:w-full [&_video]:h-full"></div>
 
@@ -598,7 +611,7 @@ export default function EscanerInventarioModal({
 
             {!errorCamara && (
               <div className="absolute inset-0 pointer-events-none flex items-center justify-center z-20">
-                <div className="w-[72%] h-[72%] border-2 border-dashed border-emerald-400/70 rounded-2xl relative flex items-center justify-center">
+                <div className="w-[88%] h-[68%] border-2 border-dashed border-emerald-400/70 rounded-2xl relative flex items-center justify-center">
                   <div className="absolute -top-1 -left-1 w-4 h-4 border-t-4 border-l-4 border-emerald-400 rounded-tl-md"></div>
                   <div className="absolute -top-1 -right-1 w-4 h-4 border-t-4 border-r-4 border-emerald-400 rounded-tr-md"></div>
                   <div className="absolute -bottom-1 -left-1 w-4 h-4 border-b-4 border-l-4 border-emerald-400 rounded-bl-md"></div>

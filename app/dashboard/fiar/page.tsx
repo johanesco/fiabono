@@ -92,6 +92,8 @@ function FiarContenido() {
         valorDescuento?: string;
     } | null>(null);
     const [modalTicketFactura, setModalTicketFactura] = useState<{ visible: boolean; datos: any | null }>({ visible: false, datos: null });
+    const [guardandoFiado, setGuardandoFiado] = useState(false);
+    const isSubmittingFiadoRef = useRef(false);
 
     const esTerminalMultivendedor: boolean = datosSesion?.esTerminalMultivendedor ?? false;
 
@@ -470,7 +472,12 @@ function FiarContenido() {
 
         const iniciarCamara = async () => {
             try {
-                const html5Qr = new Html5Qrcode(scannerId);
+                const html5Qr = new Html5Qrcode(scannerId, {
+                    verbose: false,
+                    experimentalFeatures: {
+                        useBarCodeDetectorIfSupported: true
+                    }
+                });
                 html5QrCodeRef.current = html5Qr;
 
                 await html5Qr.start(
@@ -478,11 +485,16 @@ function FiarContenido() {
                     {
                         fps: 15,
                         qrbox: (viewfinderWidth, viewfinderHeight) => {
-                            const edge = Math.min(viewfinderWidth, viewfinderHeight);
-                            const size = Math.floor(edge * 0.75);
-                            return { width: size, height: size };
+                            const width = Math.floor(viewfinderWidth * 0.88);
+                            const height = Math.floor(Math.min(viewfinderHeight * 0.72, width * 0.65));
+                            return { width: Math.max(width, 220), height: Math.max(height, 140) };
                         },
-                        aspectRatio: 1.0
+                        aspectRatio: 1.0,
+                        videoConstraints: {
+                            facingMode: "environment",
+                            width: { min: 640, ideal: 1280, max: 1920 },
+                            height: { min: 480, ideal: 720, max: 1080 }
+                        }
                     },
                     (decodedText) => {
                         if (mounted) {
@@ -872,6 +884,10 @@ function FiarContenido() {
             }
         }
 
+        if (isSubmittingFiadoRef.current) return;
+        isSubmittingFiadoRef.current = true;
+        setGuardandoFiado(true);
+
         try {
             await addDoc(collection(db, "ordenes_pendientes"), {
                 tipo: 'fiado',
@@ -904,6 +920,9 @@ function FiarContenido() {
             setValorDescuento('');
         } catch (e) {
             toast.error("Error al enviar la orden. Intenta de nuevo.");
+        } finally {
+            isSubmittingFiadoRef.current = false;
+            setGuardandoFiado(false);
         }
     };
 
@@ -940,26 +959,30 @@ function FiarContenido() {
     };
 
     const ejecutarFiadoFinal = async () => {
-        const filasValidas = filasRegistro.filter(f => parseFloat(f.valor) > 0);
-
-        for (const fila of filasValidas) {
-            const item = inventario.find(p => p.nombre.toLowerCase() === fila.descripcion.toLowerCase());
-            const esInventariable = item && item.tipoProducto !== 'servicio' && item.inventariable !== false;
-            if (esInventariable) {
-                const totalRequerido = filasValidas
-                    .filter(f => f.descripcion.toLowerCase() === fila.descripcion.toLowerCase())
-                    .reduce((sum, f) => sum + f.cantidad, 0);
-
-                if (totalRequerido > (item.stock || 0)) {
-                    toast.error(`¡Sin stock suficiente! Para "${item.nombre}" solicitas ${totalRequerido} pero solo quedan ${item.stock || 0} disponibles.`);
-                    return;
-                }
-            }
-        }
-
-        const faltante = totalFilasRegistro;
+        if (isSubmittingFiadoRef.current) return;
+        isSubmittingFiadoRef.current = true;
+        setGuardandoFiado(true);
 
         try {
+            const filasValidas = filasRegistro.filter(f => parseFloat(f.valor) > 0);
+
+            for (const fila of filasValidas) {
+                const item = inventario.find(p => p.nombre.toLowerCase() === fila.descripcion.toLowerCase());
+                const esInventariable = item && item.tipoProducto !== 'servicio' && item.inventariable !== false;
+                if (esInventariable) {
+                    const totalRequerido = filasValidas
+                        .filter(f => f.descripcion.toLowerCase() === fila.descripcion.toLowerCase())
+                        .reduce((sum, f) => sum + f.cantidad, 0);
+
+                    if (totalRequerido > (item.stock || 0)) {
+                        toast.error(`¡Sin stock suficiente! Para "${item.nombre}" solicitas ${totalRequerido} pero solo quedan ${item.stock || 0} disponibles.`);
+                        return;
+                    }
+                }
+            }
+
+            const faltante = totalFilasRegistro;
+
             let detallesParaComprobante: any[] = [];
             let resumenNombres: string[] = [];
 
@@ -1074,6 +1097,9 @@ function FiarContenido() {
         } catch (error) { 
             console.error(error);
             toast.error("Error al procesar el fiado."); 
+        } finally {
+            isSubmittingFiadoRef.current = false;
+            setGuardandoFiado(false);
         }
     };
 
@@ -1130,7 +1156,7 @@ Estamos atentos para cualquier consulta.
 
 *¡Que tengas un gran dia!*`;
 
-        const celularLimpio = cliente.celular ? cliente.celular.replace(/\D/g, '') : '';
+        const celularLimpio = (cliente?.celular || modalExito?.cliente?.celular || '').toString().replace(/\D/g, '');
         abrirEnlaceWhatsApp(celularLimpio, texto);
     };
 
@@ -1681,8 +1707,12 @@ Estamos atentos para cualquier consulta.
                             <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Monto a Fiar</span>
                             <span className="text-3xl xl:text-4xl font-black text-rose-400 leading-none">${totalFilasRegistro.toLocaleString('es-CO')}</span>
                         </div>
-                        <button onClick={procesarRegistro} className={`w-full ${puedeVentaDirecta ? 'bg-rose-600 hover:bg-rose-700' : 'bg-amber-500 hover:bg-amber-600'} active:scale-95 text-white font-black text-base py-3 rounded-xl shadow-lg flex justify-center items-center gap-2 transition-all cursor-pointer`}>
-                            <span>{puedeVentaDirecta ? 'Fiar' : 'Enviar Orden'}</span> {puedeVentaDirecta ? <CheckCircle2 size={18} /> : <Receipt size={18} />}
+                        <button 
+                            onClick={procesarRegistro} 
+                            disabled={guardandoFiado}
+                            className={`w-full ${puedeVentaDirecta ? 'bg-rose-600 hover:bg-rose-700' : 'bg-amber-500 hover:bg-amber-600'} ${guardandoFiado ? 'opacity-50 cursor-not-allowed' : 'active:scale-95 cursor-pointer'} text-white font-black text-base py-3 rounded-xl shadow-lg flex justify-center items-center gap-2 transition-all`}
+                        >
+                            <span>{guardandoFiado ? "Procesando..." : (puedeVentaDirecta ? 'Fiar' : 'Enviar Orden')}</span> {puedeVentaDirecta ? <CheckCircle2 size={18} /> : <Receipt size={18} />}
                         </button>
                     </div>
 
@@ -1705,9 +1735,10 @@ Estamos atentos para cualquier consulta.
 
                 <button 
                     onClick={procesarRegistro} 
-                    className={`min-w-[190px] sm:min-w-[240px] ${puedeVentaDirecta ? 'bg-rose-600 hover:bg-rose-700' : 'bg-amber-500 hover:bg-amber-600'} active:scale-95 text-white font-black text-base py-3 px-5 rounded-xl shadow-lg flex justify-center items-center gap-2 transition-all cursor-pointer`}
+                    disabled={guardandoFiado}
+                    className={`min-w-[190px] sm:min-w-[240px] ${puedeVentaDirecta ? 'bg-rose-600 hover:bg-rose-700' : 'bg-amber-500 hover:bg-amber-600'} ${guardandoFiado ? 'opacity-50 cursor-not-allowed' : 'active:scale-95 cursor-pointer'} text-white font-black text-base py-3 px-5 rounded-xl shadow-lg flex justify-center items-center gap-2 transition-all`}
                 >
-                    <span>{puedeVentaDirecta ? 'Fiar' : 'Enviar Orden'}</span> {puedeVentaDirecta ? <CheckCircle2 size={19}/> : <Receipt size={19}/>}
+                    <span>{guardandoFiado ? "Procesando..." : (puedeVentaDirecta ? 'Fiar' : 'Enviar Orden')}</span> {puedeVentaDirecta ? <CheckCircle2 size={19}/> : <Receipt size={19}/>}
                 </button>
             </div>
 
@@ -1725,8 +1756,12 @@ Estamos atentos para cualquier consulta.
                         <span className="text-xl sm:text-2xl font-black text-rose-500 truncate max-w-[140px] leading-none">${totalFilasRegistro.toLocaleString('es-CO')}</span>
                     </div>
                 </div>
-                <button onClick={procesarRegistro} className={`flex-1 ${puedeVentaDirecta ? 'bg-rose-600 hover:bg-rose-700' : 'bg-amber-500 hover:bg-amber-600'} active:scale-95 text-white font-black py-3 sm:py-3.5 px-4 rounded-xl sm:rounded-2xl shadow-lg flex items-center justify-center gap-2 text-base sm:text-lg transition-transform`}>
-                    <span>{puedeVentaDirecta ? 'Fiar' : 'Enviar Orden'}</span> {puedeVentaDirecta ? <CheckCircle2 size={18} /> : <Receipt size={18} />}
+                <button 
+                    onClick={procesarRegistro} 
+                    disabled={guardandoFiado}
+                    className={`flex-1 ${puedeVentaDirecta ? 'bg-rose-600 hover:bg-rose-700' : 'bg-amber-500 hover:bg-amber-600'} ${guardandoFiado ? 'opacity-50 cursor-not-allowed' : 'active:scale-95'} text-white font-black py-3 sm:py-3.5 px-4 rounded-xl sm:rounded-2xl shadow-lg flex items-center justify-center gap-2 text-base sm:text-lg transition-transform`}
+                >
+                    <span>{guardandoFiado ? "Procesando..." : (puedeVentaDirecta ? 'Fiar' : 'Enviar Orden')}</span> {puedeVentaDirecta ? <CheckCircle2 size={18} /> : <Receipt size={18} />}
                 </button>
             </div>
 

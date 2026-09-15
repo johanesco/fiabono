@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect, Suspense } from "react";
+import { useState, useEffect, Suspense, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { collection, addDoc, getDocs, query, doc, updateDoc, where, arrayUnion, increment } from "firebase/firestore";
 import { db } from "../../../firebase";
@@ -40,6 +40,9 @@ function AbonarContenido() {
   const [separesCliente, setSeparesCliente] = useState<any[]>([]);
   const [destinoAbono, setDestinoAbono] = useState<'fiado' | 'separe'>('fiado');
   const [separeSeleccionado, setSepareSeleccionado] = useState<any | null>(null);
+
+  const [guardandoAbono, setGuardandoAbono] = useState(false);
+  const isSubmittingAbonoRef = useRef(false);
 
   const [modalNuevoCliente, setModalNuevoCliente] = useState(false);
   const [modalExito, setModalExito] = useState<{ visible: boolean, cliente: any, montoTotal: number, ticketDatos?: any, esSepare?: boolean, saldoRestanteSepare?: number } | null>(null);
@@ -181,14 +184,18 @@ function AbonarContenido() {
     };
     const metodoPagoLabel = labelsMetodos[metodoPago] || 'Efectivo';
 
-    try {
-      // 1. SI ES ABONO A PLAN SEPARE
-      if (destinoAbono === 'separe' && separeSeleccionado) {
-        if (abonoReal > (separeSeleccionado.saldoPendiente || 0)) {
-          toast.error(`El abono no puede superar el saldo pendiente del separe ($${(separeSeleccionado.saldoPendiente || 0).toLocaleString('es-CO')}).`, { duration: 4000 });
-          return;
-        }
+    // 1. SI ES ABONO A PLAN SEPARE
+    if (destinoAbono === 'separe' && separeSeleccionado) {
+      if (abonoReal > (separeSeleccionado.saldoPendiente || 0)) {
+        toast.error(`El abono no puede superar el saldo pendiente del separe ($${(separeSeleccionado.saldoPendiente || 0).toLocaleString('es-CO')}).`, { duration: 4000 });
+        return;
+      }
 
+      if (isSubmittingAbonoRef.current) return;
+      isSubmittingAbonoRef.current = true;
+      setGuardandoAbono(true);
+
+      try {
         // PARCHE P1-TX-02: Abono a Separe atómico con runTransaction
         // Separe y Movimiento se actualizan juntos; si falla uno, no se cobra ni se descuenta.
         const resAbonoSepare = await API_DB.ejecutarAbonoSepareAtomo({
@@ -213,8 +220,7 @@ function AbonarContenido() {
 
         reproducirSonidoExito();
 
-
-        const ticketDatos = {
+        const ticketDatos: any = {
           nombreNegocio: nombreNegocio || "Mi Negocio",
           telefonoNegocio: datosSesion?.telefonoNegocio || "",
           correoNegocio: datosSesion?.correoNegocio || "",
@@ -224,9 +230,9 @@ function AbonarContenido() {
           mensajePieTicket: datosSesion?.mensajePieTicket || "Comprobante de Abono Plan Separe.",
           nombreCliente: clienteTransaccion.nombre,
           celularCliente: clienteTransaccion.celular || "",
-          registradoPor: nombreUsuario || "",
+          registradoPor: nombreUsuario || "Vendedor",
           fecha: new Date(),
-          tipo: 'abono' as const,
+          tipo: 'abono_separe',
           detalles: (separeSeleccionado.items || []).map((it: any) => ({
             descripcion: it.descripcion || "Artículo",
             cantidad: it.cantidad || 1,
@@ -251,24 +257,30 @@ function AbonarContenido() {
           saldoRestanteSepare: nuevoSaldoPendiente
         });
         return;
+      } catch (error) {
+        console.error(error);
+        toast.error("Error al procesar el abono al separe.");
+      } finally {
+        isSubmittingAbonoRef.current = false;
+        setGuardandoAbono(false);
       }
-
-      // 2. SI ES ABONO A DEUDA GENERAL DE FIADOS
-      if (abonoReal > (clienteTransaccion.deudaTotal || 0)) {
-        setModalConfirmacionExceso({ visible: true, abonoReal });
-        return;
-      }
-      
-      await ejecutarAbonoCartera(abonoReal);
-      
-    } catch (error) { 
-      console.error(error);
-      toast.error("Error al procesar el abono."); 
+      return;
     }
+
+    // 2. SI ES ABONO A DEUDA GENERAL DE FIADOS
+    if (abonoReal > (clienteTransaccion.deudaTotal || 0)) {
+      setModalConfirmacionExceso({ visible: true, abonoReal });
+      return;
+    }
+    
+    await ejecutarAbonoCartera(abonoReal);
   };
 
   const ejecutarAbonoCartera = async (abonoReal: number) => {
     if (!clienteTransaccion) return;
+    if (isSubmittingAbonoRef.current) return;
+    isSubmittingAbonoRef.current = true;
+    setGuardandoAbono(true);
 
     try {
       const refPagoCompleta = [subMetodoPago, referenciaPago.trim()].filter(Boolean).join(' — ');
@@ -314,7 +326,7 @@ function AbonarContenido() {
         mensajePieTicket: datosSesion?.mensajePieTicket || "",
         nombreCliente: clienteTransaccion.nombre,
         celularCliente: clienteTransaccion.celular || "",
-        registradoPor: nombreUsuario || "",
+        registradoPor: nombreUsuario || "Vendedor",
         fecha: new Date(),
         tipo: 'abono' as const,
         detalles: [],
@@ -338,6 +350,9 @@ function AbonarContenido() {
     } catch (error) { 
       console.error(error);
       toast.error("Error al guardar abono."); 
+    } finally {
+      isSubmittingAbonoRef.current = false;
+      setGuardandoAbono(false);
     }
   };
 
@@ -350,16 +365,18 @@ function AbonarContenido() {
   };
 
   const abrirWhatsApp = (cliente: any) => {
-    const abonoMonto = parseFloat(montoAbono.replace(/\D/g, '')) || 0;
+    const abonoMonto = modalExito?.montoTotal || (parseFloat(montoAbono.replace(/\D/g, '')) || 0);
     const idTransaccion = modalExito?.ticketDatos?.idTransaccion;
     let enlaceTexto = "";
     if (idTransaccion && typeof window !== 'undefined') {
       enlaceTexto = `\n\n*Ver o descargar comprobante digital:*\n${window.location.origin}/t/${idTransaccion}`;
     }
 
+    const cliNombre = cliente?.nombre || modalExito?.cliente?.nombre || "Cliente";
+
     let texto = "";
     if (modalExito?.esSepare) {
-      texto = `¡Hola, *${cliente.nombre}*! Gracias por tu abono en *${nombreNegocio || 'nuestra tienda'}*.
+      texto = `¡Hola, *${cliNombre}*! Gracias por tu abono en *${nombreNegocio || 'nuestra tienda'}*.
 
 ===================
 *ABONO A PLAN SEPARE*
@@ -374,11 +391,12 @@ Estamos atentos para cualquier consulta.
 
 *¡Que tengas un gran dia!*`;
     } else {
-      const saldoFormat = cliente.deudaTotal < 0 
-        ? `$${Math.abs(cliente.deudaTotal).toLocaleString('es-CO')} a favor` 
-        : `$${cliente.deudaTotal.toLocaleString('es-CO')}`;
+      const deudaFinal = cliente?.deudaTotal ?? modalExito?.cliente?.deudaTotal ?? 0;
+      const saldoFormat = deudaFinal < 0 
+        ? `$${Math.abs(deudaFinal).toLocaleString('es-CO')} a favor` 
+        : `$${deudaFinal.toLocaleString('es-CO')}`;
 
-      texto = `¡Hola, *${cliente.nombre}*! Gracias por tu abono en *${nombreNegocio || 'nuestra tienda'}*.
+      texto = `¡Hola, *${cliNombre}*! Gracias por tu abono en *${nombreNegocio || 'nuestra tienda'}*.
 
 ===================
 *COMPROBANTE DE ABONO*
@@ -394,7 +412,7 @@ Estamos atentos para cualquier consulta.
 *¡Que tengas un gran dia!*`;
     }
 
-    const celularLimpio = cliente.celular ? cliente.celular.replace(/\D/g, '') : '';
+    const celularLimpio = (cliente?.celular || modalExito?.cliente?.celular || '').toString().replace(/\D/g, '');
     abrirEnlaceWhatsApp(celularLimpio, texto);
   };
 
@@ -796,22 +814,53 @@ Estamos atentos para cualquier consulta.
               <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Total a Abonar</span>
               <span className="text-3xl xl:text-4xl font-black text-blue-400 leading-none">${abonoNum.toLocaleString('es-CO')}</span>
             </div>
-            <button onClick={procesarAbono} disabled={!clienteTransaccion || abonoNum <= 0} className={`w-full font-black text-lg py-3.5 rounded-2xl shadow-lg flex justify-center items-center gap-2 transition-all ${(!clienteTransaccion || abonoNum <= 0) ? 'bg-slate-700 text-slate-500 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700 text-white active:scale-95'}`}>
-              <span>Confirmar Abono</span> <CheckCircle2 size={20}/>
+            <button 
+              onClick={procesarAbono} 
+              disabled={guardandoAbono || !clienteTransaccion || abonoNum <= 0} 
+              className={`w-full font-black text-lg py-3.5 rounded-2xl shadow-lg flex justify-center items-center gap-2 transition-all ${(guardandoAbono || !clienteTransaccion || abonoNum <= 0) ? 'bg-slate-700 text-slate-500 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700 text-white active:scale-95 cursor-pointer'}`}
+            >
+              <span>{guardandoAbono ? "Procesando Abono..." : "Confirmar Abono"}</span> <CheckCircle2 size={20}/>
             </button>
           </div>
 
         </div>
       </div>
 
-      {/* BARRA FLOTANTE MÓVIL SUSPENDIDA */}
-      <div className="lg:hidden fixed bottom-[76px] sm:bottom-[84px] left-3 right-3 sm:left-4 sm:right-4 max-w-lg mx-auto bg-white/95 dark:bg-[#0f172a]/95 backdrop-blur-xl border border-slate-200/90 dark:border-slate-800/90 p-3 sm:p-3.5 rounded-2xl sm:rounded-3xl shadow-[0_10px_25px_-5px_rgba(0,0,0,0.15)] dark:shadow-[0_10px_25px_-5px_rgba(0,0,0,0.6)] z-40 flex items-center justify-between gap-3">
+      {/* BARRA INFERIOR DOCKED EN TABLETS VERTICALES (768px - 1023px) - EVITA ESPACIOS VACÍOS Y ANCLA AL BORDE INFERIOR */}
+      <div className="hidden md:flex lg:hidden bg-slate-900 dark:bg-black text-white px-5 sm:px-6 py-3.5 shrink-0 border-t border-slate-800 z-30 items-center justify-between gap-4">
+        <div className="flex items-center gap-3 sm:gap-4 min-w-0">
+          <div className="flex flex-col">
+            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Total a Abonar</span>
+            <span className="text-2xl sm:text-3xl font-black text-blue-400 leading-none">${abonoNum.toLocaleString('es-CO')}</span>
+          </div>
+          {clienteTransaccion && (
+            <span className="text-xs font-bold text-slate-300 bg-slate-800 px-2.5 py-1 rounded-lg truncate max-w-[180px]">
+              {clienteTransaccion.nombre}
+            </span>
+          )}
+        </div>
+
+        <button 
+          onClick={procesarAbono} 
+          disabled={guardandoAbono || !clienteTransaccion || abonoNum <= 0}
+          className={`min-w-[190px] sm:min-w-[240px] bg-blue-600 hover:bg-blue-700 ${(guardandoAbono || !clienteTransaccion || abonoNum <= 0) ? 'opacity-50 cursor-not-allowed' : 'active:scale-95 cursor-pointer'} text-white font-black text-base py-3 px-5 rounded-xl shadow-lg flex justify-center items-center gap-2 transition-all`}
+        >
+          <span>{guardandoAbono ? "Procesando..." : "Confirmar Abono"}</span> <CheckCircle2 size={19}/>
+        </button>
+      </div>
+
+      {/* BARRA FLOTANTE MÓVIL SUSPENDIDA (SOLO PARA CELULARES PEQUEÑOS < 768px) */}
+      <div className="md:hidden fixed bottom-floating-bar left-3 right-3 sm:left-4 sm:right-4 max-w-lg mx-auto bg-white/95 dark:bg-[#0f172a]/95 backdrop-blur-xl border border-slate-200/90 dark:border-slate-800/90 p-2.5 sm:p-3 rounded-2xl sm:rounded-3xl shadow-[0_10px_25px_-5px_rgba(0,0,0,0.15)] dark:shadow-[0_10px_25px_-5px_rgba(0,0,0,0.6)] z-40 flex items-center justify-between gap-3">
         <div className="flex flex-col min-w-0 shrink pl-1">
           <span className="text-[9px] font-black uppercase text-slate-400 tracking-wider">Total a Abonar</span>
           <span className="text-xl sm:text-2xl font-black text-blue-600 dark:text-blue-400 truncate max-w-[140px] leading-none">${abonoNum.toLocaleString('es-CO')}</span>
         </div>
-        <button onClick={procesarAbono} disabled={!clienteTransaccion || abonoNum <= 0} className={`flex-1 rounded-xl sm:rounded-2xl py-3 sm:py-3.5 px-4 font-black text-base sm:text-lg flex justify-center items-center gap-2 shadow-lg transition-all whitespace-nowrap ${(!clienteTransaccion || abonoNum <= 0) ? 'bg-slate-200 text-slate-400 dark:bg-slate-800 dark:text-slate-600 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700 text-white active:scale-95'}`}>
-          <span>Abonar</span> <CheckCircle2 size={18}/>
+        <button 
+          onClick={procesarAbono} 
+          disabled={guardandoAbono || !clienteTransaccion || abonoNum <= 0} 
+          className={`flex-1 rounded-xl sm:rounded-2xl py-3 sm:py-3.5 px-4 font-black text-base sm:text-lg flex justify-center items-center gap-2 shadow-lg transition-all whitespace-nowrap ${(guardandoAbono || !clienteTransaccion || abonoNum <= 0) ? 'bg-slate-200 text-slate-400 dark:bg-slate-800 dark:text-slate-600 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700 text-white active:scale-95'}`}
+        >
+          <span>{guardandoAbono ? "Procesando..." : "Abonar"}</span> <CheckCircle2 size={18}/>
         </button>
       </div>
 
@@ -898,9 +947,10 @@ Estamos atentos para cualquier consulta.
                   ejecutarAbonoCartera(modalConfirmacionExceso.abonoReal);
                   setModalConfirmacionExceso(null);
                 }} 
-                className="bg-amber-500 hover:bg-amber-600 active:scale-95 text-white font-bold py-4 rounded-2xl shadow-lg flex justify-center items-center gap-1.5 text-base transition-all"
+                disabled={guardandoAbono}
+                className={`bg-amber-500 hover:bg-amber-600 ${guardandoAbono ? 'opacity-50 cursor-not-allowed' : 'active:scale-95'} text-white font-bold py-4 rounded-2xl shadow-lg flex justify-center items-center gap-1.5 text-base transition-all`}
               >
-                Confirmar <CheckCircle2 size={18} />
+                <span>{guardandoAbono ? "Procesando..." : "Confirmar"}</span> <CheckCircle2 size={18} />
               </button>
             </div>
           </div>

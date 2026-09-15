@@ -527,6 +527,7 @@ function SepareContenido() {
 
   // Carga y Modales de Éxito / Ticket
   const [guardando, setGuardando] = useState(false);
+  const isSubmittingSepareRef = useRef(false);
   const [modalExito, setModalExito] = useState<{
     visible: boolean;
     separe: any;
@@ -1230,6 +1231,8 @@ function SepareContenido() {
       return;
     }
 
+    if (isSubmittingSepareRef.current) return;
+    isSubmittingSepareRef.current = true;
     setGuardando(true);
     try {
       const todasLasFotos = itemsGuardar.map(i => i.fotoUrl).filter(Boolean);
@@ -1338,12 +1341,12 @@ function SepareContenido() {
 
         const docRefOrden = await addDoc(collection(db, "ordenes_pendientes"), docOrden);
         separeIdFinal = docRefOrden.id;
-        toast.success("¡Plan Separe enviado para aprobación del Administrador! ⏳");
+        toast.success("¡Orden de separe enviada para aprobación! 🏷️");
       }
 
       reproducirSonidoExito();
 
-      // Preparar datos para el Ticket Térmico
+      // Preparar datos para el ticket impreso / digital
       const ticketDatos: DatosFacturaProps = {
         nombreNegocio: nombreNegocio || "Mi Negocio",
         telefonoNegocio: datosSesion?.telefonoNegocio || "",
@@ -1351,17 +1354,17 @@ function SepareContenido() {
         logoNegocio: datosSesion?.logoNegocio || null,
         nitNegocio: datosSesion?.nitNegocio || "",
         direccionNegocio: datosSesion?.direccionNegocio || "",
-        mensajePieTicket: datosSesion?.mensajePieTicket || "Gracias por separar con nosotros.",
+        mensajePieTicket: datosSesion?.mensajePieTicket || "",
         nombreCliente: clienteSeleccionado.nombre,
         celularCliente: clienteSeleccionado.celular || "",
-        registradoPor: nombreUsuario || "Vendedor",
+        registradoPor: vendedorActivo || nombreUsuario || "Vendedor",
         fecha: new Date(),
         tipo: 'separe',
-        detalles: itemsGuardar.map(i => ({
-          descripcion: i.descripcion,
-          valor: (parseFloat(i.valor) || 0) * i.cantidad,
-          cantidad: i.cantidad,
-          valorUnitario: parseFloat(i.valor) || 0
+        detalles: itemsGuardar.map(it => ({
+          descripcion: it.descripcion,
+          cantidad: it.cantidad,
+          valorUnitario: parseFloat(it.valor) || 0,
+          valor: (parseFloat(it.valor) || 0) * it.cantidad
         })),
         descripcionGeneral: `Plan Separe: ${itemsGuardar.map(i => i.descripcion).join(', ')}`,
         montoTotal: totalSepare,
@@ -1420,6 +1423,7 @@ function SepareContenido() {
       console.error("Error al registrar separe:", e);
       toast.error("Error al registrar el plan separe");
     } finally {
+      isSubmittingSepareRef.current = false;
       setGuardando(false);
     }
   };
@@ -1434,20 +1438,27 @@ function SepareContenido() {
 
   // Enviar mensaje de WhatsApp estructurado y limpio
   const enviarWhatsApp = () => {
-    const cli = modalExito?.separe ? { nombre: modalExito.separe.nombreCliente, celular: modalExito.separe.celularCliente } : clienteSeleccionado;
+    const separe = modalExito?.separe;
+    const ticket = modalExito?.ticketDatos;
+    const cli = separe
+      ? { nombre: separe.clienteNombre, celular: separe.clienteCelular }
+      : (ticket ? { nombre: ticket.nombreCliente, celular: ticket.celularCliente } : clienteSeleccionado);
     if (!cli) return;
 
     let itemsTexto = "";
-    const itemsFuente = (modalExito?.separe?.items && modalExito.separe.items.length > 0)
-      ? modalExito.separe.items.map((it: any) => ({ descripcion: it.descripcion, valor: String(it.precio), cantidad: it.cantidad }))
+    const itemsFuente = (separe?.items && separe.items.length > 0)
+      ? separe.items.map((it: any) => ({ descripcion: it.descripcion, valor: String(it.precio || it.valor || 0), cantidad: it.cantidad }))
+      : (ticket?.detalles && ticket.detalles.length > 0)
+      ? ticket.detalles.map((it: any) => ({ descripcion: it.descripcion, valor: String(it.valorUnitario || it.valor || 0), cantidad: it.cantidad }))
       : filas;
 
     itemsFuente
-      .filter((f: any) => f.descripcion.trim() !== "" && (parseFloat(f.valor) || 0) > 0)
+      .filter((f: any) => (f.descripcion || "").trim() !== "" && (parseFloat(f.valor) || 0) > 0)
       .forEach((f: any) => {
         const precio = parseFloat(f.valor) || 0;
-        const subtotal = precio * f.cantidad;
-        itemsTexto += `- ${f.cantidad}x ${f.descripcion.trim()}\n  Precio unitario: *$${precio.toLocaleString('es-CO')}*\n  Total: *$${subtotal.toLocaleString('es-CO')}*\n\n`;
+        const cant = f.cantidad || 1;
+        const subtotal = precio * cant;
+        itemsTexto += `- ${cant}x ${f.descripcion.trim()}\n  Precio unitario: *$${precio.toLocaleString('es-CO')}*\n  Total: *$${subtotal.toLocaleString('es-CO')}*\n\n`;
       });
 
     let texto = `¡Hola, *${cli.nombre}*! Gracias por separar con nosotros en *${nombreNegocio}*.
@@ -1460,26 +1471,45 @@ ${itemsTexto.trim()}
 
 `;
 
-    if (montoDescuento > 0) {
-      const dtoDesc = descuentoTipo === 'porcentaje' ? `${valorDescuentoNum}%` : `$${valorDescuentoNum.toLocaleString('es-CO')}`;
-      texto += `*Subtotal:* $${totalBruto.toLocaleString('es-CO')}\n*Descuento (${dtoDesc}):* -$${montoDescuento.toLocaleString('es-CO')}\n`;
+    const descuentoNum = ticket?.montoDescuento || separe?.montoDescuento || montoDescuento;
+    const brutoNum = ticket?.montoBruto || separe?.totalBruto || totalBruto;
+    if (descuentoNum > 0) {
+      const tipoDto = ticket?.descuentoTipo || separe?.descuentoTipo || descuentoTipo;
+      const valorDto = ticket?.descuentoValor || separe?.descuentoValor || valorDescuentoNum;
+      const dtoDesc = tipoDto === 'porcentaje' ? `${valorDto}%` : `$${Number(valorDto).toLocaleString('es-CO')}`;
+      texto += `*Subtotal:* $${brutoNum.toLocaleString('es-CO')}\n*Descuento (${dtoDesc}):* -$${descuentoNum.toLocaleString('es-CO')}\n`;
     }
 
-    texto += `*TOTAL SEPARE:* *$${totalSepare.toLocaleString('es-CO')}*
-*ABONO INICIAL RECIBIDO:* *$${abonoInicialNum.toLocaleString('es-CO')}*
-*SALDO PENDIENTE:* *$${saldoPendiente.toLocaleString('es-CO')}*`;
+    const totalVal = ticket?.montoTotal ?? separe?.total ?? totalSepare;
+    const abonoVal = ticket?.pagoRecibido ?? separe?.montoPagado ?? abonoInicialNum;
+    const saldoVal = ticket?.saldoNuevo ?? separe?.saldoPendiente ?? saldoPendiente;
 
-    if (fechaLimite) {
-      const fechaObj = new Date(fechaLimite + "T00:00:00");
-      const fechaFmt = fechaObj.toLocaleDateString('es-CO', { day: '2-digit', month: '2-digit', year: 'numeric' });
-      texto += `\n*Fecha limite de pago:* ${fechaFmt}`;
+    texto += `*TOTAL SEPARE:* *$${totalVal.toLocaleString('es-CO')}*
+*ABONO INICIAL RECIBIDO:* *$${abonoVal.toLocaleString('es-CO')}*
+*SALDO PENDIENTE:* *$${saldoVal.toLocaleString('es-CO')}*`;
+
+    const fechaLim = separe?.fechaLimite || fechaLimite;
+    if (fechaLim) {
+      let fechaFmt = "";
+      if (typeof fechaLim === 'string') {
+        const fechaObj = new Date(fechaLim.includes("T") ? fechaLim : (fechaLim + "T00:00:00"));
+        fechaFmt = fechaObj.toLocaleDateString('es-CO', { day: '2-digit', month: '2-digit', year: 'numeric' });
+      } else if (fechaLim.toDate && typeof fechaLim.toDate === 'function') {
+        fechaFmt = fechaLim.toDate().toLocaleDateString('es-CO', { day: '2-digit', month: '2-digit', year: 'numeric' });
+      } else if (fechaLim instanceof Date) {
+        fechaFmt = fechaLim.toLocaleDateString('es-CO', { day: '2-digit', month: '2-digit', year: 'numeric' });
+      }
+      if (fechaFmt) {
+        texto += `\n*Fecha limite de pago:* ${fechaFmt}`;
+      }
     }
 
-    if (notas.trim()) {
-      texto += `\n*Nota:* ${notas.trim()}`;
+    const notasVal = separe?.notas || notas;
+    if (notasVal && notasVal.trim()) {
+      texto += `\n*Nota:* ${notasVal.trim()}`;
     }
 
-    const separeId = modalExito?.ticketDatos?.idTransaccion || modalExito?.separe?.id;
+    const separeId = ticket?.idTransaccion || separe?.id;
     if (separeId && typeof window !== 'undefined') {
       texto += `\n\n*Ver o descargar comprobante digital:*\n${window.location.origin}/t/${separeId}`;
     }
@@ -1489,7 +1519,7 @@ Estamos atentos para cualquier consulta.
 
 *¡Te esperamos pronto!*`;
 
-    const celLimpio = clienteSeleccionado.celular ? clienteSeleccionado.celular.replace(/\D/g, '') : '';
+    const celLimpio = (cli.celular || '').toString().replace(/\D/g, '');
     abrirEnlaceWhatsApp(celLimpio, texto);
   };
 
@@ -2233,23 +2263,51 @@ Estamos atentos para cualquier consulta.
 
       </div>
 
-      {/* BARRA FLOTANTE MÓVIL */}
-      <div className="lg:hidden fixed bottom-floating-bar left-3 right-3 sm:left-4 sm:right-4 max-w-lg mx-auto bg-white/95 dark:bg-[#0f172a]/95 backdrop-blur-xl border border-slate-200/90 dark:border-slate-800/90 p-2.5 rounded-2xl shadow-xl z-40 flex items-center justify-between gap-3">
+      {/* BARRA INFERIOR DOCKED EN TABLETS VERTICALES (768px - 1023px) - EVITA ESPACIOS VACÍOS Y ANCLA AL BORDE INFERIOR */}
+      <div className="hidden md:flex lg:hidden bg-slate-900 dark:bg-black text-white px-5 sm:px-6 py-3.5 shrink-0 border-t border-slate-800 z-30 items-center justify-between gap-4">
+        <div className="flex items-center gap-3 sm:gap-4 min-w-0">
+          <div className="flex flex-col">
+            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Total Separe</span>
+            <span className="text-2xl sm:text-3xl font-black text-violet-400 leading-none">${totalSepare.toLocaleString('es-CO')}</span>
+          </div>
+          {clienteSeleccionado && (
+            <span className="text-xs font-bold text-slate-300 bg-slate-800 px-2.5 py-1 rounded-lg truncate max-w-[180px]">
+              {clienteSeleccionado.nombre}
+            </span>
+          )}
+        </div>
+
+        <button
+          onClick={guardarSepare}
+          disabled={guardando || !clienteSeleccionado || totalSepare <= 0}
+          className={`min-w-[190px] sm:min-w-[240px] bg-violet-600 hover:bg-violet-700 ${
+            guardando || !clienteSeleccionado || totalSepare <= 0
+              ? 'opacity-50 cursor-not-allowed'
+              : 'active:scale-95 cursor-pointer'
+          } text-white font-black text-base py-3 px-5 rounded-xl shadow-lg flex justify-center items-center gap-2 transition-all`}
+        >
+          <span>{guardando ? "Procesando..." : (puedeVentaDirecta ? "Registrar Plan Separe" : "Enviar Orden de Separe")}</span>
+          <CheckCircle2 size={19} />
+        </button>
+      </div>
+
+      {/* BARRA FLOTANTE MÓVIL (SOLO PARA CELULARES PEQUEÑOS < 768px) */}
+      <div className="md:hidden fixed bottom-floating-bar left-3 right-3 sm:left-4 sm:right-4 max-w-lg mx-auto bg-white/95 dark:bg-[#0f172a]/95 backdrop-blur-xl border border-slate-200/90 dark:border-slate-800/90 p-2.5 rounded-2xl shadow-xl z-40 flex items-center justify-between gap-3">
         <div className="flex flex-col min-w-0 shrink pl-1">
           <span className="text-[9px] font-black uppercase text-slate-400 tracking-wider">Total Separe</span>
-          <span className="text-base font-black text-violet-600 truncate">${totalSepare.toLocaleString('es-CO')}</span>
+          <span className="text-base sm:text-lg font-black text-violet-600 dark:text-violet-400 truncate max-w-[140px] leading-none">${totalSepare.toLocaleString('es-CO')}</span>
         </div>
         <button
           onClick={guardarSepare}
           disabled={guardando || !clienteSeleccionado || totalSepare <= 0}
-          className={`flex-1 font-black text-xs py-2.5 px-3 rounded-xl shadow-md flex justify-center items-center gap-1.5 transition-all ${
+          className={`flex-1 font-black text-xs sm:text-sm py-2.5 sm:py-3 px-3 rounded-xl shadow-md flex justify-center items-center gap-1.5 transition-all whitespace-nowrap ${
             guardando || !clienteSeleccionado || totalSepare <= 0
-              ? 'bg-slate-200 text-slate-400 dark:bg-slate-800 dark:text-slate-600'
-              : 'bg-violet-600 text-white active:scale-95'
+              ? 'bg-slate-200 text-slate-400 dark:bg-slate-800 dark:text-slate-600 cursor-not-allowed'
+              : 'bg-violet-600 hover:bg-violet-700 text-white active:scale-95'
           }`}
         >
-          <span>{puedeVentaDirecta ? "Registrar Separe" : "Enviar Orden"}</span>
-          <CheckCircle2 size={15} />
+          <span>{guardando ? "Procesando..." : (puedeVentaDirecta ? "Registrar Separe" : "Enviar Orden")}</span>
+          <CheckCircle2 size={16} />
         </button>
       </div>
 
@@ -2501,15 +2559,15 @@ Estamos atentos para cualquier consulta.
             <div className="p-4 bg-slate-50 dark:bg-slate-900/80 rounded-2xl space-y-1 text-xs text-left font-bold">
               <div className="flex justify-between text-slate-600 dark:text-slate-400">
                 <span>Total Separe:</span>
-                <span className="text-slate-900 dark:text-white">${totalSepare.toLocaleString('es-CO')}</span>
+                <span className="text-slate-900 dark:text-white">${(modalExito.ticketDatos?.montoTotal ?? modalExito.separe?.total ?? totalSepare).toLocaleString('es-CO')}</span>
               </div>
               <div className="flex justify-between text-slate-600 dark:text-slate-400">
                 <span>Abono inicial:</span>
-                <span className="text-emerald-600">${abonoInicialNum.toLocaleString('es-CO')}</span>
+                <span className="text-emerald-600">${(modalExito.ticketDatos?.pagoRecibido ?? modalExito.separe?.montoPagado ?? abonoInicialNum).toLocaleString('es-CO')}</span>
               </div>
               <div className="flex justify-between text-slate-600 dark:text-slate-400 pt-1 border-t border-slate-200 dark:border-slate-800">
                 <span>Saldo pendiente:</span>
-                <span className="text-amber-500">${saldoPendiente.toLocaleString('es-CO')}</span>
+                <span className="text-amber-500">${(modalExito.ticketDatos?.saldoNuevo ?? modalExito.separe?.saldoPendiente ?? saldoPendiente).toLocaleString('es-CO')}</span>
               </div>
             </div>
 

@@ -1021,7 +1021,7 @@ Quedamos pendientes para revisar detalles o responder cualquier duda.
               <button 
                 type="button"
                 onClick={() => router.push(`/dashboard/abonar?clienteId=${cliente.id}`)} 
-                className="py-2.5 px-3 bg-blue-500 hover:bg-blue-600 text-white font-black rounded-xl text-xs uppercase shadow-xs transition active:scale-95 cursor-pointer text-center flex items-center justify-center gap-1.5"
+                className={`py-2.5 px-3 bg-blue-500 hover:bg-blue-600 text-white font-black rounded-xl text-xs uppercase shadow-xs transition active:scale-95 cursor-pointer text-center flex items-center justify-center gap-1.5 ${!puedeSepare ? 'col-span-2' : ''}`}
               >
                 <span>💵 Abonar</span>
               </button>
@@ -1083,7 +1083,7 @@ Quedamos pendientes para revisar detalles o responder cualquier duda.
   };
 
   return (
-    <div className="min-h-screen pb-24 lg:pb-8 pt-1 px-1 sm:px-3 w-full space-y-4">
+    <div className="min-h-screen pb-24 lg:pb-8 pt-1 px-2 sm:px-4 w-full space-y-4">
 
       {/* 1. HEADER COMPACTO Y ELEGANTE */}
       <div className="flex items-center justify-between gap-3 bg-white dark:bg-[#0f172a] p-3.5 sm:p-4 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-xs">

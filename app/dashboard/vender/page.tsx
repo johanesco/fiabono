@@ -10,7 +10,7 @@ import { notificar } from "@/utils/notificaciones";
 import { customConfirm } from "@/utils/customConfirm";
 import { Html5Qrcode } from "html5-qrcode";
 import { API_DB } from "../../../servicios/db";
-import TicketFacturaModal from "@/components/TicketFacturaModal";
+import TicketFacturaModal, { DatosFacturaProps } from "@/components/TicketFacturaModal";
 import { abrirEnlaceWhatsApp } from "@/utils/whatsapp";
 
 export default function VenderPage() {
@@ -108,6 +108,8 @@ function VenderContenido() {
     pagadoNum?: number;
   } | null>(null);
   const [modalTicketFactura, setModalTicketFactura] = useState<{ visible: boolean; datos: any | null }>({ visible: false, datos: null });
+  const [guardandoVenta, setGuardandoVenta] = useState(false);
+  const isSubmittingVentaRef = useRef(false);
 
   const esTerminalMultivendedor: boolean = datosSesion?.esTerminalMultivendedor ?? false;
 
@@ -525,7 +527,12 @@ function VenderContenido() {
 
     const iniciarCamara = async () => {
       try {
-        const html5Qr = new Html5Qrcode(scannerId);
+        const html5Qr = new Html5Qrcode(scannerId, {
+          verbose: false,
+          experimentalFeatures: {
+            useBarCodeDetectorIfSupported: true
+          }
+        });
         html5QrCodeRef.current = html5Qr;
 
         await html5Qr.start(
@@ -533,11 +540,16 @@ function VenderContenido() {
           {
             fps: 15,
             qrbox: (viewfinderWidth, viewfinderHeight) => {
-              const edge = Math.min(viewfinderWidth, viewfinderHeight);
-              const size = Math.floor(edge * 0.75);
-              return { width: size, height: size };
+              const width = Math.floor(viewfinderWidth * 0.88);
+              const height = Math.floor(Math.min(viewfinderHeight * 0.72, width * 0.65));
+              return { width: Math.max(width, 220), height: Math.max(height, 140) };
             },
-            aspectRatio: 1.0
+            aspectRatio: 1.0,
+            videoConstraints: {
+              facingMode: "environment",
+              width: { min: 640, ideal: 1280, max: 1920 },
+              height: { min: 480, ideal: 720, max: 1080 }
+            }
           },
           (decodedText) => {
             if (mounted) {
@@ -933,6 +945,10 @@ function VenderContenido() {
 
     const esFiadoCompleto = pagadoRaw !== "" && pagadoNum === 0;
 
+    if (isSubmittingVentaRef.current) return;
+    isSubmittingVentaRef.current = true;
+    setGuardandoVenta(true);
+
     try {
       await addDoc(collection(db, "ordenes_pendientes"), {
         tipo: esFiadoCompleto ? 'fiado' : 'venta',
@@ -968,6 +984,9 @@ function VenderContenido() {
       setValorDescuento('');
     } catch (e) {
       toast.error("Error al enviar la orden. Intenta de nuevo.");
+    } finally {
+      isSubmittingVentaRef.current = false;
+      setGuardandoVenta(false);
     }
   };
 
@@ -1017,32 +1036,35 @@ function VenderContenido() {
   };
 
   const ejecutarVentaFinal = async () => {
-    const filasValidas = filasRegistro.filter(f => parseFloat(f.valor) > 0);
-    
-    for (const fila of filasValidas) {
-        const item = inventario.find(p => p.nombre.toLowerCase() === fila.descripcion.toLowerCase());
-        const esInventariable = item && item.tipoProducto !== 'servicio' && item.inventariable !== false;
-        if (esInventariable) {
-          const totalRequerido = filasValidas
-            .filter(f => f.descripcion.toLowerCase() === fila.descripcion.toLowerCase())
-            .reduce((sum, f) => sum + f.cantidad, 0);
-
-          if (totalRequerido > (item.stock || 0)) {
-            toast.error(`¡Sin stock suficiente! Para "${item.nombre}" solicitas ${totalRequerido} pero solo quedan ${item.stock || 0} disponibles.`);
-            return;
-          }
-        }
-    }
-
-    const pagadoRaw = pagoCliente.replace(/\D/g, '');
-    const pagadoNum = pagadoRaw === "" ? 0 : parseFloat(pagadoRaw);
-    const saldoVentaActual = Math.max(totalFilasRegistro - pagadoNum, 0);
-    const faltante = totalFilasRegistro - pagadoNum;
-    const fiarFaltante = faltante > 0;
-    const deudaAnteriorPendiente = clienteTransaccion ? Math.max(clienteTransaccion.deudaTotal || 0, 0) : 0;
-    const deudaTotalActual = deudaAnteriorPendiente + saldoVentaActual;
+    if (isSubmittingVentaRef.current) return;
+    isSubmittingVentaRef.current = true;
+    setGuardandoVenta(true);
 
     try {
+      const filasValidas = filasRegistro.filter(f => parseFloat(f.valor) > 0);
+      
+      for (const fila of filasValidas) {
+          const item = inventario.find(p => p.nombre.toLowerCase() === fila.descripcion.toLowerCase());
+          const esInventariable = item && item.tipoProducto !== 'servicio' && item.inventariable !== false;
+          if (esInventariable) {
+            const totalRequerido = filasValidas
+              .filter(f => f.descripcion.toLowerCase() === fila.descripcion.toLowerCase())
+              .reduce((sum, f) => sum + f.cantidad, 0);
+
+            if (totalRequerido > (item.stock || 0)) {
+              toast.error(`¡Sin stock suficiente! Para "${item.nombre}" solicitas ${totalRequerido} pero solo quedan ${item.stock || 0} disponibles.`);
+              return;
+            }
+          }
+      }
+
+      const pagadoRaw = pagoCliente.replace(/\D/g, '');
+      const pagadoNum = pagadoRaw === "" ? 0 : parseFloat(pagadoRaw);
+      const saldoVentaActual = Math.max(totalFilasRegistro - pagadoNum, 0);
+      const faltante = totalFilasRegistro - pagadoNum;
+      const fiarFaltante = faltante > 0;
+      const deudaAnteriorPendiente = clienteTransaccion ? Math.max(clienteTransaccion.deudaTotal || 0, 0) : 0;
+      const deudaTotalActual = deudaAnteriorPendiente + saldoVentaActual;
       let montoAcumulado = 0; 
       let detallesParaComprobante: any[] = []; 
       let resumenNombres: string[] = [];
@@ -1129,7 +1151,8 @@ function VenderContenido() {
       }
 
 
-      const ticketDatos = {
+      // 4. GENERAR OBJETO PARA TICKET MODAL
+      const ticketDatos: DatosFacturaProps = {
         nombreNegocio: nombreNegocio || "Mi Negocio",
         telefonoNegocio: datosSesion?.telefonoNegocio || "",
         correoNegocio: datosSesion?.correoNegocio || "",
@@ -1138,35 +1161,37 @@ function VenderContenido() {
         direccionNegocio: datosSesion?.direccionNegocio || "",
         mensajePieTicket: datosSesion?.mensajePieTicket || "",
         nombreCliente: clienteTransaccion ? clienteTransaccion.nombre : "Venta de Mostrador",
-        celularCliente: clienteTransaccion?.celular || "",
-        registradoPor: nombreUsuario || "",
+        celularCliente: clienteTransaccion ? (clienteTransaccion.celular || "") : "",
+        registradoPor: nombreUsuario || "Vendedor",
         fecha: new Date(),
-        tipo: (fiarFaltante && montoVentaReal === 0 ? 'fiado' : 'venta') as any,
+        tipo: (pagadoRaw !== "" && pagadoNum === 0 && totalFilasRegistro > 0) ? 'fiado' : 'venta',
         detalles: detallesParaComprobante,
         descripcionGeneral: descripcionUnificada,
         montoTotal: totalFilasRegistro,
-        montoBruto: subtotalBruto,
-        descuentoTipo: mostrarDescuento && montoDescuentoTotal > 0 ? tipoDescuento : undefined,
-        descuentoValor: mostrarDescuento && montoDescuentoTotal > 0 ? (tipoDescuento === 'porcentaje' ? Number(valorDescuento) : montoDescuentoTotal) : undefined,
-        montoDescuento: montoDescuentoTotal > 0 ? montoDescuentoTotal : undefined,
-        pagoRecibido: pagadoNum > 0 ? pagadoNum : undefined,
-        devuelta: pagadoNum > totalFilasRegistro ? pagadoNum - totalFilasRegistro : 0,
+        pagoRecibido: pagadoNum,
+        devuelta: Math.max(pagadoNum - totalFilasRegistro, 0),
+        saldoAnterior: clienteTransaccion ? deudaAnteriorPendiente : undefined,
         saldoNuevo: clienteTransaccion ? saldoFinalCliente : undefined,
         idTransaccion: idTransaccionVenta,
-        metodoPago: (fiarFaltante && montoVentaReal === 0 ? 'fiado' : metodoPago) as any,
-        referenciaPago: refPagoCompleta,
+        metodoPago: metodoPago,
+        subMetodoPago: subMetodoPago || undefined,
+        referenciaPago: referenciaPago.trim() || undefined,
         subtotal: subtotalCalculado,
         valorIva: ivaCalculado,
-        porcentajeIva: tasaIvaPorcentaje
+        porcentajeIva: tasaIvaPorcentaje,
+        montoBruto: subtotalBruto,
+        descuentoTipo: mostrarDescuento && montoDescuentoTotal > 0 ? tipoDescuento : null,
+        descuentoValor: mostrarDescuento && montoDescuentoTotal > 0 ? (tipoDescuento === 'porcentaje' ? Number(valorDescuento) : montoDescuentoTotal) : undefined,
+        montoDescuento: montoDescuentoTotal > 0 ? montoDescuentoTotal : undefined
       };
 
       setModalExito({ 
         visible: true, 
-        cliente: clienteFinalActualizado || { nombre: "Cliente Mostrador", celular: "" }, 
-        montoTotal: totalFilasRegistro,
-        devuelta: pagadoNum > totalFilasRegistro ? pagadoNum - totalFilasRegistro : 0, 
+        cliente: clienteFinalActualizado, 
+        montoTotal: totalFilasRegistro, 
+        devuelta: Math.max(pagadoNum - totalFilasRegistro, 0),
         fiadoAdicional: faltante > 0 ? faltante : 0,
-        deudaPrevia: clienteTransaccion ? Math.max(Number(clienteTransaccion.deudaTotal) || 0, 0) : 0,
+        deudaPrevia: deudaAnteriorPendiente,
         ticketDatos,
         filasGuardadas: [...filasRegistro],
         subtotalBruto,
@@ -1209,6 +1234,9 @@ function VenderContenido() {
     } catch (error) { 
       console.error(error);
       toast.error("Error al procesar la venta."); 
+    } finally {
+      isSubmittingVentaRef.current = false;
+      setGuardandoVenta(false);
     }
   };
 
@@ -2096,8 +2124,12 @@ Estamos atentos para cualquier consulta.
                 bgBoton = "bg-amber-500 hover:bg-amber-600";
               }
               return (
-                <button onClick={procesarRegistro} className={`w-full ${bgBoton} active:scale-95 text-white font-black text-base py-3 rounded-xl shadow-lg flex justify-center items-center gap-2 transition-all cursor-pointer`}>
-                  <span>{textoBoton}</span> {puedeVentaDirecta ? <CheckCircle2 size={18}/> : <Receipt size={18}/>}
+                <button 
+                  onClick={procesarRegistro} 
+                  disabled={guardandoVenta}
+                  className={`w-full ${bgBoton} ${guardandoVenta ? 'opacity-50 cursor-not-allowed' : 'active:scale-95 cursor-pointer'} text-white font-black text-base py-3 rounded-xl shadow-lg flex justify-center items-center gap-2 transition-all`}
+                >
+                  <span>{guardandoVenta ? "Procesando..." : textoBoton}</span> {puedeVentaDirecta ? <CheckCircle2 size={18}/> : <Receipt size={18}/>}
                 </button>
               );
             })()}
@@ -2142,9 +2174,10 @@ Estamos atentos para cualquier consulta.
           return (
             <button 
               onClick={procesarRegistro} 
-              className={`min-w-[190px] sm:min-w-[240px] ${bgBoton} active:scale-95 text-white font-black text-base py-3 px-5 rounded-xl shadow-lg flex justify-center items-center gap-2 transition-all cursor-pointer`}
+              disabled={guardandoVenta}
+              className={`min-w-[190px] sm:min-w-[240px] ${bgBoton} ${guardandoVenta ? 'opacity-50 cursor-not-allowed' : 'active:scale-95 cursor-pointer'} text-white font-black text-base py-3 px-5 rounded-xl shadow-lg flex justify-center items-center gap-2 transition-all`}
             >
-              <span>{textoBoton}</span> {puedeVentaDirecta ? <CheckCircle2 size={19}/> : <Receipt size={19}/>}
+              <span>{guardandoVenta ? "Procesando..." : textoBoton}</span> {puedeVentaDirecta ? <CheckCircle2 size={19}/> : <Receipt size={19}/>}
             </button>
           );
         })()}
@@ -2179,8 +2212,12 @@ Estamos atentos para cualquier consulta.
             bgBoton = "bg-amber-500 hover:bg-amber-600";
           }
           return (
-            <button onClick={procesarRegistro} className={`flex-1 ${bgBoton} active:scale-95 text-white font-black py-3 sm:py-3.5 px-4 rounded-xl sm:rounded-2xl shadow-lg flex items-center justify-center gap-2 text-base sm:text-lg transition-transform`}>
-              <span>{textoBoton}</span> {puedeVentaDirecta ? <CheckCircle2 size={18} /> : <Receipt size={18} />}
+            <button 
+              onClick={procesarRegistro} 
+              disabled={guardandoVenta}
+              className={`flex-1 ${bgBoton} ${guardandoVenta ? 'opacity-50 cursor-not-allowed' : 'active:scale-95'} text-white font-black py-3 sm:py-3.5 px-4 rounded-xl sm:rounded-2xl shadow-lg flex items-center justify-center gap-2 text-base sm:text-lg transition-transform`}
+            >
+              <span>{guardandoVenta ? "Procesando..." : textoBoton}</span> {puedeVentaDirecta ? <CheckCircle2 size={18} /> : <Receipt size={18} />}
             </button>
           );
         })()}
@@ -2391,9 +2428,10 @@ Estamos atentos para cualquier consulta.
                       <div className="flex flex-col gap-3">
                         <button 
                           onClick={() => { setModalConfirmarFiado(false); ejecutarVentaFinal(); }} 
-                          className={`w-full ${esCeroPago ? 'bg-rose-600 hover:bg-rose-700' : 'bg-emerald-600 hover:bg-emerald-700'} text-white font-black py-4 rounded-2xl text-lg shadow-lg flex justify-center items-center gap-2 active:scale-95 transition-all`}
+                          disabled={guardandoVenta}
+                          className={`w-full ${esCeroPago ? 'bg-rose-600 hover:bg-rose-700' : 'bg-emerald-600 hover:bg-emerald-700'} ${guardandoVenta ? 'opacity-50 cursor-not-allowed' : 'active:scale-95'} text-white font-black py-4 rounded-2xl text-lg shadow-lg flex justify-center items-center gap-2 transition-all`}
                         >
-                          <span>{esCeroPago ? 'Confirmar Fiado' : 'Confirmar Venta y Fiado'}</span> <CheckCircle2 size={20}/>
+                          <span>{guardandoVenta ? "Procesando..." : (esCeroPago ? 'Confirmar Fiado' : 'Confirmar Venta y Fiado')}</span> <CheckCircle2 size={20}/>
                         </button>
                         <button onClick={() => setModalConfirmarFiado(false)} className="w-full bg-slate-100 dark:bg-[#020617] hover:bg-slate-200 dark:hover:bg-[#1e293b] text-slate-600 dark:text-slate-300 font-bold py-4 rounded-2xl text-lg transition-colors">
                           Corregir pago

@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect, Suspense } from "react";
+import { useState, useEffect, Suspense, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { 
   collection, query, where, onSnapshot, doc, updateDoc, addDoc, getDocs, increment, Timestamp 
@@ -151,6 +151,12 @@ function SeparesContenido() {
   const [notaCancelacion, setNotaCancelacion] = useState("");
   const [procesandoCancelacion, setProcesandoCancelacion] = useState(false);
 
+  // Estados de Entrega y Bloqueos de Concurrencia (Anti Doble-Clic)
+  const [procesandoEntrega, setProcesandoEntrega] = useState(false);
+  const isDeliveringRef = useRef(false);
+  const isAbonandoRef = useRef(false);
+  const isCancelandoRef = useRef(false);
+
   // Modal Ticket / Factura
   const [modalTicketFactura, setModalTicketFactura] = useState<{ visible: boolean; datos: DatosFacturaProps | null }>({
     visible: false,
@@ -276,6 +282,8 @@ function SeparesContenido() {
   // Registrar un Abono en Firestore
   const guardarAbono = async () => {
     if (!separeSeleccionado) return;
+    if (isAbonandoRef.current || procesandoAbono) return;
+
     const monto = Number(montoAbono.replace(/\D/g, ''));
 
     if (!monto || monto <= 0) {
@@ -288,6 +296,7 @@ function SeparesContenido() {
       return;
     }
 
+    isAbonandoRef.current = true;
     setProcesandoAbono(true);
     try {
       const nuevoAbono: any = {
@@ -386,6 +395,7 @@ function SeparesContenido() {
       console.error("Error al registrar abono:", e);
       toast.error("Error al registrar el abono");
     } finally {
+      isAbonandoRef.current = false;
       setProcesandoAbono(false);
     }
   };
@@ -426,11 +436,15 @@ Estamos atentos para cualquier consulta.
   // Completar / Entregar Separe
   const confirmarEntregaSepare = async () => {
     if (!separeSeleccionado) return;
+    if (isDeliveringRef.current || procesandoEntrega) return;
 
     if (!esAdmin && !puedeVentaDirecta) {
       toast.error("Solo el administrador o usuarios con permiso de venta directa pueden confirmar entregas de Plan Separe.");
       return;
     }
+
+    isDeliveringRef.current = true;
+    setProcesandoEntrega(true);
 
     try {
       // PARCHE P1-TX-05: Liquidación y entrega de Separe atómica
@@ -479,9 +493,12 @@ Estamos atentos para cualquier consulta.
         ticketDatos: ticketEntregaDatos
       });
 
-    } catch (e) {
+    } catch (e: any) {
       console.error("Error completando separe:", e);
-      toast.error("Error al completar el separe");
+      toast.error(e?.message || "Error al completar el separe");
+    } finally {
+      isDeliveringRef.current = false;
+      setProcesandoEntrega(false);
     }
   };
 
@@ -517,12 +534,14 @@ Gracias por tu compra y preferencia.
   // Cancelar Separe con registro de movimiento de devolución y notificación
   const confirmarCancelacion = async () => {
     if (!separeSeleccionado) return;
+    if (isCancelandoRef.current || procesandoCancelacion) return;
 
     if (!esAdmin && !puedeVentaDirecta) {
       toast.error("Solo el administrador o usuarios con permiso de venta directa pueden cancelar un Plan Separe.");
       return;
     }
 
+    isCancelandoRef.current = true;
     setProcesandoCancelacion(true);
 
     try {
@@ -573,6 +592,7 @@ Gracias por tu compra y preferencia.
       console.error("Error cancelando separe:", e);
       toast.error("Error al cancelar el separe");
     } finally {
+      isCancelandoRef.current = false;
       setProcesandoCancelacion(false);
     }
   };
@@ -1342,9 +1362,10 @@ Gracias por contactarnos.`;
               <button
                 type="button"
                 onClick={confirmarEntregaSepare}
-                className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3.5 rounded-xl shadow-md text-sm cursor-pointer"
+                disabled={procesandoEntrega}
+                className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3.5 rounded-xl shadow-md text-sm cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
               >
-                Confirmar Entrega
+                {procesandoEntrega ? "Entregando..." : "Confirmar Entrega"}
               </button>
             </div>
           </div>

@@ -10,6 +10,7 @@ import { useAuth } from "../../../hooks/AuthContext";
 import TicketFacturaModal, { DatosFacturaProps } from "@/components/TicketFacturaModal";
 import ModalGestionCliente from "@/components/ModalGestionCliente";
 import ModalTourBienvenida from "@/components/ModalTourBienvenida";
+import { abrirEnlaceWhatsApp } from "@/utils/whatsapp";
 
 export default function InicioPage() {
   const [mounted, setMounted] = useState(false);
@@ -279,17 +280,7 @@ Quedamos pendientes para revisar detalles o responder cualquier duda.
   };
 
   const abrirWhatsApp = (texto: string, celular?: string) => {
-    const mensajeLimpio = normalizarMensajeWhatsApp(texto);
-    const celularLimpio = celular ? celular.replace(/\D/g, '') : '';
-    const url = celularLimpio ? `https://wa.me/57${celularLimpio}?text=${encodeURIComponent(mensajeLimpio)}` : `https://wa.me/?text=${encodeURIComponent(mensajeLimpio)}`;
-
-    if (typeof window !== 'undefined') {
-      if (window.innerWidth >= 1024) {
-        window.open(url, '_blank');
-      } else {
-        window.location.href = url;
-      }
-    }
+    abrirEnlaceWhatsApp(celular || '', texto);
   };
 
   const clientesFiltrados = clientes.filter(c =>
@@ -311,7 +302,7 @@ Quedamos pendientes para revisar detalles o responder cualquier duda.
   return (
     <>
       {/* REDUCIMOS LOS GAPS PARA ESCRITORIO: md:gap-3 lg:gap-4 xl:gap-4. Móvil sigue intacto (gap-6 sm:gap-8) */}
-      <div className="flex flex-col gap-6 sm:gap-8 md:gap-3 lg:gap-4 xl:gap-4 px-4 sm:px-6 lg:px-8 pt-4 md:pt-2 h-full w-full max-w-[1600px] mx-auto">
+      <div className="flex flex-col gap-6 sm:gap-8 md:gap-3 lg:gap-4 xl:gap-4 px-4 sm:px-6 lg:px-8 pt-4 md:pt-2 pb-8 md:pb-2 h-full w-full max-w-[1600px] mx-auto">
         {/* ENCABEZADO DE BIENVENIDA */}
         <header className="flex flex-col gap-1 px-1 md:mb-1 lg:mb-2">
           {/* LOGO DE FIABONO (Solo visible en celular) */}
