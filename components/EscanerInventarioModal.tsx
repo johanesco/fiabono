@@ -19,6 +19,7 @@ export interface ItemCargaInventario {
   stock: number;
   stockActual?: number;
   precioVenta: number;
+  costoCompra?: number;
   tipoProducto?: 'producto' | 'servicio';
   categoria?: string;
   inventariable?: boolean;
@@ -29,6 +30,7 @@ interface EscanerInventarioModalProps {
   onClose: () => void;
   cuentaPrincipalId: string;
   nombreUsuario?: string;
+  esAdmin?: boolean;
   categoriasDisponibles?: string[];
   inventario?: any[];
   productosEnCarga: ItemCargaInventario[];
@@ -43,6 +45,7 @@ export default function EscanerInventarioModal({
   onClose, 
   cuentaPrincipalId, 
   nombreUsuario: _nombreUsuario,
+  esAdmin = true,
   categoriasDisponibles = ['General', 'Varios', 'Alimentos', 'Bebidas', 'Ropa', 'Calzado', 'Tecnología'],
   inventario = [],
   productosEnCarga = [],
@@ -68,6 +71,7 @@ export default function EscanerInventarioModal({
   const [codigoNoRegistrado, setCodigoNoRegistrado] = useState<string | null>(null);
   const [nuevoNombre, setNuevoNombre] = useState("");
   const [nuevoPrecio, setNuevoPrecio] = useState("");
+  const [nuevoCosto, setNuevoCosto] = useState("");
   const [nuevoStock, setNuevoStock] = useState("1");
   const [nuevaCategoria, setNuevaCategoria] = useState("General");
   const [mostrarDropdownCategorias, setMostrarDropdownCategorias] = useState(false);
@@ -341,6 +345,7 @@ export default function EscanerInventarioModal({
       stock: cantidad,
       stockActual: Number(prodData.stock) || 0,
       precioVenta: Number(prodData.precioVenta) || 0,
+      costoCompra: Number(prodData.costoCompra) || 0,
       tipoProducto: prodData.tipoProducto || 'producto',
       categoria: prodData.categoria || 'General',
       inventariable: prodData.inventariable !== false
@@ -380,6 +385,7 @@ export default function EscanerInventarioModal({
         setCodigoNoRegistrado(codigoLimpio);
         setNuevoNombre("");
         setNuevoPrecio("");
+        setNuevoCosto("");
         setNuevoStock("1");
         setNuevaCategoria("General");
         return;
@@ -432,6 +438,7 @@ export default function EscanerInventarioModal({
       return;
     }
     const precioLimpio = Number(nuevoPrecio.replace(/\D/g, '')) || 0;
+    const costoLimpio = Number(nuevoCosto.replace(/\D/g, '')) || 0;
     if (precioLimpio <= 0) {
       toast.error("Ingresa un precio de venta mayor a $0.");
       return;
@@ -454,6 +461,7 @@ export default function EscanerInventarioModal({
           codigoBarras: codigoGuardar,
           stock: cantInicial,
           precioVenta: precioLimpio,
+          costoCompra: costoLimpio,
           tipoProducto: 'producto',
           categoria: catFinal,
           inventariable: true,
@@ -467,7 +475,7 @@ export default function EscanerInventarioModal({
           usuarioId: cuentaPrincipalId,
           tipo: 'ingreso_inventario',
           categoria: 'recepcion_mercancia',
-          monto: 0,
+          monto: costoLimpio * cantInicial,
           descripcion: `Creación y recepción: +${cantInicial} unidades de ${nuevoNombre.trim()} (Código: ${codigoGuardar})`,
           fecha: new Date(),
           registradoPor: _nombreUsuario || "Usuario",
@@ -485,6 +493,7 @@ export default function EscanerInventarioModal({
         codigoBarras: codigoGuardar,
         stock: cantInicial,
         precioVenta: precioLimpio,
+        costoCompra: costoLimpio,
         tipoProducto: 'producto',
         categoria: catFinal,
         inventariable: true
@@ -504,6 +513,7 @@ export default function EscanerInventarioModal({
         stock: Math.max(1, cantInicial),
         stockActual: cantInicial,
         precioVenta: precioLimpio,
+        costoCompra: costoLimpio,
         categoria: catFinal,
         tipoProducto: 'producto',
         inventariable: true
@@ -520,6 +530,7 @@ export default function EscanerInventarioModal({
 
       setNuevoNombre("");
       setNuevoPrecio("");
+      setNuevoCosto("");
       setNuevoStock("1");
       setNuevaCategoria("General");
       setMostrarDropdownCategorias(false);
@@ -535,6 +546,10 @@ export default function EscanerInventarioModal({
 
   const cancelarCodigoNoRegistrado = () => {
     setCodigoNoRegistrado(null);
+    setNuevoNombre("");
+    setNuevoPrecio("");
+    setNuevoCosto("");
+    setNuevoStock("1");
     setMostrarDropdownCategorias(false);
     setProcesando(false);
     procesandoRef.current = false;
@@ -869,7 +884,7 @@ export default function EscanerInventarioModal({
                     value={nuevoPrecio ? `$${nuevoPrecio.replace(/\D/g, '').replace(/\B(?=(\d{3})+(?!\d))/g, '.')}` : ''} 
                     onChange={e => setNuevoPrecio(e.target.value.replace(/\D/g, ''))} 
                     placeholder="$0" 
-                    className="input-dark w-full p-3 bg-slate-900 border-2 border-slate-700 focus:border-emerald-400 rounded-xl text-sm font-black text-emerald-400 outline-none" 
+                    className="input-dark w-full p-2.5 sm:p-3 bg-slate-900 border-2 border-slate-700 focus:border-emerald-400 rounded-xl text-sm font-black text-emerald-400 outline-none" 
                     style={{ color: '#34d399', WebkitTextFillColor: '#34d399' }}
                   />
                 </div>
@@ -880,11 +895,35 @@ export default function EscanerInventarioModal({
                     min="1"
                     value={nuevoStock} 
                     onChange={e => setNuevoStock(e.target.value)} 
-                    className="input-dark w-full p-3 bg-slate-900 border-2 border-slate-700 focus:border-emerald-400 rounded-xl text-sm font-black text-white outline-none text-center" 
+                    className="input-dark w-full p-2.5 sm:p-3 bg-slate-900 border-2 border-slate-700 focus:border-emerald-400 rounded-xl text-sm font-black text-white outline-none text-center" 
                     style={{ color: '#ffffff', WebkitTextFillColor: '#ffffff' }}
                   />
                 </div>
               </div>
+
+              {esAdmin && (
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="text-xs font-bold text-indigo-300 flex items-center gap-1">
+                      <span>💰 Costo de Compra ($)</span>
+                    </label>
+                    <span className="text-[10px] text-slate-400 font-medium">Exclusivo Admin (Opcional)</span>
+                  </div>
+                  <input 
+                    type="text" 
+                    value={nuevoCosto ? `$${nuevoCosto.replace(/\D/g, '').replace(/\B(?=(\d{3})+(?!\d))/g, '.')}` : ''} 
+                    onChange={e => setNuevoCosto(e.target.value.replace(/\D/g, ''))} 
+                    placeholder="$0 (Costo real que te costó)" 
+                    className="input-dark w-full p-2.5 sm:p-3 bg-slate-900 border-2 border-slate-700 focus:border-indigo-400 rounded-xl text-sm font-bold text-indigo-300 outline-none" 
+                    style={{ color: '#a5b4fc', WebkitTextFillColor: '#a5b4fc' }}
+                  />
+                  {nuevoPrecio && nuevoCosto && Number(nuevoPrecio.replace(/\D/g, '')) > 0 && (
+                    <p className="mt-1 text-[11px] font-bold text-emerald-400 flex items-center gap-1">
+                      Ganancia estimada: ${(Number(nuevoPrecio.replace(/\D/g, '')) - Number(nuevoCosto.replace(/\D/g, ''))).toLocaleString('es-CO')}
+                    </p>
+                  )}
+                </div>
+              )}
 
               <div className="relative">
                 <div className="flex items-center justify-between mb-1">

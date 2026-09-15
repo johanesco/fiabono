@@ -1984,7 +1984,7 @@ Estamos atentos para cualquier consulta.
         <div className="w-full lg:w-[380px] xl:w-[410px] bg-slate-50 dark:bg-[#020617] lg:border-l border-slate-200 dark:border-slate-800 flex flex-col z-20 shrink-0 lg:min-h-0 lg:overflow-hidden">
           
           {/* SECCIÓN INTERNA SCROLLABLE: CLIENTE + FECHA LÍMITE + ABONO INICIAL */}
-          <div className="p-3 lg:p-3.5 space-y-2 flex-1 min-h-0 lg:overflow-y-auto">
+          <div className="p-3 pb-36 sm:pb-32 lg:pb-3.5 lg:p-3.5 space-y-2 flex-1 min-h-0 lg:overflow-y-auto">
             
             {/* 1. TARJETA CLIENTE OBLIGATORIO */}
             <div className={`flex flex-col bg-white dark:bg-[#0f172a] p-3 rounded-2xl border shadow-sm relative transition-colors ${!clienteSeleccionado ? 'border-violet-200 dark:border-violet-900 bg-violet-50/20' : 'border-slate-100 dark:border-slate-800'}`}>

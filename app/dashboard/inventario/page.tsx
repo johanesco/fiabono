@@ -3929,6 +3929,7 @@ export default function InventarioPage() {
         }} 
         cuentaPrincipalId={cuentaPrincipalId || ""} 
         nombreUsuario={datosSesion?.nombreUsuario || "Usuario"} 
+        esAdmin={esAdmin}
         categoriasDisponibles={categoriasDisponibles}
         inventario={inventario}
         productosEnCarga={productosEnCarga}
@@ -4681,9 +4682,9 @@ export default function InventarioPage() {
               }
             }
           }}
-          className="fixed inset-x-0 top-0 bottom-[68px] sm:bottom-0 sm:inset-0 bg-black/80 backdrop-blur-md flex items-end sm:items-center justify-center p-0 sm:p-4 z-[90] overflow-hidden"
+          className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-end sm:items-center justify-center p-0 sm:p-4 z-[950] overflow-hidden"
         >
-          <div className="bg-white dark:bg-[#0f172a] rounded-t-3xl sm:rounded-[2.5rem] w-full max-w-[98vw] 2xl:max-w-[1650px] h-full sm:h-[92dvh] shadow-2xl border border-slate-100 dark:border-slate-800 flex flex-col overflow-hidden animate-in slide-in-from-bottom-4 sm:zoom-in-95 duration-200">
+          <div className="bg-white dark:bg-[#0f172a] rounded-t-3xl sm:rounded-[2.5rem] w-full max-w-[98vw] 2xl:max-w-[1650px] h-[94dvh] sm:h-[92dvh] shadow-2xl border border-slate-100 dark:border-slate-800 flex flex-col overflow-hidden animate-in slide-in-from-bottom-4 sm:zoom-in-95 duration-200">
             
             {/* Encabezado Fijo del Modal (Línea única compacta en móvil) */}
             <div className="flex items-center justify-between gap-2 border-b border-slate-200 bg-slate-50 px-3 sm:px-6 py-2 sm:py-3.5 dark:border-slate-800 dark:bg-slate-900/60 shrink-0 z-10">

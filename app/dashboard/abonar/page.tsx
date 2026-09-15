@@ -774,7 +774,7 @@ Estamos atentos para cualquier consulta.
         {/* PANEL DERECHO/MEDIO: RESUMEN DE ABONO */}
         <div className="w-full lg:w-[380px] xl:w-[420px] bg-slate-50 dark:bg-[#020617] lg:border-l border-slate-200 dark:border-slate-800 flex flex-col z-20 shrink-0 lg:min-h-0 lg:overflow-hidden">
           
-          <div className="p-3 lg:p-4 space-y-3 flex-1 min-h-0 lg:overflow-y-auto">
+          <div className="p-3 pb-36 sm:pb-32 lg:pb-4 lg:p-4 space-y-3 flex-1 min-h-0 lg:overflow-y-auto">
             {clienteTransaccion && abonoNum > 0 ? (
               <div className="bg-white dark:bg-[#0f172a] p-4 sm:p-5 rounded-3xl border border-slate-100 dark:border-slate-800 shadow-sm animate-in zoom-in-95">
                 <h4 className="font-bold text-slate-400 uppercase text-[10px] tracking-wider mb-3 border-b border-slate-100 dark:border-slate-800 pb-2">

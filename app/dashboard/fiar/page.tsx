@@ -1616,7 +1616,7 @@ Estamos atentos para cualquier consulta.
                 {/* COLUMNA DERECHA / SECCIÓN INFERIOR: CLIENTE + TOTAL */}
                 <div className="w-full lg:w-[360px] xl:w-[380px] bg-white dark:bg-[#0f172a] lg:border-l border-slate-200 dark:border-slate-800 flex flex-col shrink-0 lg:min-h-0 lg:overflow-hidden">
 
-                    <div className="p-3 sm:p-5 lg:p-3.5 flex flex-col gap-3 lg:flex-1 lg:overflow-y-auto max-w-4xl lg:max-w-none mx-auto w-full">
+                    <div className="p-3 pb-36 sm:p-5 sm:pb-32 lg:p-3.5 flex flex-col gap-3 lg:flex-1 lg:overflow-y-auto max-w-4xl lg:max-w-none mx-auto w-full">
 
                         {/* CLIENTE (OBLIGATORIO) */}
                         <div className={`flex flex-col bg-slate-50 dark:bg-[#020617] p-2.5 rounded-xl border transition-colors ${!clienteTransaccion ? 'border-rose-300 dark:border-rose-800/80 bg-rose-50/20' : 'border-slate-200 dark:border-slate-800/80'}`}>
