@@ -26,6 +26,8 @@ function AbonarContenido() {
   const cuentaPrincipalId = datosSesion?.cuentaPrincipalId;
   const nombreUsuario = datosSesion?.nombreUsuario;
   const nombreNegocio = datosSesion?.nombreNegocio;
+  const esAdmin = datosSesion?.tipoUsuario === 'principal';
+  const puedeEnviarWhatsApp = datosSesion?.puedeEnviarWhatsApp ?? true;
 
   const [clientes, setClientes] = useState<any[]>([]);
   const [clienteTransaccion, setClienteTransaccion] = useState<any | null>(null);
@@ -273,10 +275,10 @@ function AbonarContenido() {
       return;
     }
     
-    await ejecutarAbonoCartera(abonoReal);
+    await ejecutarAbonoCartera(abonoReal, abonoReal);
   };
 
-  const ejecutarAbonoCartera = async (abonoReal: number) => {
+  const ejecutarAbonoCartera = async (abonoAplicado: number, pagoCliente?: number) => {
     if (!clienteTransaccion) return;
     if (isSubmittingAbonoRef.current) return;
     isSubmittingAbonoRef.current = true;
@@ -297,7 +299,7 @@ function AbonarContenido() {
           clienteId: clienteTransaccion.id,
           usuarioId: cuentaPrincipalId!,
           tipo: 'abono',
-          monto: abonoReal,
+          monto: abonoAplicado,
           descripcion: `Abono a cuenta (${metodoPagoLabel})`,
           fecha: new Date(),
           registradoPor: nombreUsuario || "Vendedor",
@@ -307,14 +309,16 @@ function AbonarContenido() {
         },
         {
           ajustarSaldoCliente: true,
-          cambioDeuda: -abonoReal
+          cambioDeuda: -abonoAplicado
         }
       );
 
       reproducirSonidoExito();
 
-      const saldoFinal = resAbono.nuevoSaldoCliente !== undefined ? resAbono.nuevoSaldoCliente : ((clienteTransaccion.deudaTotal || 0) - abonoReal);
+      const saldoFinal = resAbono.nuevoSaldoCliente !== undefined ? resAbono.nuevoSaldoCliente : ((clienteTransaccion.deudaTotal || 0) - abonoAplicado);
       const clienteFinalActualizado = { ...clienteTransaccion, deudaTotal: saldoFinal };
+
+      const devuelta = pagoCliente && pagoCliente > abonoAplicado ? pagoCliente - abonoAplicado : 0;
 
       const ticketDatos = {
         nombreNegocio: nombreNegocio || "Mi Negocio",
@@ -331,8 +335,9 @@ function AbonarContenido() {
         tipo: 'abono' as const,
         detalles: [],
         descripcionGeneral: "Abono a cuenta",
-        montoTotal: abonoReal,
-        pagoRecibido: abonoReal,
+        montoTotal: abonoAplicado,
+        pagoRecibido: pagoCliente || abonoAplicado,
+        devuelta: devuelta > 0 ? devuelta : undefined,
         saldoNuevo: saldoFinal,
         idTransaccion: resAbono.movimientoId,
         metodoPago: metodoPago,
@@ -342,7 +347,7 @@ function AbonarContenido() {
       setModalExito({ 
         visible: true, 
         cliente: clienteFinalActualizado,
-        montoTotal: abonoReal,
+        montoTotal: abonoAplicado,
         ticketDatos,
         esSepare: false
       });
@@ -893,6 +898,9 @@ Estamos atentos para cualquier consulta.
             <div className="mb-8 text-slate-500 text-base flex flex-col gap-2">
               <p>Se registró el pago de <strong className="text-slate-800">{modalExito.cliente.nombre}</strong></p>
               <p className="text-blue-600 font-bold bg-blue-50 p-3 rounded-xl mt-2 text-xl">Monto abonado: ${modalExito.montoTotal.toLocaleString('es-CO')}</p>
+              {modalExito.ticketDatos?.devuelta && modalExito.ticketDatos.devuelta > 0 && (
+                <p className="text-emerald-600 font-bold bg-emerald-50 p-2 rounded-lg">Entregar devuelta / cambio: ${modalExito.ticketDatos.devuelta.toLocaleString('es-CO')}</p>
+              )}
               <p className="text-sm mt-2">Nuevo saldo: <strong>${Math.abs(modalExito.cliente.deudaTotal).toLocaleString('es-CO')}</strong> {(modalExito.cliente.deudaTotal < 0) && "(A favor)"}</p>
             </div>
             
@@ -905,7 +913,7 @@ Estamos atentos para cualquier consulta.
               </button>
             )}
 
-            {modalExito.cliente.celular && modalExito.cliente.celular.trim() !== "" && datosSesion?.rol !== 'cajero' && (
+            {modalExito.cliente.celular && modalExito.cliente.celular.trim() !== "" && datosSesion?.rol !== 'cajero' && puedeEnviarWhatsApp && (
               <button
                 onClick={() => abrirWhatsApp(modalExito.cliente)}
                 className="w-full bg-[#25D366]/10 hover:bg-[#25D366]/20 text-[#1ebd5a] font-bold py-4 rounded-2xl flex justify-center items-center gap-2 text-lg mb-3"
@@ -923,34 +931,48 @@ Estamos atentos para cualquier consulta.
       {modalConfirmacionExceso?.visible && (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 z-[950] animate-in zoom-in duration-200">
           <div className="bg-white dark:bg-[#0f172a] p-8 rounded-[2.5rem] w-full max-w-sm shadow-2xl text-center border border-slate-100 dark:border-slate-800">
-            <div className="w-20 h-20 bg-amber-100 dark:bg-amber-500/20 text-amber-600 dark:text-amber-400 rounded-full flex items-center justify-center mx-auto mb-5 shadow-inner">
-              <AlertCircle size={40} />
+            <div className="w-20 h-20 bg-emerald-100 dark:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 rounded-full flex items-center justify-center mx-auto mb-5 shadow-inner">
+              <CheckCircle2 size={40} />
             </div>
-            <h2 className="text-2xl font-black text-slate-900 dark:text-white mb-3 leading-tight">Abono Superior <br/>a la Deuda</h2>
+            <h2 className="text-2xl font-black text-slate-900 dark:text-white mb-3 leading-tight">El pago supera <br/>la deuda</h2>
             
-            <div className="mb-8 text-slate-500 dark:text-slate-400 text-sm flex flex-col gap-3">
-              <p>Estás intentando registrar un abono por <strong>${modalConfirmacionExceso.abonoReal.toLocaleString('es-CO')}</strong>, pero la deuda total del cliente es de solo <strong>${(clienteTransaccion?.deudaTotal || 0).toLocaleString('es-CO')}</strong>.</p>
-              <div className="bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/30 p-3 rounded-xl text-amber-800 dark:text-amber-300">
-                Al confirmar, la cuenta quedará con un <strong className="font-black text-amber-900 dark:text-amber-400">saldo a favor</strong> (negativo).
+            <div className="mb-6 text-slate-500 dark:text-slate-400 text-sm flex flex-col gap-3">
+              <p>Monto entregado: <strong>${modalConfirmacionExceso.abonoReal.toLocaleString('es-CO')}</strong></p>
+              <p>Deuda actual: <strong>${(clienteTransaccion?.deudaTotal || 0).toLocaleString('es-CO')}</strong></p>
+              <div className="bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/30 p-3 rounded-xl text-emerald-800 dark:text-emerald-400 font-black">
+                Cambio / Devuelta: ${(modalConfirmacionExceso.abonoReal - (clienteTransaccion?.deudaTotal || 0)).toLocaleString('es-CO')}
               </div>
             </div>
             
-            <div className="grid grid-cols-2 gap-3">
-              <button 
-                onClick={() => setModalConfirmacionExceso(null)} 
-                className="bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold py-4 rounded-2xl text-base transition-colors"
-              >
-                Cancelar
-              </button>
+            <div className="flex flex-col gap-2">
               <button 
                 onClick={() => {
-                  ejecutarAbonoCartera(modalConfirmacionExceso.abonoReal);
+                  ejecutarAbonoCartera(clienteTransaccion?.deudaTotal || 0, modalConfirmacionExceso.abonoReal);
                   setModalConfirmacionExceso(null);
                 }} 
                 disabled={guardandoAbono}
-                className={`bg-amber-500 hover:bg-amber-600 ${guardandoAbono ? 'opacity-50 cursor-not-allowed' : 'active:scale-95'} text-white font-bold py-4 rounded-2xl shadow-lg flex justify-center items-center gap-1.5 text-base transition-all`}
+                className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-black py-4 rounded-2xl shadow-lg transition-transform active:scale-95"
               >
-                <span>{guardandoAbono ? "Procesando..." : "Confirmar"}</span> <CheckCircle2 size={18} />
+                {guardandoAbono ? "Procesando..." : "Dar cambio y saldar deuda"}
+              </button>
+              
+              <button 
+                onClick={() => {
+                  ejecutarAbonoCartera(modalConfirmacionExceso.abonoReal, modalConfirmacionExceso.abonoReal);
+                  setModalConfirmacionExceso(null);
+                }} 
+                disabled={guardandoAbono}
+                className="w-full bg-amber-500 hover:bg-amber-600 text-white font-bold py-3.5 rounded-2xl shadow-sm transition-transform active:scale-95 mt-1"
+              >
+                {guardandoAbono ? "Procesando..." : "No dar cambio (Dejar Saldo a Favor)"}
+              </button>
+
+              <button 
+                onClick={() => setModalConfirmacionExceso(null)} 
+                disabled={guardandoAbono}
+                className="w-full bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold py-3.5 rounded-2xl mt-1 transition-colors"
+              >
+                Cancelar
               </button>
             </div>
           </div>

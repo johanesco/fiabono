@@ -182,6 +182,69 @@ export const API_DB = {
   },
 
   // --------------------------------------------------------
+  // PROCESAMIENTO INTELIGENTE DE DEVOLUCIONES (NOTA CRÉDITO)
+  // --------------------------------------------------------
+  procesarDevolucion: async (
+    movimientoOrigen: Movimiento,
+    articulosDevueltos: any[],
+    metodoDevolucion: 'saldo_a_favor' | 'efectivo',
+    registradoPor: string
+  ): Promise<{ movimientoId: string, nuevoSaldoCliente?: number }> => {
+    return await runTransaction(db, async (transaction) => {
+      // 1. Calculate total return value
+      const totalDevolver = articulosDevueltos.reduce((sum, art) => sum + art.subtotal, 0);
+
+      // 2. Adjust client balance if saldo_a_favor
+      let nuevoSaldo: number | undefined = undefined;
+      if (metodoDevolucion === 'saldo_a_favor' && movimientoOrigen.clienteId && movimientoOrigen.clienteId !== 'mostrador') {
+        const clienteRef = doc(db, "clientes", movimientoOrigen.clienteId);
+        const clienteSnap = await transaction.get(clienteRef);
+        if (clienteSnap.exists()) {
+          const saldoActual = clienteSnap.data().deudaTotal || 0;
+          nuevoSaldo = saldoActual - totalDevolver;
+          transaction.update(clienteRef, { deudaTotal: nuevoSaldo });
+        }
+      }
+
+      // 3. Restore inventory
+      for (const art of articulosDevueltos) {
+        if (art.productoId) {
+          const invRef = doc(db, "inventario", art.productoId);
+          const invSnap = await transaction.get(invRef);
+          if (invSnap.exists()) {
+             const stockActual = invSnap.data().stockActual || 0;
+             transaction.update(invRef, { stockActual: stockActual + art.cantidad });
+          }
+        }
+      }
+
+      // 4. Create the new return transaction
+      const movRef = doc(collection(db, "movimientos"));
+      const movData: any = {
+        usuarioId: movimientoOrigen.usuarioId,
+        clienteId: movimientoOrigen.clienteId,
+        clienteNombre: movimientoOrigen.clienteNombre,
+        tipo: 'devolucion',
+        monto: totalDevolver,
+        descripcion: `Devolución de mercancía (${metodoDevolucion === 'efectivo' ? 'Reembolso Efectivo' : 'Abono a deuda'})`,
+        fecha: new Date(),
+        registradoPor,
+        metodoDevolucion,
+        movimientoOrigenId: movimientoOrigen.id,
+        origenTipo: movimientoOrigen.tipo,
+        articulosDevueltos,
+        saldoResultante: nuevoSaldo
+      };
+
+      Object.keys(movData).forEach(k => movData[k] === undefined && delete movData[k]);
+
+      transaction.set(movRef, movData as any);
+
+      return { movimientoId: movRef.id, nuevoSaldoCliente: nuevoSaldo };
+    });
+  },
+
+  // --------------------------------------------------------
   // TRANSACCIÓN ATÓMICA UNIFICADA: VENTA + STOCK + FIADO (P1-TX-01)
   // --------------------------------------------------------
   ejecutarVentaCompletaAtomo: async (params: {
@@ -352,7 +415,7 @@ export const API_DB = {
         if (clienteSnap.exists()) {
           const clienteData = clienteSnap.data();
           const deudaActual = Number(clienteData.deudaTotal || 0);
-          nuevoSaldo = Math.max(0, deudaActual + opciones.cambioDeuda);
+          nuevoSaldo = deudaActual + opciones.cambioDeuda;
           transaction.update(clienteRef, { deudaTotal: nuevoSaldo, fechaUltimoMovimiento: new Date() });
         }
       }
@@ -738,7 +801,7 @@ export const API_DB = {
         if (clienteSnap.exists()) {
           const cData = clienteSnap.data() as any;
           const deudaPrevia = Number(cData.deudaTotal || 0);
-          nuevoSaldoCliente = Math.max(0, deudaPrevia + params.ajusteCliente.cambioDeuda);
+          nuevoSaldoCliente = deudaPrevia + params.ajusteCliente.cambioDeuda;
         }
       }
 

@@ -3,6 +3,7 @@
 export interface PermisosColaborador {
   verCelulares: boolean;
   verDirectorio: boolean;
+  verCartera?: boolean; // Permite ver el módulo Clientes y Cartera (/dashboard/clientes), métricas y cobranza
   verReportes: boolean;
   ventaDirecta: boolean;   // Puede confirmar venta/fiado sin aprobación del admin
   abonar: boolean;         // Puede registrar abonos
@@ -12,6 +13,8 @@ export interface PermisosColaborador {
   modificarPrecios?: boolean; // Permite cambiar precios de productos ya registrados en inventario
   aplicarDescuentos?: boolean; // Permite aplicar descuentos comerciales a ventas/fiados
   planSepare?: boolean;   // Permite registrar y gestionar planes de separe (pago en abonos)
+  enviarWhatsApp?: boolean; // Permite enviar comprobantes por WhatsApp a clientes desde este dispositivo
+  hacerDevoluciones?: boolean; // Permite realizar devoluciones de mercancía
 }
 
 // -------------------------------------------------------
@@ -119,6 +122,8 @@ export interface UsuarioBD {
   activo?: boolean;
   tipoNegocio?: string;
   moduloSepareActivo?: boolean;
+  slugNegocio?: string;
+  esCajaMostrador?: boolean;
 }
 
 export interface Cliente {
@@ -146,7 +151,7 @@ export interface Movimiento {
   clienteId?: string;
   clienteNombre?: string;
   usuarioId: string;
-  tipo: 'fiado' | 'abono' | 'venta' | 'egreso' | 'entrega_separe' | 'ingreso_inventario';
+  tipo: 'fiado' | 'abono' | 'venta' | 'egreso' | 'entrega_separe' | 'ingreso_inventario' | 'devolucion';
   subtipo?: string;
   origen?: string;
   monto: number;
@@ -170,6 +175,9 @@ export interface Movimiento {
   idProducto?: string;
   nombreProducto?: string;
   cantidadAgregada?: number;
+  movimientoOrigenId?: string;
+  articulosDevueltos?: any[]; // Array of items returned
+  metodoDevolucion?: 'saldo_a_favor' | 'efectivo';
 }
 
 export interface DatosSesionContext {
@@ -195,6 +203,8 @@ export interface DatosSesionContext {
   datosUsuarioOriginales: UsuarioBD;
   tipoNegocio?: string;
   moduloSepareActivo: boolean;
+  slugNegocio?: string;
+  esCajaMostrador?: boolean;
 
   // Helpers derivados
   esAdmin: boolean;
@@ -203,6 +213,10 @@ export interface DatosSesionContext {
   puedeEditarInventario: boolean;
   puedeModificarPrecios: boolean;
   puedeAplicarDescuentos: boolean;
+  puedeEnviarWhatsApp?: boolean;
+  puedeVerCartera?: boolean;
+  puedeVerDirectorio?: boolean;
+  puedeVerReportes?: boolean;
   esTerminalMultivendedor: boolean;
   puedeSepare: boolean;
   tipoUsuario: 'principal' | 'colaborador';

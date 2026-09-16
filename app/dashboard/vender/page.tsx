@@ -3,7 +3,7 @@ import { useState, useEffect, Suspense, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { collection, addDoc, getDocs, query, doc, updateDoc, where, increment, writeBatch } from "firebase/firestore";
 import { db } from "../../../firebase";
-import { Search, ShoppingCart, CheckCircle2, ChevronRight, X, AlertCircle, UserCog, Plus, Minus, ArrowLeft, MessageCircle, Banknote, Package, QrCode, Volume2, Printer, Smartphone, CreditCard, Zap, Receipt, ChevronDown, ChevronUp, Tag, Percent, Pause, FolderOpen, User, Trash2 } from 'lucide-react';
+import { Search, ShoppingCart, CheckCircle2, ChevronRight, X, AlertCircle, UserCog, Plus, Minus, ArrowLeft, MessageCircle, Banknote, Package, QrCode, Volume2, Printer, Smartphone, CreditCard, Zap, Receipt, ChevronDown, ChevronUp, Tag, Percent, Pause, FolderOpen, User, Trash2, Store } from 'lucide-react';
 import { useAuth } from "@/hooks/AuthContext";
 import toast from "react-hot-toast";
 import { notificar } from "@/utils/notificaciones";
@@ -33,6 +33,7 @@ function VenderContenido() {
   const puedeVentaDirecta: boolean = datosSesion?.puedeVentaDirecta ?? true;
   const puedeModificarPrecios = esAdmin || (datosSesion?.permisos?.modificarPrecios === true);
   const puedeAplicarDescuentos = esAdmin || (datosSesion?.permisos?.aplicarDescuentos === true);
+  const puedeEnviarWhatsApp = datosSesion?.puedeEnviarWhatsApp ?? true;
 
   const [vendedorActivo, setVendedorActivo] = useState(nombreUsuario || "Vendedor");
   const [listaVendedores, setListaVendedores] = useState<string[]>([]);
@@ -446,7 +447,7 @@ function VenderContenido() {
     const cargarVendedores = async () => {
       try {
         const nombres: string[] = [];
-        if (nombreUsuario) nombres.push(nombreUsuario);
+        if (nombreUsuario && !datosSesion?.esCajaMostrador) nombres.push(nombreUsuario);
 
         // 1. Consultar colaboradores creados en Perfil (adminId == cuentaPrincipalId)
         try {
@@ -454,7 +455,7 @@ function VenderContenido() {
           const snapAdmin = await getDocs(qAdmin);
           snapAdmin.forEach(d => {
             const u = d.data();
-            if (u.activo === false) return;
+            if (u.activo === false || u.esCajaMostrador === true) return;
             const nom = u.nombreUsuario || u.nombre || u.nombreColaborador;
             if (nom && !nombres.includes(nom)) {
               nombres.push(nom);
@@ -468,7 +469,7 @@ function VenderContenido() {
           const snapU = await getDocs(qUsers);
           snapU.forEach(d => {
             const u = d.data();
-            if (u.activo === false) return;
+            if (u.activo === false || u.esCajaMostrador === true) return;
             const nom = u.nombreUsuario || u.nombre || u.nombreColaborador;
             if (nom && !nombres.includes(nom)) {
               nombres.push(nom);
@@ -476,7 +477,13 @@ function VenderContenido() {
           });
         } catch (e) {}
 
-        setListaVendedores(nombres.length > 0 ? nombres : [nombreUsuario || "Vendedor"]);
+        const listaFinal = nombres.length > 0 ? nombres : [nombreUsuario || "Vendedor"];
+        setListaVendedores(listaFinal);
+
+        // Si es la Caja Mostrador y el vendedor activo actual es 'Caja Mostrador', cambiarlo al primer vendedor real
+        if (datosSesion?.esCajaMostrador && listaFinal.length > 0 && (!vendedorActivo || vendedorActivo === "Caja Mostrador")) {
+          setVendedorActivo(listaFinal[0]);
+        }
       } catch (e) {
         console.error("Error al cargar vendedores:", e);
       }
@@ -1063,7 +1070,7 @@ function VenderContenido() {
       const saldoVentaActual = Math.max(totalFilasRegistro - pagadoNum, 0);
       const faltante = totalFilasRegistro - pagadoNum;
       const fiarFaltante = faltante > 0;
-      const deudaAnteriorPendiente = clienteTransaccion ? Math.max(clienteTransaccion.deudaTotal || 0, 0) : 0;
+      const deudaAnteriorPendiente = clienteTransaccion ? (clienteTransaccion.deudaTotal || 0) : 0;
       const deudaTotalActual = deudaAnteriorPendiente + saldoVentaActual;
       let montoAcumulado = 0; 
       let detallesParaComprobante: any[] = []; 
@@ -1277,7 +1284,7 @@ function VenderContenido() {
     const saldoVentaActual = Math.max(dTotal - pagadoNum, 0);
     const faltante = dTotal - pagadoNum;
     const devuelta = pagadoNum > dTotal ? pagadoNum - dTotal : 0;
-    const deudaAnteriorPendiente = typeof deudaPreviaOriginal === 'number' ? Math.max(deudaPreviaOriginal, 0) : Math.max(Number(cliente.deudaTotal) || 0, 0);
+    const deudaAnteriorPendiente = typeof deudaPreviaOriginal === 'number' ? deudaPreviaOriginal : (Number(cliente.deudaTotal) || 0);
     const deudaTotalActual = deudaAnteriorPendiente + saldoVentaActual;
     const encabezadoTitulo = faltante > 0 ? 'COMPROBANTE DE FIADO' : 'COMPROBANTE DE VENTA';
 
@@ -1285,12 +1292,18 @@ function VenderContenido() {
     if (faltante > 0) {
        const abonoAplicado = Math.min(pagadoNum, dTotal);
        const saldoFiadoEsteCredito = Math.max(dTotal - abonoAplicado, 0);
-       const saldoCreditoTotal = deudaAnteriorPendiente + saldoFiadoEsteCredito;
-       infoExtra = `\n*TOTAL DE ESTE FIADO:* $${saldoFiadoEsteCredito.toLocaleString('es-CO')}\n\n*Saldo de credito Total: $${saldoCreditoTotal.toLocaleString('es-CO')}*`;
+       const txtSaldo = deudaTotalActual < 0 ? `A favor: $${Math.abs(deudaTotalActual).toLocaleString('es-CO')}` : `Pendiente: $${deudaTotalActual.toLocaleString('es-CO')}`;
+       infoExtra = `\n*TOTAL DE ESTE FIADO:* $${saldoFiadoEsteCredito.toLocaleString('es-CO')}\n\n*Saldo en cuenta: ${txtSaldo}*`;
     } else if (devuelta > 0) {
-       infoExtra = `\n*Entregaste:* $${pagadoNum.toLocaleString('es-CO')}\n*Devuelta:* $${devuelta.toLocaleString('es-CO')}*`;
+       infoExtra = `\n*Monto recibido:* $${pagadoNum.toLocaleString('es-CO')}\n*Cambio:* $${devuelta.toLocaleString('es-CO')}`;
     } else {
        infoExtra = '\n*Pago completo.*';
+    }
+
+    // Agregar nota de saldo a favor o pendiente si es distinto de cero y no se imprimió antes
+    if (faltante <= 0 && deudaTotalActual !== 0) {
+      const txtSaldo = deudaTotalActual < 0 ? `A favor: $${Math.abs(deudaTotalActual).toLocaleString('es-CO')}` : `Pendiente: $${deudaTotalActual.toLocaleString('es-CO')}`;
+      infoExtra += `\n\n*Saldo en cuenta: ${txtSaldo}*`;
     }
 
     const idTransaccion = modalExito?.ticketDatos?.idTransaccion;
@@ -1307,7 +1320,7 @@ function VenderContenido() {
 
 ${detalleTexto.trim()}
 
-*TOTAL: $${totalFilasRegistro.toLocaleString('es-CO')}*
+*TOTAL: $${dTotal.toLocaleString('es-CO')}*
 ${infoExtra.trim()}${enlaceTexto}
 
 Gracias por tu compra.
@@ -1387,10 +1400,20 @@ Estamos atentos para cualquier consulta.
 
         {/* ACCIONES SUPERIORES: SELECTOR DE VENDEDOR + ESCÁNER */}
         <div className="flex items-center gap-2 shrink-0">
+          {datosSesion?.esCajaMostrador && (
+            <div className="hidden sm:flex items-center gap-1.5 bg-white/25 dark:!bg-white/20 backdrop-blur-md px-2.5 py-1 sm:py-1.5 rounded-xl border border-white/30 text-white text-xs font-black shadow-xs">
+              <Store size={13} className="shrink-0" />
+              <span>Caja Mostrador</span>
+            </div>
+          )}
+
           {/* Selector de Vendedor Responsable (Visible si es Terminal Multivendedor o Admin) */}
           {esTerminalMultivendedor ? (
-            <div className="flex items-center bg-white/20 hover:bg-white/30 dark:!bg-white/20 dark:hover:!bg-white/30 backdrop-blur-md rounded-xl px-2.5 py-1 sm:py-1.5 border border-white/30 max-w-[130px] sm:max-w-none min-w-0 transition-all shadow-sm">
+            <div className="flex items-center bg-white/20 hover:bg-white/30 dark:!bg-white/20 dark:hover:!bg-white/30 backdrop-blur-md rounded-xl px-2.5 py-1 sm:py-1.5 border border-white/30 max-w-[140px] sm:max-w-none min-w-0 transition-all shadow-sm">
               <User size={13} className="text-white/90 mr-1 shrink-0" />
+              {datosSesion?.esCajaMostrador && (
+                <span className="text-white/80 text-[11px] font-bold hidden md:inline mr-1">Atiende:</span>
+              )}
               <select
                 value={vendedorActivo}
                 onChange={(e) => cambiarVendedor(e.target.value)}
@@ -1810,6 +1833,11 @@ Estamos atentos para cualquier consulta.
                         Debe: ${(clienteTransaccion.deudaTotal || 0).toLocaleString('es-CO')}
                       </span>
                     )}
+                    {clienteTransaccion.deudaTotal !== undefined && clienteTransaccion.deudaTotal < 0 && (
+                      <span className="text-[9px] sm:text-[9.5px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-500/10 px-1.5 py-0.5 rounded shrink-0">
+                        A favor: ${(Math.abs(clienteTransaccion.deudaTotal || 0)).toLocaleString('es-CO')}
+                      </span>
+                    )}
                   </div>
                   <button 
                     onClick={() => setClienteTransaccion(null)} 
@@ -2055,6 +2083,16 @@ Estamos atentos para cualquier consulta.
                 >
                   ✓ Exacto
                 </button>
+                {clienteTransaccion && clienteTransaccion.deudaTotal !== undefined && clienteTransaccion.deudaTotal < 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setPagoCliente(Math.max(0, totalFilasRegistro - Math.abs(clienteTransaccion.deudaTotal || 0)).toLocaleString('es-CO'))}
+                    className="px-2 sm:px-3 py-1.5 sm:py-2 rounded-xl font-black text-xs active:scale-95 whitespace-nowrap transition-all border cursor-pointer bg-blue-600 hover:bg-blue-700 text-white border-blue-700 shadow-xs flex items-center gap-1"
+                    title="Usar saldo a favor automáticamente"
+                  >
+                    Usar Saldo
+                  </button>
+                )}
               </div>
 
               {/* DEVUELTA / SALDO A FIAR EN CINTA COMPACTA */}
@@ -2115,10 +2153,11 @@ Estamos atentos para cualquier consulta.
               let textoBoton = puedeVentaDirecta ? "Vender" : "Enviar Orden";
               let bgBoton = "bg-emerald-500 hover:bg-emerald-600";
               if (puedeVentaDirecta) {
+                const usaSaldoFavor = clienteTransaccion && clienteTransaccion.deudaTotal !== undefined && clienteTransaccion.deudaTotal < 0;
                 if (pagadoRaw !== "" && pagadoNum === 0 && totalFilasRegistro > 0) {
-                  textoBoton = "Fiar Total"; bgBoton = "bg-rose-600 hover:bg-rose-700";
+                  textoBoton = usaSaldoFavor ? "Cobrar con Saldo a Favor" : "Fiar Total"; bgBoton = usaSaldoFavor ? "bg-blue-600 hover:bg-blue-700" : "bg-rose-600 hover:bg-rose-700";
                 } else if (pagadoNum > 0 && pagadoNum < totalFilasRegistro) {
-                  textoBoton = "Vender y Fiar"; bgBoton = "bg-emerald-600 hover:bg-emerald-700";
+                  textoBoton = usaSaldoFavor ? "Cobrar y usar Saldo" : "Vender y Fiar"; bgBoton = usaSaldoFavor ? "bg-blue-600 hover:bg-blue-700" : "bg-emerald-600 hover:bg-emerald-700";
                 }
               } else {
                 bgBoton = "bg-amber-500 hover:bg-amber-600";
@@ -2163,10 +2202,11 @@ Estamos atentos para cualquier consulta.
           let textoBoton = puedeVentaDirecta ? "Vender" : "Enviar Orden";
           let bgBoton = "bg-emerald-500 hover:bg-emerald-600";
           if (puedeVentaDirecta) {
+            const usaSaldoFavor = clienteTransaccion && clienteTransaccion.deudaTotal !== undefined && clienteTransaccion.deudaTotal < 0;
             if (pagadoRaw !== "" && pagadoNum === 0 && totalFilasRegistro > 0) {
-              textoBoton = "Fiar Total"; bgBoton = "bg-rose-600 hover:bg-rose-700";
+              textoBoton = usaSaldoFavor ? "Cobrar con Saldo a Favor" : "Fiar Total"; bgBoton = usaSaldoFavor ? "bg-blue-600 hover:bg-blue-700" : "bg-rose-600 hover:bg-rose-700";
             } else if (pagadoNum > 0 && pagadoNum < totalFilasRegistro) {
-              textoBoton = "Vender y Fiar"; bgBoton = "bg-emerald-600 hover:bg-emerald-700";
+              textoBoton = usaSaldoFavor ? "Cobrar y usar Saldo" : "Vender y Fiar"; bgBoton = usaSaldoFavor ? "bg-blue-600 hover:bg-blue-700" : "bg-emerald-600 hover:bg-emerald-700";
             }
           } else {
             bgBoton = "bg-amber-500 hover:bg-amber-600";
@@ -2203,10 +2243,11 @@ Estamos atentos para cualquier consulta.
           let textoBoton = puedeVentaDirecta ? "Vender" : "Enviar Orden";
           let bgBoton = "bg-emerald-600 hover:bg-emerald-700";
           if (puedeVentaDirecta) {
+            const usaSaldoFavor = clienteTransaccion && clienteTransaccion.deudaTotal !== undefined && clienteTransaccion.deudaTotal < 0;
             if (pagadoRaw !== "" && pagadoNum === 0 && totalFilasRegistro > 0) {
-              textoBoton = "Fiar Total"; bgBoton = "bg-rose-600 hover:bg-rose-700";
+              textoBoton = usaSaldoFavor ? "Cobrar con Saldo a Favor" : "Fiar Total"; bgBoton = usaSaldoFavor ? "bg-blue-600 hover:bg-rose-700" : "bg-rose-600 hover:bg-rose-700";
             } else if (pagadoNum > 0 && pagadoNum < totalFilasRegistro) {
-              textoBoton = "Vender y Fiar"; bgBoton = "bg-emerald-600 hover:bg-emerald-700";
+              textoBoton = usaSaldoFavor ? "Cobrar y usar Saldo" : "Vender y Fiar"; bgBoton = usaSaldoFavor ? "bg-blue-600 hover:bg-emerald-700" : "bg-emerald-600 hover:bg-emerald-700";
             }
           } else {
             bgBoton = "bg-amber-500 hover:bg-amber-600";
@@ -2346,14 +2387,15 @@ Estamos atentos para cualquier consulta.
               const pagadoNumModal = parseFloat(pagoCliente.replace(/\D/g, '')) || 0;
               const esCeroPago = pagadoNumModal === 0;
               const faltanteModal = totalFilasRegistro - pagadoNumModal;
+              const usaSaldoFavor = clienteTransaccion && clienteTransaccion.deudaTotal !== undefined && clienteTransaccion.deudaTotal < 0;
 
               return (
                 <>
-                  <div className={`w-20 h-20 ${esCeroPago ? 'bg-rose-100 dark:bg-rose-500/20 text-rose-500' : 'bg-amber-100 dark:bg-amber-500/20 text-amber-500 dark:text-amber-400'} rounded-full flex items-center justify-center mx-auto mb-6 shadow-inner`}>
+                  <div className={`w-20 h-20 ${usaSaldoFavor ? 'bg-blue-100 dark:bg-blue-500/20 text-blue-500' : (esCeroPago ? 'bg-rose-100 dark:bg-rose-500/20 text-rose-500' : 'bg-amber-100 dark:bg-amber-500/20 text-amber-500 dark:text-amber-400')} rounded-full flex items-center justify-center mx-auto mb-6 shadow-inner`}>
                     <AlertCircle size={40} />
                   </div>
                   <h3 className="text-2xl font-black text-slate-900 dark:text-white mb-2">
-                    {esCeroPago ? 'Registro de Fiado' : 'Pago Parcial y Fiado'}
+                    {usaSaldoFavor ? (esCeroPago ? 'Cobro con Saldo a Favor' : 'Pago y Uso de Saldo') : (esCeroPago ? 'Registro de Fiado' : 'Pago Parcial y Fiado')}
                   </h3>
                   
                   <div className="text-slate-600 dark:text-slate-300 mb-6 text-sm sm:text-base bg-slate-50 dark:bg-[#020617] p-4 rounded-2xl">
@@ -2366,8 +2408,8 @@ Estamos atentos para cualquier consulta.
                       <strong className="text-slate-900 dark:text-white">${pagadoNumModal.toLocaleString('es-CO')}</strong>
                     </div>
                     <div className="flex justify-between mt-2 pt-2 border-t border-slate-200 dark:border-slate-700">
-                      <span className="font-bold text-rose-500">Monto a Fiar:</span> 
-                      <strong className="text-rose-500 text-lg">${faltanteModal.toLocaleString('es-CO')}</strong>
+                      <span className={"font-bold " + (usaSaldoFavor ? "text-blue-500" : "text-rose-500")}>{usaSaldoFavor ? "A descontar de saldo:" : "Monto a Fiar:"}</span> 
+                      <strong className={(usaSaldoFavor ? "text-blue-500" : "text-rose-500") + " text-lg"}>${faltanteModal.toLocaleString('es-CO')}</strong>
                     </div>
                   </div>
 
@@ -2416,22 +2458,33 @@ Estamos atentos para cualquier consulta.
                   ) : (
                     <>
                       <p className="text-sm font-bold text-slate-700 dark:text-slate-300 mb-6">
-                        {esCeroPago ? (
-                          <>¿Confirmas que vas a fiar el total de <strong className="text-rose-500">${faltanteModal.toLocaleString('es-CO')}</strong> a <strong className="text-emerald-600">{clienteTransaccion.nombre}</strong>?</>
+                        {usaSaldoFavor ? (
+                          esCeroPago ? (
+                            <>¿Confirmas que vas a cobrar el total usando <strong className="text-blue-500">${faltanteModal.toLocaleString('es-CO')}</strong> del saldo a favor de <strong className="text-emerald-600">{clienteTransaccion.nombre}</strong>?</>
+                          ) : (
+                            <>¿Confirmas que recibiste <strong className="text-emerald-600">${pagadoNumModal.toLocaleString('es-CO')}</strong> y usarás <strong className="text-blue-500">${faltanteModal.toLocaleString('es-CO')}</strong> del saldo a favor de <strong className="text-emerald-600">{clienteTransaccion.nombre}</strong>?</>
+                          )
                         ) : (
-                          <>¿Confirmas venta con abono de <strong className="text-emerald-600">${pagadoNumModal.toLocaleString('es-CO')}</strong> y saldo fiado de <strong className="text-rose-500">${faltanteModal.toLocaleString('es-CO')}</strong> a <strong className="text-emerald-600">{clienteTransaccion.nombre}</strong>?</>
+                          esCeroPago ? (
+                            <>¿Confirmas que vas a fiar el total de <strong className="text-rose-500">${faltanteModal.toLocaleString('es-CO')}</strong> a <strong className="text-emerald-600">{clienteTransaccion.nombre}</strong>?</>
+                          ) : (
+                            <>¿Confirmas venta con abono de <strong className="text-emerald-600">${pagadoNumModal.toLocaleString('es-CO')}</strong> y saldo fiado de <strong className="text-rose-500">${faltanteModal.toLocaleString('es-CO')}</strong> a <strong className="text-emerald-600">{clienteTransaccion.nombre}</strong>?</>
+                          )
                         )}
-                        {(clienteTransaccion.deudaTotal || 0) > 0 && (
+                        {(clienteTransaccion.deudaTotal || 0) > 0 && !usaSaldoFavor && (
                           <><br /><span className="text-xs text-slate-500 dark:text-slate-400">Su deuda previa acumulada pasará a ${(Number(clienteTransaccion.deudaTotal || 0) + faltanteModal).toLocaleString('es-CO')}.</span></>
+                        )}
+                        {usaSaldoFavor && (
+                          <><br /><span className="text-xs text-slate-500 dark:text-slate-400">Su saldo a favor pasará de ${(Math.abs(clienteTransaccion.deudaTotal || 0)).toLocaleString('es-CO')} a ${(Math.abs((clienteTransaccion.deudaTotal || 0) + faltanteModal)).toLocaleString('es-CO')}{(clienteTransaccion.deudaTotal || 0) + faltanteModal > 0 ? " (Ahora debe saldo)" : ""}.</span></>
                         )}
                       </p>
                       <div className="flex flex-col gap-3">
                         <button 
                           onClick={() => { setModalConfirmarFiado(false); ejecutarVentaFinal(); }} 
                           disabled={guardandoVenta}
-                          className={`w-full ${esCeroPago ? 'bg-rose-600 hover:bg-rose-700' : 'bg-emerald-600 hover:bg-emerald-700'} ${guardandoVenta ? 'opacity-50 cursor-not-allowed' : 'active:scale-95'} text-white font-black py-4 rounded-2xl text-lg shadow-lg flex justify-center items-center gap-2 transition-all`}
+                          className={`w-full ${usaSaldoFavor ? 'bg-blue-600 hover:bg-blue-700' : (esCeroPago ? 'bg-rose-600 hover:bg-rose-700' : 'bg-emerald-600 hover:bg-emerald-700')} ${guardandoVenta ? 'opacity-50 cursor-not-allowed' : 'active:scale-95'} text-white font-black py-4 rounded-2xl text-lg shadow-lg flex justify-center items-center gap-2 transition-all`}
                         >
-                          <span>{guardandoVenta ? "Procesando..." : (esCeroPago ? 'Confirmar Fiado' : 'Confirmar Venta y Fiado')}</span> <CheckCircle2 size={20}/>
+                          <span>{guardandoVenta ? "Procesando..." : (usaSaldoFavor ? (esCeroPago ? 'Cobrar Total con Saldo' : 'Confirmar Venta y Uso de Saldo') : (esCeroPago ? 'Confirmar Fiado' : 'Confirmar Venta y Fiado'))}</span> <CheckCircle2 size={20}/>
                         </button>
                         <button onClick={() => setModalConfirmarFiado(false)} className="w-full bg-slate-100 dark:bg-[#020617] hover:bg-slate-200 dark:hover:bg-[#1e293b] text-slate-600 dark:text-slate-300 font-bold py-4 rounded-2xl text-lg transition-colors">
                           Corregir pago
@@ -2488,7 +2541,7 @@ Estamos atentos para cualquier consulta.
               </button>
             )}
 
-            {modalExito.cliente?.celular && modalExito.cliente.celular.trim() !== "" && datosSesion?.rol !== 'cajero' && (
+            {modalExito.cliente?.celular && modalExito.cliente.celular.trim() !== "" && datosSesion?.rol !== 'cajero' && puedeEnviarWhatsApp && (
               <button onClick={() => abrirWhatsApp(modalExito.cliente, modalExito.deudaPrevia)} className="w-full mb-3 bg-[#25D366] hover:bg-[#1ebd5a] text-white font-bold py-4 rounded-2xl shadow-lg flex justify-center items-center gap-2 text-lg">
                 <MessageCircle size={24} /> Enviar Comprobante
               </button>

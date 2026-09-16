@@ -32,6 +32,7 @@ function FiarContenido() {
     const puedeVentaDirecta: boolean = datosSesion?.puedeVentaDirecta ?? true;
     const puedeModificarPrecios = esAdmin || (datosSesion?.permisos?.modificarPrecios === true);
     const puedeAplicarDescuentos = esAdmin || (datosSesion?.permisos?.aplicarDescuentos === true);
+    const puedeEnviarWhatsApp = datosSesion?.puedeEnviarWhatsApp ?? true;
 
     const [vendedorActivo, setVendedorActivo] = useState(nombreUsuario || "Vendedor");
     const [listaVendedores, setListaVendedores] = useState<string[]>([]);
@@ -2013,7 +2014,7 @@ Estamos atentos para cualquier consulta.
                             </button>
                         )}
 
-                        {modalExito.cliente.celular && modalExito.cliente.celular.trim() !== "" && datosSesion?.rol !== 'cajero' && (
+                        {modalExito.cliente.celular && modalExito.cliente.celular.trim() !== "" && datosSesion?.rol !== 'cajero' && puedeEnviarWhatsApp && (
                             <button 
                                 onClick={() => abrirWhatsApp(modalExito.cliente)} 
                                 className="w-full mb-3 bg-[#25D366] hover:bg-[#1ebd5a] text-white font-bold py-4 rounded-2xl shadow-lg flex justify-center items-center gap-2 text-lg transition-transform active:scale-95 cursor-pointer"

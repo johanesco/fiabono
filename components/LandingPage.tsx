@@ -143,9 +143,9 @@ export default function LandingPage() {
     setAuthErrores({ email: "", password: "", confirmPassword: "", general: "" });
     let hayError = false;
 
-    let loginEmail = authForm.email.trim();
+    let loginEmail = authForm.email.trim().toLowerCase();
     if (modalLandingInfo.tipo === 'login' && loginEmail && !loginEmail.includes('@')) {
-      loginEmail = `${loginEmail.toLowerCase()}@fiabono.caja`;
+      loginEmail = `${loginEmail.replace(/\s+/g, '')}@fiabono.caja`;
     }
 
     if (modalLandingInfo.tipo === 'registro') {
@@ -2148,7 +2148,7 @@ export default function LandingPage() {
                 </label>
                 <input 
                   type="text" 
-                  placeholder={modalLandingInfo.tipo === 'login' ? "tunegocio@correo.com o cajero1" : "tunegocio@correo.com"} 
+                  placeholder={modalLandingInfo.tipo === 'login' ? "tunegocio@correo.com o carlos-lascamellas" : "tunegocio@correo.com"} 
                   value={authForm.email} 
                   onChange={e => {setAuthForm({...authForm, email: e.target.value}); setAuthErrores({...authErrores, email: ""})}} 
                   className={`w-full p-3.5 bg-slate-50 dark:bg-[#020617] border ${authErrores.email ? 'border-rose-500' : 'border-slate-200 dark:border-slate-800'} rounded-xl outline-none focus:border-blue-500 dark:text-white font-bold text-sm`} 

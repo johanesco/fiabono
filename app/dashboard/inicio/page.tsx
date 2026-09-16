@@ -4,11 +4,12 @@ import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import { collection, addDoc, getDocs, query, where, onSnapshot } from "firebase/firestore";
 import { db } from "../../../firebase";
-import { Search, ShoppingBag, Banknote, Users, CheckCircle2, ChevronRight, X, MessageCircle, UserCog, ShoppingCart, Star, Clock, Store, Printer, Edit3, Trash2, Receipt, Bookmark, Sparkles } from 'lucide-react';
+import { Search, ShoppingBag, Banknote, Users, CheckCircle2, ChevronRight, X, MessageCircle, UserCog, ShoppingCart, Star, Clock, Store, Printer, Edit3, Trash2, Receipt, Bookmark, Sparkles, RotateCcw, AlertTriangle } from 'lucide-react';
 import toast from "react-hot-toast";
 import { useAuth } from "../../../hooks/AuthContext";
 import TicketFacturaModal, { DatosFacturaProps } from "@/components/TicketFacturaModal";
 import ModalGestionCliente from "@/components/ModalGestionCliente";
+import ModalProcesarDevolucion from "@/components/ModalProcesarDevolucion";
 import ModalTourBienvenida from "@/components/ModalTourBienvenida";
 import { abrirEnlaceWhatsApp } from "@/utils/whatsapp";
 
@@ -42,6 +43,7 @@ export default function InicioPage() {
   const [guardandoCliente, setGuardandoCliente] = useState(false);
   const [modalSuscripcion, setModalSuscripcion] = useState({ visible: false, titulo: "", mensaje: "" });
   const [modalTicketFactura, setModalTicketFactura] = useState<{ visible: boolean; datos: DatosFacturaProps | null }>({ visible: false, datos: null });
+  const [modalDevolucion, setModalDevolucion] = useState<{ isOpen: boolean, venta: any | null }>({ isOpen: false, venta: null });
   const [modalGestionCliente, setModalGestionCliente] = useState<{
     visible: boolean;
     modo: 'editar' | 'eliminar';
@@ -608,17 +610,6 @@ Quedamos pendientes para revisar detalles o responder cualquier duda.
                       <h3 className="text-2xl font-black">{clienteActivo.nombre}</h3>
                       <div className="flex items-center gap-2 mt-0.5">
                         <p className="text-slate-400 text-sm">{clienteActivo.celular || "Sin celular registrado"}</p>
-                        {clienteActivo.celular && datosSesion?.rol !== 'cajero' && (
-                          <button
-                            type="button"
-                            onClick={() => abrirWhatsApp(generarTextoComprobante('estado', clienteActivo), clienteActivo.celular)}
-                            title="Enviar WhatsApp al cliente"
-                            className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-400 font-bold text-[11px] transition cursor-pointer border border-emerald-500/30 active:scale-95"
-                          >
-                            <MessageCircle size={12} className="text-[#25D366] fill-[#25D366]/30" />
-                            <span>WhatsApp</span>
-                          </button>
-                        )}
                       </div>
                     </div>
                     {datosSesion?.rol !== 'cajero' && (
@@ -903,24 +894,36 @@ Quedamos pendientes para revisar detalles o responder cualquier duda.
                   {movimientosCliente.map(mov => {
                     const esDevolucionSepare = mov.categoria === 'devolucion_separe' || (mov.tipo === 'egreso' && (mov.concepto || '').toLowerCase().includes('separe'));
                     const esEgreso = mov.tipo === 'egreso';
+                    const esDevolucion = mov.tipo === 'devolucion';
+                    const esVentaOFiado = mov.tipo === 'venta' || mov.tipo === 'fiado';
+                    const devolucionesAsociadas = movimientosCliente.filter((m: any) => m.tipo === 'devolucion' && m.movimientoOrigenId === mov.id);
+                    const tieneDevolucion = devolucionesAsociadas.length > 0;
 
                     return (
-                      <div key={mov.id} className="p-4 md:p-5 bg-slate-50 dark:bg-[#020617] rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm relative overflow-hidden space-y-2 md:space-y-3">
+                      <div key={mov.id} className={`p-4 md:p-5 bg-slate-50 dark:bg-[#020617] rounded-2xl border ${esDevolucion ? 'border-amber-200 dark:border-amber-800/50' : 'border-slate-100 dark:border-slate-800'} shadow-sm relative overflow-hidden space-y-2 md:space-y-3`}>
                         <div className={`absolute left-0 top-0 bottom-0 w-1.5 ${
-                          esDevolucionSepare ? 'bg-amber-500' : (esEgreso ? 'bg-orange-500' : (mov.tipo === 'fiado' ? 'bg-rose-500' : (mov.tipo === 'venta' ? 'bg-emerald-500' : 'bg-blue-500')))
+                          esDevolucion ? 'bg-amber-500' : (esDevolucionSepare ? 'bg-amber-500' : (esEgreso ? 'bg-orange-500' : (mov.tipo === 'fiado' ? 'bg-rose-500' : (mov.tipo === 'venta' ? 'bg-emerald-500' : 'bg-blue-500'))))
                         }`}></div>
                         
                         <div className="pl-1 md:pl-2">
                           <div className="flex flex-wrap sm:flex-nowrap justify-between items-center gap-1.5 pb-1 md:pb-2 md:border-b md:border-slate-100 dark:border-slate-800/80">
-                            <span className={`text-[10px] md:text-xs font-black uppercase px-2.5 py-0.5 md:px-3 md:py-1 rounded-md md:rounded-lg shrink-0 ${
-                              esDevolucionSepare
-                                ? 'bg-amber-100 text-amber-800 dark:bg-amber-500/20 dark:text-amber-300'
-                                : (esEgreso
-                                  ? 'bg-orange-100 text-orange-800 dark:bg-orange-500/20 dark:text-orange-300'
-                                  : (mov.tipo === 'fiado' ? 'bg-rose-100 text-rose-700 dark:bg-rose-500/20 dark:text-rose-300' : (mov.tipo === 'venta' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300' : 'bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-300')))
-                            }`}>
-                              {esDevolucionSepare ? 'DEVOLUCIÓN SEPARE' : (esEgreso ? 'EGRESO' : mov.tipo)}
-                            </span>
+                            <div className="flex items-center gap-2">
+                              <span className={`text-[10px] md:text-xs font-black uppercase px-2.5 py-0.5 md:px-3 md:py-1 rounded-md md:rounded-lg shrink-0 ${
+                                esDevolucion || esDevolucionSepare
+                                  ? 'bg-amber-100 text-amber-800 dark:bg-amber-500/20 dark:text-amber-300'
+                                  : (esEgreso
+                                    ? 'bg-orange-100 text-orange-800 dark:bg-orange-500/20 dark:text-orange-300'
+                                    : (mov.tipo === 'fiado' ? 'bg-rose-100 text-rose-700 dark:bg-rose-500/20 dark:text-rose-300' : (mov.tipo === 'venta' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300' : 'bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-300')))
+                              }`}>
+                                {esDevolucion ? 'DEVOLUCIÓN' : (esDevolucionSepare ? 'DEVOLUCIÓN SEPARE' : (esEgreso ? 'EGRESO' : mov.tipo))}
+                              </span>
+
+                              {tieneDevolucion && (
+                                <span className="text-[9px] md:text-[10px] font-black uppercase px-1.5 py-0.5 rounded-md shrink-0 bg-amber-500 text-white shadow-xs flex items-center gap-1">
+                                  <AlertTriangle size={10} /> Con Devolución
+                                </span>
+                              )}
+                            </div>
                             
                             <div className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[10px] md:text-[11px] font-bold uppercase">
                               {mov.registradoPor && (
@@ -940,7 +943,7 @@ Quedamos pendientes para revisar detalles o responder cualquier duda.
                               {mov.detalles.map((d: any, idx: number) => (
                                 <div key={idx} className="flex justify-between items-center text-xs md:text-sm min-w-0 gap-2">
                                   <span className="text-slate-600 dark:text-slate-300 font-medium truncate flex-1 min-w-0">
-                                    {d.cantidad > 1 && <strong className={`${mov.tipo === 'venta' ? 'text-emerald-500' : (mov.tipo === 'abono' ? 'text-blue-500' : 'text-rose-500')} font-black mr-1 md:mr-1.5`}>{d.cantidad}x</strong>}
+                                    {d.cantidad > 1 && <strong className={`${esDevolucion ? 'text-amber-500' : (mov.tipo === 'venta' ? 'text-emerald-500' : (mov.tipo === 'abono' ? 'text-blue-500' : 'text-rose-500'))} font-black mr-1 md:mr-1.5`}>{d.cantidad}x</strong>}
                                     {d.descripcion}
                                   </span>
                                   <span className="font-bold text-slate-900 dark:text-slate-100 shrink-0">${d.valor.toLocaleString('es-CO')}</span>
@@ -950,12 +953,33 @@ Quedamos pendientes para revisar detalles o responder cualquier duda.
                           ) : (
                             <p className="text-xs md:text-sm font-bold text-slate-800 dark:text-slate-200 truncate">{mov.descripcion || mov.concepto}</p>
                           )}
+
+                          {mov.articulosDevueltos && mov.articulosDevueltos.length > 0 && (
+                            <div className="mt-2 space-y-1 bg-amber-50 dark:bg-amber-950/20 p-2 md:p-3 rounded-lg border border-amber-100 dark:border-amber-900/30">
+                              <p className="text-[10px] md:text-[11px] font-black uppercase text-amber-600 dark:text-amber-400">Artículos devueltos:</p>
+                              {mov.articulosDevueltos.map((d: any, idx: number) => (
+                                <div key={idx} className="flex justify-between items-center text-xs md:text-sm min-w-0 gap-2">
+                                  <span className="text-slate-600 dark:text-slate-300 truncate flex-1 min-w-0"><span className="text-amber-600 font-bold">{d.cantidad}x</span> {d.descripcion}</span>
+                                  <span className="font-bold text-amber-700 dark:text-amber-400 shrink-0">${Math.round(d.subtotal || 0).toLocaleString('es-CO')}</span>
+                                </div>
+                              ))}
+                            </div>
+                          )}
                           
                           <div className="flex justify-between items-center pt-2 mt-1 md:mt-0 md:pt-3 border-t border-slate-200 dark:border-slate-700 md:border-slate-100 dark:md:border-slate-800 font-black">
                             <span className="text-xs text-slate-400 uppercase tracking-wider">
-                              {esDevolucionSepare || esEgreso ? 'Devuelto:' : 'Total:'}
+                              {esDevolucion || esDevolucionSepare || esEgreso ? 'Devuelto:' : 'Total:'}
                             </span>
                             <div className="flex items-center gap-2">
+                              {esVentaOFiado && mov.detalles && mov.detalles.length > 0 && (datosSesion?.rol !== 'cajero' || datosSesion?.permisos?.hacerDevoluciones) && (
+                                <button
+                                  type="button"
+                                  onClick={() => setModalDevolucion({ isOpen: true, venta: mov })}
+                                  className="text-[10px] md:text-[11px] font-bold px-2 py-1 md:px-2.5 md:py-1.5 bg-amber-50 hover:bg-amber-100 text-amber-600 dark:bg-amber-900/30 dark:hover:bg-amber-900/50 dark:text-amber-400 rounded-lg transition-colors cursor-pointer border border-amber-200 dark:border-amber-800 flex items-center gap-1 mr-1"
+                                >
+                                  <RotateCcw size={12} /> <span className="hidden md:inline">Hacer Devolución</span><span className="md:hidden">Devolver</span>
+                                </button>
+                              )}
                               {mov.tipo !== 'egreso' && (
                                 <button
                                   type="button"
@@ -967,9 +991,9 @@ Quedamos pendientes para revisar detalles o responder cualquier duda.
                                 </button>
                               )}
                               <span className={`text-base md:text-xl ${
-                                esDevolucionSepare || esEgreso ? 'text-amber-600 dark:text-amber-400' : (mov.tipo === 'fiado' ? 'text-rose-500' : (mov.tipo === 'venta' ? 'text-emerald-500' : 'text-blue-500'))
+                                esDevolucion || esDevolucionSepare || esEgreso ? 'text-amber-600 dark:text-amber-400' : (mov.tipo === 'fiado' ? 'text-rose-500' : (mov.tipo === 'venta' ? 'text-emerald-500' : 'text-blue-500'))
                               }`}>
-                                {mov.tipo === 'fiado' ? '-' : (esDevolucionSepare || esEgreso ? '-' : '+')}${mov.monto.toLocaleString('es-CO')}
+                                {mov.tipo === 'fiado' ? '-' : (esDevolucion || esDevolucionSepare || esEgreso ? (mov.metodoDevolucion === 'saldo_a_favor' ? '+' : '-') : '+')}${mov.monto.toLocaleString('es-CO')}
                               </span>
                             </div>
                           </div>
@@ -1036,6 +1060,22 @@ Quedamos pendientes para revisar detalles o responder cualquier duda.
         cliente={modalGestionCliente.cliente}
         onClose={() => setModalGestionCliente({ visible: false, modo: 'editar', cliente: null })}
         onSuccess={handleGestionClienteSuccess}
+      />
+
+      {/* MODAL DE PROCESAR DEVOLUCIÓN */}
+      <ModalProcesarDevolucion
+        isOpen={modalDevolucion.isOpen}
+        ventaOrigen={modalDevolucion.venta as any}
+        onClose={() => setModalDevolucion({ isOpen: false, venta: null })}
+        onSuccess={(res) => {
+          if (cuentaPrincipalId) cargarDatosGlobales(cuentaPrincipalId);
+          if (clienteActivo) {
+            if (res.saldoNuevo !== undefined) {
+               setClienteActivo({ ...clienteActivo, deudaTotal: res.saldoNuevo });
+            }
+            cargarMovimientosClienteDirecto(clienteActivo.id);
+          }
+        }}
       />
 
       {/* MODAL DE TOUR INTERACTIVO DE BIENVENIDA */}

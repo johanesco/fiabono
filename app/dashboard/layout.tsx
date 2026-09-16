@@ -30,6 +30,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const moduloSepareActivo = datosSesion?.moduloSepareActivo !== false;
   const puedeSepare = (datosSesion?.puedeSepare ?? (datosSesion?.esPro === true)) && moduloSepareActivo;
   const puedeGestionarSepares = esAdmin === true && datosSesion?.esPro === true && moduloSepareActivo;
+  const puedeVerCartera = esAdmin || (datosSesion?.puedeVerCartera === true) || (datosSesion?.permisos?.verCartera === true);
+  const puedeVerReportes = esAdmin || (datosSesion?.puedeVerReportes === true) || (datosSesion?.permisos?.verReportes === true);
   // Función para reproducir sonido sutil de campana POS (Web Audio API)
   const reproducirSonidoOrden = () => {
     try {
@@ -125,8 +127,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   const nombreNegocio = datosSesion?.nombreNegocio || "Mi Negocio";
   const rutaActiva = (ruta: string) => pathname === ruta;
-
-  const puedeVerReportes = datosSesion?.rol !== 'cajero';
 
   if (auth?.cargando) {
     return (
@@ -245,14 +245,16 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             </button>
           )}
 
-          <button
-            onClick={() => router.push('/dashboard/clientes')}
-            title="Clientes & Cartera"
-            className={`w-full flex items-center gap-3.5 p-3 rounded-2xl font-bold transition-all active:scale-95 ${menuColapsado ? 'justify-center' : ''} ${rutaActiva('/dashboard/clientes') ? 'bg-amber-50 dark:bg-amber-500/10 text-amber-600 dark:text-amber-400 shadow-sm' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800/50'}`}
-          >
-            <Users size={22} className="shrink-0" />
-            {!menuColapsado && <span>Clientes & Cartera</span>}
-          </button>
+          {puedeVerCartera && (
+            <button
+              onClick={() => router.push('/dashboard/clientes')}
+              title="Clientes & Cartera"
+              className={`w-full flex items-center gap-3.5 p-3 rounded-2xl font-bold transition-all active:scale-95 ${menuColapsado ? 'justify-center' : ''} ${rutaActiva('/dashboard/clientes') ? 'bg-amber-50 dark:bg-amber-500/10 text-amber-600 dark:text-amber-400 shadow-sm' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800/50'}`}
+            >
+              <Users size={22} className="shrink-0" />
+              {!menuColapsado && <span>Clientes & Cartera</span>}
+            </button>
+          )}
 
           {puedeVerReportes && (
             <button

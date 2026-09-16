@@ -92,6 +92,7 @@ export default function BottomNav({
   // Permisos para el menú
   const puedeInventario = esAdmin || Boolean(datosSesion?.permisos?.editarInventario || datosSesion?.permisos?.ingresoInventario);
   const puedeGestionarSepares = (esAdmin || Boolean(datosSesion?.permisos?.planSepare)) && puedeSepare;
+  const puedeVerCartera = esAdmin || Boolean(datosSesion?.puedeVerCartera || datosSesion?.permisos?.verCartera);
   const esCajero = datosSesion?.rol === 'cajero';
   
   // Colaborador ve la pestaña de órdenes solo si es admin o si tiene órdenes/directa
@@ -300,56 +301,28 @@ export default function BottomNav({
                 </Link>
               )}
 
-              {/* 2. PLANES SEPARE */}
-              {puedeGestionarSepares && (
+              {/* 3. CLIENTES & CARTERA */}
+              {puedeVerCartera && (
                 <Link
-                  href="/dashboard/separes"
+                  href="/dashboard/clientes"
                   className={`flex items-center justify-between p-3.5 rounded-2xl transition active:scale-[0.98] ${
-                    pathname?.startsWith('/dashboard/separe')
-                      ? 'bg-violet-50 dark:bg-violet-500/10 text-violet-600 dark:text-violet-400 font-black'
+                    pathname?.startsWith('/dashboard/clientes')
+                      ? 'bg-amber-50 dark:bg-amber-500/10 text-amber-600 dark:text-amber-400 font-black'
                       : 'bg-slate-50 dark:bg-slate-900/50 hover:bg-slate-100 dark:hover:bg-slate-800/60 text-slate-700 dark:text-slate-200 font-bold'
                   }`}
                 >
                   <div className="flex items-center gap-3">
-                    <div className="p-2 rounded-xl bg-violet-100 dark:bg-violet-500/20 text-violet-600 dark:text-violet-400">
-                      <Bookmark size={20} />
+                    <div className="p-2 rounded-xl bg-amber-100 dark:bg-amber-500/20 text-amber-600 dark:text-amber-400">
+                      <Users size={20} />
                     </div>
                     <div>
-                      <div className="flex items-center gap-2">
-                        <p className="text-sm leading-tight">Planes Separe</p>
-                        {separesActivosCount > 0 && (
-                          <span className="px-2 py-0.5 rounded-full bg-violet-600 text-white text-[10px] font-black">
-                            {separesActivosCount}
-                          </span>
-                        )}
-                      </div>
-                      <p className="text-[11px] text-slate-400 font-normal">Mercancía apartada y abonos</p>
+                      <p className="text-sm leading-tight">Clientes y Cartera</p>
+                      <p className="text-[11px] text-slate-400 font-normal">Saldos, riesgo y cobranza</p>
                     </div>
                   </div>
                   <ChevronRight size={18} className="text-slate-400" />
                 </Link>
               )}
-
-              {/* 3. CLIENTES & CARTERA */}
-              <Link
-                href="/dashboard/clientes"
-                className={`flex items-center justify-between p-3.5 rounded-2xl transition active:scale-[0.98] ${
-                  pathname?.startsWith('/dashboard/clientes')
-                    ? 'bg-amber-50 dark:bg-amber-500/10 text-amber-600 dark:text-amber-400 font-black'
-                    : 'bg-slate-50 dark:bg-slate-900/50 hover:bg-slate-100 dark:hover:bg-slate-800/60 text-slate-700 dark:text-slate-200 font-bold'
-                }`}
-              >
-                <div className="flex items-center gap-3">
-                  <div className="p-2 rounded-xl bg-amber-100 dark:bg-amber-500/20 text-amber-600 dark:text-amber-400">
-                    <Users size={20} />
-                  </div>
-                  <div>
-                    <p className="text-sm leading-tight">Clientes y Cartera</p>
-                    <p className="text-[11px] text-slate-400 font-normal">Saldos, riesgo y cobranza</p>
-                  </div>
-                </div>
-                <ChevronRight size={18} className="text-slate-400" />
-              </Link>
 
               {/* 4. REPORTES Y ESTADÍSTICAS (Solo Admin o con permiso) */}
               {puedeVerReportes && (

@@ -47,14 +47,14 @@ const NOMBRES_MESES = [
 const NOMBRES_MESES_CORTO = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
 
 export default function ReportesPage() {
-  const { datosSesion } = useAuth();
+  const { datosSesion, cargando: authCargando } = useAuth();
   const router = useRouter();
   const cuentaPrincipalId = datosSesion?.cuentaPrincipalId;
   const esPro = datosSesion?.esPro;
   const esComercio = datosSesion?.esComercio;
   const esGratis = datosSesion?.esGratis;
   const esAdmin = datosSesion?.rol === 'admin' || !datosSesion?.rol;
-  const puedeVerReportes = datosSesion?.rol !== 'cajero' || datosSesion?.permisos?.verReportes === true;
+  const puedeVerReportes = esAdmin || datosSesion?.puedeVerReportes === true || datosSesion?.permisos?.verReportes === true;
 
   const [clientes, setClientes] = useState<Cliente[]>([]);
   const [todosMovimientos, setTodosMovimientos] = useState<Movimiento[]>([]);
@@ -80,8 +80,16 @@ export default function ReportesPage() {
   // Estado del Live Data Inspector — ítem de gráfica actualmente inspeccionado
   const [itemInspeccionado, setItemInspeccionado] = useState<any | null>(null);
 
+  // Route Guard para cajeros sin permiso
   useEffect(() => {
-    if (!cuentaPrincipalId) return;
+    if (!authCargando && datosSesion && !esAdmin && !puedeVerReportes) {
+      toast.error("No tienes permisos para ver esta sección.");
+      router.replace("/dashboard/inicio");
+    }
+  }, [authCargando, datosSesion, esAdmin, puedeVerReportes, router]);
+
+  useEffect(() => {
+    if (!cuentaPrincipalId || (!esAdmin && !puedeVerReportes)) return;
 
     // 1. Listener en tiempo real de clientes
     const qC = query(collection(db, "clientes"), where("usuarioId", "==", cuentaPrincipalId));
@@ -411,6 +419,13 @@ export default function ReportesPage() {
             }
             if (mov.tipo === 'fiado') datos[idx].fiados += (mov.monto || 0);
             if (mov.tipo === 'abono') datos[idx].abonos += (mov.monto || 0);
+            if (mov.tipo === 'devolucion') {
+              if ((mov as any).origenTipo === 'fiado') {
+                datos[idx].fiados -= (mov.monto || 0);
+              } else if ((mov as any).origenTipo === 'venta' && (mov as any).metodoDevolucion === 'efectivo') {
+                datos[idx].ventas -= (mov.monto || 0);
+              }
+            }
           }
         }
       });
@@ -448,6 +463,13 @@ export default function ReportesPage() {
             }
             if (mov.tipo === 'fiado') datos[idx].fiados += (mov.monto || 0);
             if (mov.tipo === 'abono') datos[idx].abonos += (mov.monto || 0);
+            if (mov.tipo === 'devolucion') {
+              if ((mov as any).origenTipo === 'fiado') {
+                datos[idx].fiados -= (mov.monto || 0);
+              } else if ((mov as any).origenTipo === 'venta' && (mov as any).metodoDevolucion === 'efectivo') {
+                datos[idx].ventas -= (mov.monto || 0);
+              }
+            }
           }
         }
       });
@@ -474,6 +496,13 @@ export default function ReportesPage() {
             }
             if (mov.tipo === 'fiado') datos[idx].fiados += (mov.monto || 0);
             if (mov.tipo === 'abono') datos[idx].abonos += (mov.monto || 0);
+            if (mov.tipo === 'devolucion') {
+              if ((mov as any).origenTipo === 'fiado') {
+                datos[idx].fiados -= (mov.monto || 0);
+              } else if ((mov as any).origenTipo === 'venta' && (mov as any).metodoDevolucion === 'efectivo') {
+                datos[idx].ventas -= (mov.monto || 0);
+              }
+            }
           }
         }
       });
@@ -512,6 +541,13 @@ export default function ReportesPage() {
                 }
                 if (mov.tipo === 'fiado') datos[idx].fiados += (mov.monto || 0);
                 if (mov.tipo === 'abono') datos[idx].abonos += (mov.monto || 0);
+                if (mov.tipo === 'devolucion') {
+                  if ((mov as any).origenTipo === 'fiado') {
+                    datos[idx].fiados -= (mov.monto || 0);
+                  } else if ((mov as any).origenTipo === 'venta' && (mov as any).metodoDevolucion === 'efectivo') {
+                    datos[idx].ventas -= (mov.monto || 0);
+                  }
+                }
               }
             }
           }
@@ -540,6 +576,13 @@ export default function ReportesPage() {
                 }
                 if (mov.tipo === 'fiado') datos[idx].fiados += (mov.monto || 0);
                 if (mov.tipo === 'abono') datos[idx].abonos += (mov.monto || 0);
+                if (mov.tipo === 'devolucion') {
+                  if ((mov as any).origenTipo === 'fiado') {
+                    datos[idx].fiados -= (mov.monto || 0);
+                  } else if ((mov as any).origenTipo === 'venta' && (mov as any).metodoDevolucion === 'efectivo') {
+                    datos[idx].ventas -= (mov.monto || 0);
+                  }
+                }
               }
             }
           }
@@ -588,10 +631,14 @@ export default function ReportesPage() {
   // Años disponibles para selector histórico
   const anosDisponibles = [hoyDate.getFullYear(), hoyDate.getFullYear() - 1, hoyDate.getFullYear() - 2, hoyDate.getFullYear() - 3];
 
+  if (!esAdmin && !puedeVerReportes) {
+    return null; // Route guard is handling the redirect
+  }
+
   // =========================================================================
   // SI ES PLAN GRATIS: MUESTRA EL FEATURE PAYWALL CON MONTOS DIFUMINADOS
   // =========================================================================
-  if (!puedeVerReportes || (esGratis && !esPro && !esComercio)) {
+  if (esGratis && !esPro && !esComercio) {
     return (
       <div className="flex flex-col gap-6 animate-in fade-in duration-500 h-full max-w-7xl mx-auto w-full pb-16 relative">
 

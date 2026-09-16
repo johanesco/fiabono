@@ -28,7 +28,7 @@ export interface DatosFacturaProps {
   celularCliente?: string;
   registradoPor?: string;
   fecha?: any;
-  tipo: 'venta' | 'fiado' | 'abono' | 'separe' | 'abono_separe' | 'egreso' | 'entrega_separe';
+  tipo: 'venta' | 'fiado' | 'abono' | 'separe' | 'abono_separe' | 'egreso' | 'entrega_separe' | 'devolucion';
   detalles?: DetalleFacturaItem[];
   descripcionGeneral?: string;
   montoTotal: number;
@@ -57,6 +57,7 @@ interface TicketFacturaModalProps {
 
 export default function TicketFacturaModal({ isOpen, onClose, datos }: TicketFacturaModalProps) {
   const { datosSesion } = useAuth() || {};
+  const puedeEnviarWhatsApp = datosSesion?.puedeEnviarWhatsApp ?? true;
   const ticketRef = useRef<HTMLDivElement>(null);
   const [modalUpsell, setModalUpsell] = useState(false);
   const [montado, setMontado] = useState(false);
@@ -105,7 +106,8 @@ export default function TicketFacturaModal({ isOpen, onClose, datos }: TicketFac
     if (datos.tipo === 'separe') return 'COMPROBANTE DE PLAN SEPARE';
     if (datos.tipo === 'abono_separe') return 'ABONO A PLAN SEPARE';
     if (datos.tipo === 'entrega_separe') return 'ENTREGA DE PLAN SEPARE';
-    if (datos.tipo === 'egreso') return 'COMPROBANTE DE EGRESO / DEVOLUCIÓN';
+    if (datos.tipo === 'egreso') return 'COMPROBANTE DE EGRESO';
+    if (datos.tipo === 'devolucion') return 'COMPROBANTE DE DEVOLUCIÓN';
     return 'COMPROBANTE DE CAJA';
   };
 
@@ -132,7 +134,15 @@ export default function TicketFacturaModal({ isOpen, onClose, datos }: TicketFac
     }
 
     if (datos.montoDescuento && datos.montoDescuento > 0) {
+      if (datos.montoBruto) {
+        detalleTexto += `*Subtotal:* $${datos.montoBruto.toLocaleString('es-CO')}\n`;
+      }
       detalleTexto += `*Descuento:* -$${datos.montoDescuento.toLocaleString('es-CO')}\n`;
+    }
+
+    if (datos.subtotal !== undefined && datos.valorIva !== undefined && datos.valorIva > 0) {
+      detalleTexto += `*Base:* $${datos.subtotal.toLocaleString('es-CO')}\n`;
+      detalleTexto += `*IVA (${datos.porcentajeIva || 19}%):* $${datos.valorIva.toLocaleString('es-CO')}\n`;
     }
 
     let resultado = "";
@@ -233,23 +243,38 @@ Estado: Completamente pagado y entregado${enlaceTexto}
 ¡Gracias por tu preferencia!
 Estamos atentos para cualquier consulta.
 
-*¡Te esperamos pronto!*`;
+  *¡Te esperamos pronto!*`;
+    } else if (datos.tipo === 'devolucion') {
+      const metodoTexto = datos.metodoPago === 'saldo_a_favor' ? 'Abonado a Saldo a Favor' : 'Entregado en Efectivo';
+      resultado = `¡Hola, *${nombreCliente}*! Comprobante de devolución en *${nombreNegocio}*.
+
+===================
+*COMPROBANTE DE DEVOLUCIÓN*
+===================
+
+${detalleTexto.trim()}
+*TOTAL DEVUELTO: $${(datos.montoTotal || 0).toLocaleString('es-CO')}*
+- Método: *${metodoTexto}*${enlaceTexto}
+
+Gracias por preferirnos.
+
+*¡Que tengas un gran día!*`;
     } else if (datos.tipo === 'egreso') {
       resultado = `¡Hola, *${nombreCliente}*! Comprobante de egreso o devolucion en *${nombreNegocio}*.
 
 ===================
-*COMPROBANTE DE DEVOLUCION*
+*COMPROBANTE DE EGRESO*
 ===================
 
 ${detalleTexto.trim()}
-*TOTAL DEVUELTO: $${(datos.montoTotal || 0).toLocaleString('es-CO')}*${enlaceTexto}
+*TOTAL EGRESO: $${(datos.montoTotal || 0).toLocaleString('es-CO')}*${enlaceTexto}
 
 Estamos atentos para cualquier consulta.`;
     } else {
       // Por defecto: COMPROBANTE DE VENTA
       let infoExtra = "";
       if (datos.devuelta && datos.devuelta > 0) {
-        infoExtra = `\n*Entregaste:* $${(datos.pagoRecibido || 0).toLocaleString('es-CO')}\n*Devuelta:* $${datos.devuelta.toLocaleString('es-CO')}*`;
+        infoExtra = `\n*Monto recibido:* $${(datos.pagoRecibido || 0).toLocaleString('es-CO')}\n*Cambio:* $${datos.devuelta.toLocaleString('es-CO')}`;
       } else {
         infoExtra = '\n*Pago completo.*';
       }
@@ -321,7 +346,7 @@ Estamos atentos para cualquier consulta.
       const blob = await capturarBlobTicket();
       if (!blob) throw new Error("No se pudo generar la imagen");
 
-      const nombreArchivo = `Ticket-${datos.idTransaccion ? datos.idTransaccion.slice(0, 8).toUpperCase() : Date.now()}.png`;
+      const nombreArchivo = `Factura-${datos.idTransaccion ? datos.idTransaccion.slice(0, 8).toUpperCase() : Date.now()}.png`;
       const archivo = new File([blob], nombreArchivo, { type: 'image/png' });
 
       // En móviles (Android / iOS): abre la bandeja nativa con la foto adjunta lista para enviar a WhatsApp
@@ -395,7 +420,7 @@ Estamos atentos para cualquier consulta.
       const blob = await capturarBlobTicket();
       if (!blob) throw new Error("No se pudo generar la imagen");
 
-      const nombreArchivo = `Ticket-${datos.idTransaccion ? datos.idTransaccion.slice(0, 8).toUpperCase() : Date.now()}.png`;
+      const nombreArchivo = `Factura-${datos.idTransaccion ? datos.idTransaccion.slice(0, 8).toUpperCase() : Date.now()}.png`;
       const archivo = new File([blob], nombreArchivo, { type: 'image/png' });
 
       const esIOS = typeof navigator !== 'undefined' && /iPhone|iPad|iPod/i.test(navigator.userAgent);
@@ -638,7 +663,7 @@ Estamos atentos para cualquier consulta.
               <div className="p-1.5 bg-blue-100 dark:bg-blue-500/20 text-blue-600 dark:text-blue-400 rounded-xl">
                 <Receipt size={16} className="sm:w-4 sm:h-4" />
               </div>
-              <h3 className="font-black text-slate-900 dark:text-white text-xs sm:text-sm">Vista Previa de Factura / Ticket</h3>
+              <h3 className="font-black text-slate-900 dark:text-white text-xs sm:text-sm">Vista Previa de Factura / Comprobante</h3>
             </div>
             <button
               onClick={onClose}
@@ -658,8 +683,8 @@ Estamos atentos para cualquier consulta.
             
             {/* VISTA MÓVIL: ORGANIZADA SEGÚN SI TIENE NÚMERO O NO */}
             <div className="sm:hidden flex flex-col gap-2 w-full">
-              {/* Fila 1 en móvil: WhatsApp (solo si el cliente tiene número guardado) */}
-              {tieneCelularValido && (
+              {/* Fila 1 en móvil: WhatsApp (solo si el cliente tiene número guardado y el usuario tiene permiso) */}
+              {tieneCelularValido && puedeEnviarWhatsApp && (
                 <button
                   type="button"
                   onClick={compartirPorWhatsApp}
@@ -717,7 +742,7 @@ Estamos atentos para cualquier consulta.
               </button>
 
               <div className="flex items-center gap-2">
-                {tieneCelularValido && (
+                {tieneCelularValido && puedeEnviarWhatsApp && (
                   <button
                     type="button"
                     onClick={compartirPorWhatsApp}
@@ -734,7 +759,7 @@ Estamos atentos para cualquier consulta.
                   disabled={generandoImagen}
                   onClick={manejarDescargarImagenDirecta}
                   className="py-2.5 px-3.5 bg-violet-600 hover:bg-violet-700 text-white font-black rounded-xl shadow-sm flex items-center justify-center gap-1.5 transition active:scale-95 text-xs text-center cursor-pointer disabled:opacity-60"
-                  title="Descargar imagen PNG completa del tíquet térmico"
+                  title="Descargar imagen PNG completa de la factura"
                 >
                   {generandoImagen ? <Loader2 size={15} className="animate-spin shrink-0" /> : <Download size={15} className="shrink-0" />}
                   <span>Descargar Imagen</span>

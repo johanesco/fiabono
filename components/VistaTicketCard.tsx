@@ -142,7 +142,8 @@ export default function VistaTicketCard({ datos, ticketRef }: VistaTicketCardPro
     if (datos.tipo === "separe") return "PLAN SEPARE";
     if (datos.tipo === "abono_separe") return "ABONO A PLAN SEPARE";
     if (datos.tipo === "entrega_separe") return "ENTREGA DE PLAN SEPARE";
-    if (datos.tipo === "egreso") return "EGRESO / DEVOLUCIÓN";
+    if (datos.tipo === "egreso") return "EGRESO";
+    if (datos.tipo === "devolucion") return "DEVOLUCIÓN";
     return "COMPROBANTE DE CAJA";
   };
 

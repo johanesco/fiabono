@@ -163,7 +163,12 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
           puedeEditarInventario: esAdmin || permisos?.editarInventario === true,
           puedeModificarPrecios: esAdmin || permisos?.modificarPrecios === true,
           puedeAplicarDescuentos: esAdmin || permisos?.aplicarDescuentos === true,
-          esTerminalMultivendedor: esPro && (permisos?.terminalMultivendedor === true || esAdmin),
+          puedeEnviarWhatsApp: esAdmin || (data.esCajaMostrador === true ? permisos?.enviarWhatsApp !== false : permisos?.enviarWhatsApp === true),
+          puedeVerCartera: esAdmin || permisos?.verCartera === true,
+          puedeVerDirectorio: esAdmin || permisos?.verDirectorio === true,
+          puedeVerReportes: esAdmin || permisos?.verReportes === true,
+          esCajaMostrador: data.esCajaMostrador === true,
+          esTerminalMultivendedor: esPro && (data.esCajaMostrador === true || permisos?.terminalMultivendedor === true || esAdmin),
           puedeSepare: esPro && (permisos?.planSepare !== false),
           tipoUsuario: data.rol === 'cajero' ? 'colaborador' : 'principal',
           planActual,
@@ -184,6 +189,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
           enPeriodoGracia,
           tipoNegocio: adminData.tipoNegocio || "Comercio",
           moduloSepareActivo: adminData.moduloSepareActivo !== false,
+          slugNegocio: adminData.slugNegocio || "",
           datosUsuarioOriginales: data as UsuarioBD
         });
       } catch (e: any) {

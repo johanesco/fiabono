@@ -14,9 +14,11 @@ import { useAuth } from "@/hooks/AuthContext";
 import { Cliente, Movimiento, Separe } from "@/types";
 import { abrirEnlaceWhatsApp } from "@/utils/whatsapp";
 import ModalGestionCliente from "@/components/ModalGestionCliente";
+import ModalProcesarDevolucion from "@/components/ModalProcesarDevolucion";
 import TicketFacturaModal, { DatosFacturaProps } from "@/components/TicketFacturaModal";
 import toast from "react-hot-toast";
 import { 
+  RotateCcw,
   Users, 
   Search, 
   UserPlus, 
@@ -56,12 +58,20 @@ export default function ClientesPage() {
 }
 
 function ClientesContenido() {
-  const { datosSesion } = useAuth();
+  const { datosSesion, cargando: authCargando } = useAuth();
   const router = useRouter();
   const cuentaPrincipalId = datosSesion?.cuentaPrincipalId;
   const nombreNegocio = datosSesion?.nombreNegocio || "Mi Negocio";
   const puedeSepare = Boolean(datosSesion?.puedeSepare ?? true);
   const esCajero = datosSesion?.rol === 'cajero';
+  const puedeVerCartera = datosSesion?.puedeVerCartera === true;
+
+  useEffect(() => {
+    if (!authCargando && datosSesion && !puedeVerCartera) {
+      toast.error("No tienes permisos para ver esta sección.");
+      router.replace("/dashboard/inicio");
+    }
+  }, [authCargando, datosSesion, puedeVerCartera, router]);
 
   const [clientes, setClientes] = useState<Cliente[]>([]);
   const [movimientos, setMovimientos] = useState<Movimiento[]>([]);
@@ -93,8 +103,10 @@ function ClientesContenido() {
     datos: DatosFacturaProps | null;
   }>({
     visible: false,
-    datos: null,
+    datos: null
   });
+
+  const [modalDevolucion, setModalDevolucion] = useState<{ isOpen: boolean, venta: Movimiento | null }>({ isOpen: false, venta: null });
 
   // Modal Historial / Ficha del Cliente
   const [clienteFicha, setClienteFicha] = useState<any | null>(null);
@@ -103,7 +115,7 @@ function ClientesContenido() {
 
   // 1. Cargar Clientes en Tiempo Real
   useEffect(() => {
-    if (!cuentaPrincipalId) return;
+    if (!cuentaPrincipalId || !puedeVerCartera) return;
 
     const qC = query(
       collection(db, "clientes"),
@@ -123,11 +135,11 @@ function ClientesContenido() {
     });
 
     return () => unsubC();
-  }, [cuentaPrincipalId]);
+  }, [cuentaPrincipalId, puedeVerCartera]);
 
   // 2. Cargar Movimientos para Inteligencia de Comportamiento
   useEffect(() => {
-    if (!cuentaPrincipalId) return;
+    if (!cuentaPrincipalId || !puedeVerCartera) return;
 
     const qM = query(
       collection(db, "movimientos"),
@@ -145,11 +157,11 @@ function ClientesContenido() {
     });
 
     return () => unsubM();
-  }, [cuentaPrincipalId]);
+  }, [cuentaPrincipalId, puedeVerCartera]);
 
   // 3. Cargar Separes del Negocio
   useEffect(() => {
-    if (!cuentaPrincipalId) return;
+    if (!cuentaPrincipalId || !puedeVerCartera) return;
 
     const qS = query(
       collection(db, "separes"),
@@ -167,7 +179,7 @@ function ClientesContenido() {
     });
 
     return () => unsubS();
-  }, [cuentaPrincipalId]);
+  }, [cuentaPrincipalId, puedeVerCartera]);
 
   // Auxiliar para convertir Timestamp a Date
   const obtenerFechaJS = (fecha: any): Date | null => {
@@ -558,33 +570,46 @@ Quedamos pendientes para revisar detalles o responder cualquier duda.
             const fechaStr = f 
               ? f.toLocaleDateString('es-CO', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) 
               : '';
+            const tieneDevolucion = (mov as any).tieneDevolucion;
+            const esVentaOFiado = mov.tipo === 'venta' || mov.tipo === 'fiado';
 
             return (
               <div 
                 key={mov.id} 
-                className="p-3.5 bg-slate-50 dark:bg-[#020617] rounded-2xl border border-slate-100 dark:border-slate-800 shadow-xs relative overflow-hidden space-y-2"
+                className={`p-3.5 bg-slate-50 dark:bg-[#020617] rounded-2xl border ${mov.tipo === 'devolucion' ? 'border-amber-200 dark:border-amber-800/50' : 'border-slate-100 dark:border-slate-800'} shadow-xs relative overflow-hidden space-y-2`}
               >
                 {/* Barra lateral de color según el tipo */}
                 <div className={`absolute left-0 top-0 bottom-0 w-1.5 ${
+                  mov.tipo === 'devolucion' ? 'bg-amber-500' :
                   mov.tipo === 'fiado' ? 'bg-rose-500' : (mov.tipo === 'venta' ? 'bg-emerald-500' : 'bg-blue-500')
                 }`} />
                 
                 <div className="pl-1.5 sm:pl-2">
                   <div className="flex flex-wrap sm:flex-nowrap justify-between items-center gap-1.5 pb-1.5 border-b border-slate-200/60 dark:border-slate-800/80">
-                    <span className={`text-[10px] sm:text-xs font-black uppercase px-2.5 py-0.5 rounded-md shrink-0 ${
-                      mov.tipo === 'fiado' 
-                        ? 'bg-rose-100 text-rose-700 dark:bg-rose-500/20 dark:text-rose-300' 
-                        : (mov.tipo === 'venta' 
-                          ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300' 
-                          : 'bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-300')
-                    }`}>
-                      {mov.tipo}
-                    </span>
+                    <div className="flex items-center gap-2">
+                      <span className={`text-[10px] sm:text-xs font-black uppercase px-2.5 py-0.5 rounded-md shrink-0 ${
+                        mov.tipo === 'devolucion'
+                          ? 'bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-300'
+                          : mov.tipo === 'fiado' 
+                          ? 'bg-rose-100 text-rose-700 dark:bg-rose-500/20 dark:text-rose-300' 
+                          : (mov.tipo === 'venta' 
+                            ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300' 
+                            : 'bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-300')
+                      }`}>
+                        {mov.tipo}
+                      </span>
+                      
+                      {tieneDevolucion && (
+                        <span className="text-[9px] sm:text-[10px] font-black uppercase px-1.5 py-0.5 rounded-md shrink-0 bg-amber-500 text-white shadow-xs flex items-center gap-1">
+                          <AlertTriangle size={10} /> Con Devolución
+                        </span>
+                      )}
+                    </div>
                     
                     <div className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[10px] sm:text-[11px] font-bold uppercase">
                       {mov.registradoPor && (
                         <span className="text-slate-500 dark:text-slate-400 whitespace-nowrap">
-                          👤 {mov.registradoPor}
+                          👤  {mov.registradoPor}
                         </span>
                       )}
                       {mov.registradoPor && <span className="text-slate-300 dark:text-slate-600 whitespace-nowrap">•</span>}
@@ -601,6 +626,7 @@ Quedamos pendientes para revisar detalles o responder cualquier duda.
                           <span className="text-slate-600 dark:text-slate-300 font-medium truncate flex-1 min-w-0">
                             {d.cantidad > 1 && (
                               <strong className={`${
+                                mov.tipo === 'devolucion' ? 'text-amber-500' :
                                 mov.tipo === 'venta' ? 'text-emerald-500' : (mov.tipo === 'abono' ? 'text-blue-500' : 'text-rose-500')
                               } font-black mr-1`}>
                                 {d.cantidad}x
@@ -620,9 +646,30 @@ Quedamos pendientes para revisar detalles o responder cualquier duda.
                     </p>
                   )}
                   
+                  {mov.articulosDevueltos && mov.articulosDevueltos.length > 0 && (
+                    <div className="mt-2 space-y-1 bg-amber-50 dark:bg-amber-950/20 p-2 rounded-lg border border-amber-100 dark:border-amber-900/30">
+                      <p className="text-[10px] font-black uppercase text-amber-600 dark:text-amber-400">Artículos devueltos:</p>
+                      {mov.articulosDevueltos.map((d: any, idx: number) => (
+                        <div key={idx} className="flex justify-between items-center text-xs min-w-0 gap-2">
+                          <span className="text-slate-600 dark:text-slate-300 truncate flex-1 min-w-0"><span className="text-amber-600 font-bold">{d.cantidad}x</span> {d.descripcion}</span>
+                          <span className="font-bold text-amber-700 dark:text-amber-400 shrink-0">${Math.round(d.subtotal || 0).toLocaleString('es-CO')}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  
                   <div className="flex justify-between items-center pt-2 mt-1 border-t border-slate-200/60 dark:border-slate-800 font-black">
                     <span className="text-xs text-slate-400 uppercase tracking-wider">Total:</span>
                     <div className="flex items-center gap-2">
+                      {esVentaOFiado && mov.detalles && mov.detalles.length > 0 && (!esCajero || datosSesion?.permisos?.hacerDevoluciones) && (
+                        <button
+                          type="button"
+                          onClick={() => setModalDevolucion({ isOpen: true, venta: mov })}
+                          className="text-[10px] font-bold px-2 py-1 bg-amber-50 hover:bg-amber-100 text-amber-600 dark:bg-amber-900/30 dark:hover:bg-amber-900/50 dark:text-amber-400 rounded-lg transition-colors cursor-pointer border border-amber-200 dark:border-amber-800 flex items-center gap-1"
+                        >
+                          <RotateCcw size={12} /> Hacer Devolución
+                        </button>
+                      )}
                       <button
                         type="button"
                         onClick={() => abrirTicketDeMovimiento(mov, cliente)}
@@ -632,9 +679,10 @@ Quedamos pendientes para revisar detalles o responder cualquier duda.
                         <Printer size={15} />
                       </button>
                       <span className={`text-base sm:text-lg ${
+                        mov.tipo === 'devolucion' ? 'text-amber-500' :
                         mov.tipo === 'fiado' ? 'text-rose-500' : (mov.tipo === 'venta' ? 'text-emerald-500' : 'text-blue-500')
                       }`}>
-                        {mov.tipo === 'fiado' ? '-' : '+'}${Math.round(mov.monto || 0).toLocaleString('es-CO')}
+                        {mov.tipo === 'fiado' ? '-' : (mov.tipo === 'devolucion' ? (mov.metodoDevolucion === 'saldo_a_favor' ? '+' : '') : '+')}${Math.round(mov.monto || 0).toLocaleString('es-CO')}
                       </span>
                     </div>
                   </div>
@@ -1081,6 +1129,10 @@ Quedamos pendientes para revisar detalles o responder cualquier duda.
       </div>
     );
   };
+
+  if (!puedeVerCartera) {
+    return null;
+  }
 
   return (
     <div className="min-h-screen pb-24 lg:pb-8 pt-1 px-2 sm:px-4 w-full space-y-4">
@@ -1646,12 +1698,26 @@ Quedamos pendientes para revisar detalles o responder cualquier duda.
               }
               toast.success("Cliente eliminado exitosamente.");
             } else if (clienteActualizado) {
-              setClienteFicha(clienteActualizado);
+              if (clienteFicha?.id === clienteActualizado?.id) {
+                setClienteFicha(clienteActualizado);
+              }
               toast.success("Cliente actualizado exitosamente.");
             }
           }}
         />
       )}
+
+      {/* =========================================================================
+          MODAL: PROCESAR DEVOLUCIÓN
+          ========================================================================= */}
+      <ModalProcesarDevolucion
+        isOpen={modalDevolucion.isOpen}
+        ventaOrigen={modalDevolucion.venta as any}
+        onClose={() => setModalDevolucion({ isOpen: false, venta: null })}
+        onSuccess={() => {
+          // No action needed; onSnapshot will update automatically.
+        }}
+      />
 
       {/* =========================================================================
           MODAL: TICKET FACTURA / COMPROBANTE TÉRMICO
