@@ -4,7 +4,7 @@ import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import { collection, getDocs, query, where } from "firebase/firestore";
 import { db } from "../../../firebase";
-import { Search, X, Clock, MessageCircle, Star, Users, Store, Printer, Edit3, Trash2, Bookmark, ChevronRight, Package, ArrowRight, User } from 'lucide-react';
+import { Search, X, Clock, MessageCircle, Star, Users, Store, Printer, Edit3, Trash2, Bookmark, ChevronRight, Package, ArrowRight, User, RotateCcw } from 'lucide-react';
 import toast from "react-hot-toast";
 
 import { useAuth } from "../../../hooks/AuthContext";
@@ -12,6 +12,7 @@ import { API_DB } from "../../../servicios/db";
 import { Cliente, Movimiento } from "../../../types";
 import TablaHistorial from "../../../components/TablaHistorial";
 import TicketFacturaModal, { DatosFacturaProps } from "@/components/TicketFacturaModal";
+import ModalProcesarDevolucion from "@/components/ModalProcesarDevolucion";
 import ModalGestionCliente from "@/components/ModalGestionCliente";
 import { abrirEnlaceWhatsApp } from "@/utils/whatsapp";
 
@@ -60,6 +61,7 @@ export default function HistorialPage() {
 
   const [modalSuscripcion, setModalSuscripcion] = useState({ visible: false, titulo: "", mensaje: "" });
   const [modalMostrador, setModalMostrador] = useState(false);
+  const [modalDevolucion, setModalDevolucion] = useState<{ isOpen: boolean; venta: Movimiento | null }>({ isOpen: false, venta: null });
 
   const [clienteActivo, setClienteActivo] = useState<Cliente | null>(null);
   const [movimientosCliente, setMovimientosCliente] = useState<Movimiento[]>([]);
@@ -1000,6 +1002,15 @@ Quedamos pendientes para revisar detalles o responder cualquier duda.
                       <div className="flex justify-between items-center pt-2 mt-1 md:mt-0 md:pt-3 border-t border-slate-200 dark:border-slate-700 md:border-slate-100 dark:md:border-slate-800 font-black">
                         <span className="text-xs text-slate-400 uppercase tracking-wider">Total:</span>
                         <div className="flex items-center gap-2">
+                          {(mov.tipo === 'venta' || mov.tipo === 'fiado' || mov.tipo === 'separe') && mov.detalles && mov.detalles.length > 0 && (!esCajero || datosSesion?.permisos?.hacerDevoluciones) && (
+                            <button
+                              type="button"
+                              onClick={() => setModalDevolucion({ isOpen: true, venta: mov })}
+                              className="text-[10px] font-bold px-2 py-1 bg-amber-50 hover:bg-amber-100 text-amber-600 dark:bg-amber-900/30 dark:hover:bg-amber-900/50 dark:text-amber-400 rounded-lg transition-colors cursor-pointer border border-amber-200 dark:border-amber-800 flex items-center gap-1"
+                            >
+                              <RotateCcw size={12} /> Hacer Devolución
+                            </button>
+                          )}
                           <button
                             type="button"
                             onClick={() => abrirTicketDeMovimiento(mov)}
@@ -1060,6 +1071,17 @@ Quedamos pendientes para revisar detalles o responder cualquier duda.
         isOpen={modalTicketFactura.visible}
         onClose={() => setModalTicketFactura({ visible: false, datos: null })}
         datos={modalTicketFactura.datos}
+      />
+
+      {/* MODAL DE DEVOLUCION */}
+      <ModalProcesarDevolucion
+        isOpen={modalDevolucion.isOpen}
+        onClose={() => setModalDevolucion({ isOpen: false, venta: null })}
+        ventaOrigen={modalDevolucion.venta}
+        onSuccess={() => {
+          cargarDatosIniciales();
+          if (clienteActivo) abrirPerfilDesdeHistorial(null, clienteActivo);
+        }}
       />
 
       {/* MODAL DE MODIFICAR / ELIMINAR CLIENTE */}
