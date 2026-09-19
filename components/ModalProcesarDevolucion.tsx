@@ -182,7 +182,7 @@ export default function ModalProcesarDevolucion({
   if (!isOpen || !ventaOrigen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 z-[999999] animate-in zoom-in-95 duration-200">
+    <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 z-[9999998] animate-in zoom-in-95 duration-200">
       <div className="bg-white dark:bg-[#0f172a] rounded-[2rem] w-full max-w-lg shadow-2xl flex flex-col max-h-[90vh] overflow-hidden border border-slate-100 dark:border-slate-800">
         
         {/* HEADER */}
