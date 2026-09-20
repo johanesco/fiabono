@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useMemo, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { X, ArrowLeft, CheckCircle2, RotateCcw, AlertCircle } from 'lucide-react';
 import { Movimiento } from '@/types';
 import { auth, db } from '../firebase';
@@ -208,9 +209,9 @@ export default function ModalProcesarDevolucion({
 
   if (!isOpen || !ventaOrigen) return null;
 
-  return (
-    <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 z-[9999998] animate-in zoom-in-95 duration-200">
-      <div className="bg-white dark:bg-[#0f172a] rounded-[2rem] w-full max-w-lg shadow-2xl flex flex-col max-h-[90vh] overflow-hidden border border-slate-100 dark:border-slate-800">
+  const modal = (
+    <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center p-2 sm:p-4 z-[9999998] animate-in zoom-in-95 duration-200">
+      <div className="bg-white dark:bg-[#0f172a] rounded-[2rem] w-full max-w-lg shadow-2xl flex flex-col max-h-[calc(100dvh-1rem)] sm:max-h-[90vh] overflow-hidden border border-slate-100 dark:border-slate-800">
         
         {/* HEADER */}
         <div className="p-5 sm:p-6 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between shrink-0 bg-slate-50 dark:bg-slate-900/50">
@@ -386,7 +387,7 @@ export default function ModalProcesarDevolucion({
         </div>
 
         {/* FOOTER */}
-        <div className="p-5 sm:p-6 border-t border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900/50 shrink-0">
+        <div className="p-4 sm:p-6 pb-[calc(1rem+env(safe-area-inset-bottom))] sm:pb-6 border-t border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900/50 shrink-0">
           <button 
             onClick={procesarDevolucion}
             disabled={!haySeleccion || procesando || (!esClienteRegistrado && metodoDevolucion === 'saldo_a_favor')}
@@ -403,4 +404,6 @@ export default function ModalProcesarDevolucion({
       </div>
     </div>
   );
+
+  return typeof document === 'undefined' ? null : createPortal(modal, document.body);
 }
