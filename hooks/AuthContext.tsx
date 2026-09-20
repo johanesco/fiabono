@@ -152,6 +152,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
           nitNegocio: adminData.nitNegocio || "",
           direccionNegocio: adminData.direccionNegocio || "",
           mensajePieTicket: adminData.mensajePieTicket || "",
+          mediosPago: adminData.mediosPago || {},
           habilitarIva: adminData.habilitarIva || false,
           porcentajeIva: typeof adminData.porcentajeIva === 'number' ? adminData.porcentajeIva : 19,
           rol: data.rol,
@@ -225,7 +226,18 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     });
 
     return () => unsubscribe();
-  }, [router, pathname]);
+  // OPT-07: El listener de onAuthStateChanged se monta UNA SOLA VEZ (deps=[]).
+  // Esto evita re-suscripciones y lecturas extra de Firestore en cada navegación.
+  // La lógica de redirección por pathname se maneja en un useEffect separado abajo.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // OPT-07: useEffect separado para proteger rutas sin relanzar el listener de Auth
+  useEffect(() => {
+    if (!cargando && !datosSesion && pathname?.includes('/dashboard')) {
+      router.push('/');
+    }
+  }, [pathname, cargando, datosSesion, router]);
 
   const cerrarSesion = async () => {
     try {

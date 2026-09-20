@@ -2,13 +2,14 @@
 import { useState, useEffect, Suspense, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { collection, addDoc, getDocs, query, doc, updateDoc, where, arrayUnion, increment } from "firebase/firestore";
-import { db } from "../../../firebase";
+import { auth, db } from "../../../firebase";
 import { Search, CheckCircle2, ChevronRight, X, AlertCircle, UserCog, ArrowLeft, MessageCircle, Banknote, Printer, Smartphone, CreditCard, Zap } from 'lucide-react';
 import { useAuth } from "../../../hooks/AuthContext";
 import { API_DB } from "../../../servicios/db";
 import TicketFacturaModal from "@/components/TicketFacturaModal";
 import toast from 'react-hot-toast';
 import { abrirEnlaceWhatsApp } from "@/utils/whatsapp";
+import { agregarMediosPagoAlEstado } from "@/utils/mediosPago";
 
 export default function AbonarPage() {
   return (
@@ -155,8 +156,12 @@ function AbonarContenido() {
     if (!nombreNuevo.trim()) return toast.error("El nombre del cliente es obligatorio.");
     setGuardandoCliente(true);
     try {
-      const docRef = await addDoc(collection(db, "clientes"), { nombre: nombreNuevo.trim(), celular: celularNuevo.trim(), deudaTotal: 0, usuarioId: cuentaPrincipalId, fecha_creacion: new Date() });
-      const nuevoObj = { id: docRef.id, nombre: nombreNuevo.trim(), celular: celularNuevo.trim(), deudaTotal: 0 };
+      const token = await auth.currentUser?.getIdToken();
+      if (!token) throw new Error('Sesión inválida.');
+      const respuesta = await fetch('/api/clientes/crear', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ nombre: nombreNuevo, celular: celularNuevo }) });
+      const resultado = await respuesta.json();
+      if (!respuesta.ok) throw new Error(resultado.error || 'No se pudo crear el cliente.');
+      const nuevoObj = resultado.cliente;
       setModalNuevoCliente(false); setNombreNuevo(""); setCelularNuevo(""); setBusquedaRegistro("");
       await cargarDatosGlobales(cuentaPrincipalId!);
       setClienteTransaccion(nuevoObj); 
@@ -198,25 +203,28 @@ function AbonarContenido() {
       setGuardandoAbono(true);
 
       try {
-        // PARCHE P1-TX-02: Abono a Separe atómico con runTransaction
-        // Separe y Movimiento se actualizan juntos; si falla uno, no se cobra ni se descuenta.
-        const resAbonoSepare = await API_DB.ejecutarAbonoSepareAtomo({
-          separeId: separeSeleccionado.id,
-          clienteId: clienteTransaccion.id || undefined,
-          clienteNombre: clienteTransaccion.nombre,
-          usuarioId: cuentaPrincipalId!,
-          montoAbono: abonoReal,
-          metodoPago: metodoPago,
-          subMetodoPago: subMetodoPago?.trim() || undefined,
-          referenciaPago: refPagoCompleta || undefined,
-          registradoPor: nombreUsuario || "Vendedor",
-          detallesItems: (separeSeleccionado.items || []).map((it: any) => ({
-            descripcion: it.descripcion || "Artículo",
-            cantidad: it.cantidad || 1,
-            valor: (Number(it.valor) || 0) * (it.cantidad || 1),
-            valorUnitario: Number(it.valor) || 0
-          }))
+        const token = await auth.currentUser?.getIdToken();
+        if (!token) throw new Error('Sesión inválida.');
+        const respuestaAbonoSepare = await fetch('/api/separes/abonar', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+          body: JSON.stringify({
+            separeId: separeSeleccionado.id,
+            clienteId: clienteTransaccion.id,
+            montoAbono: abonoReal,
+            metodoPago,
+            subMetodoPago: subMetodoPago?.trim(),
+            referenciaPago: refPagoCompleta,
+            detallesItems: (separeSeleccionado.items || []).map((it: any) => ({
+              descripcion: it.descripcion || "Artículo",
+              cantidad: it.cantidad || 1,
+              valor: (Number(it.valor) || 0) * (it.cantidad || 1),
+              valorUnitario: Number(it.valor) || 0
+            }))
+          })
         });
+        const resAbonoSepare = await respuestaAbonoSepare.json();
+        if (!respuestaAbonoSepare.ok) throw new Error(resAbonoSepare.error || 'No se pudo registrar el abono.');
 
         const nuevoSaldoPendiente = resAbonoSepare.nuevoSaldoPendiente;
 
@@ -270,7 +278,10 @@ function AbonarContenido() {
     }
 
     // 2. SI ES ABONO A DEUDA GENERAL DE FIADOS
-    if (abonoReal > (clienteTransaccion.deudaTotal || 0)) {
+    // Solo se evalúa exceso si el cliente tiene una deuda positiva real (> 0).
+    // Si tiene deuda <= 0 (saldo a favor), el abono simplemente incrementa su saldo a favor.
+    const deudaActual = clienteTransaccion.deudaTotal || 0;
+    if (deudaActual > 0 && abonoReal > deudaActual) {
       setModalConfirmacionExceso({ visible: true, abonoReal });
       return;
     }
@@ -294,28 +305,27 @@ function AbonarContenido() {
       };
       const metodoPagoLabel = labelsMetodos[metodoPago] || 'Efectivo';
 
-      const resAbono = await API_DB.registrarMovimientoConTransaccion(
-        {
+      const token = await auth.currentUser?.getIdToken();
+      if (!token) throw new Error('Sesión inválida.');
+      const respuesta = await fetch('/api/movimientos/registrar', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({
           clienteId: clienteTransaccion.id,
-          usuarioId: cuentaPrincipalId!,
           tipo: 'abono',
           monto: abonoAplicado,
           descripcion: `Abono a cuenta (${metodoPagoLabel})`,
-          fecha: new Date(),
-          registradoPor: nombreUsuario || "Vendedor",
-          metodoPago: metodoPago,
+          metodoPago,
           referenciaPago: refPagoCompleta,
-          detalles: []
-        },
-        {
-          ajustarSaldoCliente: true,
-          cambioDeuda: -abonoAplicado
-        }
-      );
+          esPublico: true
+        })
+      });
+      const datosAbono = await respuesta.json();
+      if (!respuesta.ok) throw new Error(datosAbono.error || 'No se pudo registrar el abono.');
 
       reproducirSonidoExito();
 
-      const saldoFinal = resAbono.nuevoSaldoCliente !== undefined ? resAbono.nuevoSaldoCliente : ((clienteTransaccion.deudaTotal || 0) - abonoAplicado);
+      const saldoFinal = datosAbono.nuevoSaldo;
       const clienteFinalActualizado = { ...clienteTransaccion, deudaTotal: saldoFinal };
 
       const devuelta = pagoCliente && pagoCliente > abonoAplicado ? pagoCliente - abonoAplicado : 0;
@@ -339,7 +349,7 @@ function AbonarContenido() {
         pagoRecibido: pagoCliente || abonoAplicado,
         devuelta: devuelta > 0 ? devuelta : undefined,
         saldoNuevo: saldoFinal,
-        idTransaccion: resAbono.movimientoId,
+        idTransaccion: datosAbono.movimientoId,
         metodoPago: metodoPago,
         referenciaPago: refPagoCompleta
       };
@@ -418,7 +428,8 @@ Estamos atentos para cualquier consulta.
     }
 
     const celularLimpio = (cliente?.celular || modalExito?.cliente?.celular || '').toString().replace(/\D/g, '');
-    abrirEnlaceWhatsApp(celularLimpio, texto);
+    const deudaActual = cliente?.deudaTotal ?? modalExito?.cliente?.deudaTotal ?? 0;
+    abrirEnlaceWhatsApp(celularLimpio, agregarMediosPagoAlEstado(texto, datosSesion?.mediosPago, nombreNegocio || 'nuestra tienda', deudaActual));
   };
 
   const clientesFiltradosRegistro = clientes.filter(c => 
@@ -526,6 +537,9 @@ Estamos atentos para cualquier consulta.
                               <div>
                                 <span className="font-bold text-slate-800 dark:text-slate-200 block">{c.nombre}</span>
                                 {c.celular && <span className="text-[10px] text-slate-400">{c.celular}</span>}
+                                <span className={`text-[10px] font-black ${Number(c.deudaTotal || 0) > 0 ? 'text-rose-500' : Number(c.deudaTotal || 0) < 0 ? 'text-emerald-600' : 'text-slate-400'}`}>
+                                  {Number(c.deudaTotal || 0) > 0 ? `Debe $${Number(c.deudaTotal).toLocaleString('es-CO')}` : Number(c.deudaTotal || 0) < 0 ? `A favor $${Math.abs(Number(c.deudaTotal)).toLocaleString('es-CO')}` : 'Al día'}
+                                </span>
                               </div>
                               <ChevronRight size={14} className="text-slate-400"/>
                             </div>
@@ -618,7 +632,7 @@ Estamos atentos para cualquier consulta.
                     <span className="absolute left-3 top-1/2 -translate-y-1/2 text-blue-600 font-black text-xl sm:text-2xl">$</span>
                     <input 
                       type="text" 
-                      inputMode="numeric"
+                      inputMode="decimal" pattern="[0-9]*"
                       value={montoAbono} 
                       onChange={(e) => setMontoAbono(formatearMonedaInput(e.target.value))} 
                       placeholder="0" 
@@ -855,10 +869,10 @@ Estamos atentos para cualquier consulta.
       </div>
 
       {/* BARRA FLOTANTE MÓVIL SUSPENDIDA (SOLO PARA CELULARES PEQUEÑOS < 768px) */}
-      <div className="md:hidden fixed bottom-floating-bar left-3 right-3 sm:left-4 sm:right-4 max-w-lg mx-auto bg-white/95 dark:bg-[#0f172a]/95 backdrop-blur-xl border border-slate-200/90 dark:border-slate-800/90 p-2.5 sm:p-3 rounded-2xl sm:rounded-3xl shadow-[0_10px_25px_-5px_rgba(0,0,0,0.15)] dark:shadow-[0_10px_25px_-5px_rgba(0,0,0,0.6)] z-40 flex items-center justify-between gap-3">
+          <div className="md:hidden fixed bottom-floating-bar left-3 right-3 sm:left-4 sm:right-4 max-w-lg mx-auto bg-white/95 dark:bg-[#0f172a]/95 backdrop-blur-xl border border-slate-200/90 dark:border-slate-800/90 p-2.5 sm:p-3 rounded-2xl sm:rounded-3xl shadow-[0_10px_25px_-5px_rgba(0,0,0,0.15)] dark:shadow-[0_10px_25px_-5px_rgba(0,0,0,0.6)] z-[110] flex items-center justify-between gap-3">
         <div className="flex flex-col min-w-0 shrink pl-1">
           <span className="text-[9px] font-black uppercase text-slate-400 tracking-wider">Total a Abonar</span>
-          <span className="text-xl sm:text-2xl font-black text-blue-600 dark:text-blue-400 truncate max-w-[140px] leading-none">${abonoNum.toLocaleString('es-CO')}</span>
+          <span className="text-lg sm:text-2xl font-black text-blue-600 dark:text-blue-400 whitespace-nowrap overflow-visible leading-none min-w-0">${abonoNum.toLocaleString('es-CO')}</span>
         </div>
         <button 
           onClick={procesarAbono} 

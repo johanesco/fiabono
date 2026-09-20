@@ -3,7 +3,7 @@ import { useState, useEffect, useMemo, useRef } from "react";
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import { collection, getDocs, query, doc, updateDoc, deleteDoc, where, addDoc, writeBatch, increment } from "firebase/firestore";
-import { db } from "../../../firebase";
+import { auth, db } from "../../../firebase";
 import { 
   Package, 
   Plus, 
@@ -235,7 +235,10 @@ export default function InventarioPage() {
       const q = query(collection(db, "inventario"), where("usuarioId", "==", uid));
       const snap = await getDocs(q);
       const lista: any[] = [];
-      snap.forEach((doc) => lista.push({ id: doc.id, ...doc.data() }));
+      snap.forEach((doc) => {
+        const data = doc.data();
+        if (data.activo !== false) lista.push({ id: doc.id, ...data });
+      });
       setInventario(lista);
 
       // Sincronizar categorías dinámicas presentes en el inventario real
@@ -781,73 +784,21 @@ export default function InventarioPage() {
   const guardarProductosEnCarga = async (productos: any[] = productosEnCarga) => {
     if (!productos.length) return 0;
 
-    let actualizados = 0;
-    let creados = 0;
-
-    for (const prod of productos) {
-      if (prod.esExistente && prod.productoId) {
-        // Producto existente: sumar unidades en BD
-        const prodRef = doc(db, "inventario", prod.productoId);
-        const cant = Number(prod.stock) || 0;
-        await updateDoc(prodRef, {
-          stock: increment(cant),
-          fechaActualizacion: new Date()
-        });
-
-        await addDoc(collection(db, "movimientos"), {
-          usuarioId: cuentaPrincipalId,
-          tipo: 'ingreso_inventario',
-          categoria: 'recepcion_mercancia',
-          monto: 0,
-          descripcion: `Recepción: +${cant} unidades de ${prod.nombre} (SKU: ${prod.sku})`,
-          fecha: new Date(),
-          registradoPor: datosSesion?.nombreUsuario || "Usuario",
-          idProducto: prod.productoId,
-          nombreProducto: prod.nombre,
-          cantidadAgregada: cant
-        });
-        actualizados++;
-      } else {
-        // Producto nuevo: crear en inventario
-        const esInv = prod.inventariable !== false && prod.tipoProducto !== 'servicio';
-        const cantInicial = esInv ? (Number(prod.stock) || 0) : 0;
-        const docRef = await addDoc(collection(db, "inventario"), {
-          usuarioId: cuentaPrincipalId,
-          nombre: prod.nombre.trim(),
-          sku: prod.sku,
-          codigoBarras: prod.sku,
-          stock: cantInicial,
-          precioVenta: Number(prod.precioVenta) || 0,
-          costoCompra: Number(prod.costoCompra) || 0,
-          tipoProducto: prod.tipoProducto || 'producto',
-          categoria: prod.categoria || 'General',
-          inventariable: esInv,
-          fechaCreacion: new Date(),
-          fechaActualizacion: new Date()
-        });
-
-        if (cantInicial > 0) {
-          await addDoc(collection(db, "movimientos"), {
-            usuarioId: cuentaPrincipalId,
-            tipo: 'ingreso_inventario',
-            categoria: 'recepcion_mercancia',
-            descripcion: `Creación y recepción: +${cantInicial} unidades de ${prod.nombre.trim()}`,
-            fecha: new Date(),
-            registradoPor: datosSesion?.nombreUsuario || "Usuario",
-            idProducto: docRef.id,
-            nombreProducto: prod.nombre.trim(),
-            cantidadAgregada: cantInicial
-          });
-        }
-        creados++;
-      }
-    }
+    const token = await auth.currentUser?.getIdToken();
+    if (!token) throw new Error('Sesión inválida.');
+    const respuesta = await fetch('/api/inventario/recibir', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ productos })
+    });
+    const resultado = await respuesta.json();
+    if (!respuesta.ok) throw new Error(resultado.error || 'No se pudo registrar la recepción.');
 
     setProductosEnCarga([]);
     if (typeof window !== 'undefined') {
       sessionStorage.removeItem(`fiabono_productos_en_carga_${cuentaPrincipalId}`);
     }
-    return actualizados + creados;
+    return Number(resultado.actualizados || 0) + Number(resultado.creados || 0);
   };
 
   const guardarProducto = async (cerrarAlFinal: boolean = true) => {
@@ -906,39 +857,34 @@ export default function InventarioPage() {
         const precioNum = Number(precioVenta.replace(/\D/g, '')) || 0;
         const costoNum = Number(costoCompra.replace(/\D/g, '')) || 0;
         const nombreGuardar = nombre.trim();
-        const docRef = doc(db, "inventario", editandoId);
-        await updateDoc(docRef, {
-          nombre: nombreGuardar,
-          sku: sku.trim() || `SKU-${Math.floor(1000 + Math.random() * 9000)}`,
-          stock: cantStock,
-          precioVenta: precioNum,
-          costoCompra: costoNum,
-          tipoProducto,
-          categoria: categoria.trim() || 'General',
-          inventariable: esInventariable,
-          fechaActualizacion: new Date()
+        const token = await auth.currentUser?.getIdToken();
+        if (!token) throw new Error('Sesión inválida.');
+        const respuestaActualizacion = await fetch('/api/inventario/actualizar', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+          body: JSON.stringify({
+            productoId: editandoId,
+            nombre: nombreGuardar,
+            sku: sku.trim() || `SKU-${Math.floor(1000 + Math.random() * 9000)}`,
+            stock: cantStock,
+            precioVenta: precioNum,
+            costoCompra: costoNum,
+            tipoProducto,
+            categoria: categoria.trim() || 'General',
+            inventariable: esInventariable
+          })
         });
+        if (!respuestaActualizacion.ok) throw new Error((await respuestaActualizacion.json()).error || 'No se pudo actualizar el producto.');
         setProductoRecienGuardadoId(editandoId);
         toast.success(`"${nombreGuardar}" actualizado en la lista.`, { icon: '✅' });
       } else {
         // Guardar todos los productos en la lista unificada
-        const totalGuardados = await guardarProductosEnCarga();
-        let totalExtra = 0;
-        let nuevoId: string | null = null;
-        
-        // Si el usuario además completó válidamente el formulario superior, lo guardamos también
+        const productosParaGuardar = [...productosEnCarga];
         if (nombre.trim() && precioVenta) {
-          const docRef = await addDoc(collection(db, "inventario"), crearProductoDesdeFormulario());
-          if (docRef.id) {
-            totalExtra = 1;
-            nuevoId = docRef.id;
-          }
+          productosParaGuardar.push(crearProductoDesdeFormulario());
         }
 
-        const totalFinal = totalGuardados + totalExtra;
-        if (nuevoId) {
-          setProductoRecienGuardadoId(nuevoId);
-        }
+        const totalFinal = await guardarProductosEnCarga(productosParaGuardar);
         if (totalFinal > 1) {
           toast.success(`¡Se guardaron ${totalFinal} productos en el inventario! 🎉`, { duration: 4000 });
         } else if (totalFinal === 1) {
@@ -963,9 +909,16 @@ export default function InventarioPage() {
     if (!productoAEliminar) return;
     try {
       setEliminandoProducto(true);
-      await deleteDoc(doc(db, "inventario", productoAEliminar.id));
+      const token = await auth.currentUser?.getIdToken();
+      if (!token) throw new Error('Sesión inválida.');
+      const respuestaArchivado = await fetch('/api/inventario/archivar', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ productoId: productoAEliminar.id })
+      });
+      if (!respuestaArchivado.ok) throw new Error((await respuestaArchivado.json()).error || 'No se pudo archivar el producto.');
       setProductosSeleccionados(prev => prev.filter(id => id !== productoAEliminar.id));
-      toast.success(`"${productoAEliminar.nombre}" eliminado del catálogo.`);
+      toast.success(`"${productoAEliminar.nombre}" archivado del catálogo.`);
       setProductoAEliminar(null);
       if (cuentaPrincipalId) cargarInventario(cuentaPrincipalId);
     } catch (error) {
@@ -2305,11 +2258,17 @@ export default function InventarioPage() {
       setGuardandoCatModal(true);
       const prodsAfectados = inventario.filter(p => (p.categoria || '').trim().toLowerCase() === catVieja.toLowerCase());
       if (prodsAfectados.length > 0) {
-        const batch = writeBatch(db);
-        prodsAfectados.forEach(p => {
-          batch.update(doc(db, "inventario", p.id), { categoria: catNueva });
-        });
-        await batch.commit();
+        const chunks = [];
+        for (let i = 0; i < prodsAfectados.length; i += 450) {
+          chunks.push(prodsAfectados.slice(i, i + 450));
+        }
+        for (const chunk of chunks) {
+          const batch = writeBatch(db);
+          chunk.forEach(p => {
+            batch.update(doc(db, "inventario", p.id), { categoria: catNueva });
+          });
+          await batch.commit();
+        }
 
         setInventario(prev => prev.map(p => 
           (p.categoria || '').trim().toLowerCase() === catVieja.toLowerCase()
@@ -2355,11 +2314,17 @@ export default function InventarioPage() {
     try {
       setGuardandoCatModal(true);
       if (prodsAfectados.length > 0) {
-        const batch = writeBatch(db);
-        prodsAfectados.forEach(p => {
-          batch.update(doc(db, "inventario", p.id), { categoria: 'General' });
-        });
-        await batch.commit();
+        const chunks = [];
+        for (let i = 0; i < prodsAfectados.length; i += 450) {
+          chunks.push(prodsAfectados.slice(i, i + 450));
+        }
+        for (const chunk of chunks) {
+          const batch = writeBatch(db);
+          chunk.forEach(p => {
+            batch.update(doc(db, "inventario", p.id), { categoria: 'General' });
+          });
+          await batch.commit();
+        }
 
         setInventario(prev => prev.map(p => 
           (p.categoria || '').trim().toLowerCase() === catAEliminar.toLowerCase()
@@ -5086,7 +5051,7 @@ export default function InventarioPage() {
                       </label>
                       <input 
                         type="text" 
-                        inputMode="numeric" 
+                        inputMode="decimal" pattern="[0-9]*" 
                         value={formatearMonedaInput(precioVenta)} 
                         onChange={(e) => { 
                           setPrecioVenta(e.target.value.replace(/\D/g, '')); 
@@ -5112,7 +5077,7 @@ export default function InventarioPage() {
                       </div>
                       <input 
                         type="text" 
-                        inputMode="numeric" 
+                        inputMode="decimal" pattern="[0-9]*" 
                         value={formatearMonedaInput(costoCompra)} 
                         onChange={(e) => setCostoCompra(e.target.value.replace(/\D/g, ''))} 
                         placeholder="¿Cuánto te costó? (opcional)" 
@@ -5208,7 +5173,7 @@ export default function InventarioPage() {
                         </label>
                         <input 
                           type="text" 
-                          inputMode="numeric" 
+                          inputMode="decimal" pattern="[0-9]*" 
                           value={formatearMonedaInput(precioVenta)} 
                           onChange={(e) => { 
                             setPrecioVenta(e.target.value.replace(/\D/g, '')); 
@@ -5233,7 +5198,7 @@ export default function InventarioPage() {
                           </div>
                           <input 
                             type="text" 
-                            inputMode="numeric" 
+                            inputMode="decimal" pattern="[0-9]*" 
                             value={formatearMonedaInput(costoCompra)} 
                             onChange={(e) => setCostoCompra(e.target.value.replace(/\D/g, ''))} 
                             placeholder="Costo real (opcional)" 

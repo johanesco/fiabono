@@ -237,6 +237,11 @@ export default function ReportesPage() {
   const totalClientesRegistrados = clientes.length;
   const clientesConCredito = clientes.filter(c => Number(c.deudaTotal || 0) > 0).length;
 
+  const pasivoSaldosFavor = clientes.reduce((acc, c) => {
+    const d = Number(c.deudaTotal || 0);
+    return acc + (d < 0 ? Math.abs(d) : 0);
+  }, 0);
+  const clientesConSaldoFavor = clientes.filter(c => Number(c.deudaTotal || 0) < 0).length;
 
   const movsVentas = movimientosGenerales.filter(m => m.tipo === 'venta');
   const movsFiados = movimientosGenerales.filter(m => m.tipo === 'fiado');
@@ -263,22 +268,50 @@ export default function ReportesPage() {
   const totalEgresosReales = movsEgresosReales.reduce((acc, m) => acc + (m.monto || 0), 0);
   const totalAbonosReales = movsIngresosReales.filter(m => m.tipo === 'abono').reduce((acc, m) => acc + (m.monto || 0), 0);
 
-  // Dinero Neto en Caja: (Ventas Directas + Abonos Reales) - Egresos Reales en dinero
-  const ingresosCaja = Math.max(0, (totalVentas + totalAbonosReales) - totalEgresosReales);
+  // PARCHE P1-FIN-03: Descontar el dinero virtual (saldo a favor) de las ventas para no inflar la caja
+  const totalPagadoConSaldoFavor = movsVentas.reduce((acc, m) => acc + (m.montoPagadoConSaldoFavor || 0), 0);
+  const totalVentasEnDineroFisico = totalVentas - totalPagadoConSaldoFavor;
+
+  // Desglose de egresos por método de pago real (evita que un egreso por transferencia descuadre el cajón físico)
+  const egresosEfectivo = movsEgresosReales
+    .filter(m => !m.metodoPago || m.metodoPago === 'efectivo')
+    .reduce((acc, m) => acc + (m.monto || 0), 0);
+  const egresosTransferencia = movsEgresosReales
+    .filter(m => m.metodoPago === 'transferencia')
+    .reduce((acc, m) => acc + (m.monto || 0), 0);
+  const egresosDatafono = movsEgresosReales
+    .filter(m => m.metodoPago === 'datafono')
+    .reduce((acc, m) => acc + (m.monto || 0), 0);
+  const egresosCreditoExterno = movsEgresosReales
+    .filter(m => m.metodoPago === 'credito_externo')
+    .reduce((acc, m) => acc + (m.monto || 0), 0);
+
+  // PARCHE URGENTE: Restar dinero entregado físicamente en devoluciones para que la caja cuadre
+  const movsDevoluciones = movimientosGenerales.filter(m => m.tipo === 'devolucion');
+  const devolucionesEnEfectivo = movsDevoluciones
+    .reduce((acc, m) => {
+      if (typeof m.montoEfectivoReembolsado === 'number') {
+        return acc + m.montoEfectivoReembolsado;
+      }
+      return acc + (m.metodoDevolucion === 'efectivo' || !m.metodoDevolucion ? (m.monto || 0) : 0);
+    }, 0);
+
+  // Dinero Neto en Caja Física: (Ventas Directas Físicas + Abonos Reales) - Egresos de Efectivo - Devoluciones Efectivo
+  const ingresosCaja = Math.max(0, (totalVentasEnDineroFisico + totalAbonosReales) - egresosEfectivo - devolucionesEnEfectivo);
   const countIngresos = countVentas + movsIngresosReales.filter(m => m.tipo === 'abono').length;
 
   const totalEfectivo = movsIngresosReales
     .filter(m => !m.metodoPago || m.metodoPago === 'efectivo')
-    .reduce((acc, m) => acc + (m.monto || 0), 0) - movsEgresosReales.reduce((acc, m) => acc + (m.monto || 0), 0);
+    .reduce((acc, m) => acc + (m.monto || 0) - (m.montoPagadoConSaldoFavor || 0), 0) - egresosEfectivo - devolucionesEnEfectivo;
   const totalTransferencia = movsIngresosReales
     .filter(m => m.metodoPago === 'transferencia')
-    .reduce((acc, m) => acc + (m.monto || 0), 0);
+    .reduce((acc, m) => acc + (m.monto || 0) - (m.montoPagadoConSaldoFavor || 0), 0) - egresosTransferencia;
   const totalDatafono = movsIngresosReales
     .filter(m => m.metodoPago === 'datafono')
-    .reduce((acc, m) => acc + (m.monto || 0), 0);
+    .reduce((acc, m) => acc + (m.monto || 0) - (m.montoPagadoConSaldoFavor || 0), 0) - egresosDatafono;
   const totalCreditoExterno = movsIngresosReales
     .filter(m => m.metodoPago === 'credito_externo')
-    .reduce((acc, m) => acc + (m.monto || 0), 0);
+    .reduce((acc, m) => acc + (m.monto || 0) - (m.montoPagadoConSaldoFavor || 0), 0) - egresosCreditoExterno;
 
   // Tasa de recuperación de crédito / Salud de cartera (Abonos vs Fiados)
   const ratioRecaudo = totalFiados > 0 ? Math.min(100, Math.round((totalAbonos / totalFiados) * 100)) : 100;
@@ -301,7 +334,7 @@ export default function ReportesPage() {
   }, [inventario]);
 
   // Cálculo de Costo de Mercancía Vendida (COGS) y Utilidad Bruta Estimada
-  const { costoTotalMercanciaVendida, utilidadBrutaEstimada, margenGananciaEstimado, productosConCostoCount } = useMemo(() => {
+  const { costoTotalMercanciaVendida, utilidadBrutaEstimada, margenGananciaEstimado, productosConCostoCount } = (() => {
     let costoTotal = 0;
     let itemsVendidosConCosto = 0;
 
@@ -338,10 +371,10 @@ export default function ReportesPage() {
       margenGananciaEstimado: margen,
       productosConCostoCount: itemsVendidosConCosto
     };
-  }, [movsVentas, mapaCostosInventario, totalVentas]);
+  })();
 
   // Análisis de Cartera y Riesgo de Clientes para el Radar
-  const analisisCarteraRiesgo = useMemo(() => {
+  const analisisCarteraRiesgo = (() => {
     const ahoraMs = Date.now();
     let carteraRiesgo = 0;
     let clientesRiesgoCount = 0;
@@ -391,7 +424,7 @@ export default function ReportesPage() {
       semaforoRecaudo,
       mensajeSemaforo
     };
-  }, [clientes, todosMovimientos, carteraActiva, totalFiados, totalAbonos]);
+  })();
 
   // Generador de datos para Gráfica de Comportamiento Financiero
   const obtenerDatosGrafica = () => {
@@ -1062,108 +1095,124 @@ export default function ReportesPage() {
       </div>
 
       {/* BLOQUE 1: CARTERA EN LA CALLE & SALUD DE COBRO */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
         {/* Tarjeta Cartera */}
-        <div className="bg-white dark:bg-[#0f172a] p-5 sm:p-7 rounded-[2rem] sm:rounded-[2.5rem] border border-slate-100 dark:border-slate-800/60 shadow-sm flex items-center justify-between relative overflow-hidden">
+        <div className="bg-white dark:bg-[#0f172a] p-4 sm:p-5 xl:p-7 rounded-[2rem] sm:rounded-[2.5rem] border border-slate-100 dark:border-slate-800/60 shadow-sm flex items-center justify-between relative overflow-hidden">
           <div className="absolute right-0 top-0 bottom-0 w-2 bg-amber-500"></div>
           <div className="min-w-0 flex-1 pr-2">
-            <span className="text-[10px] sm:text-xs font-extrabold text-slate-400 uppercase tracking-widest block truncate">Cartera en la Calle</span>
-            <p className="text-2xl sm:text-3xl font-black text-amber-500 mt-1 truncate">${carteraActiva.toLocaleString('es-CO')}</p>
-            <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 font-medium truncate">Deuda total de tus clientes.</p>
+            <span className="text-[10px] xl:text-xs font-extrabold text-slate-400 uppercase tracking-widest block whitespace-normal">Cartera en la Calle</span>
+            <p className="text-lg sm:text-2xl lg:text-lg xl:text-2xl font-black text-amber-500 mt-1 whitespace-nowrap overflow-visible">${carteraActiva.toLocaleString('es-CO')}</p>
+            <p className="text-[10px] xl:text-xs text-slate-500 dark:text-slate-400 mt-1 font-medium whitespace-normal">Deuda total de tus clientes.</p>
           </div>
-          <div className="p-3 sm:p-3.5 bg-amber-50 dark:bg-amber-500/10 text-amber-600 rounded-2xl shrink-0"><Wallet size={28} className="sm:w-[30px] sm:h-[30px]" /></div>
+          <div className="p-3 bg-amber-50 dark:bg-amber-500/10 text-amber-600 rounded-2xl shrink-0"><Wallet size={24} className="xl:w-[28px] xl:h-[28px]" /></div>
+        </div>
+
+        {/* Tarjeta Pasivos (Saldos a Favor) */}
+        <div className="bg-white dark:bg-[#0f172a] p-4 sm:p-5 xl:p-7 rounded-[2rem] sm:rounded-[2.5rem] border border-slate-100 dark:border-slate-800/60 shadow-sm flex items-center justify-between relative overflow-hidden">
+          <div className="absolute right-0 top-0 bottom-0 w-2 bg-blue-500"></div>
+          <div className="min-w-0 flex-1 pr-2">
+            <span className="text-[10px] xl:text-xs font-extrabold text-slate-400 uppercase tracking-widest block whitespace-normal">Saldos a Favor</span>
+            <p className="text-lg sm:text-2xl lg:text-lg xl:text-2xl font-black text-blue-500 mt-1 whitespace-nowrap overflow-visible">${pasivoSaldosFavor.toLocaleString('es-CO')}</p>
+            <p className="text-[10px] xl:text-xs text-slate-500 dark:text-slate-400 mt-1 font-medium whitespace-normal">Dinero que debes.</p>
+          </div>
+          <div className="p-3 bg-blue-50 dark:bg-blue-500/10 text-blue-600 rounded-2xl shrink-0"><Banknote size={24} className="xl:w-[28px] xl:h-[28px]" /></div>
         </div>
 
         {/* Tarjeta Clientes */}
-        <div className="bg-white dark:bg-[#0f172a] p-5 sm:p-7 rounded-[2rem] sm:rounded-[2.5rem] border border-slate-100 dark:border-slate-800/60 shadow-sm flex items-center justify-between relative overflow-hidden">
+        <div className="bg-white dark:bg-[#0f172a] p-4 sm:p-5 xl:p-7 rounded-[2rem] sm:rounded-[2.5rem] border border-slate-100 dark:border-slate-800/60 shadow-sm flex items-center justify-between relative overflow-hidden">
           <div className="absolute right-0 top-0 bottom-0 w-2 bg-slate-800 dark:bg-slate-500"></div>
           <div className="min-w-0 flex-1 pr-2">
-            <span className="text-[10px] sm:text-xs font-extrabold text-slate-400 uppercase tracking-widest block truncate">Directorio de Clientes</span>
-            <div className="flex items-baseline gap-4 mt-1">
-              <div>
-                <span className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-white">{totalClientesRegistrados}</span>
-                <p className="text-[10px] text-slate-400 font-bold uppercase">Registrados</p>
-              </div>
-              <div className="h-6 w-[1px] bg-slate-200 dark:bg-slate-800"></div>
-              <div>
-                <span className="text-2xl sm:text-3xl font-black text-rose-500">{clientesConCredito}</span>
-                <p className="text-[10px] text-rose-400 font-bold uppercase">Con Deuda</p>
-              </div>
+            <span className="text-[10px] xl:text-xs font-extrabold text-slate-400 uppercase tracking-widest block whitespace-normal">Directorio</span>
+            <div className="flex items-end gap-2 mt-1 whitespace-nowrap overflow-visible">
+              <span className="text-lg sm:text-2xl lg:text-lg xl:text-2xl font-black text-slate-900 dark:text-white leading-none">{totalClientesRegistrados}</span>
+              <span className="text-xs text-slate-400 font-bold mb-1 leading-none">REGIST.</span>
+              <span className="text-lg sm:text-2xl lg:text-lg xl:text-2xl font-black text-rose-500 leading-none ml-1">{clientesConCredito}</span>
+              <span className="text-xs text-rose-400 font-bold mb-1 leading-none">DEUDORES</span>
             </div>
           </div>
-          <div className="p-3 sm:p-3.5 bg-slate-100 dark:bg-slate-800/50 text-slate-600 dark:text-slate-300 rounded-2xl shrink-0"><Users size={28} className="sm:w-[30px] sm:h-[30px]" /></div>
+          <div className="p-3 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 rounded-2xl shrink-0"><Users size={24} className="xl:w-[28px] xl:h-[28px]" /></div>
         </div>
 
-        {/* Tarjeta Eficiencia de Cobro */}
-        <div className="bg-white dark:bg-[#0f172a] p-5 sm:p-7 rounded-[2rem] sm:rounded-[2.5rem] border border-slate-100 dark:border-slate-800/60 shadow-sm flex items-center justify-between relative overflow-hidden sm:col-span-2 lg:col-span-1">
+        {/* Tarjeta Rendimiento (Ratio Cobros/Fiados) */}
+        <div className="bg-white dark:bg-[#0f172a] p-4 sm:p-5 xl:p-7 rounded-[2rem] sm:rounded-[2.5rem] border border-slate-100 dark:border-slate-800/60 shadow-sm flex items-center justify-between relative overflow-hidden">
           <div className="absolute right-0 top-0 bottom-0 w-2 bg-emerald-500"></div>
           <div className="min-w-0 flex-1 pr-2">
-            <span className="text-[10px] sm:text-xs font-extrabold text-slate-400 uppercase tracking-widest block truncate">Salud de Cartera</span>
-            <div className="flex items-baseline gap-2 mt-1">
-              <span className="text-2xl sm:text-3xl font-black text-emerald-600 dark:text-emerald-400">{ratioRecaudo}%</span>
-              <span className="text-[11px] font-bold text-slate-400">tasa recaudo</span>
+            <span className="text-[10px] xl:text-xs font-extrabold text-slate-400 uppercase tracking-widest block whitespace-normal">Salud Cartera</span>
+            <div className="flex items-end gap-2 mt-1 whitespace-nowrap overflow-visible">
+              <span className={`text-lg sm:text-2xl lg:text-lg xl:text-2xl font-black leading-none ${
+                Number(ratioRecaudo) > 100 ? 'text-emerald-500' :
+                Number(ratioRecaudo) > 50 ? 'text-amber-500' : 'text-rose-500'
+              }`}>
+                {ratioRecaudo}%
+              </span>
+              <span className="text-[9px] xl:text-[10px] text-slate-400 font-bold mb-1 leading-tight whitespace-normal max-w-[60px]">tasa recaudo</span>
             </div>
-            <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 font-medium truncate">Abonos recibidos vs créditos.</p>
+            <p className="text-[10px] xl:text-xs text-slate-500 dark:text-slate-400 mt-1 font-medium whitespace-normal">Abonos recibidos vs créditos.</p>
           </div>
-          <div className="p-3 sm:p-3.5 bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 rounded-2xl shrink-0"><Activity size={28} className="sm:w-[30px] sm:h-[30px]" /></div>
+          <div className={`p-3 rounded-2xl shrink-0 ${
+            Number(ratioRecaudo) > 100 ? 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600' :
+            Number(ratioRecaudo) > 50 ? 'bg-amber-50 dark:bg-amber-500/10 text-amber-600' : 'bg-rose-50 dark:bg-rose-500/10 text-rose-600'
+          }`}>
+            <Activity size={24} className="xl:w-[28px] xl:h-[28px]" />
+          </div>
         </div>
       </div>
 
       {/* BLOQUE 2: MÉTRICAS FINANCIERAS DINÁMICAS (HOY / SEMANA / MES / AÑO / HISTÓRICO) */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
         {/* Ventas */}
-        <div className="bg-gradient-to-br from-emerald-500 to-green-600 p-4 sm:p-6 rounded-3xl sm:rounded-[2rem] shadow-lg flex flex-col justify-between text-white relative overflow-hidden">
+        <div className="bg-gradient-to-br from-emerald-500 to-green-600 p-4 sm:p-5 xl:p-6 rounded-3xl sm:rounded-[2rem] shadow-lg flex flex-col justify-between text-white relative overflow-hidden">
           <div className="flex justify-between items-start mb-2">
             <div className="flex flex-col gap-1 min-w-0">
-              <span className="text-[10px] sm:text-xs font-black uppercase tracking-widest text-emerald-100 opacity-90 truncate">
+              <span className="text-[10px] xl:text-xs font-black uppercase tracking-widest text-emerald-100 opacity-90 whitespace-normal">
                 {metaPeriodo.etiquetaVentas}
               </span>
               <span className="inline-block bg-white/25 backdrop-blur-md px-2 py-0.5 rounded-lg text-[10px] font-bold w-max shadow-sm border border-white/10">
                 {countVentas} {countVentas === 1 ? 'venta' : 'ventas'}
               </span>
             </div>
-            <div className="p-2 sm:p-2.5 bg-white/20 backdrop-blur-sm rounded-xl shrink-0"><ShoppingCart size={16} className="sm:w-[18px] sm:h-[18px]" /></div>
+            <div className="p-2 sm:p-2.5 bg-white/20 backdrop-blur-sm rounded-xl shrink-0"><ShoppingCart size={16} className="xl:w-[20px] xl:h-[20px]" /></div>
           </div>
-          <p className="text-xl sm:text-3xl font-black tracking-tight mt-2 sm:mt-3 truncate">${totalVentas.toLocaleString('es-CO')}</p>
+          <p className="text-lg md:text-2xl lg:text-lg xl:text-2xl 2xl:text-3xl font-black tracking-tight mt-2 sm:mt-3 whitespace-nowrap overflow-visible leading-none">${totalVentas.toLocaleString('es-CO')}</p>
         </div>
 
         {/* Fiados */}
-        <div className="bg-gradient-to-br from-rose-500 to-red-600 p-4 sm:p-6 rounded-3xl sm:rounded-[2rem] shadow-lg flex flex-col justify-between text-white relative overflow-hidden">
+        <div className="bg-gradient-to-br from-rose-500 to-red-600 p-4 sm:p-5 xl:p-6 rounded-3xl sm:rounded-[2rem] shadow-lg flex flex-col justify-between text-white relative overflow-hidden">
           <div className="flex justify-between items-start mb-2">
             <div className="flex flex-col gap-1 min-w-0">
-              <span className="text-[10px] sm:text-xs font-black uppercase tracking-widest text-rose-100 opacity-90 truncate">
+              <span className="text-[10px] xl:text-xs font-black uppercase tracking-widest text-rose-100 opacity-90 whitespace-normal">
                 {metaPeriodo.etiquetaFiados}
               </span>
               <span className="inline-block bg-white/25 backdrop-blur-md px-2 py-0.5 rounded-lg text-[10px] font-bold w-max shadow-sm border border-white/10">
                 {countFiados} {countFiados === 1 ? 'fiado' : 'fiados'}
               </span>
             </div>
-            <div className="p-2 sm:p-2.5 bg-white/20 backdrop-blur-sm rounded-xl shrink-0"><ShoppingBag size={16} className="sm:w-[18px] sm:h-[18px]" /></div>
+            <div className="p-2 sm:p-2.5 bg-white/20 backdrop-blur-sm rounded-xl shrink-0"><ShoppingBag size={16} className="xl:w-[20px] xl:h-[20px]" /></div>
           </div>
-          <p className="text-xl sm:text-3xl font-black tracking-tight mt-2 sm:mt-3 truncate">${totalFiados.toLocaleString('es-CO')}</p>
+          <p className="text-lg md:text-2xl lg:text-lg xl:text-2xl 2xl:text-3xl font-black tracking-tight mt-2 sm:mt-3 whitespace-nowrap overflow-visible leading-none">${totalFiados.toLocaleString('es-CO')}</p>
         </div>
 
         {/* Abonos */}
-        <div className="bg-gradient-to-br from-blue-500 to-blue-700 p-4 sm:p-6 rounded-3xl sm:rounded-[2rem] shadow-lg flex flex-col justify-between text-white relative overflow-hidden">
+        <div className="bg-gradient-to-br from-blue-500 to-blue-700 p-4 sm:p-5 xl:p-6 rounded-3xl sm:rounded-[2rem] shadow-lg flex flex-col justify-between text-white relative overflow-hidden">
           <div className="flex justify-between items-start mb-2">
             <div className="flex flex-col gap-1 min-w-0">
-              <span className="text-[10px] sm:text-xs font-black uppercase tracking-widest text-blue-100 opacity-90 truncate">
+              <span className="text-[10px] xl:text-xs font-black uppercase tracking-widest text-blue-100 opacity-90 whitespace-normal">
                 {metaPeriodo.etiquetaAbonos}
               </span>
               <span className="inline-block bg-white/25 backdrop-blur-md px-2 py-0.5 rounded-lg text-[10px] font-bold w-max shadow-sm border border-white/10">
                 {countAbonos} {countAbonos === 1 ? 'abono' : 'abonos'}
               </span>
             </div>
-            <div className="p-2 sm:p-2.5 bg-white/20 backdrop-blur-sm rounded-xl shrink-0"><Banknote size={16} className="sm:w-[18px] sm:h-[18px]" /></div>
+            <div className="p-2 sm:p-2.5 bg-white/20 backdrop-blur-sm rounded-xl shrink-0"><Banknote size={16} className="xl:w-[20px] xl:h-[20px]" /></div>
           </div>
-          <p className="text-xl sm:text-3xl font-black tracking-tight mt-2 sm:mt-3 truncate">${totalAbonos.toLocaleString('es-CO')}</p>
+          <p className="text-lg md:text-2xl lg:text-lg xl:text-2xl 2xl:text-3xl font-black tracking-tight mt-2 sm:mt-3 whitespace-nowrap overflow-visible leading-none">${totalAbonos.toLocaleString('es-CO')}</p>
         </div>
 
         {/* Dinero Neto en Caja */}
-        <div className="bg-gradient-to-br from-slate-800 to-slate-900 p-4 sm:p-6 rounded-3xl sm:rounded-[2rem] shadow-lg flex flex-col justify-between text-white border border-slate-700 relative overflow-hidden">
+        <div className="bg-gradient-to-br from-slate-800 to-slate-900 p-4 sm:p-5 xl:p-6 rounded-3xl sm:rounded-[2rem] shadow-lg flex flex-col justify-between text-white border border-slate-700 relative overflow-hidden">
           <div className="flex justify-between items-start mb-2">
             <div className="flex flex-col gap-1 min-w-0">
-              <span className="text-[10px] sm:text-[11px] font-black uppercase tracking-widest text-slate-300 opacity-90 truncate">
+              <span className="text-[10px] xl:text-xs font-black uppercase tracking-widest text-slate-300 opacity-90 whitespace-normal">
                 {metaPeriodo.etiquetaCaja}
               </span>
               <div className="flex items-center gap-1 flex-wrap">
@@ -1177,9 +1226,9 @@ export default function ReportesPage() {
                 )}
               </div>
             </div>
-            <div className="p-2 sm:p-2.5 bg-white/10 backdrop-blur-sm rounded-xl shrink-0"><TrendingUp size={16} className="sm:w-[18px] sm:h-[18px]" /></div>
+            <div className="p-2 sm:p-2.5 bg-white/10 backdrop-blur-sm rounded-xl shrink-0"><TrendingUp size={16} className="xl:w-[20px] xl:h-[20px]" /></div>
           </div>
-          <p className="text-xl sm:text-3xl font-black tracking-tight mt-2 sm:mt-3 text-emerald-400 truncate">${ingresosCaja.toLocaleString('es-CO')}</p>
+          <p className="text-lg md:text-2xl lg:text-lg xl:text-2xl 2xl:text-3xl font-black tracking-tight mt-2 sm:mt-3 text-emerald-400 whitespace-nowrap overflow-visible leading-none">${ingresosCaja.toLocaleString('es-CO')}</p>
         </div>
       </div>
 

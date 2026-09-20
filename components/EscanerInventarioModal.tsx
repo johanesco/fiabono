@@ -2,7 +2,7 @@
 import { useState, useEffect, useRef } from "react";
 import { Html5Qrcode, Html5QrcodeSupportedFormats } from "html5-qrcode";
 import { collection, getDocs, query, where, addDoc } from "firebase/firestore";
-import { db } from "../firebase";
+import { auth, db } from "../firebase";
 import { 
   X, CheckCircle2, Zap, Package, Plus, RefreshCw, Sparkles, 
   ChevronDown, ListCheck, Keyboard, QrCode, Trash2, Minus, 
@@ -451,39 +451,28 @@ export default function EscanerInventarioModal({
     procesandoRef.current = true;
 
     try {
-      // 1. Guardar de forma inmediata en la base de datos Firestore
-      let nuevoId = `prod_${Date.now()}`;
-      if (cuentaPrincipalId) {
-        const docRef = await addDoc(collection(db, "inventario"), {
-          usuarioId: cuentaPrincipalId,
-          nombre: nuevoNombre.trim(),
-          sku: codigoGuardar,
-          codigoBarras: codigoGuardar,
-          stock: cantInicial,
-          precioVenta: precioLimpio,
-          costoCompra: costoLimpio,
-          tipoProducto: 'producto',
-          categoria: catFinal,
-          inventariable: true,
-          fechaCreacion: new Date(),
-          fechaActualizacion: new Date()
-        });
-        nuevoId = docRef.id;
-
-        // Registrar movimiento de ingreso
-        await addDoc(collection(db, "movimientos"), {
-          usuarioId: cuentaPrincipalId,
-          tipo: 'ingreso_inventario',
-          categoria: 'recepcion_mercancia',
-          monto: costoLimpio * cantInicial,
-          descripcion: `Creación y recepción: +${cantInicial} unidades de ${nuevoNombre.trim()} (Código: ${codigoGuardar})`,
-          fecha: new Date(),
-          registradoPor: _nombreUsuario || "Usuario",
-          idProducto: nuevoId,
-          nombreProducto: nuevoNombre.trim(),
-          cantidadAgregada: cantInicial
-        });
-      }
+      const token = await auth.currentUser?.getIdToken();
+      if (!token) throw new Error('Sesión inválida.');
+      const respuesta = await fetch('/api/inventario/recibir', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({
+          productos: [{
+            nombre: nuevoNombre.trim(),
+            sku: codigoGuardar,
+            codigoBarras: codigoGuardar,
+            stock: cantInicial,
+            precioVenta: precioLimpio,
+            costoCompra: costoLimpio,
+            tipoProducto: 'producto',
+            categoria: catFinal,
+            inventariable: true
+          }]
+        })
+      });
+      const resultado = await respuesta.json();
+      if (!respuesta.ok) throw new Error(resultado.error || 'No se pudo crear el producto.');
+      const nuevoId = resultado.idsCreados?.[0] || `prod_${Date.now()}`;
 
       // 2. Registrar en la memoria del escáner para que si se escanea nuevamente, lo detecte como EXISTENTE
       const prodCreadoMemoria = {

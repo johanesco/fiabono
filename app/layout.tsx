@@ -74,7 +74,7 @@ export default function RootLayout({
         <Toaster
           position="top-right"
           gutter={10}
-          containerStyle={{ zIndex: 9999999 }}
+          containerStyle={{ zIndex: 2147483647 }}
           toastOptions={{
             duration: 3500,
             className: "border border-slate-200/80 dark:border-slate-800 bg-white/95 dark:bg-[#0f172a]/95 text-slate-800 dark:text-slate-100 shadow-xl shadow-slate-900/10 dark:shadow-slate-950/60 backdrop-blur-xl font-bold text-xs sm:text-sm rounded-2xl py-3 px-4",

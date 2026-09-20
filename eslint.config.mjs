@@ -14,6 +14,10 @@ const eslintConfig = defineConfig([
     "next-env.d.ts",
     "functions/**",
     "scripts/**",
+    "fix.js",
+    "patch.js",
+    "patch-modal.js",
+    "patch-text.js",
   ]),
   {
     files: ["**/*.ts", "**/*.tsx", "**/*.js", "**/*.jsx"],

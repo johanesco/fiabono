@@ -447,7 +447,7 @@ export default function LandingPage() {
   const horasAhorradasMes = Math.round(horasCuentas * 4);
 
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-[#020617] text-slate-900 dark:text-slate-100 font-sans transition-colors duration-500 overflow-x-hidden selection:bg-blue-600 selection:text-white">
+    <div className="min-h-screen w-full max-w-[100vw] pb-24 md:pb-0 bg-slate-50 dark:bg-[#020617] text-slate-900 dark:text-slate-100 font-sans transition-colors duration-500 overflow-x-hidden selection:bg-blue-600 selection:text-white">
       
       {/* 1. TOP ANNOUNCEMENT BANNER */}
       <div className="bg-gradient-to-r from-emerald-600 via-teal-600 to-slate-900 text-white text-[11px] sm:text-xs font-black py-2 px-4 text-center flex items-center justify-center gap-2">
@@ -569,7 +569,7 @@ export default function LandingPage() {
           </h1>
 
           <p className="text-base sm:text-xl text-slate-600 dark:text-slate-300 max-w-3xl mx-auto mb-6 font-medium leading-relaxed">
-            El sistema POS colombiano más fácil para <strong>tiendas de barrio, minimarkets y almacenes de ropa</strong>. Vende rápido, controla el cupo de fiado por WhatsApp y aparta mercancía con <strong>Plan Separe con foto</strong> sin enredos.
+            El sistema POS colombiano más fácil para <strong>tiendas de barrio, minimarkets y almacenes de ropa</strong>. Vende rápido, envía comprobantes por WhatsApp, escanea productos con la cámara del celular y aparta mercancía con <strong>Plan Separe con foto</strong>.
           </p>
 
           {/* Chips Interactivos de Nicho en el Hero (Quick Discovery) */}
@@ -958,7 +958,7 @@ export default function LandingPage() {
                 <span className="text-xs font-black uppercase text-purple-600 tracking-wider">Cero prendas perdidas</span>
                 <h4 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white">Aparta prendas con fotos y fechas límite</h4>
                 <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400 leading-relaxed font-medium">
-                  Le tomas foto al vestido o calzado apartado, registras el abono inicial y fijas la fecha de vencimiento. Si el plazo vence, el sistema te avisa para recordar el cobro por WhatsApp o liberar la prenda para venderla a otro cliente.
+                  Le tomas foto al vestido o calzado apartado, registras el abono inicial y fijas la fecha de vencimiento. Si el plazo vence, puedes revisar la alerta, contactar al cliente por WhatsApp o liberar la prenda para venderla a otro cliente.
                 </p>
                 <div className="bg-purple-50 dark:bg-purple-500/10 p-3 rounded-xl text-xs font-bold text-purple-700 dark:text-purple-300 border border-purple-100 dark:border-purple-500/20">
                   👗 Aumenta la rotación de mercancía en quincenas y temporadas sin enredos en cuadernos.
@@ -1111,7 +1111,7 @@ export default function LandingPage() {
                 </li>
                 <li className="flex items-start gap-2.5">
                   <span className="text-emerald-500 font-black shrink-0">✓</span>
-                  <span><strong>Alertas de vencimiento de Separes:</strong> Fotos de las prendas, fechas límite y recordatorios para cobrar a tiempo.</span>
+                  <span><strong>Control de vencimiento de Separes:</strong> Fotos de las prendas, fechas límite y seguimiento para cobrar a tiempo.</span>
                 </li>
               </ul>
             </div>
@@ -1262,7 +1262,7 @@ export default function LandingPage() {
                 <span className="text-xs font-black text-blue-600 uppercase tracking-wider">Tiendas de Barrio & Minimarkets</span>
                 <h3 className="text-2xl font-black text-slate-900 dark:text-white">Ventas rápidas en hora pico y control de cupo de fiado</h3>
                 <p className="text-sm text-slate-600 dark:text-slate-400 leading-relaxed font-medium">
-                  El vecino pide el mercado de la semana. Registras la venta en 2 segundos y el sistema verifica si el cliente tiene cupo disponible. Al final de la tarde, sabes cuánto dinero en efectivo debes tener en el cajón.
+                  El vecino pide el mercado de la semana. Registras la venta y ves de inmediato el saldo actual del cliente. Al final de la tarde, sabes cuánto dinero en efectivo debes tener en el cajón.
                 </p>
                 <div className="flex flex-wrap gap-2 text-xs font-bold text-slate-700 dark:text-slate-300">
                   <span className="bg-slate-100 dark:bg-slate-800 px-3 py-1 rounded-lg">✓ Cupo de fiado por cliente</span>
@@ -1272,7 +1272,7 @@ export default function LandingPage() {
               <div className="bg-blue-50 dark:bg-blue-950/30 p-6 rounded-2xl border border-blue-200/60 dark:border-blue-900/40 space-y-2">
                 <p className="font-black text-sm text-blue-900 dark:text-blue-200">En tu día a día:</p>
                 <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
-                  Al despachar registras si el cliente pagó de contado o si se añade a su saldo fiado. El vecino recibe su extracto por WhatsApp y al final del día obtienes un cuadre de caja transparente sin discusiones ni cuentas embolatadas.
+                  Al despachar registras si el cliente pagó de contado o si se añade a su saldo fiado. El vecino recibe su comprobante o estado por WhatsApp y al final del día obtienes un cuadre de caja transparente sin discusiones ni cuentas embolatadas.
                 </p>
                 <p className="text-[11px] font-bold text-blue-600 dark:text-blue-400 pt-1">✓ Registro de métodos de pago para control interno de caja</p>
               </div>
@@ -1285,11 +1285,11 @@ export default function LandingPage() {
                 <span className="text-xs font-black text-purple-600 uppercase tracking-wider">Almacenes de Ropa, Calzado & Boutiques</span>
                 <h3 className="text-2xl font-black text-slate-900 dark:text-white">Módulo Plan Separe con fotos de prendas y fechas límite</h3>
                 <p className="text-sm text-slate-600 dark:text-slate-400 leading-relaxed font-medium">
-                  Tus clientas apartan vestidos o zapatos para quincena. Tomas foto a la prenda con tu celular, fijas la fecha de vencimiento y registras abonos parciales. Si el plazo vence, el sistema te avisa para cobrar o liberar el artículo.
+                  Tus clientas apartan vestidos o zapatos para quincena. Tomas foto a la prenda con tu celular, fijas la fecha de vencimiento y registras abonos parciales. Si el plazo vence, puedes revisarlo para cobrar o liberar el artículo.
                 </p>
                 <div className="flex flex-wrap gap-2 text-xs font-bold text-slate-700 dark:text-slate-300">
                   <span className="bg-slate-100 dark:bg-slate-800 px-3 py-1 rounded-lg">✓ Fotos de prendas apartadas</span>
-                  <span className="bg-slate-100 dark:bg-slate-800 px-3 py-1 rounded-lg">✓ Alertas automáticas de vencimiento</span>
+                  <span className="bg-slate-100 dark:bg-slate-800 px-3 py-1 rounded-lg">✓ Alertas de vencimiento</span>
                 </div>
               </div>
               <div className="bg-purple-50 dark:bg-purple-950/30 p-6 rounded-2xl border border-purple-200/60 dark:border-purple-900/40 space-y-2">
@@ -1320,7 +1320,7 @@ export default function LandingPage() {
                 <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
                   Tus colaboradores escanean con la cámara y facturan sin equivocarse en los precios ni consultar cuadernos viejos. El stock se descuenta en vivo para saber cuándo reponer a proveedores.
                 </p>
-                <p className="text-[11px] font-bold text-indigo-600 dark:text-indigo-400 pt-1">✓ Agilidad total en mostrador y control de inventario</p>
+                  <p className="text-[11px] font-bold text-indigo-600 dark:text-indigo-400 pt-1">✓ Escaneo con cámara y control de inventario</p>
               </div>
             </div>
           )}
@@ -1334,7 +1334,7 @@ export default function LandingPage() {
                   Maneja la lista de clientas por campaña o pedidos. Envía estados de cuenta claros por WhatsApp en quincena y registra abonos parciales sin enredos ni cuentas manuales.
                 </p>
                 <div className="flex flex-wrap gap-2 text-xs font-bold text-slate-700 dark:text-slate-300">
-                  <span className="bg-slate-100 dark:bg-slate-800 px-3 py-1 rounded-lg">✓ Recordatorios de quincena</span>
+                  <span className="bg-slate-100 dark:bg-slate-800 px-3 py-1 rounded-lg">✓ Fechas límite de quincena</span>
                   <span className="bg-slate-100 dark:bg-slate-800 px-3 py-1 rounded-lg">✓ Historial de compras por clienta</span>
                 </div>
               </div>
@@ -1489,7 +1489,7 @@ export default function LandingPage() {
                 </li>
                 <li className="flex items-start gap-2">
                   <CheckCircle2 size={15} className="text-amber-600 shrink-0 mt-0.5" />
-                  <span><strong>Cierre de caja automático:</strong> desglosado por efectivo vs. transferencias.</span>
+                  <span><strong>Control de caja:</strong> desglose por efectivo vs. transferencias.</span>
                 </li>
                 <li className="flex items-start gap-2">
                   <CheckCircle2 size={15} className="text-amber-600 shrink-0 mt-0.5" />
@@ -1900,7 +1900,7 @@ export default function LandingPage() {
             },
             {
               q: "¿Qué tipo de impresora necesito para las facturas y etiquetas QR?",
-              a: "Fiabono es compatible con cualquier impresora térmica estándar de 58mm o 80mm (Bluetooth, USB o Wi-Fi). También puedes generar los comprobantes para enviarlos directamente por WhatsApp sin necesidad de tener impresora física."
+              a: "Puedes imprimir desde el navegador en una impresora térmica compatible de 58mm u 80mm, generar un PDF o enviar el comprobante directamente por WhatsApp. También puedes operar sin impresora física."
             },
             {
               q: "¿Cómo funciona el Módulo de Plan Separe en el Plan PRO?",
@@ -2035,7 +2035,7 @@ export default function LandingPage() {
       </footer>
 
       {/* 13. FLOATING MOBILE STICKY BAR PARA MÁXIMA CONVERSIÓN */}
-      <div className="md:hidden fixed bottom-0 left-0 right-0 bg-white/95 dark:bg-[#0f172a]/95 backdrop-blur-lg border-t border-slate-200 dark:border-slate-800 p-3 z-[400] flex items-center justify-between gap-3 shadow-lg">
+      <div className="md:hidden w-full bg-white/95 dark:bg-[#0f172a]/95 backdrop-blur-lg border-t border-slate-200 dark:border-slate-800 p-3 flex items-center justify-between gap-3 shadow-lg">
         <div>
           <p className="text-xs font-black text-slate-900 dark:text-white">Prueba Fiabono Gratis</p>
           <p className="text-[10px] text-emerald-600 font-bold">Sin tarjeta de crédito</p>

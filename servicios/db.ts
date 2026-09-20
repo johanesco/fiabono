@@ -24,6 +24,9 @@ const calcularActivoPorHorarios = (horarios: any[] = []) => {
 };
 
 export const API_DB = {
+  // LEGACY: Las operaciones financieras nuevas viven en /app/api/** y no deben
+  // ser llamadas desde componentes cliente. Estos helpers se conservan sólo
+  // para compatibilidad temporal con scripts internos y migraciones.
   // --------------------------------------------------------
   // CLIENTES
   // --------------------------------------------------------
@@ -44,8 +47,28 @@ export const API_DB = {
     await updateDoc(doc(db, "clientes", clienteId), datos);
   },
 
-  eliminarCliente: async (clienteId: string): Promise<void> => {
-    await deleteDoc(doc(db, "clientes", clienteId));
+  eliminarCliente: async (clienteId: string, opciones?: { omitirValidacionDeuda?: boolean }): Promise<void> => {
+    // 1. Validar existencia del cliente
+    const clientRef = doc(db, "clientes", clienteId);
+    const clientSnap = await getDoc(clientRef);
+    if (!clientSnap.exists()) return;
+
+    const data = clientSnap.data();
+
+    // 2. Bloquear eliminación si tiene Planes Separe activos (integridad de mercancía y abonos)
+    const qSep = query(collection(db, "separes"), where("clienteId", "==", clienteId), where("estado", "==", "activo"));
+    const snapSep = await getDocs(qSep);
+    if (!snapSep.empty) {
+      throw new Error("No se puede eliminar el cliente: tiene Planes Separe activos pendientes de liquidar o cancelar.");
+    }
+
+    // 3. Bloquear eliminación si la cartera está viva y no se autorizó asiento contable explícito
+    const deuda = Number(data?.deudaTotal || 0);
+    if (deuda !== 0 && !opciones?.omitirValidacionDeuda) {
+      throw new Error("No se puede eliminar un cliente con saldo pendiente o saldo a favor sin un asiento contable previo.");
+    }
+
+    await deleteDoc(clientRef);
   },
 
   // --------------------------------------------------------
@@ -184,6 +207,7 @@ export const API_DB = {
   // --------------------------------------------------------
   // PROCESAMIENTO INTELIGENTE DE DEVOLUCIONES (NOTA CRÉDITO)
   // --------------------------------------------------------
+  /** @deprecated Usar POST /api/devoluciones/registrar. */
   procesarDevolucion: async (
     movimientoOrigen: Movimiento,
     articulosDevueltos: any[],
@@ -191,49 +215,199 @@ export const API_DB = {
     registradoPor: string
   ): Promise<{ movimientoId: string, nuevoSaldoCliente?: number }> => {
     return await runTransaction(db, async (transaction) => {
-      // 1. Calculate total return value
-      const totalDevolver = articulosDevueltos.reduce((sum, art) => sum + art.subtotal, 0);
+      if (!movimientoOrigen?.id || !Array.isArray(articulosDevueltos) || articulosDevueltos.length === 0) {
+        throw new Error("La devolución no contiene una venta y artículos válidos.");
+      }
+      if (!['saldo_a_favor', 'efectivo'].includes(metodoDevolucion)) {
+        throw new Error("El método de devolución no es válido.");
+      }
 
-      // 2. Adjust client balance if saldo_a_favor
-      let nuevoSaldo: number | undefined = undefined;
-      if (metodoDevolucion === 'saldo_a_favor' && movimientoOrigen.clienteId && movimientoOrigen.clienteId !== 'mostrador') {
-        const clienteRef = doc(db, "clientes", movimientoOrigen.clienteId);
-        const clienteSnap = await transaction.get(clienteRef);
-        if (clienteSnap.exists()) {
-          const saldoActual = clienteSnap.data().deudaTotal || 0;
-          nuevoSaldo = saldoActual - totalDevolver;
-          transaction.update(clienteRef, { deudaTotal: nuevoSaldo });
+      const origenRef = doc(db, "movimientos", movimientoOrigen.id);
+      const origenSnap = await transaction.get(origenRef);
+      if (!origenSnap.exists()) {
+        throw new Error("La venta original ya no existe.");
+      }
+
+      const origenData = origenSnap.data() as any;
+      if (!['venta', 'fiado'].includes(origenData.tipo)) {
+        throw new Error("Sólo se pueden devolver ventas o fiados.");
+      }
+
+      const detallesOrigen = Array.isArray(origenData.detalles) ? origenData.detalles : [];
+      if (detallesOrigen.length === 0) {
+        throw new Error("La venta original no contiene artículos devolvibles.");
+      }
+
+      const controlDevolucionRef = doc(db, "controles_devolucion", movimientoOrigen.id);
+      const controlDevolucionSnap = await transaction.get(controlDevolucionRef);
+      const cantidadesDevueltas = new Map<number, number>();
+      if (controlDevolucionSnap.exists()) {
+        const cantidadesControl = controlDevolucionSnap.data().cantidadesPorDetalle || {};
+        Object.entries(cantidadesControl).forEach(([indice, cantidad]) => {
+          cantidadesDevueltas.set(Number(indice), Number(cantidad) || 0);
+        });
+      } else {
+        // Migra devoluciones antiguas al contador durante la primera operación nueva.
+        const devolucionesPreviasQuery = query(
+          collection(db, "movimientos"),
+          where("movimientoOrigenId", "==", movimientoOrigen.id),
+          where("tipo", "==", "devolucion")
+        );
+        const devolucionesPreviasSnap = await getDocs(devolucionesPreviasQuery);
+        devolucionesPreviasSnap.forEach((devolucionDoc) => {
+          const articulos = devolucionDoc.data().articulosDevueltos || [];
+          articulos.forEach((art: any) => {
+            if (Number.isInteger(art.detalleIndex)) {
+              cantidadesDevueltas.set(
+                art.detalleIndex,
+                (cantidadesDevueltas.get(art.detalleIndex) || 0) + Number(art.cantidad || 0)
+              );
+            }
+          });
+        });
+      }
+
+      const articulosValidados = articulosDevueltos.map((art: any) => {
+        const detalleIndex = Number.isInteger(art.detalleIndex)
+          ? art.detalleIndex
+          : detallesOrigen.findIndex((detalle: any) =>
+              (art.productoId && detalle.productoId === art.productoId) ||
+              (!art.productoId && detalle.descripcion === art.descripcion)
+            );
+        const detalleOrigen = detallesOrigen[detalleIndex];
+        const cantidad = Number(art.cantidad);
+
+        if (!detalleOrigen || !Number.isInteger(cantidad) || cantidad <= 0) {
+          throw new Error("La devolución contiene un artículo o cantidad inválida.");
         }
+
+        const cantidadOriginal = Number(detalleOrigen.cantidad || 1);
+        const cantidadYaDevuelta = cantidadesDevueltas.get(detalleIndex) || 0;
+        if (cantidad + cantidadYaDevuelta > cantidadOriginal) {
+          throw new Error(`La cantidad devuelta supera la cantidad vendida para "${detalleOrigen.descripcion || 'artículo'}".`);
+        }
+
+        const cantidadDetalle = Number(detalleOrigen.cantidad || 1);
+        const valorUnitarioBruto = Number(detalleOrigen.valorUnitario) ||
+          (Number(detalleOrigen.valor || 0) / cantidadDetalle);
+        if (!Number.isFinite(valorUnitarioBruto) || valorUnitarioBruto < 0) {
+          throw new Error("El valor del artículo original no es válido.");
+        }
+
+        const montoDescuento = Number(origenData.montoDescuento || 0);
+        const totalBruto = detallesOrigen.reduce((sum: number, detalle: any) => {
+          const cantidadItem = Number(detalle.cantidad || 1);
+          const unitario = Number(detalle.valorUnitario) || (Number(detalle.valor || 0) / cantidadItem);
+          return sum + (cantidadItem * unitario);
+        }, 0);
+        const factorDescuento = totalBruto > 0 && montoDescuento > 0 && montoDescuento < totalBruto
+          ? (totalBruto - montoDescuento) / totalBruto
+          : 1;
+        const valorUnitarioNeto = Math.round(valorUnitarioBruto * factorDescuento);
+
+        cantidadesDevueltas.set(detalleIndex, cantidadYaDevuelta + cantidad);
+        return {
+          ...art,
+          detalleIndex,
+          descripcion: detalleOrigen.descripcion || art.descripcion,
+          cantidad,
+          valorUnitario: valorUnitarioNeto,
+          subtotal: cantidad * valorUnitarioNeto
+        };
+      });
+
+      const totalDevolver = articulosValidados.reduce((sum, art) => sum + art.subtotal, 0);
+      if (!Number.isFinite(totalDevolver) || totalDevolver <= 0) {
+        throw new Error("El valor total de la devolución no es válido.");
+      }
+
+      const cantidadesPorDetalle: Record<string, number> = {};
+      cantidadesDevueltas.forEach((cantidad, indice) => {
+        cantidadesPorDetalle[String(indice)] = cantidad;
+      });
+      transaction.set(controlDevolucionRef, {
+        usuarioId: origenData.usuarioId,
+        movimientoOrigenId: movimientoOrigen.id,
+        cantidadesPorDetalle,
+        fechaActualizacion: new Date()
+      }, { merge: true });
+
+      // 2. Ajuste de cartera inteligente:
+      // Si el cliente tiene deuda pendiente (> 0), la devolución AMORTIZA esa deuda primero
+      // para evitar que el negocio entregue efectivo físico mientras el cliente le debe dinero.
+      let nuevoSaldo: number | undefined = undefined;
+      let montoEfectivoDevolver = 0;
+      let montoAmortizadoDeuda = 0;
+
+      if (origenData.clienteId && origenData.clienteId !== 'mostrador') {
+        const clienteRef = doc(db, "clientes", origenData.clienteId);
+        const clienteSnap = await transaction.get(clienteRef);
+        if (!clienteSnap.exists()) {
+          throw new Error("El cliente asociado a la venta ya no existe.");
+        }
+        const saldoActual = Number(clienteSnap.data().deudaTotal || 0);
+        if (!Number.isFinite(saldoActual)) {
+          throw new Error("El saldo actual del cliente no es válido.");
+        }
+
+          if (origenData.tipo === 'fiado' || metodoDevolucion === 'saldo_a_favor') {
+            // Amortización total de deuda o incremento de saldo a favor
+            nuevoSaldo = saldoActual - totalDevolver;
+            transaction.update(clienteRef, { deudaTotal: nuevoSaldo });
+            montoAmortizadoDeuda = totalDevolver;
+          } else {
+            // metodoDevolucion === 'efectivo'
+            if (saldoActual > 0) {
+              // El cliente debe dinero: se amortiza su deuda pendiente prioritariamente
+              montoAmortizadoDeuda = Math.min(saldoActual, totalDevolver);
+              montoEfectivoDevolver = totalDevolver - montoAmortizadoDeuda;
+              nuevoSaldo = saldoActual - montoAmortizadoDeuda;
+              transaction.update(clienteRef, { deudaTotal: nuevoSaldo });
+            } else {
+              // El cliente está al día o tiene saldo a favor: se entrega el efectivo completo
+              montoEfectivoDevolver = totalDevolver;
+            }
+        }
+      } else {
+        // Venta de mostrador anónima
+        montoEfectivoDevolver = totalDevolver;
       }
 
       // 3. Restore inventory
-      for (const art of articulosDevueltos) {
+      for (const art of articulosValidados) {
         if (art.productoId) {
           const invRef = doc(db, "inventario", art.productoId);
           const invSnap = await transaction.get(invRef);
           if (invSnap.exists()) {
-             const stockActual = invSnap.data().stockActual || 0;
-             transaction.update(invRef, { stockActual: stockActual + art.cantidad });
+             const stockActual = Number(invSnap.data().stock || 0);
+             transaction.update(invRef, { stock: stockActual + art.cantidad });
           }
         }
       }
 
       // 4. Create the new return transaction
       const movRef = doc(collection(db, "movimientos"));
+      const metodoFinal = montoEfectivoDevolver > 0 && montoAmortizadoDeuda > 0 
+        ? 'mixto' 
+        : (montoEfectivoDevolver > 0 ? 'efectivo' : 'saldo_a_favor');
+
       const movData: any = {
-        usuarioId: movimientoOrigen.usuarioId,
-        clienteId: movimientoOrigen.clienteId,
-        clienteNombre: movimientoOrigen.clienteNombre,
+        usuarioId: origenData.usuarioId,
+        clienteId: origenData.clienteId,
+        clienteNombre: origenData.clienteNombre,
         tipo: 'devolucion',
         monto: totalDevolver,
-        descripcion: `Devolución de mercancía (${metodoDevolucion === 'efectivo' ? 'Reembolso Efectivo' : 'Abono a deuda'})`,
+        montoEfectivoReembolsado: montoEfectivoDevolver,
+        montoAmortizadoCartera: montoAmortizadoDeuda,
+        descripcion: `Devolución de mercancía (${montoAmortizadoDeuda > 0 ? `Amortizado: $${montoAmortizadoDeuda.toLocaleString('es-CO')}` : ''}${montoEfectivoDevolver > 0 ? ` Efectivo: $${montoEfectivoDevolver.toLocaleString('es-CO')}` : ''})`,
         fecha: new Date(),
         registradoPor,
-        metodoDevolucion,
+        metodoDevolucion: metodoFinal,
         movimientoOrigenId: movimientoOrigen.id,
-        origenTipo: movimientoOrigen.tipo,
-        articulosDevueltos,
-        saldoResultante: nuevoSaldo
+        origenTipo: origenData.tipo,
+        articulosDevueltos: articulosValidados,
+        saldoResultante: nuevoSaldo,
+        esPublico: true
       };
 
       Object.keys(movData).forEach(k => movData[k] === undefined && delete movData[k]);
@@ -247,6 +421,7 @@ export const API_DB = {
   // --------------------------------------------------------
   // TRANSACCIÓN ATÓMICA UNIFICADA: VENTA + STOCK + FIADO (P1-TX-01)
   // --------------------------------------------------------
+  /** @deprecated Usar POST /api/ventas/registrar. */
   ejecutarVentaCompletaAtomo: async (params: {
     usuarioId: string;
     clienteId?: string;
@@ -277,9 +452,19 @@ export const API_DB = {
     nuevoSaldoCliente?: number;
   }> => {
     return await runTransaction(db, async (transaction) => {
+      if (!Number.isFinite(params.montoVentaReal) || params.montoVentaReal < 0) {
+        throw new Error("El monto real de la venta no es válido.");
+      }
+      if (params.fiarFaltante && (!Number.isFinite(params.montoFiado) || (params.montoFiado || 0) <= 0)) {
+        throw new Error("El monto fiado no es válido.");
+      }
+
       // 1. REGLA FIRESTORE OBLIGATORIA: TODAS LAS LECTURAS PRIMERO
       let nuevoSaldoCliente: number | undefined = undefined;
       let clienteRef: any = null;
+
+      let consumoSaldoFavor = 0;
+      let montoFiadoReal = 0;
 
       if (
         params.fiarFaltante &&
@@ -290,41 +475,68 @@ export const API_DB = {
       ) {
         clienteRef = doc(db, "clientes", params.clienteId);
         const clienteSnap = await transaction.get(clienteRef);
-        if (clienteSnap.exists()) {
-          const cData = clienteSnap.data() as any;
-          const deudaActual = Number(cData?.deudaTotal || 0);
-          nuevoSaldoCliente = deudaActual + params.montoFiado;
+        if (!clienteSnap.exists()) {
+          throw new Error("El cliente seleccionado ya no existe.");
         }
+
+        const cData = clienteSnap.data() as any;
+        const deudaActual = Number(cData?.deudaTotal || 0);
+
+        if (!Number.isFinite(deudaActual)) {
+          throw new Error("El saldo actual del cliente no es válido.");
+        }
+
+        if (deudaActual < 0) {
+          const saldoFavorDisponible = Math.abs(deudaActual);
+          consumoSaldoFavor = Math.min(saldoFavorDisponible, params.montoFiado || 0);
+          montoFiadoReal = (params.montoFiado || 0) - consumoSaldoFavor;
+        } else {
+          montoFiadoReal = params.montoFiado || 0;
+        }
+
+        nuevoSaldoCliente = deudaActual + (params.montoFiado || 0);
       }
 
       // Lectura y validación de existencias en fase de lectura para evitar sobreventas concurrentes
-      const stockDocsMap = new Map<string, any>();
-      for (const item of params.itemsInventario) {
-        if (item.productoId && item.cantidad > 0) {
-          const prodRef = doc(db, "inventario", item.productoId);
-          const prodSnap = await transaction.get(prodRef);
-          if (prodSnap.exists()) {
-            const dataInv = prodSnap.data() as any;
-            const stockActual = Number(dataInv.stock || 0);
-            if (dataInv.tipoProducto !== 'servicio' && dataInv.inventariable !== false) {
-              if (item.cantidad > stockActual) {
-                throw new Error(`¡Sin stock suficiente de "${dataInv.nombre}"! Solicitado: ${item.cantidad}, Quedan: ${stockActual}`);
-              }
-            }
-            stockDocsMap.set(item.productoId, prodRef);
-          }
+      const cantidadesConsolidadas = new Map<string, number>();
+      for (const item of params.itemsInventario || []) {
+        if (!item.productoId || !Number.isInteger(item.cantidad) || item.cantidad <= 0) {
+          throw new Error("Los artículos de inventario no tienen cantidades válidas.");
         }
+        cantidadesConsolidadas.set(
+          item.productoId,
+          (cantidadesConsolidadas.get(item.productoId) || 0) + item.cantidad
+        );
+      }
+
+      const stockDocsMap = new Map<string, any>();
+      for (const [productoId, cantidad] of cantidadesConsolidadas) {
+        const prodRef = doc(db, "inventario", productoId);
+        const prodSnap = await transaction.get(prodRef);
+        if (!prodSnap.exists()) {
+          throw new Error("Uno de los productos seleccionados ya no existe.");
+        }
+
+        const dataInv = prodSnap.data() as any;
+        const stockActual = Number(dataInv.stock || 0);
+        if (!Number.isFinite(stockActual) || stockActual < 0) {
+          throw new Error(`El stock de "${dataInv.nombre || productoId}" no es válido.`);
+        }
+        if (dataInv.tipoProducto !== 'servicio' && dataInv.inventariable !== false) {
+          if (cantidad > stockActual) {
+            throw new Error(`¡Sin stock suficiente de "${dataInv.nombre}"! Solicitado: ${cantidad}, Quedan: ${stockActual}`);
+            }
+        }
+        stockDocsMap.set(productoId, prodRef);
       }
 
       // 2. TODAS LAS ESCRITURAS DESPUÉS
       // a) Descontar stock de los productos inventariables
-      for (const item of params.itemsInventario) {
-        if (item.productoId && item.cantidad > 0) {
-          const prodRef = stockDocsMap.get(item.productoId) || doc(db, "inventario", item.productoId);
-          transaction.update(prodRef, {
-            stock: increment(-item.cantidad)
-          });
-        }
+      for (const [productoId, cantidad] of cantidadesConsolidadas) {
+        const prodRef = stockDocsMap.get(productoId);
+        transaction.update(prodRef, {
+          stock: increment(-cantidad)
+        });
       }
 
       // b) Si hay saldo a crédito, actualizar deudaTotal del cliente
@@ -334,49 +546,56 @@ export const API_DB = {
         });
       }
 
-      // c) Crear movimiento de venta (si se recibió algún pago)
+      // c) Crear movimiento de venta (si se recibió algún pago O se consumió saldo a favor)
       let movimientoVentaId: string | undefined = undefined;
-      if (params.montoVentaReal > 0) {
+      const totalVentaRegistrar = params.montoVentaReal + consumoSaldoFavor;
+      
+      if (totalVentaRegistrar > 0) {
         const movVentaRef = doc(collection(db, "movimientos"));
         movimientoVentaId = movVentaRef.id;
         const movVentaData: Record<string, any> = {
           clienteId: params.clienteId || 'mostrador',
           usuarioId: params.usuarioId,
           tipo: 'venta',
-          monto: params.montoVentaReal,
+          monto: totalVentaRegistrar,
           descripcion: params.descripcionVenta,
           detalles: params.detalles,
           fecha: new Date(),
           registradoPor: params.registradoPor,
-          metodoPago: params.metodoPago,
+          metodoPago: params.montoVentaReal > 0 ? params.metodoPago : 'saldo_interno',
+          montoPagadoConSaldoFavor: consumoSaldoFavor > 0 ? consumoSaldoFavor : undefined,
           referenciaPago: params.referenciaPago || null,
           subtotal: params.subtotal,
           valorIva: params.valorIva,
           porcentajeIva: params.porcentajeIva,
           descuentoTipo: params.descuentoTipo || null,
           descuentoValor: params.descuentoValor,
-          montoDescuento: params.montoDescuento
+          montoDescuento: params.montoDescuento,
+          // SEC-01: Marcar como público para que la regla de Firestore permita acceso
+          // desde el comprobante público /t/[id] sin exponer todos los documentos.
+          esPublico: true
         };
         Object.keys(movVentaData).forEach(k => movVentaData[k] === undefined && delete movVentaData[k]);
         transaction.set(movVentaRef, movVentaData);
       }
 
-      // d) Crear movimiento de fiado (si faltante quedó a crédito)
+      // d) Crear movimiento de fiado (solo si hubo crédito real)
       let movimientoFiadoId: string | undefined = undefined;
-      if (params.fiarFaltante && params.clienteId && params.montoFiado && params.montoFiado > 0) {
+      if (montoFiadoReal > 0 && params.clienteId) {
         const movFiadoRef = doc(collection(db, "movimientos"));
         movimientoFiadoId = movFiadoRef.id;
         const movFiadoData: Record<string, any> = {
           clienteId: params.clienteId,
           usuarioId: params.usuarioId,
           tipo: 'fiado',
-          monto: params.montoFiado,
+          monto: montoFiadoReal,
           descripcion: params.descripcionFiado || 'Saldo pendiente de venta',
           detalles: params.detalles,
           fecha: new Date(),
           registradoPor: params.registradoPor,
           metodoPago: 'fiado',
-          saldoResultante: nuevoSaldoCliente
+          saldoResultante: nuevoSaldoCliente,
+          esPublico: true
         };
         Object.keys(movFiadoData).forEach(k => movFiadoData[k] === undefined && delete movFiadoData[k]);
         transaction.set(movFiadoRef, movFiadoData);
@@ -393,6 +612,7 @@ export const API_DB = {
   // --------------------------------------------------------
   // REGISTRO SEGURO Y ATÓMICO CON TRANSACCIÓN (INDIVIDUAL)
   // --------------------------------------------------------
+  /** @deprecated Usar POST /api/movimientos/registrar. */
   registrarMovimientoConTransaccion: async (
     datosMovimiento: Omit<Movimiento, 'id'>,
     opciones?: {
@@ -442,6 +662,7 @@ export const API_DB = {
   // --------------------------------------------------------
   // TRANSACCIÓN ATÓMICA: ABONO A PLAN SEPARE (P1-TX-02)
   // --------------------------------------------------------
+  /** @deprecated Usar POST /api/separes/abonar. */
   ejecutarAbonoSepareAtomo: async (params: {
     separeId: string;
     clienteId?: string;
@@ -481,6 +702,25 @@ export const API_DB = {
       const nuevoSaldoPendiente = Math.max(0, saldoActual - params.montoAbono);
       const nuevoMontoPagado = montoPagadoActual + params.montoAbono;
 
+      // PARCHE P1-FIN-04: Soporte para consumir saldo a favor en abonos de Separe
+      let clienteRef: any = null;
+      let nuevoSaldoCliente: number | undefined = undefined;
+
+      if (params.metodoPago === 'saldo_interno' && params.clienteId) {
+        clienteRef = doc(db, "clientes", params.clienteId);
+        const clienteSnap = await transaction.get(clienteRef);
+        if (clienteSnap.exists()) {
+          const cData = clienteSnap.data() as any;
+          const deudaActual = Number(cData?.deudaTotal || 0);
+          if (deudaActual >= 0 || Math.abs(deudaActual) < params.montoAbono) {
+            throw new Error(`El cliente no tiene suficiente Saldo a Favor para cubrir este abono ($${params.montoAbono.toLocaleString('es-CO')}). Saldo disponible: $${Math.abs(deudaActual < 0 ? deudaActual : 0).toLocaleString('es-CO')}`);
+          }
+          nuevoSaldoCliente = deudaActual + params.montoAbono;
+        } else {
+          throw new Error("El cliente no fue encontrado para validar su Saldo a Favor.");
+        }
+      }
+
       const nuevoAbonoItem: Record<string, any> = {
         id: `abono_${Date.now()}`,
         monto: params.montoAbono,
@@ -495,12 +735,18 @@ export const API_DB = {
         ? [...separeData.abonos, nuevoAbonoItem] 
         : [nuevoAbonoItem];
 
-      // 2. Escrituras: Actualizar Separe + Registrar Movimiento
+      // 2. Escrituras: Actualizar Separe + Cliente + Registrar Movimiento
       transaction.update(separeRef, {
         abonos: abonosActualizados,
         montoPagado: nuevoMontoPagado,
         saldoPendiente: nuevoSaldoPendiente
       });
+
+      if (clienteRef && nuevoSaldoCliente !== undefined) {
+        transaction.update(clienteRef, {
+          deudaTotal: nuevoSaldoCliente
+        });
+      }
 
       const movRef = doc(collection(db, "movimientos"));
       const movPayload: Record<string, any> = {
@@ -533,6 +779,7 @@ export const API_DB = {
   // --------------------------------------------------------
   // TRANSACCIÓN ATÓMICA: CREACIÓN DE PLAN SEPARE + STOCK + ABONO (P1-TX-03)
   // --------------------------------------------------------
+  /** @deprecated Usar POST /api/separes/crear. */
   ejecutarCreacionSepareAtomo: async (params: {
     separeData: Record<string, any>;
     abonoInicial: number;
@@ -599,11 +846,13 @@ export const API_DB = {
   // --------------------------------------------------------
   // TRANSACCIÓN ATÓMICA: CANCELACIÓN DE PLAN SEPARE + STOCK + DEVOLUCIÓN (P1-TX-04)
   // --------------------------------------------------------
+  /** @deprecated Usar POST /api/separes/cancelar. */
   ejecutarCancelacionSepareAtomo: async (params: {
     separeId: string;
     usuarioId: string;
     motivo: string;
     registradoPor: string;
+    metodoPago?: string; // FIN-03: Método de pago real usado por el cliente al abonar
     itemsDevolver: Array<{ productoId: string; cantidad: number }>;
   }): Promise<{
     montoDevuelto: number;
@@ -639,7 +888,20 @@ export const API_DB = {
 
       // 3. Si hubo dinero recibido, asentar egreso/devolución contable
       let movimientoEgresoId: string | undefined = undefined;
+      const metodoReembolso = params.metodoPago || separeData.metodoPago || 'efectivo';
+
       if (montoDevuelto > 0) {
+        if (metodoReembolso === 'saldo_interno' && separeData.clienteId) {
+          // Reintegrar a la cartera del cliente como saldo a favor si se pagó con saldo interno
+          const clienteRef = doc(db, "clientes", separeData.clienteId);
+          const clienteSnap = await transaction.get(clienteRef);
+          if (clienteSnap.exists()) {
+            transaction.update(clienteRef, {
+              deudaTotal: increment(-montoDevuelto)
+            });
+          }
+        }
+
         const movRef = doc(collection(db, "movimientos"));
         movimientoEgresoId = movRef.id;
         transaction.set(movRef, {
@@ -653,18 +915,22 @@ export const API_DB = {
           descripcion: `Devolución de $${montoDevuelto.toLocaleString('es-CO')} por cancelación de separe (${params.motivo})`,
           fecha: new Date(),
           registradoPor: params.registradoPor,
-          metodoPago: 'efectivo',
-          idSepareOrigen: params.separeId
+          metodoPago: metodoReembolso,
+          idSepareOrigen: params.separeId,
+          esPublico: true
         });
       }
 
-      // 4. Restaurar stock a inventario de forma segura
+      // 4. Restaurar stock a inventario de forma segura (validando existencia previa)
       for (const item of params.itemsDevolver) {
         if (item.productoId && item.cantidad > 0) {
           const invRef = doc(db, "inventario", item.productoId);
-          transaction.update(invRef, {
-            stock: increment(item.cantidad)
-          });
+          const invSnap = await transaction.get(invRef);
+          if (invSnap.exists()) {
+            transaction.update(invRef, {
+              stock: increment(item.cantidad)
+            });
+          }
         }
       }
 
@@ -678,6 +944,7 @@ export const API_DB = {
   // --------------------------------------------------------
   // TRANSACCIÓN ATÓMICA: ENTREGA / LIQUIDACIÓN DE PLAN SEPARE (P1-TX-05)
   // --------------------------------------------------------
+  /** @deprecated Usar POST /api/separes/entregar. */
   ejecutarEntregaSepareAtomo: async (params: {
     separeId: string;
     usuarioId: string;
@@ -700,6 +967,9 @@ export const API_DB = {
       }
       if (separeData.estado === 'cancelado') {
         throw new Error("Este Plan Separe se encuentra cancelado y no puede ser entregado.");
+      }
+      if (Number(separeData.saldoPendiente || 0) > 0) {
+        throw new Error(`Prohibido: No se puede entregar el Plan Separe. Aún tiene un saldo pendiente de $${Number(separeData.saldoPendiente).toLocaleString('es-CO')}.`);
       }
 
       // 1. Crear movimiento de entrega (sin duplicar ingresos de caja)
@@ -742,6 +1012,7 @@ export const API_DB = {
   // --------------------------------------------------------
   // TRANSACCIÓN ATÓMICA: APROBACIÓN DE ÓRDENES DE CAJEROS (P1-TX-06)
   // --------------------------------------------------------
+  /** @deprecated Usar POST /api/ordenes/aprobar. */
   ejecutarAprobacionOrdenAtomo: async (params: {
     ordenId: string;
     usuarioId: string;

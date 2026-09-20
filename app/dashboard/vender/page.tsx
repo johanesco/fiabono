@@ -2,7 +2,7 @@
 import { useState, useEffect, Suspense, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { collection, addDoc, getDocs, query, doc, updateDoc, where, increment, writeBatch } from "firebase/firestore";
-import { db } from "../../../firebase";
+import { auth, db } from "../../../firebase";
 import { Search, ShoppingCart, CheckCircle2, ChevronRight, X, AlertCircle, UserCog, Plus, Minus, ArrowLeft, MessageCircle, Banknote, Package, QrCode, Volume2, Printer, Smartphone, CreditCard, Zap, Receipt, ChevronDown, ChevronUp, Tag, Percent, Pause, FolderOpen, User, Trash2, Store } from 'lucide-react';
 import { useAuth } from "@/hooks/AuthContext";
 import toast from "react-hot-toast";
@@ -12,6 +12,7 @@ import { Html5Qrcode } from "html5-qrcode";
 import { API_DB } from "../../../servicios/db";
 import TicketFacturaModal, { DatosFacturaProps } from "@/components/TicketFacturaModal";
 import { abrirEnlaceWhatsApp } from "@/utils/whatsapp";
+import { agregarMediosPagoAlEstado } from "@/utils/mediosPago";
 
 export default function VenderPage() {
   return (
@@ -816,8 +817,12 @@ function VenderContenido() {
     if (!nombreNuevo.trim()) return toast.error("El nombre del cliente es obligatorio.");
     setGuardandoCliente(true);
     try {
-      const docRef = await addDoc(collection(db, "clientes"), { nombre: nombreNuevo.trim(), celular: celularNuevo.trim(), deudaTotal: 0, usuarioId: cuentaPrincipalId, fecha_creacion: new Date() });
-      const nuevoObj = { id: docRef.id, nombre: nombreNuevo.trim(), celular: celularNuevo.trim(), deudaTotal: 0 };
+      const token = await auth.currentUser?.getIdToken();
+      if (!token) throw new Error('Sesión inválida.');
+      const respuesta = await fetch('/api/clientes/crear', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ nombre: nombreNuevo, celular: celularNuevo }) });
+      const resultado = await respuesta.json();
+      if (!respuesta.ok) throw new Error(resultado.error || 'No se pudo crear el cliente.');
+      const nuevoObj = resultado.cliente;
       setModalNuevoCliente(false); setNombreNuevo(""); setCelularNuevo(""); setBusquedaRegistro("");
       await cargarDatosGlobales(cuentaPrincipalId!);
       setClienteTransaccion(nuevoObj); 
@@ -863,11 +868,11 @@ function VenderContenido() {
     if (nuevaCant < 1) return;
 
     if (filaActual.descripcion.trim() !== "") {
-      const descLim = filaActual.descripcion.toLowerCase().trim();
+      const descLim = filaActual.descripcion.toLowerCase().trim().normalize('NFD').replace(/\p{Diacritic}/gu, '');
       const productoEnInventario = inventario.find(p => 
-        p.nombre.toLowerCase().trim() === descLim ||
-        (p.sku && p.sku.toLowerCase().trim() === descLim) ||
-        (p.codigo && p.codigo.toLowerCase().trim() === descLim)
+        p.nombre.toLowerCase().trim().normalize('NFD').replace(/\p{Diacritic}/gu, '') === descLim ||
+        (p.sku && p.sku.toLowerCase().trim() === filaActual.descripcion.toLowerCase().trim()) ||
+        (p.codigo && p.codigo.toLowerCase().trim() === filaActual.descripcion.toLowerCase().trim())
       );
       const esInventariable = productoEnInventario && productoEnInventario.tipoProducto !== 'servicio' && productoEnInventario.inventariable !== false;
       
@@ -1129,26 +1134,32 @@ function VenderContenido() {
         cantidad
       }));
 
-      const resAtomo = await API_DB.ejecutarVentaCompletaAtomo({
-        usuarioId: cuentaPrincipalId!,
-        clienteId: clienteTransaccion ? clienteTransaccion.id : 'mostrador',
-        registradoPor: nombreUsuario || "Vendedor",
-        montoVentaReal,
-        descripcionVenta: descripcionUnificada + (fiarFaltante ? ` (Pago parcial de $${totalFilasRegistro.toLocaleString('es-CO')})` : '') + (montoDescuentoTotal > 0 ? ` [Dto: -$${montoDescuentoTotal.toLocaleString('es-CO')}]` : ''),
-        detalles: detallesParaComprobante,
-        metodoPago: metodoPago,
-        referenciaPago: refPagoCompleta,
-        subtotal: subtotalCalculado,
-        valorIva: ivaCalculado,
-        porcentajeIva: tasaIvaPorcentaje,
-        descuentoTipo: mostrarDescuento && montoDescuentoTotal > 0 ? tipoDescuento : null,
-        descuentoValor: mostrarDescuento && montoDescuentoTotal > 0 ? (tipoDescuento === 'porcentaje' ? Number(valorDescuento) : montoDescuentoTotal) : undefined,
-        montoDescuento: montoDescuentoTotal > 0 ? montoDescuentoTotal : undefined,
-        itemsInventario,
-        fiarFaltante,
-        montoFiado: faltante,
-        descripcionFiado: `Saldo pendiente de venta: ${descripcionUnificada}`
+      const token = await auth.currentUser?.getIdToken();
+      if (!token) throw new Error('Sesión inválida.');
+      const respuestaVenta = await fetch('/api/ventas/registrar', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({
+          clienteId: clienteTransaccion ? clienteTransaccion.id : 'mostrador',
+          montoVentaReal,
+          descripcionVenta: descripcionUnificada + (fiarFaltante ? ` (Pago parcial de $${totalFilasRegistro.toLocaleString('es-CO')})` : '') + (montoDescuentoTotal > 0 ? ` [Dto: -$${montoDescuentoTotal.toLocaleString('es-CO')}]` : ''),
+          detalles: detallesParaComprobante,
+          metodoPago,
+          referenciaPago: refPagoCompleta,
+          subtotal: subtotalCalculado,
+          valorIva: ivaCalculado,
+          porcentajeIva: tasaIvaPorcentaje,
+          descuentoTipo: mostrarDescuento && montoDescuentoTotal > 0 ? tipoDescuento : null,
+          descuentoValor: mostrarDescuento && montoDescuentoTotal > 0 ? (tipoDescuento === 'porcentaje' ? Number(valorDescuento) : montoDescuentoTotal) : undefined,
+          montoDescuento: montoDescuentoTotal > 0 ? montoDescuentoTotal : undefined,
+          itemsInventario,
+          fiarFaltante,
+          montoFiado: faltante,
+          descripcionFiado: `Saldo pendiente de venta: ${descripcionUnificada}`
+        })
       });
+      const resAtomo = await respuestaVenta.json();
+      if (!respuestaVenta.ok) throw new Error(resAtomo.error || 'No se pudo registrar la venta.');
 
       idTransaccionVenta = resAtomo.movimientoVentaId || resAtomo.movimientoFiadoId || "";
       let saldoFinalCliente = clienteTransaccion?.deudaTotal || 0;
@@ -1329,7 +1340,7 @@ Estamos atentos para cualquier consulta.
 *¡Te esperamos pronto!*`;
 
     const celularLimpio = cliente?.celular ? cliente.celular.replace(/\D/g, '') : '';
-    abrirEnlaceWhatsApp(celularLimpio, texto);
+    abrirEnlaceWhatsApp(celularLimpio, agregarMediosPagoAlEstado(texto, datosSesion?.mediosPago, nombreNegocio || 'nuestra tienda', deudaTotalActual));
   };
 
   const handleScrollContenedor = () => {
@@ -1673,7 +1684,7 @@ Estamos atentos para cualquier consulta.
                               <span className="absolute left-2.5 sm:left-3 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-sm sm:text-base">$</span>
                               <input 
                                 type="text"
-                                inputMode="numeric"
+                                inputMode="decimal" pattern="[0-9]*"
                                 value={formatearMonedaInput(fila.valor)} 
                                 onChange={(e) => actualizarFila(index, 'valor', e.target.value)} 
                                 disabled={precioBloqueado}
@@ -1741,7 +1752,7 @@ Estamos atentos para cualquier consulta.
 
                     <input
                       type="text"
-                      inputMode="numeric"
+                      inputMode="decimal" pattern="[0-9]*"
                       value={tipoDescuento === 'porcentaje' ? valorDescuento : formatearMonedaInput(valorDescuento)}
                       onChange={(e) => {
                         const raw = e.target.value.replace(/\D/g, '');
@@ -1877,7 +1888,7 @@ Estamos atentos para cualquier consulta.
                       <div className="max-h-40 overflow-y-auto">
                         {clientesFiltradosRegistro.map(c => (
                           <div key={c.id} onClick={() => { setClienteTransaccion(c); setBusquedaRegistro(""); setMostrarResultadosBuscador(false); }} className="p-2.5 border-b border-slate-100 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer flex justify-between items-center text-xs min-w-0">
-                            <span className="font-bold text-slate-800 dark:text-slate-200 truncate mr-2 min-w-0">{c.nombre}</span><ChevronRight size={14} className="text-slate-400 shrink-0"/>
+                            <span className="min-w-0 mr-2"><span className="font-bold text-slate-800 dark:text-slate-200 truncate block">{c.nombre}</span><span className={`text-[10px] font-black ${Number(c.deudaTotal || 0) > 0 ? 'text-rose-500' : Number(c.deudaTotal || 0) < 0 ? 'text-emerald-600' : 'text-slate-400'}`}>{Number(c.deudaTotal || 0) > 0 ? `Debe $${Number(c.deudaTotal).toLocaleString('es-CO')}` : Number(c.deudaTotal || 0) < 0 ? `A favor $${Math.abs(Number(c.deudaTotal)).toLocaleString('es-CO')}` : 'Al día'}</span></span><ChevronRight size={14} className="text-slate-400 shrink-0"/>
                           </div>
                         ))}
                         {!clientesFiltradosRegistro.some(c => c.nombre.toLowerCase() === busquedaRegistro.toLowerCase()) && (
@@ -2064,7 +2075,7 @@ Estamos atentos para cualquier consulta.
                   <span className="absolute left-2.5 sm:left-3 top-1/2 -translate-y-1/2 text-emerald-600 font-black text-sm sm:text-base">$</span>
                   <input
                     type="text"
-                    inputMode="numeric"
+                    inputMode="decimal" pattern="[0-9]*"
                     value={pagoCliente}
                     onChange={(e) => setPagoCliente(formatearMonedaInput(e.target.value))}
                     placeholder={metodoPago === 'efectivo' ? 'Ingresa el valor recibido' : 'Monto pagado'}
@@ -2103,9 +2114,9 @@ Estamos atentos para cualquier consulta.
                 </div>
               )}
               {pagoCliente !== "" && parseFloat(pagoCliente.replace(/\D/g, '')) < totalFilasRegistro && totalFilasRegistro > 0 && (
-                <div className="px-2.5 py-1.5 sm:px-3 sm:py-2 bg-rose-100 dark:bg-rose-500/20 text-rose-800 dark:text-rose-300 rounded-xl flex justify-between items-center animate-in zoom-in-95 duration-150 border border-rose-300 dark:border-rose-700/50">
-                  <span className="text-[10px] sm:text-[10.5px] uppercase font-black tracking-wider">Saldo restante a Fiar:</span>
-                  <span className="text-base sm:text-lg font-black font-mono text-rose-600 dark:text-rose-400">${(totalFilasRegistro - parseFloat(pagoCliente.replace(/\D/g, ''))).toLocaleString('es-CO')}</span>
+                <div className={`${clienteTransaccion && clienteTransaccion.deudaTotal < 0 ? 'bg-blue-100 dark:bg-blue-500/20 text-blue-800 dark:text-blue-300 border-blue-300 dark:border-blue-700/50' : 'bg-rose-100 dark:bg-rose-500/20 text-rose-800 dark:text-rose-300 border-rose-300 dark:border-rose-700/50'} px-2.5 py-1.5 sm:px-3 sm:py-2 rounded-xl flex justify-between items-center animate-in zoom-in-95 duration-150 border`}>
+                  <span className="text-[10px] sm:text-[10.5px] uppercase font-black tracking-wider">{clienteTransaccion && clienteTransaccion.deudaTotal < 0 ? 'Saldo cubierto con saldo a favor:' : 'Saldo restante a Fiar:'}</span>
+                  <span className={`text-base sm:text-lg font-black font-mono ${clienteTransaccion && clienteTransaccion.deudaTotal < 0 ? 'text-blue-600 dark:text-blue-400' : 'text-rose-600 dark:text-rose-400'}`}>${(totalFilasRegistro - parseFloat(pagoCliente.replace(/\D/g, ''))).toLocaleString('es-CO')}</span>
                 </div>
               )}
             </div>
@@ -2224,7 +2235,7 @@ Estamos atentos para cualquier consulta.
       </div>
 
       {/* BARRA FLOTANTE MÓVIL SUSPENDIDA (SOLO PARA CELULARES PEQUEÑOS < 768px) */}
-      <div className="md:hidden fixed bottom-floating-bar left-3 right-3 sm:left-4 sm:right-4 max-w-lg mx-auto bg-white/95 dark:bg-[#0f172a]/95 backdrop-blur-xl border border-slate-200/90 dark:border-slate-800/90 p-2.5 sm:p-3 rounded-2xl sm:rounded-3xl shadow-[0_10px_25px_-5px_rgba(0,0,0,0.15)] dark:shadow-[0_10px_25px_-5px_rgba(0,0,0,0.6)] z-40 flex items-center justify-between gap-3">
+      <div className="md:hidden fixed bottom-floating-bar left-3 right-3 sm:left-4 sm:right-4 max-w-lg mx-auto bg-white/95 dark:bg-[#0f172a]/95 backdrop-blur-xl border border-slate-200/90 dark:border-slate-800/90 p-2.5 sm:p-3 rounded-2xl sm:rounded-3xl shadow-[0_10px_25px_-5px_rgba(0,0,0,0.15)] dark:shadow-[0_10px_25px_-5px_rgba(0,0,0,0.6)] z-[110] flex items-center justify-between gap-3">
         <div className="flex flex-col min-w-0 shrink pl-1">
           {montoDescuentoTotal > 0 && (
             <div className="text-[9px] text-slate-500 dark:text-slate-400 leading-tight space-y-0.5 mb-0.5">
@@ -2234,7 +2245,7 @@ Estamos atentos para cualquier consulta.
           )}
           <div className="flex items-baseline gap-1.5">
             <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Total</span>
-            <span className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white truncate max-w-[140px] leading-none">${totalFilasRegistro.toLocaleString('es-CO')}</span>
+            <span className="text-lg sm:text-2xl font-black text-slate-900 dark:text-white whitespace-nowrap overflow-visible leading-none min-w-0">${totalFilasRegistro.toLocaleString('es-CO')}</span>
           </div>
         </div>
         {(() => {

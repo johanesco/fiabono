@@ -1,8 +1,8 @@
 "use client";
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
-import { collection, getDocs, query, where, doc, updateDoc, onSnapshot, addDoc, increment } from "firebase/firestore";
-import { db } from "../../../firebase";
+import { collection, getDocs, query, where, doc, onSnapshot, addDoc, increment } from "firebase/firestore";
+import { auth, db } from "../../../firebase";
 import { useAuth } from "@/hooks/AuthContext";
 import { API_DB } from "../../../servicios/db";
 import { OrdenPendiente } from "@/types";
@@ -479,7 +479,14 @@ Muchas gracias por tu compra. Estamos atentos para cualquier consulta.
         ordenActualizada.notas = modalEdicion.notas || "";
       }
 
-      await updateDoc(doc(db, "ordenes_pendientes", modalEdicion.orden.id), ordenActualizada);
+      const tokenEdicion = await auth.currentUser?.getIdToken();
+      if (!tokenEdicion) throw new Error('Sesión inválida.');
+      const respuestaEdicion = await fetch('/api/ordenes/editar', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${tokenEdicion}` },
+        body: JSON.stringify({ ordenId: modalEdicion.orden.id, cambios: ordenActualizada })
+      });
+      if (!respuestaEdicion.ok) throw new Error((await respuestaEdicion.json()).error || 'No se pudo editar la orden.');
 
       const ordenCompletaParaAprobar: OrdenPendiente = {
         ...modalEdicion.orden,
@@ -928,8 +935,8 @@ Muchas gracias por tu compra. Estamos atentos para cualquier consulta.
   const aprobarOrden = async (orden: OrdenPendiente) => {
     if (!cuentaPrincipalId) return;
 
-    if (!esAdmin && datosSesion?.puedeVentaDirecta !== true) {
-      toast.error("Solo el administrador o usuarios autorizados pueden aprobar órdenes.");
+    if (!esAdmin) {
+      toast.error("Sólo el administrador puede aprobar órdenes.");
       return;
     }
 
@@ -1142,18 +1149,24 @@ Muchas gracias por tu compra. Estamos atentos para cualquier consulta.
         };
       }
 
-      // Ejecución Unificada en una sola Transacción Atómica de Firestore
-      const resAtomo = await API_DB.ejecutarAprobacionOrdenAtomo({
-        ordenId: orden.id,
-        usuarioId: cuentaPrincipalId,
-        aprobadoPor: nombreUsuario,
-        descontarStockItems,
-        movimientoPrincipal,
-        movimientoFiadoSecundario,
-        payloadSepare,
-        movimientoAbonoSepare,
-        ajusteCliente
+      // Ejecución Unificada en una sola Transacción Atómica del servidor
+      const token = await auth.currentUser?.getIdToken();
+      if (!token) throw new Error('Sesión inválida.');
+      const respuestaAprobacion = await fetch('/api/ordenes/aprobar', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({
+          ordenId: orden.id,
+          descontarStockItems,
+          movimientoPrincipal,
+          movimientoFiadoSecundario,
+          payloadSepare,
+          movimientoAbonoSepare,
+          ajusteCliente
+        })
       });
+      const resAtomo = await respuestaAprobacion.json();
+      if (!respuestaAprobacion.ok) throw new Error(resAtomo.error || 'No se pudo aprobar la orden.');
 
       idTransaccionGenerada = resAtomo.idTransaccionGenerada;
       saldoClienteResultante = resAtomo.nuevoSaldoCliente;
@@ -1216,12 +1229,14 @@ Muchas gracias por tu compra. Estamos atentos para cualquier consulta.
     setProcesandoId(modalRechazo.orden.id);
 
     try {
-      await updateDoc(doc(db, "ordenes_pendientes", modalRechazo.orden.id), {
-        estado: 'rechazado',
-        fechaProcesado: new Date(),
-        aprobadoPor: nombreUsuario,
-        motivoRechazo: modalRechazo.motivo.trim() || "Rechazada por el administrador"
+      const tokenRechazo = await auth.currentUser?.getIdToken();
+      if (!tokenRechazo) throw new Error('Sesión inválida.');
+      const respuestaRechazo = await fetch('/api/ordenes/rechazar', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${tokenRechazo}` },
+        body: JSON.stringify({ ordenId: modalRechazo.orden.id, motivo: modalRechazo.motivo })
       });
+      if (!respuestaRechazo.ok) throw new Error((await respuestaRechazo.json()).error || 'No se pudo rechazar la orden.');
 
       toast.success("Orden rechazada.");
       setModalRechazo({ visible: false, orden: null, motivo: "" });
@@ -2044,7 +2059,7 @@ Muchas gracias por tu compra. Estamos atentos para cualquier consulta.
                                     <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-xs sm:text-sm">$</span>
                                     <input
                                       type="text"
-                                      inputMode="numeric"
+                                      inputMode="decimal" pattern="[0-9]*"
                                       value={item.valor ? parseInt(item.valor.replace(/\D/g, '') || '0', 10).toLocaleString('es-CO') : ''}
                                       onChange={(e) => actualizarItemEdicion(idx, 'valor', e.target.value)}
                                       disabled={precioBloqueado}

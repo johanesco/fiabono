@@ -2,7 +2,7 @@
 import { useState, useEffect, Suspense, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { collection, addDoc, getDocs, query, where, Timestamp, doc, updateDoc, increment } from "firebase/firestore";
-import { db } from "../../../firebase";
+import { auth, db } from "../../../firebase";
 import { 
   Camera, X, Plus, Minus, ArrowLeft, Bookmark, Calendar, 
   MessageCircle, CheckCircle2, Search, User, ChevronRight, 
@@ -597,13 +597,12 @@ function SepareContenido() {
     }
     setGuardandoCliente(true);
     try {
-      const docRef = await addDoc(collection(db, "clientes"), {
-        nombre: nombreNuevo.trim(),
-        celular: celularNuevo.trim(),
-        deudaTotal: 0,
-        usuarioId: cuentaPrincipalId,
-        fecha_creacion: new Date()
-      });
+      const token = await auth.currentUser?.getIdToken();
+      if (!token) throw new Error('Sesión inválida.');
+      const respuesta = await fetch('/api/clientes/crear', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ nombre: nombreNuevo, celular: celularNuevo }) });
+      const resultado = await respuesta.json();
+      if (!respuesta.ok) throw new Error(resultado.error || 'No se pudo crear el cliente.');
+      const docRef = { id: resultado.id };
       const nuevo = {
         id: docRef.id,
         nombre: nombreNuevo.trim(),
@@ -1273,7 +1272,9 @@ function SepareContenido() {
         abonos: abonosIniciales,
         fotos: todasLasFotos,
         fechaCreacion: new Date(),
-        fechaLimite: fechaLimite ? new Date(fechaLimite + "T23:59:59") : null
+        fechaLimite: fechaLimite ? new Date(fechaLimite + "T23:59:59") : null,
+        // SEC-01: Marcar como público para que el comprobante /t/[id] sea accesible
+        esPublico: true
       };
 
       if (notas.trim()) {
@@ -1297,16 +1298,23 @@ function SepareContenido() {
           cantidad
         }));
 
-        // PARCHE P1-TX-03: Creación de Separe + Abono inicial + Stock atómico
-        const resSepare = await API_DB.ejecutarCreacionSepareAtomo({
-          separeData: payloadSepare,
-          abonoInicial: abonoInicialNum,
-          metodoPago: metodoPago,
-          subMetodoPago: subMetodoPago.trim() || undefined,
-          referenciaPago: referenciaPago.trim() || undefined,
-          registradoPor: vendedorActivo || nombreUsuario || "Vendedor",
-          itemsInventario
+        // Creación de Separe + abono inicial + stock en una transacción server-side
+        const token = await auth.currentUser?.getIdToken();
+        if (!token) throw new Error('Sesión inválida.');
+        const respuestaSepare = await fetch('/api/separes/crear', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+          body: JSON.stringify({
+            separeData: payloadSepare,
+            abonoInicial: abonoInicialNum,
+            metodoPago,
+            subMetodoPago: subMetodoPago.trim(),
+            referenciaPago: referenciaPago.trim(),
+            itemsInventario
+          })
         });
+        const resSepare = await respuestaSepare.json();
+        if (!respuestaSepare.ok) throw new Error(resSepare.error || 'No se pudo crear el Plan Separe.');
 
         separeIdFinal = resSepare.separeId;
         toast.success("¡Plan Separe registrado con éxito! 🏷️");
@@ -1834,7 +1842,7 @@ Estamos atentos para cualquier consulta.
                             <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-xs sm:text-sm">$</span>
                             <input
                               type="text"
-                              inputMode="numeric"
+                              inputMode="decimal" pattern="[0-9]*"
                               value={fila.valor ? parseInt(fila.valor.replace(/\D/g, '') || '0', 10).toLocaleString('es-CO') : ''}
                               onChange={(e) => actualizarFila(index, 'valor', e.target.value)}
                               disabled={esPrecioBloqueado}
@@ -1938,7 +1946,7 @@ Estamos atentos para cualquier consulta.
 
                       <input
                         type="text"
-                        inputMode="numeric"
+                        inputMode="decimal" pattern="[0-9]*"
                         value={descuentoTipo === 'porcentaje' ? descuentoValor : (descuentoValor ? parseInt(descuentoValor.replace(/\D/g, '') || '0', 10).toLocaleString('es-CO') : '')}
                         onChange={(e) => {
                           const raw = e.target.value.replace(/\D/g, '');
@@ -2047,6 +2055,7 @@ Estamos atentos para cualquier consulta.
                           <div>
                             <span className="font-bold text-slate-800 dark:text-slate-200 block">{c.nombre}</span>
                             {c.celular && <span className="text-[10px] text-slate-400">{c.celular}</span>}
+                            <span className={`text-[10px] font-black ${Number(c.deudaTotal || 0) > 0 ? 'text-rose-500' : Number(c.deudaTotal || 0) < 0 ? 'text-emerald-600' : 'text-slate-400'}`}>{Number(c.deudaTotal || 0) > 0 ? `Debe $${Number(c.deudaTotal).toLocaleString('es-CO')}` : Number(c.deudaTotal || 0) < 0 ? `A favor $${Math.abs(Number(c.deudaTotal)).toLocaleString('es-CO')}` : 'Al día'}</span>
                           </div>
                           <ChevronRight size={13} className="text-slate-400" />
                         </div>
@@ -2185,7 +2194,7 @@ Estamos atentos para cualquier consulta.
                 <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-violet-600 font-black text-sm">$</span>
                 <input
                   type="text"
-                  inputMode="numeric"
+                  inputMode="decimal" pattern="[0-9]*"
                   value={abonoInicial ? parseInt(abonoInicial.replace(/\D/g, '') || '0', 10).toLocaleString('es-CO') : ''}
                   onChange={(e) => setAbonoInicial(e.target.value.replace(/\D/g, ''))}
                   placeholder="0 (Sin abono inicial)"
@@ -2295,7 +2304,7 @@ Estamos atentos para cualquier consulta.
       <div className="md:hidden fixed bottom-floating-bar left-3 right-3 sm:left-4 sm:right-4 max-w-lg mx-auto bg-white/95 dark:bg-[#0f172a]/95 backdrop-blur-xl border border-slate-200/90 dark:border-slate-800/90 p-2.5 rounded-2xl shadow-xl z-40 flex items-center justify-between gap-3">
         <div className="flex flex-col min-w-0 shrink pl-1">
           <span className="text-[9px] font-black uppercase text-slate-400 tracking-wider">Total Separe</span>
-          <span className="text-base sm:text-lg font-black text-violet-600 dark:text-violet-400 truncate max-w-[140px] leading-none">${totalSepare.toLocaleString('es-CO')}</span>
+          <span className="text-base sm:text-lg font-black text-violet-600 dark:text-violet-400 whitespace-nowrap overflow-visible leading-none min-w-0">${totalSepare.toLocaleString('es-CO')}</span>
         </div>
         <button
           onClick={guardarSepare}
@@ -2464,7 +2473,7 @@ Estamos atentos para cualquier consulta.
               </span>
               <input
                 type="text"
-                inputMode="numeric"
+                inputMode="decimal" pattern="[0-9]*"
                 value={descuentoValor ? parseInt(descuentoValor.replace(/\D/g, '') || '0', 10).toLocaleString('es-CO') : ''}
                 onChange={(e) => setDescuentoValor(e.target.value.replace(/\D/g, ''))}
                 placeholder={descuentoTipo === 'porcentaje' ? "Ej: 10 (para 10%)" : "Ej: 20.000"}

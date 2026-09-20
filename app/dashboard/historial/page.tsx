@@ -15,6 +15,7 @@ import TicketFacturaModal, { DatosFacturaProps } from "@/components/TicketFactur
 import ModalProcesarDevolucion from "@/components/ModalProcesarDevolucion";
 import ModalGestionCliente from "@/components/ModalGestionCliente";
 import { abrirEnlaceWhatsApp } from "@/utils/whatsapp";
+import { agregarMediosPagoAlEstado } from "@/utils/mediosPago";
 
 export default function HistorialPage() {
   const [mounted, setMounted] = useState(false);
@@ -304,7 +305,14 @@ Quedamos pendientes para revisar detalles o responder cualquier duda.
       }
     }
 
-    return normalizarMensajeWhatsApp(texto);
+    const ultimoAbono = movimientosCliente
+      .filter((mov: any) => mov.tipo === 'abono' && mov.fecha)
+      .sort((a: any, b: any) => {
+        const fechaA = a.fecha?.toDate ? a.fecha.toDate().getTime() : new Date(a.fecha).getTime();
+        const fechaB = b.fecha?.toDate ? b.fecha.toDate().getTime() : new Date(b.fecha).getTime();
+        return fechaB - fechaA;
+      })[0];
+    return normalizarMensajeWhatsApp(agregarMediosPagoAlEstado(texto, datosSesion?.mediosPago, nombreTienda, cliente.deudaTotal || 0, ultimoAbono));
   };
 
   const abrirWhatsApp = (texto: string, celular?: string) => {
@@ -1002,7 +1010,7 @@ Quedamos pendientes para revisar detalles o responder cualquier duda.
                       <div className="flex justify-between items-center pt-2 mt-1 md:mt-0 md:pt-3 border-t border-slate-200 dark:border-slate-700 md:border-slate-100 dark:md:border-slate-800 font-black">
                         <span className="text-xs text-slate-400 uppercase tracking-wider">Total:</span>
                         <div className="flex items-center gap-2">
-                          {(mov.tipo === 'venta' || mov.tipo === 'fiado' || mov.tipo === 'separe') && mov.detalles && mov.detalles.length > 0 && (!esCajero || datosSesion?.permisos?.hacerDevoluciones) && (
+                          {(mov.tipo === 'venta' || mov.tipo === 'fiado') && mov.detalles && mov.detalles.length > 0 && (datosSesion?.rol !== 'cajero' || datosSesion?.permisos?.hacerDevoluciones) && (
                             <button
                               type="button"
                               onClick={() => setModalDevolucion({ isOpen: true, venta: mov })}
@@ -1074,15 +1082,16 @@ Quedamos pendientes para revisar detalles o responder cualquier duda.
       />
 
       {/* MODAL DE DEVOLUCION */}
-      <ModalProcesarDevolucion
-        isOpen={modalDevolucion.isOpen}
-        onClose={() => setModalDevolucion({ isOpen: false, venta: null })}
-        ventaOrigen={modalDevolucion.venta}
-        onSuccess={() => {
-          cargarDatosIniciales();
-          if (clienteActivo) abrirPerfilDesdeHistorial(null, clienteActivo);
-        }}
-      />
+      {modalDevolucion.isOpen && modalDevolucion.venta && (
+        <ModalProcesarDevolucion
+          isOpen={modalDevolucion.isOpen}
+          onClose={() => setModalDevolucion({ isOpen: false, venta: null })}
+          ventaOrigen={modalDevolucion.venta}
+          onSuccess={() => {
+            if (cuentaPrincipalId) cargarDatosHistorial(cuentaPrincipalId);
+          }}
+        />
+      )}
 
       {/* MODAL DE MODIFICAR / ELIMINAR CLIENTE */}
       <ModalGestionCliente

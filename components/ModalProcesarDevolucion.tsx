@@ -3,8 +3,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { X, ArrowLeft, CheckCircle2, RotateCcw, AlertCircle } from 'lucide-react';
 import { Movimiento } from '@/types';
-import { API_DB } from '@/servicios/db';
-import { db } from '../firebase';
+import { auth, db } from '../firebase';
 import { collection, query, where, getDocs } from 'firebase/firestore';
 import toast from 'react-hot-toast';
 import { useAuth } from '@/hooks/AuthContext';
@@ -87,14 +86,33 @@ export default function ModalProcesarDevolucion({
     }
   };
 
-  // Calcular total a devolver basado en lo seleccionado
+  // FIN-02: Factor de descuento comercial real de la venta original (evita crear dinero ficticio)
+  const factorDescuentoReal = useMemo(() => {
+    const montoDescuento = Number(ventaOrigen?.montoDescuento || 0);
+    if (montoDescuento <= 0) return 1;
+
+    // Calcular la suma bruta original sumando el valor de lista de todos los items
+    const totalBrutoItems = (ventaOrigen?.detalles || []).reduce((sum: number, det: any) => {
+      const cant = det.cantidad || 1;
+      const vUnit = det.valorUnitario || (det.valor ? Number(det.valor) / cant : 0);
+      return sum + (cant * vUnit);
+    }, 0);
+
+    if (totalBrutoItems > 0 && montoDescuento < totalBrutoItems) {
+      return (totalBrutoItems - montoDescuento) / totalBrutoItems;
+    }
+    return 1;
+  }, [ventaOrigen]);
+
+  // Calcular total a devolver basado en lo seleccionado con descuento prorrateado
   const totalDevolver = useMemo(() => {
     return detalles.reduce((sum, det, index) => {
       const cant = cantidadesDevueltas[index] || 0;
-      const vUnit = det.valorUnitario || (det.cantidad && det.cantidad > 0 ? (det.valor || 0) / det.cantidad : det.valor || 0);
-      return sum + (cant * vUnit);
+      const vUnitBruto = det.valorUnitario || (det.cantidad && det.cantidad > 0 ? (det.valor || 0) / det.cantidad : det.valor || 0);
+      const vUnitNeto = Math.round(vUnitBruto * factorDescuentoReal);
+      return sum + (cant * vUnitNeto);
     }, 0);
-  }, [cantidadesDevueltas, detalles]);
+  }, [cantidadesDevueltas, detalles, factorDescuentoReal]);
 
   const haySeleccion = totalDevolver > 0;
 
@@ -142,8 +160,10 @@ export default function ModalProcesarDevolucion({
       detalles.forEach((det, index) => {
         const cant = cantidadesDevueltas[index] || 0;
         if (cant > 0) {
-          const vUnit = det.valorUnitario || (det.cantidad && det.cantidad > 0 ? (det.valor || 0) / det.cantidad : det.valor || 0);
+          const vUnitBruto = det.valorUnitario || (det.cantidad && det.cantidad > 0 ? (det.valor || 0) / det.cantidad : det.valor || 0);
+          const vUnit = Math.round(vUnitBruto * factorDescuentoReal);
           const articuloObj: any = {
+            detalleIndex: index,
             cantidad: cant,
             descripcion: det.descripcion,
             valorUnitario: vUnit,
@@ -155,12 +175,19 @@ export default function ModalProcesarDevolucion({
         }
       });
 
-      const res = await API_DB.procesarDevolucion(
-        ventaOrigen,
-        articulosDevueltos,
-        metodoDevolucion,
-        datosSesion?.nombreUsuario || "Vendedor"
-      );
+      const token = await auth.currentUser?.getIdToken();
+      if (!token) throw new Error('Sesión inválida.');
+      const respuesta = await fetch('/api/devoluciones/registrar', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({
+          movimientoOrigenId: ventaOrigen.id,
+          metodoDevolucion,
+          articulosDevueltos
+        })
+      });
+      const res = await respuesta.json();
+      if (!respuesta.ok) throw new Error(res.error || 'No se pudo registrar la devolución.');
 
       toast.success("Devolución procesada correctamente");
       onSuccess({
@@ -173,7 +200,7 @@ export default function ModalProcesarDevolucion({
       onClose();
     } catch (error) {
       console.error(error);
-      toast.error("Error al procesar la devolución.");
+      toast.error(error instanceof Error ? error.message : "Error al procesar la devolución.");
     } finally {
       setProcesando(false);
     }
@@ -241,7 +268,8 @@ export default function ModalProcesarDevolucion({
                         {det.descripcion}
                       </p>
                       <p className="text-xs text-slate-500">
-                        {maxDisponible}x disponible a ${(det.valorUnitario || (det.valor || 0) / (det.cantidad || 1)).toLocaleString('es-CO')} c/u
+                        {maxDisponible}x disponible a ${(Math.round((det.valorUnitario || (det.valor || 0) / (det.cantidad || 1)) * factorDescuentoReal)).toLocaleString('es-CO')} c/u
+                        {factorDescuentoReal < 1 && <span className="ml-1.5 text-amber-600 dark:text-amber-400 font-bold">(desc. prorrateado)</span>}
                       </p>
                     </div>
                     
@@ -285,27 +313,42 @@ export default function ModalProcesarDevolucion({
             <div className="space-y-3">
               <label className="text-xs font-black text-slate-800 dark:text-slate-200 uppercase tracking-wider block mb-1">Método de reembolso</label>
               
-              <label className={`flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition-all ${
-                metodoDevolucion === 'saldo_a_favor' 
-                  ? 'border-emerald-500 bg-emerald-50 dark:bg-emerald-900/20' 
-                  : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/50'
-              } ${!esClienteRegistrado ? 'opacity-50 cursor-not-allowed' : ''}`}>
-                <input 
-                  type="radio" 
-                  name="metodoDevolucion" 
-                  value="saldo_a_favor"
-                  disabled={!esClienteRegistrado}
-                  checked={metodoDevolucion === 'saldo_a_favor'} 
-                  onChange={() => setMetodoDevolucion('saldo_a_favor')}
-                  className="w-4 h-4 text-emerald-600"
-                />
-                <div className="flex-1">
-                  <p className="font-bold text-slate-800 dark:text-slate-200 text-sm">Abonar como Saldo a Favor</p>
-                  <p className="text-xs text-slate-500">Se restará de su deuda automáticamente.</p>
-                </div>
-              </label>
+              {/* Un cliente identificado puede elegir crédito a favor incluso si la venta original fue de contado. */}
+              {(() => {
+                const saldoFavorBloqueado = !esClienteRegistrado;
+                // Auto-corregir la selección si el método actual ya no es válido
+                if (saldoFavorBloqueado && metodoDevolucion === 'saldo_a_favor') {
+                  // Usar setTimeout para evitar setState durante render
+                  setTimeout(() => setMetodoDevolucion('efectivo'), 0);
+                }
+                return (
+                  <label className={`flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition-all ${
+                    metodoDevolucion === 'saldo_a_favor' && !saldoFavorBloqueado
+                      ? 'border-emerald-500 bg-emerald-50 dark:bg-emerald-900/20' 
+                      : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/50'
+                  } ${saldoFavorBloqueado ? 'opacity-50 cursor-not-allowed' : ''}`}>
+                    <input 
+                      type="radio" 
+                      name="metodoDevolucion" 
+                      value="saldo_a_favor"
+                      disabled={saldoFavorBloqueado}
+                      checked={metodoDevolucion === 'saldo_a_favor' && !saldoFavorBloqueado} 
+                      onChange={() => setMetodoDevolucion('saldo_a_favor')}
+                      className="w-4 h-4 text-emerald-600"
+                    />
+                    <div className="flex-1">
+                      <p className="font-bold text-slate-800 dark:text-slate-200 text-sm">Abonar como Saldo a Favor</p>
+                      <p className="text-xs text-slate-500">
+                        {saldoFavorBloqueado
+                          ? 'No disponible: la venta no está asociada a un cliente registrado.'
+                          : 'Se guardará como crédito para una compra futura y se aplicará a su cuenta.'}
+                      </p>
+                    </div>
+                  </label>
+                );
+              })()}
 
-              <label className={`flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition-all ${
+               <label className={`flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition-all ${
                 metodoDevolucion === 'efectivo' 
                   ? 'border-amber-500 bg-amber-50 dark:bg-amber-900/20' 
                   : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/50'

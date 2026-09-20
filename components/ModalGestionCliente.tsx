@@ -48,6 +48,8 @@ export default function ModalGestionCliente({
   const [mostrarConfirmacionGuardar, setMostrarConfirmacionGuardar] = useState(false);
   const [nombre, setNombre] = useState("");
   const [celular, setCelular] = useState("");
+  const [direccion, setDireccion] = useState("");
+  const [notas, setNotas] = useState("");
   const [password, setPassword] = useState("");
   const [textoConfirmacion, setTextoConfirmacion] = useState("");
   const [checkboxResponsabilidad, setCheckboxResponsabilidad] = useState(false);
@@ -63,6 +65,8 @@ export default function ModalGestionCliente({
     if (cliente && isOpen) {
       setNombre(cliente.nombre || "");
       setCelular(cliente.celular || "");
+      setDireccion(cliente.direccion || "");
+      setNotas(cliente.notas || "");
       setPassword("");
       setTextoConfirmacion("");
       setCheckboxResponsabilidad(false);
@@ -92,7 +96,9 @@ export default function ModalGestionCliente({
 
     const huboCambios = 
       nombre.trim() !== (cliente.nombre || "").trim() || 
-      celular.trim() !== (cliente.celular || "").trim();
+      celular.trim() !== (cliente.celular || "").trim() ||
+      direccion.trim() !== (cliente.direccion || "").trim() ||
+      notas.trim() !== (cliente.notas || "").trim();
 
     if (!huboCambios) {
       toast("No se detectaron cambios en el cliente.", { icon: "ℹ️" });
@@ -110,7 +116,9 @@ export default function ModalGestionCliente({
     try {
       const datosActualizados: Partial<Cliente> = {
         nombre: nombre.trim(),
-        celular: celular.trim()
+        celular: celular.trim(),
+        direccion: direccion.trim(),
+        notas: notas.trim()
       };
 
       await API_DB.actualizarCliente(cliente.id, datosActualizados);
@@ -179,24 +187,38 @@ export default function ModalGestionCliente({
         // Ahora se registra como 'egreso' con metodoPago='ajuste_contable',
         // que los reportes de caja excluyen de las sumas de dinero físico.
         if (tieneDeuda && (cliente.deudaTotal || 0) > 0) {
-          await API_DB.registrarMovimientoConTransaccion(
-            {
+          const token = await currentUser.getIdToken();
+          const respuesta = await fetch('/api/movimientos/registrar', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+            body: JSON.stringify({
               clienteId: cliente.id,
-              usuarioId: cliente.usuarioId,
               tipo: 'egreso',
               monto: cliente.deudaTotal || 0,
               descripcion: `Castigo de cartera / Condonación por eliminación de cliente con deuda (${cliente.nombre})`,
-              fecha: new Date(),
-              registradoPor: currentUser.displayName || "Administrador",
-              metodoPago: 'ajuste_contable' as any
-            },
-            {
-              ajustarSaldoCliente: false // El cliente será eliminado, no hace falta actualizar su doc
-            }
-          );
+              metodoPago: 'ajuste_contable'
+            })
+          });
+          if (!respuesta.ok) throw new Error((await respuesta.json()).error || 'No se pudo registrar el ajuste.');
+        } else if ((cliente.deudaTotal || 0) < 0) {
+          // Si el cliente tenía Saldo a Favor, al eliminarlo el negocio se "queda" con ese dinero.
+          // Se registra como un ingreso contable (Ajuste a favor de caja por saldo abandonado).
+          const token = await currentUser.getIdToken();
+          const respuesta = await fetch('/api/movimientos/registrar', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+            body: JSON.stringify({
+              clienteId: cliente.id,
+              tipo: 'abono',
+              monto: Math.abs(cliente.deudaTotal || 0),
+              descripcion: `Ajuste a favor por saldo abandonado / Eliminación de cliente (${cliente.nombre})`,
+              metodoPago: 'ajuste_contable'
+            })
+          });
+          if (!respuesta.ok) throw new Error((await respuesta.json()).error || 'No se pudo registrar el ajuste.');
         }
 
-        await API_DB.eliminarCliente(cliente.id);
+        await API_DB.eliminarCliente(cliente.id, { omitirValidacionDeuda: true });
         notificar.exito(`El cliente "${cliente.nombre}" ha sido eliminado del sistema.`, {
           titulo: "Cliente eliminado",
           icono: <span>🗑️</span>
@@ -211,6 +233,8 @@ export default function ModalGestionCliente({
           error.code === 'auth/invalid-login-credentials'
         ) {
           setErrorPassword("Contraseña incorrecta. Acción no autorizada.");
+        } else if (error.message) {
+          toast.error(error.message);
         } else {
           toast.error("Error al procesar la solicitud. Intenta nuevamente.");
         }
@@ -282,8 +306,30 @@ export default function ModalGestionCliente({
               />
             </div>
 
+            <div>
+              <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1.5">Dirección</label>
+              <input
+                type="text"
+                value={direccion}
+                onChange={(e) => setDireccion(e.target.value)}
+                placeholder="Dirección del cliente (opcional)"
+                className="w-full p-4 bg-slate-50 dark:bg-[#020617] border border-slate-200 dark:border-slate-800 rounded-2xl outline-none focus:border-blue-500 dark:text-white font-medium text-base transition-colors"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1.5">Notas / Referencias</label>
+              <textarea
+                value={notas}
+                onChange={(e) => setNotas(e.target.value)}
+                placeholder="Notas útiles para futuras ventas (opcional)"
+                rows={3}
+                className="w-full p-4 bg-slate-50 dark:bg-[#020617] border border-slate-200 dark:border-slate-800 rounded-2xl outline-none focus:border-blue-500 dark:text-white font-medium text-base transition-colors resize-none"
+              />
+            </div>
+
             {/* Aviso sutil de cambio detectado */}
-            {(nombre.trim() !== (cliente.nombre || "").trim() || celular.trim() !== (cliente.celular || "").trim()) && (
+            {(nombre.trim() !== (cliente.nombre || "").trim() || celular.trim() !== (cliente.celular || "").trim() || direccion.trim() !== (cliente.direccion || "").trim() || notas.trim() !== (cliente.notas || "").trim()) && (
               <div className="p-3 bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-800/80 rounded-2xl text-xs text-blue-800 dark:text-blue-300 flex items-center gap-2">
                 <ShieldAlert size={16} className="shrink-0 text-blue-600 dark:text-blue-400" />
                 <span>

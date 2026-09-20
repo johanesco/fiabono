@@ -130,7 +130,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   if (auth?.cargando) {
     return (
-      <div className="flex h-screen w-screen items-center justify-center bg-slate-100 dark:bg-slate-950 font-sans">
+      <div className="flex h-[100dvh] w-screen items-center justify-center bg-slate-100 dark:bg-slate-950 font-sans">
         <div className="flex flex-col items-center gap-3">
           <div className="w-10 h-10 border-3 border-emerald-500 border-t-transparent rounded-full animate-spin"></div>
           <span className="text-sm font-bold text-slate-500 dark:text-slate-400">Cargando Fiabono...</span>
@@ -142,7 +142,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   if (!datosSesion) return null;
 
   return (
-    <div className="flex h-screen w-screen bg-slate-100 dark:bg-slate-950 overflow-hidden font-sans">
+    <div className="flex h-[100dvh] w-screen bg-slate-100 dark:bg-slate-950 overflow-hidden font-sans">
 
       {/* BARRA LATERAL INTELIGENTE (TABLETS & ESCRITORIO CON DESPLIEGUE POR HOVER O CLIC) */}
       <aside 

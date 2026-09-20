@@ -101,6 +101,19 @@ export interface OrdenPendiente {
 export type TipoPlan = 'gratis' | 'comercio' | 'pro' | 'basico';
 export type CicloPlan = 'mensual' | 'anual';
 
+export interface MediosPagoNegocio {
+  nequi?: string;
+  bancolombiaNumero?: string;
+  bancolombiaTipo?: 'ahorros' | 'corriente' | '';
+  bancolombiaTitular?: string;
+  daviviendaNumero?: string;
+  daviviendaTipo?: 'ahorros' | 'corriente' | '';
+  daviviendaTitular?: string;
+  brebLlave?: string;
+  brebTipo?: string;
+  mensajePresencial?: string;
+}
+
 export interface UsuarioBD {
   id?: string;
   nombreUsuario: string;
@@ -110,6 +123,7 @@ export interface UsuarioBD {
   nitNegocio?: string;
   direccionNegocio?: string;
   mensajePieTicket?: string;
+  mediosPago?: MediosPagoNegocio;
   habilitarIva?: boolean;
   porcentajeIva?: number;
   email: string;
@@ -177,7 +191,11 @@ export interface Movimiento {
   cantidadAgregada?: number;
   movimientoOrigenId?: string;
   articulosDevueltos?: any[]; // Array of items returned
-  metodoDevolucion?: 'saldo_a_favor' | 'efectivo';
+  metodoDevolucion?: 'saldo_a_favor' | 'efectivo' | 'mixto' | string;
+  montoPagadoConSaldoFavor?: number;
+  montoEfectivoReembolsado?: number;
+  montoAmortizadoCartera?: number;
+  esPublico?: boolean;
 }
 
 export interface DatosSesionContext {
@@ -191,6 +209,7 @@ export interface DatosSesionContext {
   nitNegocio?: string;
   direccionNegocio?: string;
   mensajePieTicket?: string;
+  mediosPago?: MediosPagoNegocio;
   habilitarIva?: boolean;
   porcentajeIva?: number;
   rol: 'admin' | 'cajero';
@@ -248,4 +267,4 @@ export interface ItemTandaIngreso {
   categoria: string;
   tipoProducto?: 'producto' | 'servicio';
   inventariable?: boolean;
-}
+}

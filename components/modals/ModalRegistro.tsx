@@ -112,7 +112,7 @@ export default function ModalRegistro({
                           <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-xl">$</span>
                           <input 
                             type="text" 
-                            inputMode="numeric"
+                            inputMode="decimal" pattern="[0-9]*"
                             value={formatearMonedaInput(fila.valor)} 
                             onChange={(e) => actualizarFila(index, 'valor', e.target.value)} 
                             placeholder={accionRegistro === 'fiado' || accionRegistro === 'venta' ? "Valor Uni." : "Valor"} 
@@ -136,7 +136,7 @@ export default function ModalRegistro({
                       <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-2xl">$</span>
                       <input 
                          type="text" 
-                         inputMode="numeric"
+                         inputMode="decimal" pattern="[0-9]*"
                          value={pagoCliente} 
                          onChange={(e) => setPagoCliente(e.target.value)} 
                          placeholder="Ej. 50000"

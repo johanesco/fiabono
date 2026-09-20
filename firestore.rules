@@ -46,6 +46,20 @@ service cloud.firestore {
       );
     }
 
+    // Verifica si el usuario actual es el dueño directo (admin) del recurso
+    function esDuenioDelNegocio(docData) {
+      return estaAutenticado() && (
+        docData.usuarioId == request.auth.uid ||
+        esMaster()
+      );
+    }
+
+    function esAdministradorActual() {
+      return estaAutenticado()
+        && exists(/databases/$(database)/documents/usuarios/$(request.auth.uid))
+        && get(/databases/$(database)/documents/usuarios/$(request.auth.uid)).data.rol != 'cajero';
+    }
+
     // =========================================================================
     // 1. COLECCIÓN: USUARIOS (Cuentas de Negocio y Colaboradores/Cajeros)
     // =========================================================================
@@ -62,7 +76,7 @@ service cloud.firestore {
       );
       allow list: if estaAutenticado() && (
         resource.data.adminId == request.auth.uid ||
-        resource.data.rol == 'admin' && exists(/databases/$(database)/documents/usuarios/$(request.auth.uid)) ||
+        request.auth.uid == userId ||
         esMaster()
       );
 
@@ -114,60 +128,97 @@ service cloud.firestore {
     // Inventario / Productos del Negocio
     match /inventario/{prodId} {
       allow read: if estaAutenticado() && perteneceAlNegocio(resource.data);
-      allow create: if estaAutenticado() && (request.resource.data.usuarioId == idCuentaPrincipal() || esMaster());
-      allow update, delete: if estaAutenticado() && perteneceAlNegocio(resource.data);
+      allow create: if estaAutenticado() && ((esAdministradorActual() && request.resource.data.usuarioId == idCuentaPrincipal()) || esMaster());
+      allow update: if estaAutenticado() && perteneceAlNegocio(resource.data)
+        && request.resource.data.usuarioId == resource.data.usuarioId
+        && (esAdministradorActual() || request.resource.data.diff(resource.data).affectedKeys().hasOnly(['nombre', 'sku', 'codigoBarras', 'categoria', 'fechaActualizacion']));
+      allow delete: if false;
     }
     match /productos/{prodId} {
       allow read: if estaAutenticado() && perteneceAlNegocio(resource.data);
-      allow create: if estaAutenticado() && (request.resource.data.usuarioId == idCuentaPrincipal() || esMaster());
-      allow update, delete: if estaAutenticado() && perteneceAlNegocio(resource.data);
+      allow create: if estaAutenticado() && ((esAdministradorActual() && request.resource.data.usuarioId == idCuentaPrincipal()) || esMaster());
+      allow update: if estaAutenticado() && perteneceAlNegocio(resource.data)
+        && request.resource.data.usuarioId == resource.data.usuarioId
+        && (esAdministradorActual() || request.resource.data.diff(resource.data).affectedKeys().hasOnly(['nombre', 'sku', 'codigoBarras', 'categoria', 'fechaActualizacion']));
+      allow delete: if false;
     }
 
     // Clientes y Cartera
     match /clientes/{clienteId} {
       allow read: if estaAutenticado() && perteneceAlNegocio(resource.data);
-      allow create: if estaAutenticado() && (request.resource.data.usuarioId == idCuentaPrincipal() || esMaster());
-      allow update, delete: if estaAutenticado() && perteneceAlNegocio(resource.data);
+      allow create: if false;
+      allow update: if estaAutenticado() && perteneceAlNegocio(resource.data)
+        && request.resource.data.usuarioId == resource.data.usuarioId
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['nombre', 'celular', 'direccion', 'notas']);
+      allow delete: if estaAutenticado() && esDuenioDelNegocio(resource.data);
     }
 
     // Movimientos (Ventas, Gastos, Fiados, Abonos)
-    // 'get' individual público para comprobantes /t/[id].
-    // La lista completa sigue protegida al negocio.
+    // SEC-01: 'get' individual solo si el documento tiene esPublico:true (comprobantes /t/[id])
+    // o si el usuario está autenticado y pertenece al negocio.
+    // Esto cierra la exposición pública de datos sensibles de clientes.
     match /movimientos/{movId} {
-      allow get: if true;
+      allow get: if resource.data.esPublico == true || (estaAutenticado() && perteneceAlNegocio(resource.data));
       allow list: if estaAutenticado() && perteneceAlNegocio(resource.data);
-      allow create: if estaAutenticado() && (request.resource.data.usuarioId == idCuentaPrincipal() || esMaster());
-      allow update, delete: if estaAutenticado() && perteneceAlNegocio(resource.data);
+      allow create: if estaAutenticado()
+        && (request.resource.data.usuarioId == idCuentaPrincipal() || esMaster())
+        && (request.resource.data.tipo == 'ingreso_inventario' || esMaster())
+        && request.resource.data.tipo in ['venta', 'fiado', 'abono', 'egreso', 'entrega_separe', 'ingreso_inventario', 'devolucion']
+        && request.resource.data.monto is number
+        && request.resource.data.monto >= 0
+        && request.resource.data.fecha is timestamp;
+      // Inmutabilidad contable: un movimiento registrado es un asiento inalterable.
+      allow update: if false;
+      allow delete: if esMaster();
+    }
+
+    // Contador interno para impedir devoluciones concurrentes superiores a la venta original.
+    match /controles_devolucion/{movimientoOrigenId} {
+      allow get: if estaAutenticado() && (
+        !exists(/databases/$(database)/documents/controles_devolucion/$(movimientoOrigenId)) ||
+        perteneceAlNegocio(resource.data)
+      );
+      allow create: if estaAutenticado() && request.resource.data.usuarioId == idCuentaPrincipal();
+      allow update: if estaAutenticado() && perteneceAlNegocio(resource.data)
+        && request.resource.data.usuarioId == resource.data.usuarioId;
+      allow delete: if esMaster();
     }
 
     // Planes Separe
-    // 'get' individual público para comprobantes /t/[id].
+    // SEC-01: Mismo patrón — solo público si esPublico:true.
     match /separes/{separeId} {
-      allow get: if true;
+      allow get: if resource.data.esPublico == true || (estaAutenticado() && perteneceAlNegocio(resource.data));
       allow list: if estaAutenticado() && perteneceAlNegocio(resource.data);
-      allow create: if estaAutenticado() && (request.resource.data.usuarioId == idCuentaPrincipal() || esMaster());
-      allow update, delete: if estaAutenticado() && perteneceAlNegocio(resource.data);
+      allow create: if estaAutenticado() && ((esAdministradorActual() && request.resource.data.usuarioId == idCuentaPrincipal()) || esMaster());
+      allow update: if false;
+      allow delete: if estaAutenticado() && esDuenioDelNegocio(resource.data);
     }
 
     // Órdenes Pendientes (Aprobación de Cajeros)
+    // Solo el Dueño/Admin puede aprobar, rechazar o modificar el estado de una orden.
     match /ordenes_pendientes/{ordenId} {
       allow read: if estaAutenticado() && perteneceAlNegocio(resource.data);
       allow create: if estaAutenticado() && (request.resource.data.usuarioId == idCuentaPrincipal() || esMaster());
-      allow update, delete: if estaAutenticado() && perteneceAlNegocio(resource.data);
+      allow update: if false;
+      allow delete: if estaAutenticado() && (esDuenioDelNegocio(resource.data) || esMaster());
     }
 
     // Categorías de Productos
     match /categorias/{catId} {
       allow read: if estaAutenticado() && perteneceAlNegocio(resource.data);
       allow create: if estaAutenticado() && (request.resource.data.usuarioId == idCuentaPrincipal() || esMaster());
-      allow update, delete: if estaAutenticado() && perteneceAlNegocio(resource.data);
+      allow update: if estaAutenticado() && perteneceAlNegocio(resource.data)
+        && request.resource.data.usuarioId == resource.data.usuarioId;
+      allow delete: if estaAutenticado() && esDuenioDelNegocio(resource.data);
     }
 
     // Cierres de Caja
     match /cierres_caja/{cierreId} {
       allow read: if estaAutenticado() && perteneceAlNegocio(resource.data);
       allow create: if estaAutenticado() && (request.resource.data.usuarioId == idCuentaPrincipal() || esMaster());
-      allow update, delete: if estaAutenticado() && perteneceAlNegocio(resource.data);
+      allow update: if estaAutenticado() && perteneceAlNegocio(resource.data)
+        && request.resource.data.usuarioId == resource.data.usuarioId;
+      allow delete: if estaAutenticado() && esDuenioDelNegocio(resource.data);
     }
 
     // =========================================================================
@@ -182,12 +233,16 @@ service cloud.firestore {
       // Solo el Master puede crear o eliminar códigos promocionales
       allow create, delete: if esMaster();
 
-      // Al canjear un código, el usuario puede marcarlo como activo: false (para quemarlo).
-      // La activación del plan resultado se hace vía Cloud Function (Admin SDK),
-      // no directamente desde el cliente.
+      // Al canjear un código, el usuario puede marcarlo como activo: false,
+      // pero OBLIGATORIAMENTE debe firmar con su propio UID en 'usadoPor' y no puede alterar otros campos.
       allow update: if estaAutenticado() && (
         esMaster() ||
-        (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['activo']) && request.resource.data.activo == false)
+        (
+          resource.data.activo == true &&
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['activo', 'usadoPor', 'fechaUso']) &&
+          request.resource.data.activo == false &&
+          request.resource.data.usadoPor == request.auth.uid
+        )
       );
     }
 

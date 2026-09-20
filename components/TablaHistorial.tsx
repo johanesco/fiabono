@@ -12,7 +12,7 @@ interface TablaHistorialProps {
 
 export default function TablaHistorial({ movimientos, getNombreCliente, onRowClick, onMovimientoClick, onImprimir }: TablaHistorialProps) {
   return (
-    <div className="hidden md:block w-full bg-white dark:bg-[#0f172a] rounded-2xl border border-slate-100 dark:border-slate-800/60 shadow-sm overflow-hidden">
+    <div className="hidden md:block w-full bg-white dark:bg-[#0f172a] rounded-2xl border border-slate-100 dark:border-slate-800/60 shadow-sm overflow-x-auto">
       <table className="w-full text-left border-collapse">
         <thead>
           <tr className="bg-slate-50 dark:bg-[#020617] border-b border-slate-200 dark:border-slate-800">
@@ -63,13 +63,19 @@ export default function TablaHistorial({ movimientos, getNombreCliente, onRowCli
                       📦 Entrada
                     </span>
                   ) : (
-                    <span className="truncate block max-w-[100px] sm:max-w-[140px] lg:max-w-[220px]">
+                    <span 
+                      title={getNombreCliente(mov.clienteId, mov.tipo)}
+                      className="truncate block max-w-[120px] sm:max-w-[160px] lg:max-w-[240px]"
+                    >
                       {getNombreCliente(mov.clienteId, mov.tipo)}
                     </span>
                   )}
                 </td>
                 <td className="py-2.5 px-2.5 sm:px-3 lg:px-4 text-xs text-slate-600 dark:text-slate-300">
-                  <div className="truncate max-w-[100px] sm:max-w-[150px] xl:max-w-[300px]">
+                  <div 
+                    title={esIngresoInv ? ((mov as any).nombreProducto || 'Recepción de Mercancía') : mov.descripcion}
+                    className="truncate max-w-[120px] sm:max-w-[180px] xl:max-w-[320px]"
+                  >
                     {esIngresoInv ? (
                       <span className="font-semibold text-slate-800 dark:text-slate-200">
                         {(mov as any).nombreProducto || 'Recepción de Mercancía'}

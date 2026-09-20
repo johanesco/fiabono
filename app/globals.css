@@ -114,6 +114,7 @@ button, a, [role="button"] {
 /* Elimina el bounce/rebote del scroll en toda la app */
 html, body {
   overscroll-behavior: none;
+  overflow-x: hidden;
 }
 
 /* Soporte safe-area para notch y barra de inicio (iOS/Android) */

@@ -11,7 +11,7 @@ import ModalHorarios from '@/components/ModalHorarios';
 import { useAuth } from "../../../hooks/AuthContext";
 import ModalSuscripcion from "@/components/ModalSuscripcion";
 import ModalAjustarImagen from "@/components/ModalAjustarImagen";
-import { PermisosColaborador } from "@/types";
+import { MediosPagoNegocio, PermisosColaborador } from "@/types";
 import { generarSlugNegocio, limpiarUsuarioColaborador } from "@/utils/slug";
 import toast from "react-hot-toast";
 
@@ -31,6 +31,7 @@ export default function PerfilPage() {
   const [nitNegocio, setNitNegocio] = useState(datosSesion?.nitNegocio || "");
   const [direccionNegocio, setDireccionNegocio] = useState(datosSesion?.direccionNegocio || "");
   const [mensajePieTicket, setMensajePieTicket] = useState(datosSesion?.mensajePieTicket || "");
+  const [mediosPago, setMediosPago] = useState<MediosPagoNegocio>(datosSesion?.mediosPago || {});
   const [habilitarIva, setHabilitarIva] = useState(datosSesion?.habilitarIva || false);
   const [porcentajeIva, setPorcentajeIva] = useState<number>(datosSesion?.porcentajeIva || 19);
   const [moduloSepareActivo, setModuloSepareActivo] = useState(datosSesion?.moduloSepareActivo !== false);
@@ -200,6 +201,7 @@ export default function PerfilPage() {
       setNitNegocio(datosSesion.nitNegocio || "");
       setDireccionNegocio(datosSesion.direccionNegocio || "");
       setMensajePieTicket(datosSesion.mensajePieTicket || "");
+      setMediosPago(datosSesion.mediosPago || {});
       setHabilitarIva(datosSesion.habilitarIva || false);
       setPorcentajeIva(datosSesion.porcentajeIva || 19);
       setModuloSepareActivo(datosSesion.moduloSepareActivo !== false);
@@ -362,6 +364,7 @@ export default function PerfilPage() {
         nitNegocio,
         direccionNegocio,
         mensajePieTicket,
+        mediosPago,
         logoNegocio: logoNegocio || null,
         nombreUsuario: editNombreUsuario,
         habilitarIva,
@@ -377,6 +380,7 @@ export default function PerfilPage() {
         nitNegocio, 
         direccionNegocio, 
         mensajePieTicket, 
+        mediosPago,
         logoNegocio: logoNegocio || null, 
         nombreUsuario: editNombreUsuario, 
         habilitarIva, 
@@ -542,7 +546,7 @@ export default function PerfilPage() {
 
       toast.success(data.mensaje || "Colaborador eliminado definitivamente.", { duration: 4000 });
       setModalEliminarColaborador({ visible: false, colaborador: null });
-      cargarListaColaboradores(adminId || usuarioAuth?.uid!);
+      if (adminId || usuarioAuth?.uid) cargarListaColaboradores(adminId || usuarioAuth!.uid);
     } catch (err: any) {
       toast.error(err?.message || "Ocurrió un error al eliminar.");
     } finally {
@@ -599,7 +603,7 @@ export default function PerfilPage() {
       setModalActivarCajaOpen(false);
       setPassCajaInicial("");
       setConfirmarPassCajaInicial("");
-      cargarListaColaboradores(adminId || usuarioAuth?.uid!);
+      if (adminId || usuarioAuth?.uid) cargarListaColaboradores(adminId || usuarioAuth!.uid);
     } catch (err: any) {
       setErrorPassCaja(err?.message || "Ocurrió un error al activar.");
     } finally {
@@ -660,7 +664,7 @@ export default function PerfilPage() {
       toast.success(data.mensaje || "Terminal de Caja eliminada.");
       setModalEliminarCajaOpen(false);
       setCajaMostrador(null);
-      cargarListaColaboradores(adminId || usuarioAuth?.uid!);
+      if (adminId || usuarioAuth?.uid) cargarListaColaboradores(adminId || usuarioAuth!.uid);
     } catch (err: any) {
       toast.error(err?.message || "Ocurrió un error al eliminar.");
     } finally {
@@ -2126,6 +2130,28 @@ export default function PerfilPage() {
                     <div>
                       <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1.5">Mensaje de Despedida en el Recibo (Opcional)</label>
                       <input type="text" value={mensajePieTicket} onChange={(e) => setMensajePieTicket(e.target.value)} placeholder="Ej. ¡Gracias por su compra! Vuelva pronto." className="w-full p-4 bg-slate-50 dark:bg-[#020617] border border-slate-200 dark:border-slate-800/80 rounded-2xl outline-none focus:border-blue-500 dark:focus:border-blue-400 font-bold text-base text-slate-900 dark:text-white placeholder-slate-400" />
+                    </div>
+
+                    <div className="p-4 sm:p-5 bg-emerald-50/70 dark:bg-emerald-950/20 rounded-2xl border border-emerald-200/70 dark:border-emerald-900/40 space-y-4">
+                      <div>
+                        <h4 className="font-black text-sm text-emerald-900 dark:text-emerald-200">Medios de pago para cobrar por WhatsApp</h4>
+                        <p className="text-xs text-slate-600 dark:text-slate-400 mt-1 leading-relaxed">Estos datos aparecerán sólo cuando envíes un estado de cuenta. El cliente hará el pago por fuera y te enviará el comprobante por WhatsApp.</p>
+                      </div>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        <input value={mediosPago.nequi || ''} onChange={e => setMediosPago(p => ({ ...p, nequi: e.target.value }))} placeholder="Nequi: número" className="w-full p-3 bg-white dark:bg-[#020617] border border-emerald-200 dark:border-emerald-900 rounded-xl font-bold text-sm" />
+                        <input value={mediosPago.brebLlave || ''} onChange={e => setMediosPago(p => ({ ...p, brebLlave: e.target.value }))} placeholder="Llave Bre-B" className="w-full p-3 bg-white dark:bg-[#020617] border border-emerald-200 dark:border-emerald-900 rounded-xl font-bold text-sm" />
+                        <div className="flex gap-2">
+                          <input value={mediosPago.bancolombiaNumero || ''} onChange={e => setMediosPago(p => ({ ...p, bancolombiaNumero: e.target.value }))} placeholder="Bancolombia: número" className="min-w-0 flex-1 p-3 bg-white dark:bg-[#020617] border border-emerald-200 dark:border-emerald-900 rounded-xl font-bold text-sm" />
+                          <select value={mediosPago.bancolombiaTipo || ''} onChange={e => setMediosPago(p => ({ ...p, bancolombiaTipo: e.target.value as MediosPagoNegocio['bancolombiaTipo'] }))} className="w-28 p-3 bg-white dark:bg-[#020617] border border-emerald-200 dark:border-emerald-900 rounded-xl font-bold text-xs"><option value="">Tipo</option><option value="ahorros">Ahorros</option><option value="corriente">Corriente</option></select>
+                        </div>
+                        <input value={mediosPago.bancolombiaTitular || ''} onChange={e => setMediosPago(p => ({ ...p, bancolombiaTitular: e.target.value }))} placeholder="Bancolombia: titular" className="w-full p-3 bg-white dark:bg-[#020617] border border-emerald-200 dark:border-emerald-900 rounded-xl font-bold text-sm" />
+                        <div className="flex gap-2">
+                          <input value={mediosPago.daviviendaNumero || ''} onChange={e => setMediosPago(p => ({ ...p, daviviendaNumero: e.target.value }))} placeholder="Davivienda: número" className="min-w-0 flex-1 p-3 bg-white dark:bg-[#020617] border border-emerald-200 dark:border-emerald-900 rounded-xl font-bold text-sm" />
+                          <select value={mediosPago.daviviendaTipo || ''} onChange={e => setMediosPago(p => ({ ...p, daviviendaTipo: e.target.value as MediosPagoNegocio['daviviendaTipo'] }))} className="w-28 p-3 bg-white dark:bg-[#020617] border border-emerald-200 dark:border-emerald-900 rounded-xl font-bold text-xs"><option value="">Tipo</option><option value="ahorros">Ahorros</option><option value="corriente">Corriente</option></select>
+                        </div>
+                        <input value={mediosPago.daviviendaTitular || ''} onChange={e => setMediosPago(p => ({ ...p, daviviendaTitular: e.target.value }))} placeholder="Davivienda: titular" className="w-full p-3 bg-white dark:bg-[#020617] border border-emerald-200 dark:border-emerald-900 rounded-xl font-bold text-sm" />
+                      </div>
+                      <input value={mediosPago.mensajePresencial || ''} onChange={e => setMediosPago(p => ({ ...p, mensajePresencial: e.target.value }))} placeholder="Ej. También puedes pagar directamente en nuestro almacén." className="w-full p-3 bg-white dark:bg-[#020617] border border-emerald-200 dark:border-emerald-900 rounded-xl font-bold text-sm" />
                     </div>
 
                     {/* CONFIGURACIÓN DE IVA / IMPUESTOS */}

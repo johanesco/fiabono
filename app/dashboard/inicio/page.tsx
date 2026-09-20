@@ -3,7 +3,7 @@ import { useState, useEffect } from "react";
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import { collection, addDoc, getDocs, query, where, onSnapshot } from "firebase/firestore";
-import { db } from "../../../firebase";
+import { auth, db } from "../../../firebase";
 import { Search, ShoppingBag, Banknote, Users, CheckCircle2, ChevronRight, X, MessageCircle, UserCog, ShoppingCart, Star, Clock, Store, Printer, Edit3, Trash2, Receipt, Bookmark, Sparkles, RotateCcw, AlertTriangle } from 'lucide-react';
 import toast from "react-hot-toast";
 import { useAuth } from "../../../hooks/AuthContext";
@@ -12,6 +12,7 @@ import ModalGestionCliente from "@/components/ModalGestionCliente";
 import ModalProcesarDevolucion from "@/components/ModalProcesarDevolucion";
 import ModalTourBienvenida from "@/components/ModalTourBienvenida";
 import { abrirEnlaceWhatsApp } from "@/utils/whatsapp";
+import { agregarMediosPagoAlEstado } from "@/utils/mediosPago";
 
 export default function InicioPage() {
   const [mounted, setMounted] = useState(false);
@@ -187,7 +188,10 @@ export default function InicioPage() {
     }
     setGuardandoCliente(true);
     try {
-      await addDoc(collection(db, "clientes"), { nombre: nombreNuevo.trim(), celular: celularNuevo.trim(), deudaTotal: 0, usuarioId: cuentaPrincipalId!, fecha_creacion: new Date() });
+      const token = await auth.currentUser?.getIdToken();
+      if (!token) throw new Error('Sesión inválida.');
+      const respuesta = await fetch('/api/clientes/crear', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ nombre: nombreNuevo, celular: celularNuevo }) });
+      if (!respuesta.ok) throw new Error((await respuesta.json()).error || 'No se pudo crear el cliente.');
       setModalNuevoCliente(false); setNombreNuevo(""); setCelularNuevo("");
       await cargarDatosGlobales(cuentaPrincipalId!);
       toast.success("Cliente guardado con éxito");
@@ -278,7 +282,14 @@ Quedamos pendientes para revisar detalles o responder cualquier duda.
       }
     }
 
-    return normalizarMensajeWhatsApp(texto);
+    const ultimoAbono = movimientosCliente
+      .filter((mov: any) => mov.tipo === 'abono' && mov.fecha)
+      .sort((a: any, b: any) => {
+        const fechaA = a.fecha?.toDate ? a.fecha.toDate().getTime() : new Date(a.fecha).getTime();
+        const fechaB = b.fecha?.toDate ? b.fecha.toDate().getTime() : new Date(b.fecha).getTime();
+        return fechaB - fechaA;
+      })[0];
+    return normalizarMensajeWhatsApp(agregarMediosPagoAlEstado(texto, datosSesion?.mediosPago, nombreTienda, cliente.deudaTotal || 0, ultimoAbono));
   };
 
   const abrirWhatsApp = (texto: string, celular?: string) => {

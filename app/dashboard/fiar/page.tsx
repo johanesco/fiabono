@@ -2,7 +2,7 @@
 import { useState, useEffect, Suspense, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { collection, addDoc, getDocs, query, doc, updateDoc, where, increment, writeBatch } from "firebase/firestore";
-import { db } from "../../../firebase";
+import { auth, db } from "../../../firebase";
 import { Search, ShoppingBag, CheckCircle2, ChevronRight, X, AlertCircle, UserCog, Plus, Minus, ArrowLeft, MessageCircle, Package, QrCode, Volume2, Printer, ChevronDown, ChevronUp, Tag, Receipt, Pause, FolderOpen, User, Trash2 } from 'lucide-react';
 import { useAuth } from "@/hooks/AuthContext";
 import toast from "react-hot-toast";
@@ -11,6 +11,7 @@ import { Html5Qrcode } from "html5-qrcode";
 import { API_DB } from "../../../servicios/db";
 import TicketFacturaModal from "@/components/TicketFacturaModal";
 import { abrirEnlaceWhatsApp } from "@/utils/whatsapp";
+import { agregarMediosPagoAlEstado } from "@/utils/mediosPago";
 
 export default function FiarPage() {
     return (
@@ -755,8 +756,12 @@ function FiarContenido() {
         if (!nombreNuevo.trim()) return toast.error("El nombre del cliente es obligatorio.");
         setGuardandoCliente(true);
         try {
-            const docRef = await addDoc(collection(db, "clientes"), { nombre: nombreNuevo.trim(), celular: celularNuevo.trim(), deudaTotal: 0, usuarioId: cuentaPrincipalId, fecha_creacion: new Date() });
-            const nuevoObj = { id: docRef.id, nombre: nombreNuevo.trim(), celular: celularNuevo.trim(), deudaTotal: 0 };
+            const token = await auth.currentUser?.getIdToken();
+            if (!token) throw new Error('Sesión inválida.');
+            const respuesta = await fetch('/api/clientes/crear', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ nombre: nombreNuevo, celular: celularNuevo }) });
+            const resultado = await respuesta.json();
+            if (!respuesta.ok) throw new Error(resultado.error || 'No se pudo crear el cliente.');
+            const nuevoObj = resultado.cliente;
             setModalNuevoCliente(false); setNombreNuevo(""); setCelularNuevo(""); setBusquedaRegistro("");
             await cargarDatosGlobales(cuentaPrincipalId!);
             setClienteTransaccion(nuevoObj);
@@ -1012,22 +1017,28 @@ function FiarContenido() {
             }));
 
             // Ejecución Unificada en una sola Transacción Atómica de Firestore (Fiado + Stock + Deuda)
-            const resFiado = await API_DB.ejecutarVentaCompletaAtomo({
-                usuarioId: cuentaPrincipalId!,
-                clienteId: clienteTransaccion.id,
-                registradoPor: nombreUsuario || 'Vendedor',
-                montoVentaReal: 0,
-                descripcionVenta: '',
-                detalles: detallesParaComprobante,
-                metodoPago: 'fiado',
-                fiarFaltante: true,
-                montoFiado: faltante,
-                descripcionFiado: descripcionUnificada + (montoDescuentoTotal > 0 ? ` [Dto: -$${montoDescuentoTotal.toLocaleString('es-CO')}]` : ''),
-                itemsInventario,
-                descuentoTipo: mostrarDescuento && montoDescuentoTotal > 0 ? tipoDescuento : null,
-                descuentoValor: mostrarDescuento && montoDescuentoTotal > 0 ? (tipoDescuento === 'porcentaje' ? Number(valorDescuento) : montoDescuentoTotal) : undefined,
-                montoDescuento: montoDescuentoTotal > 0 ? montoDescuentoTotal : undefined
+            const token = await auth.currentUser?.getIdToken();
+            if (!token) throw new Error('Sesión inválida.');
+            const respuestaFiado = await fetch('/api/ventas/registrar', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+                body: JSON.stringify({
+                    clienteId: clienteTransaccion.id,
+                    montoVentaReal: 0,
+                    descripcionVenta: '',
+                    detalles: detallesParaComprobante,
+                    metodoPago: 'fiado',
+                    fiarFaltante: true,
+                    montoFiado: faltante,
+                    descripcionFiado: descripcionUnificada + (montoDescuentoTotal > 0 ? ` [Dto: -$${montoDescuentoTotal.toLocaleString('es-CO')}]` : ''),
+                    itemsInventario,
+                    descuentoTipo: mostrarDescuento && montoDescuentoTotal > 0 ? tipoDescuento : null,
+                    descuentoValor: mostrarDescuento && montoDescuentoTotal > 0 ? (tipoDescuento === 'porcentaje' ? Number(valorDescuento) : montoDescuentoTotal) : undefined,
+                    montoDescuento: montoDescuentoTotal > 0 ? montoDescuentoTotal : undefined
+                })
             });
+            const resFiado = await respuestaFiado.json();
+            if (!respuestaFiado.ok) throw new Error(resFiado.error || 'No se pudo registrar el fiado.');
 
             const saldoFinal = resFiado.nuevoSaldoCliente !== undefined ? resFiado.nuevoSaldoCliente : ((clienteTransaccion.deudaTotal || 0) + faltante);
             const clienteFinalActualizado = { ...clienteTransaccion, deudaTotal: saldoFinal };
@@ -1158,7 +1169,7 @@ Estamos atentos para cualquier consulta.
 *¡Que tengas un gran dia!*`;
 
         const celularLimpio = (cliente?.celular || modalExito?.cliente?.celular || '').toString().replace(/\D/g, '');
-        abrirEnlaceWhatsApp(celularLimpio, texto);
+        abrirEnlaceWhatsApp(celularLimpio, agregarMediosPagoAlEstado(texto, datosSesion?.mediosPago, nombreNegocio || 'nuestra tienda', saldoCreditoTotal));
     };
 
     const handleScrollContenedor = () => {
@@ -1489,7 +1500,7 @@ Estamos atentos para cualquier consulta.
                                                                 <span className="absolute left-2.5 sm:left-3 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-sm sm:text-base">$</span>
                                                                 <input
                                                                     type="text"
-                                                                    inputMode="numeric"
+                                                                    inputMode="decimal" pattern="[0-9]*"
                                                                     value={formatearMonedaInput(fila.valor)}
                                                                     onChange={(e) => actualizarFila(index, 'valor', e.target.value)}
                                                                     disabled={precioBloqueado}
@@ -1557,7 +1568,7 @@ Estamos atentos para cualquier consulta.
 
                                             <input
                                                 type="text"
-                                                inputMode="numeric"
+                                                inputMode="decimal" pattern="[0-9]*"
                                                 value={tipoDescuento === 'porcentaje' ? valorDescuento : formatearMonedaInput(valorDescuento)}
                                                 onChange={(e) => {
                                                     const raw = e.target.value.replace(/\D/g, '');
@@ -1666,7 +1677,7 @@ Estamos atentos para cualquier consulta.
                                             <div className="max-h-40 overflow-y-auto">
                                                 {clientesFiltradosRegistro.map(c => (
                                                     <div key={c.id} onClick={() => { setClienteTransaccion(c); setBusquedaRegistro(""); setMostrarResultadosBuscador(false); }} className="p-2.5 border-b border-slate-100 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer flex justify-between text-xs">
-                                                        <span className="font-bold text-slate-800 dark:text-slate-200">{c.nombre}</span><ChevronRight size={14} className="text-slate-400" />
+                                                        <span className="min-w-0 mr-2"><span className="font-bold text-slate-800 dark:text-slate-200 block truncate">{c.nombre}</span><span className={`text-[10px] font-black ${Number(c.deudaTotal || 0) > 0 ? 'text-rose-500' : Number(c.deudaTotal || 0) < 0 ? 'text-emerald-600' : 'text-slate-400'}`}>{Number(c.deudaTotal || 0) > 0 ? `Debe $${Number(c.deudaTotal).toLocaleString('es-CO')}` : Number(c.deudaTotal || 0) < 0 ? `A favor $${Math.abs(Number(c.deudaTotal)).toLocaleString('es-CO')}` : 'Al día'}</span></span><ChevronRight size={14} className="text-slate-400" />
                                                     </div>
                                                 ))}
                                                 {!clientesFiltradosRegistro.some(c => c.nombre.toLowerCase() === busquedaRegistro.toLowerCase()) && (
@@ -1744,7 +1755,7 @@ Estamos atentos para cualquier consulta.
             </div>
 
             {/* BARRA FLOTANTE MÓVIL SUSPENDIDA (SOLO PARA CELULARES PEQUEÑOS < 768px) */}
-            <div className="md:hidden fixed bottom-floating-bar left-3 right-3 sm:left-4 sm:right-4 max-w-lg mx-auto bg-white/95 dark:bg-[#0f172a]/95 backdrop-blur-xl border border-slate-200/90 dark:border-slate-800/90 p-2.5 sm:p-3 rounded-2xl sm:rounded-3xl shadow-[0_10px_25px_-5px_rgba(0,0,0,0.15)] dark:shadow-[0_10px_25px_-5px_rgba(0,0,0,0.6)] z-40 flex items-center justify-between gap-3">
+            <div className="md:hidden fixed bottom-floating-bar left-3 right-3 sm:left-4 sm:right-4 max-w-lg mx-auto bg-white/95 dark:bg-[#0f172a]/95 backdrop-blur-xl border border-slate-200/90 dark:border-slate-800/90 p-2.5 sm:p-3 rounded-2xl sm:rounded-3xl shadow-[0_10px_25px_-5px_rgba(0,0,0,0.15)] dark:shadow-[0_10px_25px_-5px_rgba(0,0,0,0.6)] z-[110] flex items-center justify-between gap-3">
                 <div className="flex flex-col min-w-0 shrink pl-1">
                     {montoDescuentoTotal > 0 && (
                         <div className="text-[9px] text-slate-500 dark:text-slate-400 leading-tight space-y-0.5 mb-0.5">
@@ -1754,7 +1765,7 @@ Estamos atentos para cualquier consulta.
                     )}
                     <div className="flex items-baseline gap-1.5">
                         <span className="text-[10px] font-black uppercase text-slate-400 tracking-wider">Monto a Fiar</span>
-                        <span className="text-xl sm:text-2xl font-black text-rose-500 truncate max-w-[140px] leading-none">${totalFilasRegistro.toLocaleString('es-CO')}</span>
+                        <span className="text-lg sm:text-2xl font-black text-rose-500 whitespace-nowrap overflow-visible leading-none min-w-0">${totalFilasRegistro.toLocaleString('es-CO')}</span>
                     </div>
                 </div>
                 <button 
@@ -1916,7 +1927,7 @@ Estamos atentos para cualquier consulta.
                                 <div className="absolute bottom-full left-0 right-0 mb-2 bg-white dark:bg-[#1e293b] border border-slate-200 dark:border-slate-700 rounded-2xl shadow-xl z-50 overflow-hidden max-h-48 overflow-y-auto">
                                     {clientesFiltradosRegistro.map(c => (
                                         <div key={c.id} onClick={() => { setClienteTransaccion(c); setBusquedaRegistro(""); setModalFaltaCliente(false); }} className="p-4 border-b border-slate-100 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer flex justify-between">
-                                            <span className="font-bold text-slate-800 dark:text-slate-200">{c.nombre}</span><ChevronRight size={18} className="text-slate-400" />
+                                            <span className="min-w-0 mr-2"><span className="font-bold text-slate-800 dark:text-slate-200 block truncate">{c.nombre}</span><span className={`text-[10px] font-black ${Number(c.deudaTotal || 0) > 0 ? 'text-rose-500' : Number(c.deudaTotal || 0) < 0 ? 'text-emerald-600' : 'text-slate-400'}`}>{Number(c.deudaTotal || 0) > 0 ? `Debe $${Number(c.deudaTotal).toLocaleString('es-CO')}` : Number(c.deudaTotal || 0) < 0 ? `A favor $${Math.abs(Number(c.deudaTotal)).toLocaleString('es-CO')}` : 'Al día'}</span></span><ChevronRight size={18} className="text-slate-400" />
                                         </div>
                                     ))}
                                     {!clientesFiltradosRegistro.some(c => c.nombre.toLowerCase() === busquedaRegistro.toLowerCase()) && (

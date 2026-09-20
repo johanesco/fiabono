@@ -9,10 +9,11 @@ import {
   addDoc, 
   serverTimestamp 
 } from "firebase/firestore";
-import { db } from "../../../firebase";
+import { auth, db } from "../../../firebase";
 import { useAuth } from "@/hooks/AuthContext";
 import { Cliente, Movimiento, Separe } from "@/types";
 import { abrirEnlaceWhatsApp } from "@/utils/whatsapp";
+import { agregarMediosPagoAlEstado } from "@/utils/mediosPago";
 import ModalGestionCliente from "@/components/ModalGestionCliente";
 import ModalProcesarDevolucion from "@/components/ModalProcesarDevolucion";
 import TicketFacturaModal, { DatosFacturaProps } from "@/components/TicketFacturaModal";
@@ -29,6 +30,7 @@ import {
   Clock, 
   MessageCircle, 
   ChevronRight, 
+  ChevronDown,
   ArrowLeft, 
   TrendingUp, 
   ShieldAlert, 
@@ -80,7 +82,8 @@ function ClientesContenido() {
 
   // Estados de interfaz
   const [busqueda, setBusqueda] = useState("");
-  const [filtroActivo, setFiltroActivo] = useState<'todos' | 'con_deuda' | 'en_riesgo' | 'vip' | 'al_dia'>('todos');
+  const [mostrarIndicadores, setMostrarIndicadores] = useState(false);
+  const [filtroActivo, setFiltroActivo] = useState<'todos' | 'con_deuda' | 'en_riesgo' | 'mayor_deuda' | 'vip' | 'al_dia'>('todos');
 
   // Modales
   const [modalNuevoAbierto, setModalNuevoAbierto] = useState(false);
@@ -331,13 +334,14 @@ function ClientesContenido() {
       // Filtro de pestaña
       if (filtroActivo === 'con_deuda') return c.deuda > 0;
       if (filtroActivo === 'en_riesgo') return c.semaforo === 'riesgo';
+      if (filtroActivo === 'mayor_deuda') return c.deuda > 0;
       if (filtroActivo === 'vip') return c.esVip;
       if (filtroActivo === 'al_dia') return c.deuda === 0;
 
       return true;
     }).sort((a, b) => {
       // Ordenar por prioridad: primero los de mayor riesgo/deuda
-      if (filtroActivo === 'en_riesgo' || filtroActivo === 'con_deuda') {
+      if (filtroActivo === 'en_riesgo' || filtroActivo === 'con_deuda' || filtroActivo === 'mayor_deuda') {
         return b.deuda - a.deuda;
       }
       if (filtroActivo === 'vip') {
@@ -423,7 +427,12 @@ Quedamos pendientes para revisar detalles o responder cualquier duda.
       }
     }
 
-    return texto;
+    const ultimoAbono = Array.isArray(cliente.movimientosHistorial)
+      ? cliente.movimientosHistorial
+          .filter((mov: any) => mov.tipo === 'abono' && mov.fecha)
+          .sort((a: any, b: any) => (obtenerFechaJS(b.fecha)?.getTime() || 0) - (obtenerFechaJS(a.fecha)?.getTime() || 0))[0]
+      : undefined;
+    return agregarMediosPagoAlEstado(texto, datosSesion?.mediosPago, nombreTienda, deuda, ultimoAbono);
   };
 
   // Abrir comprobante en modal térmico
@@ -497,15 +506,16 @@ Quedamos pendientes para revisar detalles o responder cualquier duda.
 
     try {
       setGuardandoCliente(true);
-      const docRef = await addDoc(collection(db, "clientes"), {
-        nombre: nombreNuevo.trim(),
-        celular: celularNuevo.trim() || "",
-        direccion: direccionNueva.trim() || "",
-        notas: notasNuevas.trim() || "",
-        deudaTotal: 0,
-        usuarioId: cuentaPrincipalId,
-        fecha_creacion: serverTimestamp()
+      const token = await auth.currentUser?.getIdToken();
+      if (!token) throw new Error('Sesión inválida.');
+      const respuesta = await fetch('/api/clientes/crear', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ nombre: nombreNuevo, celular: celularNuevo, direccion: direccionNueva, notas: notasNuevas })
       });
+      const resultado = await respuesta.json();
+      if (!respuesta.ok) throw new Error(resultado.error || 'No se pudo crear el cliente.');
+      const docRef = { id: resultado.id };
 
       const nuevoObj = {
         id: docRef.id,
@@ -564,7 +574,7 @@ Quedamos pendientes para revisar detalles o responder cualquier duda.
       }
 
       return (
-        <div className="space-y-2.5">
+        <div className="space-y-1.5">
           {movs.map((mov: Movimiento) => {
             const f = obtenerFechaJS(mov.fecha);
             const fechaStr = f 
@@ -576,7 +586,7 @@ Quedamos pendientes para revisar detalles o responder cualquier duda.
             return (
               <div 
                 key={mov.id} 
-                className={`p-3.5 bg-slate-50 dark:bg-[#020617] rounded-2xl border ${mov.tipo === 'devolucion' ? 'border-amber-200 dark:border-amber-800/50' : 'border-slate-100 dark:border-slate-800'} shadow-xs relative overflow-hidden space-y-2`}
+                className={`p-2 sm:p-2.5 bg-slate-50 dark:bg-[#020617] rounded-xl border ${mov.tipo === 'devolucion' ? 'border-amber-200 dark:border-amber-800/50' : 'border-slate-100 dark:border-slate-800'} shadow-xs relative overflow-hidden space-y-1 sm:space-y-1.5`}
               >
                 {/* Barra lateral de color según el tipo */}
                 <div className={`absolute left-0 top-0 bottom-0 w-1.5 ${
@@ -584,10 +594,10 @@ Quedamos pendientes para revisar detalles o responder cualquier duda.
                   mov.tipo === 'fiado' ? 'bg-rose-500' : (mov.tipo === 'venta' ? 'bg-emerald-500' : 'bg-blue-500')
                 }`} />
                 
-                <div className="pl-1.5 sm:pl-2">
-                  <div className="flex flex-wrap sm:flex-nowrap justify-between items-center gap-1.5 pb-1.5 border-b border-slate-200/60 dark:border-slate-800/80">
+                <div className="pl-1 sm:pl-1.5">
+                  <div className="flex flex-wrap sm:flex-nowrap justify-between items-center gap-1 pb-1 border-b border-slate-200/60 dark:border-slate-800/80">
                     <div className="flex items-center gap-2">
-                      <span className={`text-[10px] sm:text-xs font-black uppercase px-2.5 py-0.5 rounded-md shrink-0 ${
+                        <span className={`text-[9px] sm:text-[10px] font-black uppercase px-2 py-0.5 rounded-md shrink-0 ${
                         mov.tipo === 'devolucion'
                           ? 'bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-300'
                           : mov.tipo === 'fiado' 
@@ -620,9 +630,9 @@ Quedamos pendientes para revisar detalles o responder cualquier duda.
                   </div>
                   
                   {mov.detalles && mov.detalles.length > 0 ? (
-                    <div className="space-y-1 pt-1.5">
+                    <div className="space-y-0.5 pt-1">
                       {mov.detalles.map((d: any, idx: number) => (
-                        <div key={idx} className="flex justify-between items-center text-xs sm:text-sm min-w-0 gap-2">
+                        <div key={idx} className="flex justify-between items-center text-[11px] sm:text-xs min-w-0 gap-2">
                           <span className="text-slate-600 dark:text-slate-300 font-medium truncate flex-1 min-w-0">
                             {d.cantidad > 1 && (
                               <strong className={`${
@@ -641,13 +651,13 @@ Quedamos pendientes para revisar detalles o responder cualquier duda.
                       ))}
                     </div>
                   ) : (
-                    <p className="text-xs sm:text-sm font-bold text-slate-800 dark:text-slate-200 truncate pt-1">
+                    <p className="text-[11px] sm:text-xs font-bold text-slate-800 dark:text-slate-200 truncate pt-1">
                       {mov.descripcion || 'Sin descripción'}
                     </p>
                   )}
                   
                   {mov.articulosDevueltos && mov.articulosDevueltos.length > 0 && (
-                    <div className="mt-2 space-y-1 bg-amber-50 dark:bg-amber-950/20 p-2 rounded-lg border border-amber-100 dark:border-amber-900/30">
+                    <div className="mt-1.5 space-y-0.5 bg-amber-50 dark:bg-amber-950/20 p-1.5 rounded-lg border border-amber-100 dark:border-amber-900/30">
                       <p className="text-[10px] font-black uppercase text-amber-600 dark:text-amber-400">Artículos devueltos:</p>
                       {mov.articulosDevueltos.map((d: any, idx: number) => (
                         <div key={idx} className="flex justify-between items-center text-xs min-w-0 gap-2">
@@ -658,7 +668,7 @@ Quedamos pendientes para revisar detalles o responder cualquier duda.
                     </div>
                   )}
                   
-                  <div className="flex justify-between items-center pt-2 mt-1 border-t border-slate-200/60 dark:border-slate-800 font-black">
+                  <div className="flex justify-between items-center pt-1.5 mt-0.5 border-t border-slate-200/60 dark:border-slate-800 font-black">
                     <span className="text-xs text-slate-400 uppercase tracking-wider">Total:</span>
                     <div className="flex items-center gap-2">
                       {esVentaOFiado && mov.detalles && mov.detalles.length > 0 && (!esCajero || datosSesion?.permisos?.hacerDevoluciones) && (
@@ -841,14 +851,16 @@ Quedamos pendientes para revisar detalles o responder cualquier duda.
                     >
                       <Edit3 size={13} />
                     </button>
-                    <button
-                      type="button"
-                      onClick={() => setModalGestion({ isOpen: true, modo: 'eliminar', cliente })}
-                      title="Eliminar Cliente"
-                      className="p-1 rounded-lg bg-white dark:bg-slate-800 text-slate-500 hover:text-rose-600 shadow-xs border border-slate-200 dark:border-slate-700 cursor-pointer transition"
-                    >
-                      <Trash2 size={13} />
-                    </button>
+                    {datosSesion?.esAdmin !== false && (
+                      <button
+                        type="button"
+                        onClick={() => setModalGestion({ isOpen: true, modo: 'eliminar', cliente })}
+                        title="Eliminar Cliente"
+                        className="p-1 rounded-lg bg-white dark:bg-slate-800 text-slate-500 hover:text-rose-600 shadow-xs border border-slate-200 dark:border-slate-700 cursor-pointer transition"
+                      >
+                        <Trash2 size={13} />
+                      </button>
+                    )}
                   </div>
                 )}
               </div>
@@ -878,16 +890,16 @@ Quedamos pendientes para revisar detalles o responder cualquier duda.
             <div className="p-2.5 rounded-xl bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-800 shadow-xs">
               <div className="flex items-center justify-between">
                 <span className={`text-[10px] font-black uppercase tracking-wider block ${
-                  deudaFiado < 0 
+                  totalCompromiso < 0 
                     ? 'text-emerald-600 dark:text-emerald-400' 
                     : (totalCompromiso === 0 ? 'text-slate-400' : 'text-slate-500 dark:text-slate-400')
                 }`}>
-                  {deudaFiado < 0 ? 'Saldo a Favor' : (totalCompromiso === 0 ? 'Estado' : (saldoSeparesActivos > 0 ? 'Saldo Total Pendiente' : 'Saldo Actual'))}
+                  {totalCompromiso < 0 ? 'Saldo a Favor' : (totalCompromiso === 0 ? 'Estado' : (saldoSeparesActivos > 0 ? 'Saldo Total Pendiente' : 'Saldo Actual'))}
                 </span>
                 <span className={`text-lg font-black ${
                   totalCompromiso === 0 
                     ? 'text-slate-400' 
-                    : (deudaFiado < 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400')
+                    : (totalCompromiso < 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400')
                 }`}>
                   {totalCompromiso === 0 ? 'Al Día' : `$${Math.round(Math.abs(totalCompromiso)).toLocaleString('es-CO')}`}
                 </span>
@@ -1027,16 +1039,16 @@ Quedamos pendientes para revisar detalles o responder cualquier duda.
             <div className="p-3 sm:p-3.5 rounded-2xl bg-slate-50/80 dark:bg-[#020617] border border-slate-200 dark:border-slate-800 shadow-xs">
               <div className="flex items-center justify-between">
                 <span className={`text-[10px] font-black uppercase tracking-wider block ${
-                  deudaFiado < 0 
+                  totalCompromiso < 0 
                     ? 'text-emerald-600 dark:text-emerald-400' 
                     : (totalCompromiso === 0 ? 'text-slate-400' : 'text-slate-500 dark:text-slate-400')
                 }`}>
-                  {deudaFiado < 0 ? 'Saldo a Favor' : (totalCompromiso === 0 ? 'Estado' : (saldoSeparesActivos > 0 ? 'Saldo Total Pendiente' : 'Saldo Actual'))}
+                  {totalCompromiso < 0 ? 'Saldo a Favor' : (totalCompromiso === 0 ? 'Estado' : (saldoSeparesActivos > 0 ? 'Saldo Total Pendiente' : 'Saldo Actual'))}
                 </span>
                 <span className={`text-xl sm:text-2xl font-black ${
                   totalCompromiso === 0 
                     ? 'text-slate-400' 
-                    : (deudaFiado < 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400')
+                    : (totalCompromiso < 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400')
                 }`}>
                   {totalCompromiso === 0 ? 'Al Día' : `$${Math.round(Math.abs(totalCompromiso)).toLocaleString('es-CO')}`}
                 </span>
@@ -1174,8 +1186,18 @@ Quedamos pendientes para revisar detalles o responder cualquier duda.
         </button>
       </div>
 
-      {/* 2. BANNER DE INDICADORES EN PÍLDORAS (HORIZONTAL Y COMPACTO) */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3">
+      {/* 2. INDICADORES OPCIONALES, OCULTOS POR DEFECTO */}
+      <button
+        type="button"
+        onClick={() => setMostrarIndicadores(prev => !prev)}
+        className="w-full flex items-center justify-between px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-white/80 dark:bg-[#0f172a]/80 text-xs font-black text-slate-600 dark:text-slate-300 hover:border-emerald-300 transition cursor-pointer"
+        aria-expanded={mostrarIndicadores}
+      >
+        <span>{mostrarIndicadores ? 'Ocultar indicadores de cartera' : 'Ver indicadores de cartera'}</span>
+        <ChevronDown size={15} className={`transition-transform ${mostrarIndicadores ? 'rotate-180' : ''}`} />
+      </button>
+
+      {mostrarIndicadores && <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3 animate-in fade-in slide-in-from-top-1 duration-150">
         {/* Cartera Total */}
         <button
           type="button"
@@ -1275,7 +1297,7 @@ Quedamos pendientes para revisar detalles o responder cualquier duda.
             Sin saldo pendiente
           </span>
         </button>
-      </div>
+      </div>}
 
       {/* 3. BUSCADOR & FILTROS TIPO CHIPS */}
       <div className="space-y-2">
@@ -1340,6 +1362,21 @@ Quedamos pendientes para revisar detalles o responder cualquier duda.
             <span>Con Deuda</span>
             <span className="text-[10px] font-black px-1.5 rounded-full bg-amber-100 dark:bg-amber-500/20 text-amber-700 dark:text-amber-300">
               {metricasMacro.conDeudaCount}
+            </span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setFiltroActivo('mayor_deuda')}
+            className={`px-3 py-1.5 rounded-xl font-bold shrink-0 transition cursor-pointer flex items-center gap-1 ${
+              filtroActivo === 'mayor_deuda'
+                ? 'bg-orange-600 text-white shadow-xs'
+                : 'bg-white dark:bg-[#0f172a] text-orange-600 dark:text-orange-400 border border-slate-200 dark:border-slate-800 hover:border-orange-300'
+            }`}
+          >
+            <span>Mayor deuda</span>
+            <span className="text-[10px] font-black px-1.5 rounded-full bg-orange-100 dark:bg-orange-500/20 text-orange-700 dark:text-orange-300">
+              ↓
             </span>
           </button>
 

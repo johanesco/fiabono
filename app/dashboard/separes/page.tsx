@@ -2,14 +2,14 @@
 import { useState, useEffect, Suspense, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { 
-  collection, query, where, onSnapshot, doc, updateDoc, addDoc, getDocs, increment, Timestamp 
+  collection, query, where, onSnapshot, doc, updateDoc, addDoc, getDocs, getDoc, increment, Timestamp 
 } from "firebase/firestore";
-import { db } from "../../../firebase";
+import { auth, db } from "../../../firebase";
 import { 
   Bookmark, ArrowLeft, Search, Plus, X, ChevronRight, CheckCircle2, 
   MessageCircle, Printer, MoreVertical, Camera, AlertCircle, Banknote, 
   CreditCard, Smartphone, Zap, Clock, Calendar, ChevronDown, ChevronUp, 
-  Trash2, User, Eye, Check, AlertTriangle, HelpCircle, FileText, RotateCcw, Package
+  Trash2, User, Eye, Check, AlertTriangle, HelpCircle, FileText, RotateCcw, Package, Wallet
 } from 'lucide-react';
 import toast from "react-hot-toast";
 import { useAuth } from "@/hooks/AuthContext";
@@ -142,10 +142,12 @@ function SeparesContenido() {
 
   // Estados del Formulario de Abono
   const [montoAbono, setMontoAbono] = useState("");
-  const [metodoPagoAbono, setMetodoPagoAbono] = useState<'efectivo' | 'transferencia' | 'datafono' | 'credito_externo'>('efectivo');
+  const [metodoPagoAbono, setMetodoPagoAbono] = useState("efectivo");
   const [subMetodoAbono, setSubMetodoAbono] = useState("");
   const [referenciaAbono, setReferenciaAbono] = useState("");
-  const [procesandoAbono, setProcesandoAbono] = useState(false);
+  const [procesandoAbono, setProcesandoAbono] = useState<boolean>(false);
+  const isAbonandoRef = useRef(false);
+  const [saldoFavorAbono, setSaldoFavorAbono] = useState<number>(0);
 
   // Estados de Cancelación
   const [notaCancelacion, setNotaCancelacion] = useState("");
@@ -154,7 +156,6 @@ function SeparesContenido() {
   // Estados de Entrega y Bloqueos de Concurrencia (Anti Doble-Clic)
   const [procesandoEntrega, setProcesandoEntrega] = useState(false);
   const isDeliveringRef = useRef(false);
-  const isAbonandoRef = useRef(false);
   const isCancelandoRef = useRef(false);
 
   // Modal Ticket / Factura
@@ -266,7 +267,7 @@ function SeparesContenido() {
   };
 
   // Abrir Modal de Abono
-  const abrirModalAbono = (sep: any) => {
+  const abrirModalAbono = async (sep: any) => {
     if (!esAdmin && !puedeAbonar) {
       toast.error("Tu usuario no tiene permisos para recibir abonos. Solicítalo al administrador.", { icon: "🔒" });
       return;
@@ -276,7 +277,21 @@ function SeparesContenido() {
     setMetodoPagoAbono('efectivo');
     setSubMetodoAbono("");
     setReferenciaAbono("");
+    setSaldoFavorAbono(0);
     setModalAbono(true);
+
+    if (sep.clienteId && sep.clienteId !== 'mostrador') {
+      try {
+        const docRef = doc(db, "clientes", sep.clienteId);
+        const docSnap = await getDoc(docRef);
+        if (docSnap.exists()) {
+          const d = Number(docSnap.data().deudaTotal || 0);
+          setSaldoFavorAbono(d < 0 ? Math.abs(d) : 0);
+        }
+      } catch (e) {
+        console.error("Error obteniendo saldo a favor:", e);
+      }
+    }
   };
 
   // Registrar un Abono en Firestore
@@ -296,46 +311,50 @@ function SeparesContenido() {
       return;
     }
 
+    if (metodoPagoAbono === 'saldo_interno' && monto > saldoFavorAbono) {
+      toast.error(`El abono no puede superar tu Saldo a Favor disponible ($${saldoFavorAbono.toLocaleString('es-CO')})`, { icon: "⚠️" });
+      return;
+    }
+
     isAbonandoRef.current = true;
     setProcesandoAbono(true);
     try {
-      const nuevoAbono: any = {
+      const abonoRegistrado: any = {
         id: `abono_${Date.now()}`,
         monto,
         metodoPago: metodoPagoAbono,
         fecha: new Date(),
         registradoPor: nombreUsuario || "Vendedor"
       };
-      if (subMetodoAbono.trim()) nuevoAbono.subMetodoPago = subMetodoAbono.trim();
-      if (referenciaAbono.trim()) nuevoAbono.referenciaPago = referenciaAbono.trim();
+      if (subMetodoAbono.trim()) abonoRegistrado.subMetodoPago = subMetodoAbono.trim();
+      if (referenciaAbono.trim()) abonoRegistrado.referenciaPago = referenciaAbono.trim();
 
       const abonosActuales = separeSeleccionado.abonos || [];
-      const nuevoMontoPagado = (separeSeleccionado.montoPagado || 0) + monto;
-      const nuevoSaldoPendiente = Math.max(0, (separeSeleccionado.total || 0) - nuevoMontoPagado);
-
-      const separeRef = doc(db, "separes", separeSeleccionado.id);
-      await updateDoc(separeRef, {
-        abonos: [...abonosActuales, nuevoAbono],
-        montoPagado: nuevoMontoPagado,
-        saldoPendiente: nuevoSaldoPendiente
+      const token = await auth.currentUser?.getIdToken();
+      if (!token) throw new Error('Sesión inválida.');
+      const respuestaAbono = await fetch('/api/separes/abonar', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({
+          separeId: separeSeleccionado.id,
+          clienteId: separeSeleccionado.clienteId,
+          montoAbono: monto,
+          metodoPago: metodoPagoAbono,
+          subMetodoPago: subMetodoAbono.trim(),
+          referenciaPago: referenciaAbono.trim(),
+          detallesItems: (separeSeleccionado.items || []).map((it: any) => ({
+            descripcion: it.descripcion || "Artículo",
+            cantidad: it.cantidad || 1,
+            valor: (Number(it.valor) || 0) * (it.cantidad || 1),
+            valorUnitario: Number(it.valor) || 0
+          }))
+        })
       });
+      const resAbono = await respuestaAbono.json();
+      if (!respuestaAbono.ok) throw new Error(resAbono.error || 'No se pudo registrar el abono.');
 
-      // Registrar movimiento de abono en colección general
-      const payloadMovSepare: any = {
-        clienteId: separeSeleccionado.clienteId || null,
-        usuarioId: cuentaPrincipalId,
-        tipo: 'abono',
-        monto: monto,
-        descripcion: `Abono a Plan Separe (${metodoPagoAbono.toUpperCase()}${subMetodoAbono ? ` - ${subMetodoAbono}` : ''}) - ${separeSeleccionado.clienteNombre}`,
-        fecha: new Date(),
-        registradoPor: nombreUsuario || "Vendedor",
-        metodoPago: metodoPagoAbono,
-        idSepareOrigen: separeSeleccionado.id
-      };
-      if (referenciaAbono?.trim()) {
-        payloadMovSepare.referenciaPago = referenciaAbono.trim();
-      }
-      await addDoc(collection(db, "movimientos"), payloadMovSepare);
+      const nuevoMontoPagado = resAbono.nuevoMontoPagado;
+      const nuevoSaldoPendiente = resAbono.nuevoSaldoPendiente;
 
       reproducirSonidoExito();
       toast.success(`Abono de $${monto.toLocaleString('es-CO')} registrado con éxito`);
@@ -343,7 +362,7 @@ function SeparesContenido() {
 
       const separeActualizado = {
         ...separeSeleccionado,
-        abonos: [...abonosActuales, nuevoAbono],
+        abonos: [...abonosActuales, abonoRegistrado],
         montoPagado: nuevoMontoPagado,
         saldoPendiente: nuevoSaldoPendiente
       };
@@ -447,12 +466,16 @@ Estamos atentos para cualquier consulta.
     setProcesandoEntrega(true);
 
     try {
-      // PARCHE P1-TX-05: Liquidación y entrega de Separe atómica
-      const resEntrega = await API_DB.ejecutarEntregaSepareAtomo({
-        separeId: separeSeleccionado.id,
-        usuarioId: cuentaPrincipalId!,
-        registradoPor: nombreUsuario || "Administrador"
+      // Liquidación y entrega de Separe en una transacción server-side
+      const token = await auth.currentUser?.getIdToken();
+      if (!token) throw new Error('Sesión inválida.');
+      const respuestaEntrega = await fetch('/api/separes/entregar', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ separeId: separeSeleccionado.id })
       });
+      const resEntrega = await respuestaEntrega.json();
+      if (!respuestaEntrega.ok) throw new Error(resEntrega.error || 'No se pudo entregar el separe.');
 
       reproducirSonidoCelebracion();
       toast.success("¡Plan Separe entregado con éxito! 🛍️");
@@ -563,14 +586,22 @@ Gracias por tu compra y preferencia.
         }
       }
 
-      // PARCHE P1-TX-04: Cancelación de Separe + Devolución contable + Stock reintegrado en una sola transacción
-      await API_DB.ejecutarCancelacionSepareAtomo({
-        separeId: separeSeleccionado.id,
-        usuarioId: cuentaPrincipalId!,
-        motivo,
-        registradoPor: nombreUsuario || "Administrador",
-        itemsDevolver
+      // Cancelación de Separe + devolución contable + stock en una transacción server-side
+      const token = await auth.currentUser?.getIdToken();
+      if (!token) throw new Error('Sesión inválida.');
+      const respuestaCancelacion = await fetch('/api/separes/cancelar', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({
+          separeId: separeSeleccionado.id,
+          motivo,
+          metodoPago: separeSeleccionado.metodoPago || 'efectivo',
+          itemsDevolver
+        })
       });
+      if (!respuestaCancelacion.ok) {
+        throw new Error((await respuestaCancelacion.json()).error || 'No se pudo cancelar el separe.');
+      }
 
       reproducirSonidoAlerta();
       setModalCancelar(false);
@@ -1051,7 +1082,7 @@ Gracias por contactarnos.`;
                 <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 font-bold">$</span>
                 <input
                   type="text"
-                  inputMode="numeric"
+                  inputMode="decimal" pattern="[0-9]*"
                   value={montoAbono}
                   onChange={(e) => setMontoAbono(formatearMonedaInput(e.target.value))}
                   placeholder="0"
@@ -1073,13 +1104,13 @@ Gracias por contactarnos.`;
             <div className="flex flex-col bg-slate-50 dark:bg-[#020617] p-3 rounded-2xl border border-slate-200 dark:border-slate-800/80 gap-2">
               <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Forma de Pago del Abono</label>
 
-              {/* 4 chips en una sola fila */}
-              <div className="grid grid-cols-4 gap-1.5">
+              {/* Chips de métodos de pago en una sola fila */}
+              <div className={`grid ${saldoFavorAbono > 0 ? 'grid-cols-5' : 'grid-cols-4'} gap-1.5`}>
                 <button
                   type="button"
                   onClick={() => { setMetodoPagoAbono('efectivo'); setSubMetodoAbono(''); }}
                   title="Efectivo"
-                  className={`py-2 rounded-xl text-[10px] font-black flex flex-col items-center gap-0.5 transition-all ${
+                  className={`py-2 rounded-xl text-[10px] font-black flex flex-col items-center justify-center gap-0.5 transition-all ${
                     metodoPagoAbono === 'efectivo'
                       ? 'bg-emerald-600 text-white shadow-sm'
                       : 'bg-white dark:bg-slate-800 text-slate-500 dark:text-slate-400 border border-slate-200 dark:border-slate-700 hover:border-emerald-400 hover:text-emerald-600'
@@ -1093,7 +1124,7 @@ Gracias por contactarnos.`;
                   type="button"
                   onClick={() => { setMetodoPagoAbono('transferencia'); setSubMetodoAbono(''); }}
                   title="Transferencia / Pago en línea"
-                  className={`py-2 rounded-xl text-[10px] font-black flex flex-col items-center gap-0.5 transition-all ${
+                  className={`py-2 rounded-xl text-[10px] font-black flex flex-col items-center justify-center gap-0.5 transition-all ${
                     metodoPagoAbono === 'transferencia'
                       ? 'bg-blue-600 text-white shadow-sm'
                       : 'bg-white dark:bg-slate-800 text-slate-500 dark:text-slate-400 border border-slate-200 dark:border-slate-700 hover:border-blue-400 hover:text-blue-600'
@@ -1107,7 +1138,7 @@ Gracias por contactarnos.`;
                   type="button"
                   onClick={() => { setMetodoPagoAbono('datafono'); setSubMetodoAbono(''); }}
                   title="Datáfono / Tarjeta"
-                  className={`py-2 rounded-xl text-[10px] font-black flex flex-col items-center gap-0.5 transition-all ${
+                  className={`py-2 rounded-xl text-[10px] font-black flex flex-col items-center justify-center gap-0.5 transition-all ${
                     metodoPagoAbono === 'datafono'
                       ? 'bg-indigo-600 text-white shadow-sm'
                       : 'bg-white dark:bg-slate-800 text-slate-500 dark:text-slate-400 border border-slate-200 dark:border-slate-700 hover:border-indigo-400 hover:text-indigo-600'
@@ -1121,7 +1152,7 @@ Gracias por contactarnos.`;
                   type="button"
                   onClick={() => { setMetodoPagoAbono('credito_externo'); setSubMetodoAbono(''); }}
                   title="Crédito Externo (Addi, Sistecrédito…)"
-                  className={`py-2 rounded-xl text-[10px] font-black flex flex-col items-center gap-0.5 transition-all ${
+                  className={`py-2 rounded-xl text-[10px] font-black flex flex-col items-center justify-center gap-0.5 transition-all ${
                     metodoPagoAbono === 'credito_externo'
                       ? 'bg-purple-600 text-white shadow-sm'
                       : 'bg-white dark:bg-slate-800 text-slate-500 dark:text-slate-400 border border-slate-200 dark:border-slate-700 hover:border-purple-400 hover:text-purple-600'
@@ -1130,6 +1161,22 @@ Gracias por contactarnos.`;
                   <Zap size={14} />
                   <span className="leading-tight text-center">Crédito</span>
                 </button>
+
+                {saldoFavorAbono > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => { setMetodoPagoAbono('saldo_interno'); setSubMetodoAbono(''); }}
+                    title={`Saldo a Favor (Disp: $${saldoFavorAbono.toLocaleString('es-CO')})`}
+                    className={`py-2 rounded-xl text-[10px] font-black flex flex-col items-center justify-center gap-0.5 transition-all ${
+                      metodoPagoAbono === 'saldo_interno'
+                        ? 'bg-amber-500 text-white shadow-sm'
+                        : 'bg-amber-50 dark:bg-amber-500/10 text-amber-600 border border-amber-200 dark:border-amber-800/40 hover:bg-amber-100'
+                    }`}
+                  >
+                    <Wallet size={14} />
+                    <span className="leading-tight text-center">Saldo</span>
+                  </button>
+                )}
               </div>
 
               {/* Sub-selector Transferencia */}
