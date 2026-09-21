@@ -282,6 +282,7 @@ function VenderContenido() {
     setMostrarDescuento(p.mostrarDescuento || false);
     setTipoDescuento(p.tipoDescuento || 'porcentaje');
     setValorDescuento(p.valorDescuento || "");
+    setUsarSaldoFavor(true);
   };
 
   // Cambiar de pestaña
@@ -1038,22 +1039,18 @@ function VenderContenido() {
 
     const pagadoRaw = pagoCliente.replace(/\D/g, '');
     const pagadoNum = pagadoRaw === "" 
-      ? (metodoPago !== 'efectivo' ? totalNetoACobrar : (totalNetoACobrar === 0 ? 0 : 0)) 
+      ? totalNetoACobrar 
       : parseFloat(pagadoRaw);
-
-    // Si el campo de pago está vacío y el método es efectivo y hay saldo por pagar en caja:
-    if (pagadoRaw === "" && metodoPago === 'efectivo' && totalNetoACobrar > 0) {
-      const confirmar = await customConfirm(
-        `⚠️ No ingresaste ningún monto de pago.\n\n¿Confirmas fiar el valor restante de $${totalNetoACobrar.toLocaleString('es-CO')} a ${clienteTransaccion?.nombre || 'este cliente'}?\n\nPresiona "Confirmar" para continuar o "Cancelar" para ingresar el monto.`
-      );
-      if (!confirmar) return;
-    }
 
     const faltanteNeto = Math.max(0, totalNetoACobrar - pagadoNum);
 
     if (faltanteNeto > 0) {
-        setModalConfirmarFiado(true);
+      if (!clienteTransaccion) {
+        toast.error("Selecciona un cliente arriba para poder registrar una venta fiada.");
         return;
+      }
+      setModalConfirmarFiado(true);
+      return;
     }
     ejecutarVentaFinal();
   };
@@ -1083,7 +1080,7 @@ function VenderContenido() {
 
       const pagadoRaw = pagoCliente.replace(/\D/g, '');
       const pagadoNum = pagadoRaw === "" 
-        ? (metodoPago !== 'efectivo' ? totalNetoACobrar : (totalNetoACobrar === 0 ? 0 : 0)) 
+        ? totalNetoACobrar 
         : parseFloat(pagadoRaw);
 
       const efectivoRealRecibido = pagadoNum >= totalNetoACobrar ? totalNetoACobrar : pagadoNum;
@@ -1265,9 +1262,9 @@ function VenderContenido() {
         cargarDatosDePestana(siguiente);
       }
       
-    } catch (error) { 
-      console.error(error);
-      toast.error("Error al procesar la venta."); 
+    } catch (error: any) { 
+      console.error("Error al procesar la venta:", error);
+      toast.error(error?.message || "Error al procesar la venta."); 
     } finally {
       isSubmittingVentaRef.current = false;
       setGuardandoVenta(false);
@@ -1303,7 +1300,7 @@ function VenderContenido() {
       detalleTexto += `*Subtotal:* $${dSubtotal.toLocaleString('es-CO')}\n*Descuento (${dTipo === 'porcentaje' ? `${dValor}%` : `$${Number(dValor).toLocaleString('es-CO')}`}):* -$${dMonto.toLocaleString('es-CO')}\n*TOTAL A PAGAR:* $${dTotal.toLocaleString('es-CO')}\n\n`;
     }
 
-    const nombreDestino = cliente.id === "mostrador" || !cliente.nombre ? "Cliente" : cliente.nombre;
+    const nombreDestino = !cliente || cliente.id === "mostrador" || !cliente.nombre ? "Cliente" : cliente.nombre;
     const pagadoNum = modalExito?.pagadoNum !== undefined ? modalExito.pagadoNum : (() => {
       const pagadoRaw = pagoCliente.replace(/\D/g, '');
       return pagadoRaw === "" ? 0 : parseFloat(pagadoRaw);
@@ -1311,7 +1308,7 @@ function VenderContenido() {
     const saldoVentaActual = Math.max(dTotal - pagadoNum, 0);
     const faltante = dTotal - pagadoNum;
     const devuelta = pagadoNum > dTotal ? pagadoNum - dTotal : 0;
-    const deudaAnteriorPendiente = typeof deudaPreviaOriginal === 'number' ? deudaPreviaOriginal : (Number(cliente.deudaTotal) || 0);
+    const deudaAnteriorPendiente = typeof deudaPreviaOriginal === 'number' ? deudaPreviaOriginal : (Number(cliente?.deudaTotal) || 0);
     const deudaTotalActual = deudaAnteriorPendiente + saldoVentaActual;
     const encabezadoTitulo = faltante > 0 ? 'COMPROBANTE DE FIADO' : 'COMPROBANTE DE VENTA';
 
@@ -2757,7 +2754,7 @@ Estamos atentos para cualquier consulta.
             <div className="mb-8 text-slate-500 dark:text-slate-400 text-base flex flex-col gap-2">
               <p>Total de compra: <strong className="text-slate-800 dark:text-slate-200">${modalExito.montoTotal.toLocaleString('es-CO')}</strong>.</p>
               {(modalExito.devuelta || 0) > 0 && <p className="text-emerald-600 font-bold bg-emerald-50 dark:bg-emerald-500/20 dark:text-emerald-400 p-2 rounded-lg mt-2">Entregar devuelta: ${modalExito.devuelta?.toLocaleString('es-CO')}</p>}
-              {(modalExito.fiadoAdicional || 0) > 0 && <p className="text-rose-600 font-bold bg-rose-50 dark:bg-rose-500/20 dark:text-rose-400 p-2 rounded-lg mt-2">Saldo fiado a {modalExito.cliente.nombre}: ${modalExito.fiadoAdicional?.toLocaleString('es-CO')}</p>}
+              {(modalExito.fiadoAdicional || 0) > 0 && <p className="text-rose-600 font-bold bg-rose-50 dark:bg-rose-500/20 dark:text-rose-400 p-2 rounded-lg mt-2">Saldo fiado {modalExito.cliente?.nombre ? `a ${modalExito.cliente.nombre}` : ''}: ${modalExito.fiadoAdicional?.toLocaleString('es-CO')}</p>}
             </div>
             
             {modalExito.ticketDatos && (
