@@ -1,4 +1,4 @@
-﻿// lib/firebase-admin.ts
+// lib/firebase-admin.ts
 // Singleton seguro para inicializar Firebase Admin SDK en Next.js (App Router y Route Handlers)
 
 import { initializeApp, getApps, cert, App } from 'firebase-admin/app';
@@ -37,6 +37,7 @@ export function getAdminApp(): App {
 export function getAdminDb(): Firestore {
   if (!adminDb) {
     adminDb = getFirestore(getAdminApp());
+    adminDb.settings({ ignoreUndefinedProperties: true });
   }
   return adminDb;
 }

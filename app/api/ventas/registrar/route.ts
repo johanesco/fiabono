@@ -8,8 +8,19 @@ function numeroValido(value: unknown, minimo = 0) {
   return Number.isFinite(numero) && numero >= minimo;
 }
 
-function quitarUndefined<T extends Record<string, any>>(data: T): T {
-  return Object.fromEntries(Object.entries(data).filter(([, value]) => value !== undefined)) as T;
+function quitarUndefined<T>(data: T): T {
+  if (data === null || data === undefined) return data;
+  if (Array.isArray(data)) {
+    return data.map(quitarUndefined) as unknown as T;
+  }
+  if (typeof data === 'object' && !(data instanceof Date)) {
+    return Object.fromEntries(
+      Object.entries(data)
+        .filter(([, value]) => value !== undefined)
+        .map(([key, value]) => [key, quitarUndefined(value)])
+    ) as unknown as T;
+  }
+  return data;
 }
 
 export async function POST(request: Request) {
@@ -118,14 +129,18 @@ export async function POST(request: Request) {
           : precioRecibido;
         if (!Number.isFinite(precioUnitario) || precioUnitario < 0) throw new Error('DETALLE_INVALIDO');
 
-        return {
-          ...detalle,
-          productoId: productoId || undefined,
+        const itemLimpiado: Record<string, any> = {
           cantidad,
           valorUnitario: precioUnitario,
           valor: precioUnitario * cantidad,
-          costoUnitario: producto ? Number(producto.data.costoCompra || 0) : Number(detalle.costoUnitario || 0)
+          costoUnitario: producto ? Number(producto.data.costoCompra || 0) : Number(detalle?.costoUnitario || 0)
         };
+        if (productoId) itemLimpiado.productoId = productoId;
+        if (detalle?.descripcion) itemLimpiado.descripcion = String(detalle.descripcion).trim();
+        if (detalle?.categoria) itemLimpiado.categoria = String(detalle.categoria).trim();
+        if (detalle?.unidadMedida) itemLimpiado.unidadMedida = String(detalle.unidadMedida).trim();
+        if (detalle?.codigoBarras) itemLimpiado.codigoBarras = String(detalle.codigoBarras).trim();
+        return itemLimpiado;
       });
 
       const subtotalBruto = detallesValidados.reduce((total: number, detalle: any) => total + detalle.valor, 0);
@@ -238,6 +253,6 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: mensajes[error.message] }, { status: 409 });
     }
     console.error('Error registrando venta:', error);
-    return NextResponse.json({ error: 'No se pudo registrar la venta.' }, { status: 500 });
+    return NextResponse.json({ error: error?.message || 'No se pudo registrar la venta.' }, { status: 500 });
   }
 }
