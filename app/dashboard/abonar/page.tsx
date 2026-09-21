@@ -306,7 +306,10 @@ function AbonarContenido() {
       const metodoPagoLabel = labelsMetodos[metodoPago] || 'Efectivo';
 
       const token = await auth.currentUser?.getIdToken();
-      if (!token) throw new Error('Sesión inválida.');
+      if (!token) {
+        toast.error('Sesión inválida. Por favor, inicia sesión de nuevo.');
+        return;
+      }
       const respuesta = await fetch('/api/movimientos/registrar', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
@@ -321,7 +324,10 @@ function AbonarContenido() {
         })
       });
       const datosAbono = await respuesta.json();
-      if (!respuesta.ok) throw new Error(datosAbono.error || 'No se pudo registrar el abono.');
+      if (!respuesta.ok) {
+        toast.error(datosAbono.error || 'No se pudo registrar el abono.');
+        return;
+      }
 
       reproducirSonidoExito();
 
@@ -362,9 +368,9 @@ function AbonarContenido() {
         esSepare: false
       });
       
-    } catch (error) { 
+    } catch (error: any) { 
       console.error(error);
-      toast.error("Error al guardar abono."); 
+      toast.error(error?.message || "Error al guardar abono."); 
     } finally {
       isSubmittingAbonoRef.current = false;
       setGuardandoAbono(false);

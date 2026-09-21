@@ -4,6 +4,21 @@ import { getAdminAuth, getAdminDb } from '@/lib/firebase-admin';
 const TIPOS_PERMITIDOS = new Set(['abono', 'egreso']);
 const METODOS_PERMITIDOS = new Set(['efectivo', 'transferencia', 'datafono', 'credito_externo', 'ajuste_contable']);
 
+function quitarUndefined<T>(data: T): T {
+  if (data === null || data === undefined) return data;
+  if (Array.isArray(data)) {
+    return data.map(quitarUndefined) as unknown as T;
+  }
+  if (typeof data === 'object' && !(data instanceof Date)) {
+    return Object.fromEntries(
+      Object.entries(data)
+        .filter(([, value]) => value !== undefined)
+        .map(([key, value]) => [key, quitarUndefined(value)])
+    ) as unknown as T;
+  }
+  return data;
+}
+
 export async function POST(request: Request) {
   try {
     const authHeader = request.headers.get('authorization') || request.headers.get('Authorization');
@@ -71,7 +86,7 @@ export async function POST(request: Request) {
         });
       }
 
-      transaction.create(movimientoRef, {
+      transaction.create(movimientoRef, quitarUndefined({
         usuarioId: cuentaPrincipalId,
         clienteId,
         clienteNombre: clienteData.nombre || 'Cliente',
@@ -88,7 +103,7 @@ export async function POST(request: Request) {
         detalles: [],
         esPublico: body.esPublico === true,
         saldoResultante: tipo === 'abono' ? nuevoSaldo : undefined
-      });
+      }));
 
       return { movimientoId: movimientoRef.id, nuevoSaldo };
     });
@@ -102,6 +117,6 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'El saldo actual del cliente no es válido.' }, { status: 409 });
     }
     console.error('Error registrando movimiento:', error);
-    return NextResponse.json({ error: 'No se pudo registrar el movimiento.' }, { status: 500 });
+    return NextResponse.json({ error: error?.message || 'No se pudo registrar el movimiento.' }, { status: 500 });
   }
 }
