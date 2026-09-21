@@ -110,6 +110,10 @@ function VenderContenido() {
     tipoDescuento?: 'porcentaje' | 'fijo';
     valorDescuento?: string;
     pagadoNum?: number;
+    montoSaldoFavorAplicado?: number;
+    totalNetoACobrar?: number;
+    saldoFavorRestante?: number;
+    metodoPago?: string;
   } | null>(null);
   const [modalTicketFactura, setModalTicketFactura] = useState<{ visible: boolean; datos: any | null }>({ visible: false, datos: null });
   const [guardandoVenta, setGuardandoVenta] = useState(false);
@@ -1199,12 +1203,12 @@ function VenderContenido() {
         celularCliente: clienteTransaccion ? (clienteTransaccion.celular || "") : "",
         registradoPor: nombreUsuario || "Vendedor",
         fecha: new Date(),
-        tipo: (pagadoRaw !== "" && pagadoNum === 0 && totalFilasRegistro > 0) ? 'fiado' : 'venta',
+        tipo: (pagadoRaw !== "" && pagadoNum === 0 && totalNetoACobrar > 0 && montoSaldoFavorAplicado === 0) ? 'fiado' : 'venta',
         detalles: detallesParaComprobante,
         descripcionGeneral: descripcionUnificada,
         montoTotal: totalFilasRegistro,
         pagoRecibido: pagadoNum,
-        devuelta: Math.max(pagadoNum - totalFilasRegistro, 0),
+        devuelta: Math.max(pagadoNum - totalNetoACobrar, 0),
         saldoAnterior: clienteTransaccion ? deudaAnteriorPendiente : undefined,
         saldoNuevo: clienteTransaccion ? saldoFinalCliente : undefined,
         idTransaccion: idTransaccionVenta,
@@ -1217,7 +1221,8 @@ function VenderContenido() {
         montoBruto: subtotalBruto,
         descuentoTipo: mostrarDescuento && montoDescuentoTotal > 0 ? tipoDescuento : null,
         descuentoValor: mostrarDescuento && montoDescuentoTotal > 0 ? (tipoDescuento === 'porcentaje' ? Number(valorDescuento) : montoDescuentoTotal) : undefined,
-        montoDescuento: montoDescuentoTotal > 0 ? montoDescuentoTotal : undefined
+        montoDescuento: montoDescuentoTotal > 0 ? montoDescuentoTotal : undefined,
+        saldoFavorAplicado: montoSaldoFavorAplicado > 0 ? montoSaldoFavorAplicado : undefined
       };
 
       const faltanteReal = Math.max(totalNetoACobrar - pagadoNum, 0);
@@ -1235,7 +1240,11 @@ function VenderContenido() {
         montoDescuentoTotal,
         tipoDescuento,
         valorDescuento,
-        pagadoNum
+        pagadoNum,
+        montoSaldoFavorAplicado,
+        totalNetoACobrar,
+        saldoFavorRestante,
+        metodoPago
       });
 
       // Limpiar formulario y persistir de inmediato para que la próxima venta sea nueva y limpia
@@ -1292,7 +1301,7 @@ function VenderContenido() {
     filasValidas.forEach(f => {
       const unitario = parseFloat(f.valor);
       const subtotal = unitario * f.cantidad;
-      const desc = f.descripcion.trim() || "Articulo";
+      const desc = f.descripcion.trim() || "Artículo";
       detalleTexto += `- ${f.cantidad}x ${desc}\n  Precio unitario: *$${unitario.toLocaleString('es-CO')}*\n  Total: *$${subtotal.toLocaleString('es-CO')}*\n\n`;
     });
 
@@ -1301,39 +1310,70 @@ function VenderContenido() {
     const dTipo = modalExito?.tipoDescuento ?? tipoDescuento;
     const dValor = modalExito?.valorDescuento ?? valorDescuento;
     const dTotal = modalExito?.montoTotal ?? totalFilasRegistro;
+    const saldoFavorAplicado = modalExito?.montoSaldoFavorAplicado ?? (usarSaldoFavor && montoSaldoFavorAplicado > 0 ? montoSaldoFavorAplicado : 0);
+    const netoACobrar = modalExito?.totalNetoACobrar !== undefined ? modalExito.totalNetoACobrar : Math.max(0, dTotal - saldoFavorAplicado);
 
-    if (dMonto > 0) {
-      detalleTexto += `*Subtotal:* $${dSubtotal.toLocaleString('es-CO')}\n*Descuento (${dTipo === 'porcentaje' ? `${dValor}%` : `$${Number(dValor).toLocaleString('es-CO')}`}):* -$${dMonto.toLocaleString('es-CO')}\n*TOTAL A PAGAR:* $${dTotal.toLocaleString('es-CO')}\n\n`;
-    }
-
-    const nombreDestino = !cliente || cliente.id === "mostrador" || !cliente.nombre ? "Cliente" : cliente.nombre;
     const pagadoNum = modalExito?.pagadoNum !== undefined ? modalExito.pagadoNum : (() => {
       const pagadoRaw = pagoCliente.replace(/\D/g, '');
-      return pagadoRaw === "" ? 0 : parseFloat(pagadoRaw);
+      return pagadoRaw === "" ? netoACobrar : parseFloat(pagadoRaw);
     })();
-    const saldoVentaActual = Math.max(dTotal - pagadoNum, 0);
-    const faltante = dTotal - pagadoNum;
-    const devuelta = pagadoNum > dTotal ? pagadoNum - dTotal : 0;
-    const deudaAnteriorPendiente = typeof deudaPreviaOriginal === 'number' ? deudaPreviaOriginal : (Number(cliente?.deudaTotal) || 0);
-    const deudaTotalActual = deudaAnteriorPendiente + saldoVentaActual;
-    const encabezadoTitulo = faltante > 0 ? 'COMPROBANTE DE FIADO' : 'COMPROBANTE DE VENTA';
 
-    let infoExtra = "";
-    if (faltante > 0) {
-       const abonoAplicado = Math.min(pagadoNum, dTotal);
-       const saldoFiadoEsteCredito = Math.max(dTotal - abonoAplicado, 0);
-       const txtSaldo = deudaTotalActual < 0 ? `A favor: $${Math.abs(deudaTotalActual).toLocaleString('es-CO')}` : `Pendiente: $${deudaTotalActual.toLocaleString('es-CO')}`;
-       infoExtra = `\n*TOTAL DE ESTE FIADO:* $${saldoFiadoEsteCredito.toLocaleString('es-CO')}\n\n*Saldo en cuenta: ${txtSaldo}*`;
-    } else if (devuelta > 0) {
-       infoExtra = `\n*Monto recibido:* $${pagadoNum.toLocaleString('es-CO')}\n*Cambio:* $${devuelta.toLocaleString('es-CO')}`;
-    } else {
-       infoExtra = '\n*Pago completo.*';
+    const faltante = Math.max(0, netoACobrar - pagadoNum);
+    const devuelta = pagadoNum > netoACobrar ? pagadoNum - netoACobrar : 0;
+
+    // Saldo final real del cliente
+    const deudaFinal = cliente?.deudaTotal !== undefined 
+      ? Number(cliente.deudaTotal) 
+      : (modalExito?.cliente?.deudaTotal !== undefined ? Number(modalExito.cliente.deudaTotal) : 0);
+
+    // Tipo de comprobante
+    let encabezadoTitulo = 'COMPROBANTE DE VENTA';
+    if (netoACobrar > 0 && pagadoNum === 0 && saldoFavorAplicado === 0) {
+      encabezadoTitulo = 'COMPROBANTE DE FIADO';
+    } else if (faltante > 0) {
+      encabezadoTitulo = 'COMPROBANTE DE VENTA Y CRÉDITO';
     }
 
-    // Agregar nota de saldo a favor o pendiente si es distinto de cero y no se imprimió antes
-    if (faltante <= 0 && deudaTotalActual !== 0) {
-      const txtSaldo = deudaTotalActual < 0 ? `A favor: $${Math.abs(deudaTotalActual).toLocaleString('es-CO')}` : `Pendiente: $${deudaTotalActual.toLocaleString('es-CO')}`;
-      infoExtra += `\n\n*Saldo en cuenta: ${txtSaldo}*`;
+    // Bloque financiero
+    let bloqueFinanciero = "";
+    if (dMonto > 0) {
+      bloqueFinanciero += `*Subtotal:* $${dSubtotal.toLocaleString('es-CO')}\n`;
+      bloqueFinanciero += `*Descuento (${dTipo === 'porcentaje' ? `${dValor}%` : `$${Number(dValor).toLocaleString('es-CO')}`}):* -$${dMonto.toLocaleString('es-CO')}\n`;
+      bloqueFinanciero += `*Total venta:* $${dTotal.toLocaleString('es-CO')}\n`;
+    } else {
+      bloqueFinanciero += `*Total venta:* $${dTotal.toLocaleString('es-CO')}\n`;
+    }
+
+    if (saldoFavorAplicado > 0) {
+      bloqueFinanciero += `*Saldo a favor aplicado:* -$${saldoFavorAplicado.toLocaleString('es-CO')}\n`;
+      bloqueFinanciero += `*Neto a pagar en caja:* $${netoACobrar.toLocaleString('es-CO')}\n`;
+    }
+
+    // Bloque de pago en caja
+    let bloquePago = "";
+    const mPago = modalExito?.metodoPago ?? metodoPago;
+    const nombreMetodo = mPago === 'efectivo' ? 'Efectivo' : mPago === 'transferencia' ? 'Transferencia' : mPago === 'datafono' ? 'Datáfono' : mPago === 'credito_externo' ? 'Crédito externo' : mPago;
+
+    if (netoACobrar === 0 && saldoFavorAplicado > 0) {
+      bloquePago = `*Pagado con:* Saldo a favor (100% cubierto)`;
+    } else if (faltante > 0) {
+      bloquePago = `*Pagado en caja:* $${pagadoNum.toLocaleString('es-CO')} (${nombreMetodo})\n*Saldo restante fiado:* $${faltante.toLocaleString('es-CO')}`;
+    } else if (devuelta > 0) {
+      bloquePago = `*Monto recibido:* $${pagadoNum.toLocaleString('es-CO')} (${nombreMetodo})\n*Cambio / Devuelta:* $${devuelta.toLocaleString('es-CO')}`;
+    } else {
+      bloquePago = `*Pagado en caja:* $${pagadoNum.toLocaleString('es-CO')} (${nombreMetodo}) — Pago completo`;
+    }
+
+    // Estado de cuenta del cliente
+    let estadoCuenta = "";
+    if (cliente && cliente.id !== "mostrador") {
+      if (deudaFinal === 0) {
+        estadoCuenta = "\n\n*Estado de cuenta:* Al día ($0)";
+      } else if (deudaFinal < 0) {
+        estadoCuenta = `\n\n*Estado de cuenta:* Saldo a favor: $${Math.abs(deudaFinal).toLocaleString('es-CO')}`;
+      } else {
+        estadoCuenta = `\n\n*Estado de cuenta:* Saldo pendiente: $${deudaFinal.toLocaleString('es-CO')}`;
+      }
     }
 
     const idTransaccion = modalExito?.ticketDatos?.idTransaccion;
@@ -1341,6 +1381,8 @@ function VenderContenido() {
     if (idTransaccion && typeof window !== 'undefined') {
       enlaceTexto = `\n\n*Ver o descargar comprobante digital:*\n${window.location.origin}/t/${idTransaccion}`;
     }
+
+    const nombreDestino = !cliente || cliente.id === "mostrador" || !cliente.nombre ? "Cliente" : cliente.nombre;
 
     const texto = `¡Hola, *${nombreDestino}*! Gracias por tu compra en *${nombreNegocio || 'nuestra tienda'}*.
 
@@ -1350,8 +1392,8 @@ function VenderContenido() {
 
 ${detalleTexto.trim()}
 
-*TOTAL: $${dTotal.toLocaleString('es-CO')}*
-${infoExtra.trim()}${enlaceTexto}
+${bloqueFinanciero.trim()}
+${bloquePago.trim()}${estadoCuenta}${enlaceTexto}
 
 Gracias por tu compra.
 Estamos atentos para cualquier consulta.
@@ -1359,7 +1401,7 @@ Estamos atentos para cualquier consulta.
 *¡Te esperamos pronto!*`;
 
     const celularLimpio = cliente?.celular ? cliente.celular.replace(/\D/g, '') : '';
-    abrirEnlaceWhatsApp(celularLimpio, agregarMediosPagoAlEstado(texto, datosSesion?.mediosPago, nombreNegocio || 'nuestra tienda', deudaTotalActual));
+    abrirEnlaceWhatsApp(celularLimpio, agregarMediosPagoAlEstado(texto, datosSesion?.mediosPago, nombreNegocio || 'nuestra tienda', deudaFinal));
   };
 
   const handleScrollContenedor = () => {

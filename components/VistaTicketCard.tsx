@@ -419,6 +419,23 @@ export default function VistaTicketCard({ datos, ticketRef }: VistaTicketCardPro
             </span>
           </div>
 
+          {/* Saldo a favor aplicado */}
+          {datos.saldoFavorAplicado !== undefined && datos.saldoFavorAplicado > 0 && (
+            <>
+              <FilaMeta
+                label="Saldo a favor aplicado:"
+                valor={`-$${datos.saldoFavorAplicado.toLocaleString("es-CO")}`}
+                colorValor="text-slate-900 font-bold"
+              />
+              <FilaMeta
+                label="Neto cobrado en caja:"
+                valor={`$${Math.max(0, (datos.montoTotal || 0) - datos.saldoFavorAplicado).toLocaleString("es-CO")}`}
+                negrita
+              />
+              <SeccionDivider tipo="suave" />
+            </>
+          )}
+
           {/* Método de pago */}
           {metodoPago && (
             <>

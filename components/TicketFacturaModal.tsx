@@ -47,6 +47,7 @@ export interface DatosFacturaProps {
   descuentoTipo?: 'porcentaje' | 'fijo' | null;
   descuentoValor?: number;
   montoDescuento?: number;
+  saldoFavorAplicado?: number;
 }
 
 interface TicketFacturaModalProps {
