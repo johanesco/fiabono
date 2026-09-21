@@ -290,7 +290,7 @@ Estamos atentos para cualquier consulta.`;
 
       if (saldoFavorAplicado > 0) {
         bloqueFinanciero += `*Saldo a favor aplicado:* -$${saldoFavorAplicado.toLocaleString('es-CO')}\n`;
-        bloqueFinanciero += `*Neto a pagar en caja:* $${netoCobrado.toLocaleString('es-CO')}\n`;
+        bloqueFinanciero += `*Total a pagar en caja:* $${netoCobrado.toLocaleString('es-CO')}\n`;
       }
 
       let infoExtra = "";

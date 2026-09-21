@@ -1346,7 +1346,7 @@ function VenderContenido() {
 
     if (saldoFavorAplicado > 0) {
       bloqueFinanciero += `*Saldo a favor aplicado:* -$${saldoFavorAplicado.toLocaleString('es-CO')}\n`;
-      bloqueFinanciero += `*Neto a pagar en caja:* $${netoACobrar.toLocaleString('es-CO')}\n`;
+      bloqueFinanciero += `*Total a pagar en caja:* $${netoACobrar.toLocaleString('es-CO')}\n`;
     }
 
     // Bloque de pago en caja

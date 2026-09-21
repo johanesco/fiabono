@@ -409,10 +409,10 @@ export default function VistaTicketCard({ datos, ticketRef }: VistaTicketCardPro
               </>
             )}
 
-          {/* TOTAL — destacado con recuadro negro sólido */}
+          {/* TOTAL / TOTAL VENTA — destacado con recuadro negro sólido */}
           <div className="flex justify-between items-center bg-slate-900 text-white rounded-lg px-3 py-2 mt-1.5 mb-1">
             <span className="text-[12px] font-black uppercase tracking-wider">
-              TOTAL
+              {datos.saldoFavorAplicado !== undefined && datos.saldoFavorAplicado > 0 ? "TOTAL VENTA" : "TOTAL"}
             </span>
             <span className="text-base font-black font-mono">
               ${(datos.montoTotal || 0).toLocaleString("es-CO")}
@@ -427,11 +427,14 @@ export default function VistaTicketCard({ datos, ticketRef }: VistaTicketCardPro
                 valor={`-$${datos.saldoFavorAplicado.toLocaleString("es-CO")}`}
                 colorValor="text-slate-900 font-bold"
               />
-              <FilaMeta
-                label="Neto cobrado en caja:"
-                valor={`$${Math.max(0, (datos.montoTotal || 0) - datos.saldoFavorAplicado).toLocaleString("es-CO")}`}
-                negrita
-              />
+              <div className="flex justify-between items-baseline gap-1 py-1 border-t border-b border-dashed border-slate-900 my-0.5">
+                <span className="text-[11px] font-black uppercase text-slate-900 shrink-0">
+                  Total a pagar en caja:
+                </span>
+                <span className="text-[12.5px] text-right font-mono font-black text-slate-900">
+                  ${Math.max(0, (datos.montoTotal || 0) - datos.saldoFavorAplicado).toLocaleString("es-CO")}
+                </span>
+              </div>
               <SeccionDivider tipo="suave" />
             </>
           )}
