@@ -1695,11 +1695,11 @@ Estamos atentos para cualquier consulta.
               </p>
             </div>
           </div>
-        ) : metodoPago === 'efectivo' ? (
-          <div className="flex flex-col bg-white dark:bg-[#0f172a] p-2 rounded-xl border-2 border-emerald-500 dark:border-emerald-400 shadow-xs gap-1">
+        ) : (
+          <div className="flex flex-col bg-white dark:bg-[#0f172a] p-2 rounded-xl border-2 border-emerald-500 dark:border-emerald-400 shadow-xs gap-1 sm:gap-1.5">
             <div className="flex justify-between items-center">
               <label className="text-[10px] font-black uppercase tracking-wider text-emerald-800 dark:text-emerald-300 flex items-center gap-1.5">
-                <Banknote size={13} /> 3. ¿Cuánto dinero en efectivo entrega?
+                <Banknote size={13} /> 3. ¿Con cuánto paga el cliente?
               </label>
               {pagoCliente ? (
                 <span className="text-[9px] sm:text-[9.5px] font-black bg-emerald-600 text-white px-2 py-0.5 rounded-md shadow-2xs">
@@ -1720,7 +1720,7 @@ Estamos atentos para cualquier consulta.
                   inputMode="decimal" pattern="[0-9]*"
                   value={pagoCliente}
                   onChange={(e) => setPagoCliente(formatearMonedaInput(e.target.value))}
-                  placeholder="Valor recibido"
+                  placeholder="0"
                   className="w-full pl-7 pr-2 py-1.5 bg-slate-50 dark:bg-[#020617] border-2 border-emerald-500 dark:border-emerald-400 rounded-xl outline-none font-black text-sm sm:text-base text-slate-900 dark:!text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 placeholder:text-xs placeholder:font-normal focus:ring-2 focus:ring-emerald-400/30"
                 />
               </div>
@@ -1738,84 +1738,43 @@ Estamos atentos para cualquier consulta.
               </button>
             </div>
 
-            {/* Chips de billetes rápidos en efectivo */}
-            <div className="flex items-center gap-1 sm:gap-1.5 pt-0.5">
-              {[10000, 20000, 50000, 100000].map(billete => (
-                <button
-                  key={billete}
-                  type="button"
-                  onClick={() => {
-                    const actual = parseFloat(pagoCliente.replace(/\D/g, '')) || 0;
-                    const nuevo = actual > 0 ? actual + billete : billete;
-                    setPagoCliente(nuevo.toLocaleString('es-CO'));
-                  }}
-                  className="flex-1 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 text-slate-700 dark:text-slate-300 font-bold text-[10px] sm:text-[10.5px] border border-slate-200 dark:border-slate-700 active:scale-95 transition-all cursor-pointer"
-                >
-                  +${billete / 1000}k
-                </button>
-              ))}
-            </div>
+            {/* Chips de billetes rápidos SOLO en efectivo */}
+            {metodoPago === 'efectivo' && (
+              <div className="flex items-center gap-1 sm:gap-1.5 pt-0.5">
+                {[10000, 20000, 50000, 100000].map(billete => (
+                  <button
+                    key={billete}
+                    type="button"
+                    onClick={() => {
+                      const actual = parseFloat(pagoCliente.replace(/\D/g, '')) || 0;
+                      const nuevo = actual > 0 ? actual + billete : billete;
+                      setPagoCliente(nuevo.toLocaleString('es-CO'));
+                    }}
+                    className="flex-1 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 text-slate-700 dark:text-slate-300 font-bold text-[10px] sm:text-[10.5px] border border-slate-200 dark:border-slate-700 active:scale-95 transition-all cursor-pointer"
+                  >
+                    +${billete / 1000}k
+                  </button>
+                ))}
+              </div>
+            )}
 
-            {/* Devuelta SOLO si entregó de más */}
-            {pagoCliente && pagadoNum > totalNetoACobrar && totalNetoACobrar > 0 && (
-              <div className="px-2.5 py-1.5 bg-emerald-100 dark:bg-emerald-500/20 text-emerald-800 dark:text-emerald-300 rounded-xl flex justify-between items-center animate-in zoom-in-95 duration-150 border border-emerald-300 dark:border-emerald-700/50">
-                <span className="text-[10px] uppercase font-black tracking-wider">Devuelta a entregar:</span>
-                <span className="text-base font-black font-mono">${(pagadoNum - totalNetoACobrar).toLocaleString('es-CO')}</span>
+            {/* Devuelta / Cambio a entregar si el cliente da más o exacto */}
+            {pagoCliente && pagadoNum >= totalNetoACobrar && totalNetoACobrar > 0 && (
+              <div className={`px-2.5 py-1.5 rounded-xl flex justify-between items-center animate-in zoom-in-95 duration-150 border ${
+                pagadoNum > totalNetoACobrar
+                  ? 'bg-emerald-100 dark:bg-emerald-500/25 text-emerald-900 dark:text-emerald-100 border-emerald-400 dark:border-emerald-600 shadow-xs ring-1 ring-emerald-400/40'
+                  : 'bg-slate-100 dark:bg-slate-800/70 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700'
+              }`}>
+                <span className="text-[10.5px] uppercase font-black tracking-wider flex items-center gap-1">
+                  💰 {pagadoNum > totalNetoACobrar ? 'Devuelta a entregar:' : 'Devuelta / Cambio:'}
+                </span>
+                <span className={`font-black font-mono ${pagadoNum > totalNetoACobrar ? 'text-base sm:text-lg text-emerald-800 dark:text-emerald-200' : 'text-xs text-slate-600 dark:text-slate-400'}`}>
+                  ${(pagadoNum - totalNetoACobrar).toLocaleString('es-CO')} {pagadoNum === totalNetoACobrar ? '(Exacto)' : ''}
+                </span>
               </div>
             )}
 
             {/* Saldo a Fiar si pagó de menos */}
-            {pagoCliente !== "" && pagadoNum < totalNetoACobrar && totalNetoACobrar > 0 && (
-              <div className="p-2 bg-rose-50 dark:bg-rose-950/30 border border-rose-300 dark:border-rose-800 rounded-xl flex flex-col gap-0.5 text-rose-800 dark:text-rose-300">
-                <div className="flex justify-between items-center">
-                  <span className="text-[10px] uppercase font-black tracking-wider">Saldo restante a fiar:</span>
-                  <span className="text-sm font-black font-mono text-rose-600 dark:text-rose-400">
-                    ${(totalNetoACobrar - pagadoNum).toLocaleString('es-CO')}
-                  </span>
-                </div>
-                {!clienteTransaccion && (
-                  <p className="text-[9.5px] text-rose-600 dark:text-rose-400 font-bold italic">
-                    ⚠️ Selecciona un cliente arriba para poder fiar la diferencia.
-                  </p>
-                )}
-              </div>
-            )}
-          </div>
-        ) : (
-          /* MÉTODOS ELECTRÓNICOS / CRÉDITO: ULTRA COMPACTO, SIN DEVUELTA INÚTIL */
-          <div className="flex flex-col bg-white dark:bg-[#0f172a] p-2 rounded-xl border-2 border-emerald-500/80 dark:border-emerald-400/80 shadow-xs gap-1">
-            <div className="flex justify-between items-center">
-              <label className="text-[10px] font-black uppercase tracking-wider text-emerald-800 dark:text-emerald-300 flex items-center gap-1.5">
-                <CheckCircle2 size={13} /> 3. Monto a Registrar
-              </label>
-              <span className="text-[9px] sm:text-[9.5px] font-black bg-emerald-600 text-white px-2 py-0.5 rounded-md shadow-2xs">
-                ✓ Completo
-              </span>
-            </div>
-
-            <div className="flex items-center gap-1.5 sm:gap-2">
-              <div className="relative flex-1">
-                <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-emerald-600 font-black text-sm">$</span>
-                <input
-                  type="text"
-                  inputMode="decimal" pattern="[0-9]*"
-                  value={pagoCliente}
-                  onChange={(e) => setPagoCliente(formatearMonedaInput(e.target.value))}
-                  placeholder="Monto pagado"
-                  className="w-full pl-7 pr-2 py-1.5 bg-slate-50 dark:bg-[#020617] border border-emerald-500 dark:border-emerald-400 rounded-xl outline-none font-black text-sm text-slate-900 dark:!text-white placeholder:text-slate-400 focus:ring-1 focus:ring-emerald-400/30"
-                />
-              </div>
-              <button
-                type="button"
-                onClick={() => setPagoCliente(totalNetoACobrar.toLocaleString('es-CO'))}
-                className="px-2.5 sm:px-3 py-1.5 rounded-xl font-black text-xs bg-emerald-500 hover:bg-emerald-600 text-white border border-emerald-600 active:scale-95 transition-all cursor-pointer whitespace-nowrap"
-                title="Restablecer monto total"
-              >
-                ✓ Exacto
-              </button>
-            </div>
-
-            {/* Saldo a Fiar si pagó de menos por transferencia/tarjeta */}
             {pagoCliente !== "" && pagadoNum < totalNetoACobrar && totalNetoACobrar > 0 && (
               <div className="p-2 bg-rose-50 dark:bg-rose-950/30 border border-rose-300 dark:border-rose-800 rounded-xl flex flex-col gap-0.5 text-rose-800 dark:text-rose-300">
                 <div className="flex justify-between items-center">
@@ -2406,36 +2365,37 @@ Estamos atentos para cualquier consulta.
 
           {/* FOOTER FIJO EN SIDEBAR DESKTOP */}
           <div className="flex flex-col bg-slate-900 dark:bg-black text-white px-3.5 py-2.5 xl:px-4 xl:py-3 shrink-0 border-t border-slate-800 z-30">
-            {/* Desglose de Descuento, IVA y Saldo a Favor */}
-            {(montoDescuentoTotal > 0 || (datosSesion?.habilitarIva && totalFilasRegistro > 0) || (usarSaldoFavor && montoSaldoFavorAplicado > 0)) && (
-              <div className="text-[10px] text-slate-400 mb-1.5 space-y-0.5 border-b border-slate-800 pb-1.5">
+            {/* Desglose de Subtotal, Descuento, Saldo a Favor e IVA */}
+            {totalFilasRegistro > 0 && (
+              <div className="text-[10.5px] text-slate-300 mb-1.5 space-y-1 border-b border-slate-800 pb-1.5">
+                <div className="flex justify-between items-center">
+                  <span className="text-slate-400">Subtotal artículos:</span>
+                  <span className="font-bold text-white font-mono">${subtotalBruto.toLocaleString('es-CO')}</span>
+                </div>
+
                 {montoDescuentoTotal > 0 && (
-                  <>
-                    <div className="flex justify-between">
-                      <span>Subtotal bruto:</span>
-                      <span className="font-bold text-slate-300">${subtotalBruto.toLocaleString('es-CO')}</span>
-                    </div>
-                    <div className="flex justify-between text-emerald-400">
-                      <span>Descuento ({tipoDescuento === 'porcentaje' ? `${valorDescuento}%` : 'Monto fijo'}):</span>
-                      <span className="font-bold">-${montoDescuentoTotal.toLocaleString('es-CO')}</span>
-                    </div>
-                  </>
-                )}
-                {usarSaldoFavor && montoSaldoFavorAplicado > 0 && (
-                  <div className="flex justify-between text-blue-400 font-bold">
-                    <span>Saldo a favor aplicado:</span>
-                    <span>-${montoSaldoFavorAplicado.toLocaleString('es-CO')}</span>
+                  <div className="flex justify-between items-center text-emerald-400 font-bold">
+                    <span>Descuento ({tipoDescuento === 'porcentaje' ? `${valorDescuento}%` : 'Monto fijo'}):</span>
+                    <span className="font-mono">-${montoDescuentoTotal.toLocaleString('es-CO')}</span>
                   </div>
                 )}
-                {datosSesion?.habilitarIva && totalFilasRegistro > 0 && (
+
+                {usarSaldoFavor && montoSaldoFavorAplicado > 0 && (
+                  <div className="flex justify-between items-center text-blue-400 font-bold">
+                    <span>Saldo a favor aplicado:</span>
+                    <span className="font-mono">-${montoSaldoFavorAplicado.toLocaleString('es-CO')}</span>
+                  </div>
+                )}
+
+                {datosSesion?.habilitarIva && (
                   <>
-                    <div className="flex justify-between">
+                    <div className="flex justify-between items-center text-[10px] text-slate-400">
                       <span>Base gravable:</span>
-                      <span className="font-bold text-white">${Math.round(totalFilasRegistro / (1 + ((datosSesion?.porcentajeIva || 19) / 100))).toLocaleString('es-CO')}</span>
+                      <span className="font-bold text-white font-mono">${Math.round(totalFilasRegistro / (1 + ((datosSesion?.porcentajeIva || 19) / 100))).toLocaleString('es-CO')}</span>
                     </div>
-                    <div className="flex justify-between">
+                    <div className="flex justify-between items-center text-[10px] text-slate-400">
                       <span>IVA ({datosSesion?.porcentajeIva || 19}%):</span>
-                      <span className="font-bold text-emerald-400">${(totalFilasRegistro - Math.round(totalFilasRegistro / (1 + ((datosSesion?.porcentajeIva || 19) / 100)))).toLocaleString('es-CO')}</span>
+                      <span className="font-bold text-emerald-400 font-mono">${(totalFilasRegistro - Math.round(totalFilasRegistro / (1 + ((datosSesion?.porcentajeIva || 19) / 100)))).toLocaleString('es-CO')}</span>
                     </div>
                   </>
                 )}
