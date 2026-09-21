@@ -247,7 +247,8 @@ export async function POST(request: Request) {
       TOTAL_NO_COINCIDE: 'El pago y el fiado no coinciden con el total calculado.'
     };
     if (error?.message?.startsWith('SIN_STOCK:')) {
-      return NextResponse.json({ error: `Sin stock suficiente de ${error.message.slice(9)}.` }, { status: 409 });
+      const nombreProd = error.message.replace(/^SIN_STOCK:/, '').trim();
+      return NextResponse.json({ error: `Sin stock suficiente de "${nombreProd}".` }, { status: 409 });
     }
     if (mensajes[error?.message]) {
       return NextResponse.json({ error: mensajes[error.message] }, { status: 409 });

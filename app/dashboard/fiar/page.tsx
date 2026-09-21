@@ -1038,7 +1038,10 @@ function FiarContenido() {
                 })
             });
             const resFiado = await respuestaFiado.json();
-            if (!respuestaFiado.ok) throw new Error(resFiado.error || 'No se pudo registrar el fiado.');
+            if (!respuestaFiado.ok) {
+                toast.error(resFiado.error || 'No se pudo registrar el fiado.');
+                return;
+            }
 
             const saldoFinal = resFiado.nuevoSaldoCliente !== undefined ? resFiado.nuevoSaldoCliente : ((clienteTransaccion.deudaTotal || 0) + faltante);
             const clienteFinalActualizado = { ...clienteTransaccion, deudaTotal: saldoFinal };

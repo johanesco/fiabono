@@ -949,15 +949,16 @@ function VenderContenido() {
 
     // Validar stock antes de enviar orden
     for (const fila of filasValidas) {
-      const item = inventario.find(p => p.nombre.toLowerCase() === fila.descripcion.toLowerCase());
+      const descTrim = fila.descripcion.toLowerCase().trim();
+      const item = inventario.find(p => p.nombre.toLowerCase().trim() === descTrim);
       const esInventariable = item && item.tipoProducto !== 'servicio' && item.inventariable !== false;
       if (esInventariable) {
         const totalRequerido = filasValidas
-          .filter(f => f.descripcion.toLowerCase() === fila.descripcion.toLowerCase())
+          .filter(f => f.descripcion.toLowerCase().trim() === descTrim)
           .reduce((sum, f) => sum + f.cantidad, 0);
 
         if (totalRequerido > (item.stock || 0)) {
-          toast.error(`¡Stock insuficiente! Para "${item.nombre}" solicitas ${totalRequerido} pero solo quedan ${item.stock || 0} disponibles.`);
+          toast.error(`⚠️ Sin existencias suficientes para "${item.nombre}". Solicitas ${totalRequerido} pero quedan ${item.stock || 0} en stock.`);
           return;
         }
       }
@@ -1023,15 +1024,16 @@ function VenderContenido() {
     if (filasValidas.length === 0) return toast.error("Ingresa al menos un monto válido en los artículos.");
 
     for (const fila of filasValidas) {
-      const item = inventario.find(p => p.nombre.toLowerCase() === fila.descripcion.toLowerCase());
+      const descTrim = fila.descripcion.toLowerCase().trim();
+      const item = inventario.find(p => p.nombre.toLowerCase().trim() === descTrim);
       const esInventariable = item && item.tipoProducto !== 'servicio' && item.inventariable !== false;
       if (esInventariable) {
         const totalRequerido = filasRegistro
-          .filter(f => f.descripcion.toLowerCase() === fila.descripcion.toLowerCase())
+          .filter(f => f.descripcion.toLowerCase().trim() === descTrim)
           .reduce((sum, f) => sum + f.cantidad, 0);
 
-        if (totalRequerido > item.stock) {
-          toast.error(`Stock superado para "${fila.descripcion}". Stock real: ${item.stock}`);
+        if (totalRequerido > (item.stock || 0)) {
+          toast.error(`⚠️ Sin existencias suficientes para "${item.nombre}". Solicitas ${totalRequerido} pero quedan ${item.stock || 0} en stock.`);
           return;
         }
       }
@@ -1064,18 +1066,19 @@ function VenderContenido() {
       const filasValidas = filasRegistro.filter(f => parseFloat(f.valor) > 0);
       
       for (const fila of filasValidas) {
-          const item = inventario.find(p => p.nombre.toLowerCase() === fila.descripcion.toLowerCase());
-          const esInventariable = item && item.tipoProducto !== 'servicio' && item.inventariable !== false;
-          if (esInventariable) {
-            const totalRequerido = filasValidas
-              .filter(f => f.descripcion.toLowerCase() === fila.descripcion.toLowerCase())
-              .reduce((sum, f) => sum + f.cantidad, 0);
+        const descTrim = fila.descripcion.toLowerCase().trim();
+        const item = inventario.find(p => p.nombre.toLowerCase().trim() === descTrim);
+        const esInventariable = item && item.tipoProducto !== 'servicio' && item.inventariable !== false;
+        if (esInventariable) {
+          const totalRequerido = filasValidas
+            .filter(f => f.descripcion.toLowerCase().trim() === descTrim)
+            .reduce((sum, f) => sum + f.cantidad, 0);
 
-            if (totalRequerido > (item.stock || 0)) {
-              toast.error(`¡Sin stock suficiente! Para "${item.nombre}" solicitas ${totalRequerido} pero solo quedan ${item.stock || 0} disponibles.`);
-              return;
-            }
+          if (totalRequerido > (item.stock || 0)) {
+            toast.error(`⚠️ Sin existencias suficientes para "${item.nombre}". Solicitas ${totalRequerido} pero quedan ${item.stock || 0} en stock.`);
+            return;
           }
+        }
       }
 
       const pagadoRaw = pagoCliente.replace(/\D/g, '');
@@ -1170,7 +1173,10 @@ function VenderContenido() {
         })
       });
       const resAtomo = await respuestaVenta.json();
-      if (!respuestaVenta.ok) throw new Error(resAtomo.error || 'No se pudo registrar la venta.');
+      if (!respuestaVenta.ok) {
+        toast.error(resAtomo.error || 'No se pudo registrar la venta.');
+        return;
+      }
 
       idTransaccionVenta = resAtomo.movimientoVentaId || resAtomo.movimientoFiadoId || "";
       let saldoFinalCliente = clienteTransaccion?.deudaTotal || 0;
