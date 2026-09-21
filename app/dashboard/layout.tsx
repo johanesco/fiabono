@@ -311,30 +311,37 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       </aside>
 
       {/* CONTENEDOR PRINCIPAL */}
-      <main className="flex-1 flex flex-col h-full relative p-0 md:p-3 lg:p-6 pb-16 md:pb-24 lg:pb-0 overflow-hidden">
-        <GlobalExpirationWarning />
-        <GlobalAnnouncements />
-        {/* Desplazamiento fluido sin solapamiento con BottomNav */}
-        <div id="dashboard-scroll-container" className="flex-1 h-full w-full overflow-y-auto flex flex-col min-h-0">
-          {children}
-        </div>
+      {(() => {
+        const esRutaVender = pathname?.includes('/dashboard/vender');
+        return (
+          <main className={`flex-1 flex flex-col h-full relative p-0 md:p-3 lg:p-6 ${esRutaVender ? 'pb-0' : 'pb-16 md:pb-24 lg:pb-0'} overflow-hidden`}>
+            <GlobalExpirationWarning />
+            <GlobalAnnouncements />
+            {/* Desplazamiento fluido sin solapamiento con BottomNav */}
+            <div id="dashboard-scroll-container" className="flex-1 h-full w-full overflow-y-auto flex flex-col min-h-0">
+              {children}
+            </div>
 
-        {/* Barra de navegación inferior móvil */}
-        <div className="lg:hidden">
-          <BottomNav 
-            puedeVerReportes={puedeVerReportes} 
-            esAdmin={esAdmin}
-            puedeAbonar={puedeAbonar}
-            ordenesPendientesCount={ordenesPendientesCount}
-            puedeSepare={puedeSepare}
-            separesActivosCount={separesActivosCount}
-            esMaster={datosSesion?.correoNegocio === 'johanescobar1@gmail.com'}
-          />
-        </div>
+            {/* Barra de navegación inferior móvil (oculta en punto de venta para aprovechar 100% de pantalla) */}
+            {!esRutaVender && (
+              <div className="lg:hidden">
+                <BottomNav 
+                  puedeVerReportes={puedeVerReportes} 
+                  esAdmin={esAdmin}
+                  puedeAbonar={puedeAbonar}
+                  ordenesPendientesCount={ordenesPendientesCount}
+                  puedeSepare={puedeSepare}
+                  separesActivosCount={separesActivosCount}
+                  esMaster={datosSesion?.correoNegocio === 'johanescobar1@gmail.com'}
+                />
+              </div>
+            )}
 
-        {/* Indicador inteligente de desplazamiento arriba/abajo */}
-        <ScrollIndicator />
-      </main>
+            {/* Indicador inteligente de desplazamiento arriba/abajo */}
+            {!esRutaVender && <ScrollIndicator />}
+          </main>
+        );
+      })()}
 
     </div>
   );

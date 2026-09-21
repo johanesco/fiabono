@@ -1407,9 +1407,9 @@ Estamos atentos para cualquier consulta.
     const pagadoNum = pagadoRaw === "" ? 0 : parseFloat(pagadoRaw);
 
     return (
-      <div className="flex flex-col gap-2.5 sm:gap-3 w-full">
+      <div className="flex flex-col gap-1.5 sm:gap-2 w-full justify-between">
         {/* 1. RECUADRO CLIENTE: ALTO CONTRASTE Y PRESENCIA VISUAL */}
-        <div className={`flex flex-col p-2.5 sm:p-3 rounded-2xl transition-all duration-200 ${
+        <div className={`flex flex-col p-2 sm:p-2.5 rounded-xl transition-all duration-200 ${
           clienteTransaccion 
             ? 'bg-emerald-50/80 dark:bg-emerald-950/30 border-2 border-emerald-500 dark:border-emerald-400 shadow-xs' 
             : 'bg-amber-50/40 dark:bg-amber-950/20 border-2 border-dashed border-amber-400 dark:border-amber-500/80 shadow-xs'
@@ -1522,17 +1522,30 @@ Estamos atentos para cualquier consulta.
                   </span>
                 </div>
               </div>
-              <button
-                type="button"
-                onClick={() => setUsarSaldoFavor(!usarSaldoFavor)}
-                className={`px-2.5 py-1 rounded-xl text-[11px] font-black transition-all cursor-pointer shadow-xs flex items-center gap-1 shrink-0 ${
-                  usarSaldoFavor
-                    ? 'bg-blue-600 text-white shadow-blue-500/20'
-                    : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-300 dark:border-slate-600'
-                }`}
-              >
-                {usarSaldoFavor ? '✓ Aplicar' : 'No usar'}
-              </button>
+              <div className="flex items-center bg-blue-200/70 dark:bg-blue-900/60 p-0.5 rounded-xl border border-blue-300 dark:border-blue-700 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => setUsarSaldoFavor(true)}
+                  className={`px-2.5 py-1 rounded-lg text-[10.5px] font-black transition-all cursor-pointer ${
+                    usarSaldoFavor
+                      ? 'bg-blue-600 text-white shadow-xs'
+                      : 'text-blue-800 dark:text-blue-300 hover:text-blue-950'
+                  }`}
+                >
+                  ✓ Usar
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setUsarSaldoFavor(false)}
+                  className={`px-2.5 py-1 rounded-lg text-[10.5px] font-bold transition-all cursor-pointer ${
+                    !usarSaldoFavor
+                      ? 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 shadow-xs'
+                      : 'text-blue-700 dark:text-blue-400 hover:text-blue-950'
+                  }`}
+                >
+                  No usar
+                </button>
+              </div>
             </div>
 
             {usarSaldoFavor && (
@@ -1549,7 +1562,7 @@ Estamos atentos para cualquier consulta.
         )}
 
         {/* 3. RECUADRO FORMA DE PAGO */}
-        <div className="flex flex-col bg-white dark:bg-[#0f172a] p-2.5 sm:p-3 rounded-2xl border-2 border-blue-400/80 dark:border-blue-500/60 shadow-xs gap-1.5 sm:gap-2">
+        <div className="flex flex-col bg-white dark:bg-[#0f172a] p-2 sm:p-2.5 rounded-xl border-2 border-blue-400/80 dark:border-blue-500/60 shadow-xs gap-1 sm:gap-1.5">
           <div className="flex justify-between items-center">
             <label className="text-[10px] font-black uppercase tracking-wider text-blue-800 dark:text-blue-300 flex items-center gap-1.5">
               <CreditCard size={13} /> {saldoFavorDisponible > 0 ? '3. Forma de Pago Restante' : '2. Forma de Pago'}
@@ -1690,37 +1703,6 @@ Estamos atentos para cualquier consulta.
           )}
         </div>
 
-        {/* RESUMEN DETALLADO DEL TOTAL DE LA ORDEN (SUBTOTAL, DESCUENTO, SALDO A FAVOR, NETO) */}
-        <div className="bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/80 rounded-2xl p-2.5 sm:p-3 flex flex-col gap-1.5 shadow-2xs">
-          <div className="flex justify-between items-center text-[11px] text-slate-500 dark:text-slate-400 font-medium">
-            <span>Subtotal artículos:</span>
-            <span className="font-bold text-slate-700 dark:text-slate-200">${subtotalBruto.toLocaleString('es-CO')}</span>
-          </div>
-
-          {montoDescuentoTotal > 0 && (
-            <div className="flex justify-between items-center text-[11px] text-emerald-600 dark:text-emerald-400 font-bold">
-              <span>Descuento ({tipoDescuento === 'porcentaje' ? `${valorDescuento}%` : 'fijo'}):</span>
-              <span>-${montoDescuentoTotal.toLocaleString('es-CO')}</span>
-            </div>
-          )}
-
-          {usarSaldoFavor && montoSaldoFavorAplicado > 0 && (
-            <div className="flex justify-between items-center text-[11px] text-blue-600 dark:text-blue-400 font-bold">
-              <span>Saldo a favor aplicado:</span>
-              <span>-${montoSaldoFavorAplicado.toLocaleString('es-CO')}</span>
-            </div>
-          )}
-
-          <div className="pt-1.5 border-t border-slate-200 dark:border-slate-700 flex justify-between items-baseline">
-            <span className="text-[10px] uppercase font-black tracking-wider text-slate-700 dark:text-slate-300">
-              {usarSaldoFavor && montoSaldoFavorAplicado > 0 ? 'Neto a cobrar en caja:' : 'Total a pagar:'}
-            </span>
-            <span className="text-base sm:text-lg font-black text-slate-900 dark:text-white font-mono">
-              ${totalNetoACobrar.toLocaleString('es-CO')}
-            </span>
-          </div>
-        </div>
-
         {/* 4. RECUADRO DINERO RECIBIDO & CAMBIO */}
         {totalNetoACobrar === 0 && montoSaldoFavorAplicado > 0 ? (
           <div className="p-3 bg-emerald-50 dark:bg-emerald-950/40 border-2 border-emerald-500 rounded-2xl flex items-center gap-2.5 shadow-xs">
@@ -1735,7 +1717,7 @@ Estamos atentos para cualquier consulta.
             </div>
           </div>
         ) : (
-          <div className="flex flex-col bg-white dark:bg-[#0f172a] p-2.5 sm:p-3 rounded-2xl border-2 border-emerald-500 dark:border-emerald-400 shadow-xs gap-1.5 sm:gap-2">
+          <div className="flex flex-col bg-white dark:bg-[#0f172a] p-2 sm:p-2.5 rounded-xl border-2 border-emerald-500 dark:border-emerald-400 shadow-xs gap-1 sm:gap-1.5">
             <div className="flex justify-between items-center">
               <label className="text-[10px] font-black uppercase tracking-wider text-emerald-800 dark:text-emerald-300 flex items-center gap-1.5">
                 <Banknote size={14} /> {saldoFavorDisponible > 0 ? '4. ¿Cuánto dinero en efectivo/pago entrega?' : '3. ¿Con cuánto dinero paga?'}
@@ -1823,11 +1805,42 @@ Estamos atentos para cualquier consulta.
           </div>
         )}
 
-        {/* SI ES MODAL MÓVIL: BOTÓN DE ACCIÓN FINAL DIRECTO */}
+        {/* EN MÓVIL: DESGLOSE DE COBRO JUSTO ARRIBA DEL BOTÓN FINAL (PUNTO 5) */}
         {esModal && (
-          <div className="pt-2">
+          <div className="pt-1.5 flex flex-col gap-2 shrink-0">
+            {/* Tarjeta de detalles de cobro justo arriba del botón para cerrar la venta */}
+            <div className="bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700/80 rounded-xl p-2 sm:p-2.5 flex flex-col gap-1 text-xs">
+              <div className="flex justify-between text-slate-500 dark:text-slate-400">
+                <span>Subtotal artículos:</span>
+                <span className="font-bold text-slate-800 dark:text-slate-200">${subtotalBruto.toLocaleString('es-CO')}</span>
+              </div>
+
+              {montoDescuentoTotal > 0 && (
+                <div className="flex justify-between text-emerald-600 dark:text-emerald-400 font-bold">
+                  <span>Descuento ({tipoDescuento === 'porcentaje' ? `${valorDescuento}%` : 'fijo'}):</span>
+                  <span>-${montoDescuentoTotal.toLocaleString('es-CO')}</span>
+                </div>
+              )}
+
+              {usarSaldoFavor && montoSaldoFavorAplicado > 0 && (
+                <div className="flex justify-between text-blue-600 dark:text-blue-400 font-bold">
+                  <span>Saldo a favor aplicado:</span>
+                  <span>-${montoSaldoFavorAplicado.toLocaleString('es-CO')}</span>
+                </div>
+              )}
+
+              <div className="pt-1 border-t border-slate-200 dark:border-slate-700 flex justify-between items-baseline font-black">
+                <span className="text-[10.5px] uppercase tracking-wider text-slate-700 dark:text-slate-300">
+                  {usarSaldoFavor && montoSaldoFavorAplicado > 0 ? 'Neto en caja:' : 'Total a cobrar:'}
+                </span>
+                <span className="text-lg text-slate-900 dark:text-white font-mono leading-none">
+                  ${totalNetoACobrar.toLocaleString('es-CO')}
+                </span>
+              </div>
+            </div>
+
             {(() => {
-              let textoBoton = puedeVentaDirecta ? "Vender" : "Enviar Orden";
+              let textoBoton = puedeVentaDirecta ? `Cobrar $${totalNetoACobrar.toLocaleString('es-CO')}` : "Enviar Orden";
               let bgBoton = "bg-emerald-600 hover:bg-emerald-700";
 
               if (puedeVentaDirecta) {
@@ -1835,10 +1848,10 @@ Estamos atentos para cualquier consulta.
                   textoBoton = "Cobrar con Saldo a Favor";
                   bgBoton = "bg-blue-600 hover:bg-blue-700";
                 } else if (pagadoRaw !== "" && pagadoNum === 0 && totalNetoACobrar > 0) {
-                  textoBoton = "Fiar Total";
+                  textoBoton = `Fiar Total $${totalNetoACobrar.toLocaleString('es-CO')}`;
                   bgBoton = "bg-rose-600 hover:bg-rose-700";
                 } else if (pagadoNum > 0 && pagadoNum < totalNetoACobrar) {
-                  textoBoton = "Vender y Fiar";
+                  textoBoton = `Cobrar y Fiar Restante`;
                   bgBoton = "bg-emerald-600 hover:bg-emerald-700";
                 }
               } else {
@@ -1852,7 +1865,7 @@ Estamos atentos para cualquier consulta.
                     procesarRegistro();
                   }}
                   disabled={guardandoVenta}
-                  className={`w-full ${bgBoton} ${guardandoVenta ? 'opacity-50 cursor-not-allowed' : 'active:scale-95 cursor-pointer'} text-white font-black text-base py-3.5 px-4 rounded-xl shadow-lg flex justify-center items-center gap-2 transition-all`}
+                  className={`w-full ${bgBoton} ${guardandoVenta ? 'opacity-50 cursor-not-allowed' : 'active:scale-95 cursor-pointer'} text-white font-black text-base py-3 sm:py-3.5 px-4 rounded-xl shadow-lg flex justify-center items-center gap-2 transition-all`}
                 >
                   <span>{guardandoVenta ? "Procesando..." : textoBoton}</span>
                   {puedeVentaDirecta ? <CheckCircle2 size={18} /> : <Receipt size={18} />}
@@ -2029,11 +2042,11 @@ Estamos atentos para cualquier consulta.
         </button>
       </div>
 
-      {/* CUERPO PRINCIPAL (Flujo vertical amplio en Móviles y Tablets Verticales, 2 columnas en Escritorio/Horizontal) */}
+      {/* CUERPO PRINCIPAL (Flujo vertical en Móvil, 2 columnas en Escritorio) */}
       <div 
         ref={contenedorScrollRef}
         onScroll={handleScrollContenedor}
-        className="flex flex-col lg:flex-row flex-1 min-h-0 overflow-y-auto lg:overflow-hidden pb-24 md:pb-4 lg:pb-0 relative"
+        className={`flex flex-col lg:flex-row flex-1 min-h-0 ${pasoMovil === 'cobro' ? 'pb-0 overflow-hidden' : 'pb-24 md:pb-4 lg:pb-0 overflow-y-auto lg:overflow-hidden'} relative`}
       >
         
         {/* SECCIÓN ARTÍCULOS O CONCEPTOS: Visible en desktop y cuando pasoMovil === 'articulos' en móvil */}
@@ -2329,10 +2342,10 @@ Estamos atentos para cualquier consulta.
         </div>
       </div>
 
-        {/* VISTA DE COBRO DIRECTA EN MÓVIL (< 1024px) */}
+        {/* VISTA DE COBRO DIRECTA EN MÓVIL (< 1024px) - VISTA COMPLETA SIN SCROLL */}
         {pasoMovil === 'cobro' && (
-          <div className="lg:hidden flex-1 flex flex-col bg-white dark:bg-[#0f172a] p-3.5 sm:p-5 overflow-y-auto pb-28 animate-in fade-in duration-150">
-            <div className="flex items-center justify-between pb-3 mb-2 border-b border-slate-100 dark:border-slate-800 max-w-xl mx-auto w-full">
+          <div className="lg:hidden flex-1 flex flex-col justify-between bg-white dark:bg-[#0f172a] p-3 sm:p-4 overflow-y-auto no-scrollbar min-h-0 animate-in fade-in duration-150">
+            <div className="flex items-center justify-between pb-2 mb-1.5 border-b border-slate-100 dark:border-slate-800 max-w-xl mx-auto w-full shrink-0">
               <button
                 type="button"
                 onClick={() => setPasoMovil('articulos')}
@@ -2342,14 +2355,14 @@ Estamos atentos para cualquier consulta.
                 <span>Modificar artículos</span>
               </button>
               <div className="text-right">
-                <span className="text-[10px] text-slate-400 uppercase font-black block">Artículos</span>
+                <span className="text-[9.5px] text-slate-400 uppercase font-black block">Artículos</span>
                 <span className="text-xs font-black text-emerald-600 dark:text-emerald-400">
                   {filasRegistro.filter(f => parseFloat(f.valor) > 0).length} en orden
                 </span>
               </div>
             </div>
 
-            <div className="max-w-xl mx-auto w-full">
+            <div className="max-w-xl mx-auto w-full flex-1 flex flex-col justify-between min-h-0">
               {renderFormularioCobro({ esModal: true })}
             </div>
           </div>
@@ -2358,7 +2371,7 @@ Estamos atentos para cualquier consulta.
         {/* COLUMNA DERECHA EXCLUSIVA DE ESCRITORIO (>= 1024px) */}
         <div className="hidden lg:flex w-full lg:w-[360px] xl:w-[380px] bg-white dark:bg-[#0f172a] lg:border-l border-slate-200 dark:border-slate-800 flex-col shrink-0 lg:min-h-0 lg:overflow-hidden">
           {/* Formulario derecho desktop */}
-          <div className="p-2.5 sm:p-5 lg:p-3.5 flex flex-col gap-2.5 sm:gap-3 lg:flex-1 lg:overflow-y-auto max-w-4xl lg:max-w-none mx-auto w-full">
+          <div className="p-3 xl:p-3.5 flex flex-col gap-2 lg:flex-1 lg:overflow-y-auto no-scrollbar max-w-4xl lg:max-w-none mx-auto w-full">
             {renderFormularioCobro({ esModal: false })}
           </div>
 
@@ -2444,7 +2457,7 @@ Estamos atentos para cualquier consulta.
 
       {/* BARRA FLOTANTE MÓVIL / TABLET (< 1024px) - SOLO EN PASO ARTÍCULOS */}
       {pasoMovil === 'articulos' && (
-        <div className="lg:hidden fixed bottom-floating-bar left-3 right-3 sm:left-4 sm:right-4 max-w-lg mx-auto bg-white/95 dark:bg-[#0f172a]/95 backdrop-blur-xl border border-slate-200/90 dark:border-slate-800/90 p-2.5 sm:p-3 rounded-2xl sm:rounded-3xl shadow-[0_10px_25px_-5px_rgba(0,0,0,0.15)] dark:shadow-[0_10px_25px_-5px_rgba(0,0,0,0.6)] z-[110] flex items-center justify-between gap-3 animate-in slide-in-from-bottom-2 duration-200">
+        <div className="lg:hidden fixed bottom-3 left-3 right-3 sm:left-4 sm:right-4 max-w-lg mx-auto bg-white/95 dark:bg-[#0f172a]/95 backdrop-blur-xl border border-slate-200/90 dark:border-slate-800/90 p-2.5 sm:p-3 rounded-2xl sm:rounded-3xl shadow-2xl z-[110] flex items-center justify-between gap-3 animate-in slide-in-from-bottom-2 duration-200">
           <div className="flex flex-col min-w-0 shrink pl-1">
             {montoDescuentoTotal > 0 && (
               <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-bold leading-tight">
@@ -2458,7 +2471,7 @@ Estamos atentos para cualquier consulta.
             )}
             <div className="flex items-baseline gap-1.5">
               <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Total</span>
-              <span className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white whitespace-nowrap overflow-visible leading-none min-w-0">
+              <span className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white whitespace-nowrap overflow-visible leading-none min-w-0 font-mono">
                 ${totalNetoACobrar.toLocaleString('es-CO')}
               </span>
             </div>
@@ -2469,7 +2482,7 @@ Estamos atentos para cualquier consulta.
             onClick={() => {
               const filasValidas = filasRegistro.filter(f => parseFloat(f.valor) > 0);
               if (filasValidas.length === 0) {
-                toast.error("Agrega al menos un artículo para cobrar.");
+                toast.error("Agrega al menos un artículo para continuar.");
                 return;
               }
               // Sincronizar monto de pago por defecto si está vacío
@@ -2485,8 +2498,7 @@ Estamos atentos para cualquier consulta.
                 : 'bg-slate-300 dark:bg-slate-800 text-slate-500 opacity-60 cursor-not-allowed'
             } text-white font-black py-3 sm:py-3.5 px-4 rounded-xl sm:rounded-2xl shadow-lg flex items-center justify-center gap-2 text-sm sm:text-base transition-transform cursor-pointer`}
           >
-            <span>{totalFilasRegistro > 0 ? `Cobrar $${totalNetoACobrar.toLocaleString('es-CO')}` : 'Sin artículos'}</span>
-            <ChevronRight size={18} />
+            <span>{totalFilasRegistro > 0 ? 'Siguiente ➔' : 'Sin artículos'}</span>
           </button>
         </div>
       )}
