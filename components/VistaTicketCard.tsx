@@ -409,34 +409,38 @@ export default function VistaTicketCard({ datos, ticketRef }: VistaTicketCardPro
               </>
             )}
 
-          {/* TOTAL / TOTAL VENTA — destacado con recuadro negro sólido */}
-          <div className="flex justify-between items-center bg-slate-900 text-white rounded-lg px-3 py-2 mt-1.5 mb-1">
-            <span className="text-[12px] font-black uppercase tracking-wider">
-              {datos.saldoFavorAplicado !== undefined && datos.saldoFavorAplicado > 0 ? "TOTAL VENTA" : "TOTAL"}
-            </span>
-            <span className="text-base font-black font-mono">
-              ${(datos.montoTotal || 0).toLocaleString("es-CO")}
-            </span>
-          </div>
-
-          {/* Saldo a favor aplicado */}
-          {datos.saldoFavorAplicado !== undefined && datos.saldoFavorAplicado > 0 && (
+          {/* Si se aplicó saldo a favor, mostramos Total Venta y Saldo a favor antes del recuadro negro definitivo */}
+          {datos.saldoFavorAplicado !== undefined && datos.saldoFavorAplicado > 0 ? (
             <>
+              <FilaMeta
+                label="Total venta:"
+                valor={`$${(datos.montoTotal || 0).toLocaleString("es-CO")}`}
+                negrita
+              />
               <FilaMeta
                 label="Saldo a favor aplicado:"
                 valor={`-$${datos.saldoFavorAplicado.toLocaleString("es-CO")}`}
                 colorValor="text-slate-900 font-bold"
               />
-              <div className="flex justify-between items-baseline gap-1 py-1 border-t border-b border-dashed border-slate-900 my-0.5">
-                <span className="text-[11px] font-black uppercase text-slate-900 shrink-0">
-                  Total a pagar en caja:
+              <div className="flex justify-between items-center bg-slate-900 text-white rounded-lg px-3 py-2 mt-1.5 mb-1">
+                <span className="text-[11.5px] font-black uppercase tracking-wider">
+                  TOTAL A PAGAR EN CAJA
                 </span>
-                <span className="text-[12.5px] text-right font-mono font-black text-slate-900">
+                <span className="text-base font-black font-mono">
                   ${Math.max(0, (datos.montoTotal || 0) - datos.saldoFavorAplicado).toLocaleString("es-CO")}
                 </span>
               </div>
-              <SeccionDivider tipo="suave" />
             </>
+          ) : (
+            /* TOTAL estándar con recuadro negro sólido */
+            <div className="flex justify-between items-center bg-slate-900 text-white rounded-lg px-3 py-2 mt-1.5 mb-1">
+              <span className="text-[12px] font-black uppercase tracking-wider">
+                TOTAL
+              </span>
+              <span className="text-base font-black font-mono">
+                ${(datos.montoTotal || 0).toLocaleString("es-CO")}
+              </span>
+            </div>
           )}
 
           {/* Método de pago */}
