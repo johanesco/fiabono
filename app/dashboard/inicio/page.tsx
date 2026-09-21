@@ -483,13 +483,6 @@ Quedamos pendientes para revisar detalles o responder cualquier duda.
                     <button
                       key={btn.id}
                       onClick={() => {
-                        if (btn.esProOnly) {
-                          abrirUpsell(
-                            "Plan Separe Exclusivo PRO Almacén",
-                            "Aparta mercancía de clientes, gestiona abonos parciales y recibe alertas automáticas de vencimiento con el Plan PRO Almacén."
-                          );
-                          return;
-                        }
                         router.push(btn.ruta);
                       }}
                       className={`w-full bg-gradient-to-br ${btn.gradiente} text-white font-black text-sm xs:text-base sm:text-2xl lg:text-3xl py-4 sm:py-7 lg:py-8 rounded-2xl sm:rounded-3xl shadow-lg flex flex-col items-center justify-center transition-transform transform active:scale-95 border cursor-pointer relative`}

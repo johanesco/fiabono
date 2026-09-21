@@ -1391,14 +1391,14 @@ Estamos atentos para cualquier consulta.
                                                                  nuevas[index].cantidad = 1;
                                                                  setFilasRegistro(nuevas);
                                                                  setBusquedaProductoIndex(null);
-                                                                 setTimeout(() => {
-                                                                     agregarFila();
-                                                                 }, 100);
-                                                            } else if (fila.descripcion.trim().length > 0) {
-                                                                 e.preventDefault();
-                                                                 agregarFila();
-                                                            }
-                                                        }
+                                                                  setTimeout(() => {
+                                                                      if (typeof window !== 'undefined' && window.innerWidth >= 1024) agregarFila();
+                                                                  }, 100);
+                                                             } else if (fila.descripcion.trim().length > 0) {
+                                                                  e.preventDefault();
+                                                                  if (typeof window !== 'undefined' && window.innerWidth >= 1024) agregarFila();
+                                                             }
+                                                         }
                                                     }}
                                                     placeholder="Escribe nombre o SKU..."
                                                     className="w-full px-3 py-2 h-[42px] sm:h-[46px] md:h-[50px] bg-slate-50 dark:bg-[#020617] border border-slate-200 dark:border-slate-800 rounded-xl outline-none font-bold text-xs sm:text-sm md:text-base min-w-0 shadow-sm focus:border-rose-500 transition-colors text-slate-900 dark:!text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 placeholder:text-xs sm:placeholder:text-sm placeholder:font-normal"
@@ -1427,7 +1427,7 @@ Estamos atentos para cualquier consulta.
                                                                         setFilasRegistro(nuevas);
                                                                         setBusquedaProductoIndex(null);
                                                                         setTimeout(() => {
-                                                                            agregarFila();
+                                                                            if (typeof window !== 'undefined' && window.innerWidth >= 1024) agregarFila();
                                                                         }, 100);
                                                                     }}
                                                                     className={`p-3 transition-all flex justify-between items-center text-xs sm:text-sm ${

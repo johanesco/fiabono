@@ -40,6 +40,17 @@ function SepareContenido() {
   const puedeAplicarDescuentos = esAdmin || (datosSesion?.permisos?.aplicarDescuentos === true);
   const puedeGestionarSepares = esAdmin || (datosSesion?.permisos?.abonar === true);
 
+  // Protección estricta: La creación de nuevos separes requiere Plan PRO
+  useEffect(() => {
+    if (datosSesion && !datosSesion.esPro) {
+      toast.error("La creación de nuevos Planes Separe está disponible exclusivamente en el Plan PRO.", {
+        duration: 5000,
+        icon: "👑"
+      });
+      router.replace('/dashboard/separes');
+    }
+  }, [datosSesion, router]);
+
   const [listaVendedores, setListaVendedores] = useState<string[]>([]);
   const [vendedorActivo, setVendedorActivo] = useState<string>(nombreUsuario || "Vendedor");
   const [modalNuevoVendedor, setModalNuevoVendedor] = useState(false);
@@ -765,7 +776,7 @@ function SepareContenido() {
     });
     setBusquedaProductoIndex(null);
     setTimeout(() => {
-      agregarFila();
+      if (typeof window !== 'undefined' && window.innerWidth >= 1024) agregarFila();
     }, 100);
   };
 
@@ -1186,6 +1197,12 @@ function SepareContenido() {
   const saldoPendiente = Math.max(0, totalSepare - abonoInicialNum);
 
   const guardarSepare = async () => {
+    if (!datosSesion?.esPro) {
+      toast.error("Tu cuenta no tiene activo el Plan PRO para registrar nuevos apartados.", { icon: "👑" });
+      router.replace('/dashboard/separes');
+      return;
+    }
+
     if (!clienteSeleccionado) {
       toast.error("Debes seleccionar o crear un cliente para el plan separe", { icon: "👤" });
       return;
@@ -1726,7 +1743,7 @@ Estamos atentos para cualquier consulta.
                                 seleccionarProductoInventario(index, productosSugeridos[0]);
                               } else if (fila.descripcion.trim().length > 0) {
                                 e.preventDefault();
-                                agregarFila();
+                                if (typeof window !== 'undefined' && window.innerWidth >= 1024) agregarFila();
                               }
                             }
                           }}

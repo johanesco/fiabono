@@ -43,20 +43,50 @@ export default function ModalSuscripcion({ isOpen, onClose, cuentaPrincipalId, p
 
 
 
+  const reactivarRenovacion = async () => {
+    if (!cuentaPrincipalId) return;
+    setCargando(true);
+    try {
+      await updateDoc(doc(db, "usuarios", cuentaPrincipalId), {
+        proximoPlan: null
+      });
+      toast.success("Renovación reactivada con éxito. Tu plan se mantendrá normalmente 🙌");
+      handleClose();
+      window.location.reload();
+    } catch (e) {
+      toast.error("Error al reactivar la suscripción.");
+    } finally {
+      setCargando(false);
+    }
+  };
+
   const volverAPlanGratuito = async () => {
     if (!cuentaPrincipalId) return;
     setCargando(true);
     try {
-      // 1. Bajar el plan a gratis
+      const diasRestantes = datosSesion?.diasRestantesPlan ?? 0;
+
+      // Si el usuario aún tiene días pagados, diferir el downgrade al vencimiento para no quitarle días pagados
+      if (diasRestantes > 0) {
+        await updateDoc(doc(db, "usuarios", cuentaPrincipalId), {
+          proximoPlan: 'gratis'
+        });
+
+        toast.success(`Cancelación programada con éxito. Disfrutarás de tu plan actual durante los ${diasRestantes} días restantes 🙌`, { duration: 6000 });
+        handleClose();
+        window.location.reload();
+        return;
+      }
+
+      // Si ya expiró o no tiene días restantes, aplicar downgrade inmediato
       await updateDoc(doc(db, "usuarios", cuentaPrincipalId), {
         plan: 'gratis',
         planVence: null,
+        proximoPlan: null,
         cicloPlan: 'mensual'
       });
 
-      // CORRECCIÓN A-1: Desactivar todos los colaboradores al bajar de plan.
-      // Sin esto, colaboradores creados en plan PRO/Comercio quedaban activos
-      // en plan gratuito, evadiendo el límite de 0 colaboradores.
+      // Desactivar colaboradores en plan gratuito (límite 0)
       const qColabs = query(
         collection(db, "usuarios"),
         where("adminId", "==", cuentaPrincipalId),
@@ -72,7 +102,7 @@ export default function ModalSuscripcion({ isOpen, onClose, cuentaPrincipalId, p
       handleClose();
       window.location.reload();
     } catch (e) {
-      toast.error("Error al cambiar al Plan Gratuito.");
+      toast.error("Error al procesar la cancelación.");
     } finally {
       setCargando(false);
     }
@@ -299,27 +329,52 @@ export default function ModalSuscripcion({ isOpen, onClose, cuentaPrincipalId, p
             </div>
 
             {(!datosSesion || datosSesion.planActual !== 'gratis' && datosSesion.planActual !== 'basico') && (
-              <button
-                type="button"
-                disabled={cargando}
-                onClick={async () => {
-                  const confirmado = await customConfirm(
-                    "¿Deseas cancelar tu suscripción y volver al Plan Gratuito ($0)?\n\nTodos tus datos, clientes e historial se conservarán intactos.",
-                    {
-                      titulo: "Cancelar suscripción",
-                      textoConfirmar: "Volver a Plan Gratis",
-                      textoCancelar: "Mantener mi Plan",
-                      tipo: "peligro"
-                    }
-                  );
-                  if (confirmado) {
-                    volverAPlanGratuito();
-                  }
-                }}
-                className="text-[11px] font-bold text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 transition-colors underline cursor-pointer"
-              >
-                Cancelar suscripción y volver al Plan Gratuito ($0)
-              </button>
+              <div className="pt-1">
+                {datosSesion?.proximoPlan === 'gratis' ? (
+                  <div className="bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/60 rounded-xl p-3 text-center space-y-2">
+                    <p className="text-xs text-amber-800 dark:text-amber-300 font-bold">
+                      ⚠️ Tienes una cancelación programada. Tu plan actual se mantendrá activo durante tus {datosSesion?.diasRestantesPlan ?? 0} días restantes y luego pasará a Gratuito.
+                    </p>
+                    <button
+                      type="button"
+                      disabled={cargando}
+                      onClick={reactivarRenovacion}
+                      className="px-4 py-1.5 bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs rounded-lg transition-colors cursor-pointer shadow-sm"
+                    >
+                      Reactivar Renovación de mi Plan
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    disabled={cargando}
+                    onClick={async () => {
+                      const dias = datosSesion?.diasRestantesPlan ?? 0;
+                      const mensaje = dias > 0
+                        ? `¿Deseas programar la cancelación de tu plan?\n\nSeguirás disfrutando de todos tus beneficios durante los ${dias} días restantes. Al vencer, tu cuenta pasará automáticamente al Plan Gratuito sin cobros adicionales.\n\nTodos tus datos se conservan intactos.`
+                        : "¿Deseas volver al Plan Gratuito ($0)?\n\nTodos tus datos, clientes e historial se conservarán intactos.";
+
+                      const confirmado = await customConfirm(
+                        mensaje,
+                        {
+                          titulo: dias > 0 ? "Programar cancelación" : "Cancelar suscripción",
+                          textoConfirmar: dias > 0 ? "Programar paso a Gratis" : "Volver a Plan Gratis",
+                          textoCancelar: "Mantener mi Plan",
+                          tipo: "peligro"
+                        }
+                      );
+                      if (confirmado) {
+                        volverAPlanGratuito();
+                      }
+                    }}
+                    className="text-[11px] font-bold text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 transition-colors underline cursor-pointer"
+                  >
+                    {datosSesion?.diasRestantesPlan && datosSesion.diasRestantesPlan > 0
+                      ? "Cancelar suscripción (pasar a Gratuito al vencer)"
+                      : "Cancelar suscripción y volver al Plan Gratuito ($0)"}
+                  </button>
+                )}
+              </div>
             )}
           </div>
         </div>

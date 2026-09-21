@@ -20,6 +20,17 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'No tienes permiso para crear Separes directamente.' }, { status: 403 });
     }
 
+    // Validación de Plan PRO: la creación de separes es exclusiva de PRO
+    let planCuentaPrincipal = usuario.plan;
+    if (!esAdmin) {
+      const adminDocSnap = await adminDb.collection('usuarios').doc(cuentaPrincipalId).get();
+      planCuentaPrincipal = adminDocSnap.data()?.plan;
+    }
+
+    if (planCuentaPrincipal !== 'pro') {
+      return NextResponse.json({ error: 'La creación de nuevos Planes Separe requiere el Plan PRO activo.' }, { status: 403 });
+    }
+
     const body = await request.json();
     const separeData = body.separeData as any;
     const abonoInicial = Number(body.abonoInicial || 0);

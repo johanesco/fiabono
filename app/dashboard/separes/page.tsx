@@ -17,6 +17,7 @@ import TicketFacturaModal, { DatosFacturaProps } from "@/components/TicketFactur
 import { Separe, AbonoSepare } from "@/types";
 import { abrirEnlaceWhatsApp } from "@/utils/whatsapp";
 import { API_DB } from "../../../servicios/db";
+import ModalSuscripcion from "@/components/ModalSuscripcion";
 
 export default function SeparesPage() {
   return (
@@ -77,6 +78,7 @@ function SeparesContenido() {
     ticketDatos?: any;
   } | null>(null);
   const [fotoLightbox, setFotoLightbox] = useState<string | null>(null);
+  const [modalSuscripcionOpen, setModalSuscripcionOpen] = useState<boolean>(false);
 
   // Generadores de Sonidos Web Audio API
   const reproducirSonidoExito = () => {
@@ -709,17 +711,56 @@ Gracias por contactarnos.`;
           </div>
 
           <button
-            onClick={() => router.push('/dashboard/separe')}
+            onClick={() => {
+              if (!datosSesion?.esPro) {
+                toast.error("La creación de nuevos apartados requiere el Plan PRO.", { icon: "👑" });
+                setModalSuscripcionOpen(true);
+                return;
+              }
+              router.push('/dashboard/separe');
+            }}
             className="bg-white text-violet-800 hover:bg-violet-50 font-black text-xs sm:text-sm px-4 py-2.5 rounded-xl shadow-md transition-transform transform active:scale-95 flex items-center justify-center gap-2 cursor-pointer shrink-0"
           >
             <Plus size={16} />
             <span>Nuevo Plan Separe</span>
+            {!datosSesion?.esPro && (
+              <span className="bg-amber-100 text-amber-800 text-[10px] font-black px-1.5 py-0.5 rounded-md uppercase tracking-wider">PRO</span>
+            )}
           </button>
         </div>
       </div>
 
       {/* CONTENEDOR DE FILTROS Y CONTENIDO */}
       <div className="max-w-7xl w-full mx-auto p-3 sm:p-6 space-y-4 flex-1 pb-24">
+
+        {/* BANNER MODO LIQUIDACIÓN PARA PLANES NO-PRO */}
+        {!datosSesion?.esPro && (
+          <div className="bg-gradient-to-r from-amber-50 to-amber-100/60 dark:from-amber-950/40 dark:to-amber-900/20 border border-amber-200 dark:border-amber-800/60 rounded-2xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-amber-900 dark:text-amber-200 shadow-sm animate-in fade-in duration-300">
+            <div className="flex items-start gap-3">
+              <div className="p-2 bg-amber-200/60 dark:bg-amber-800/50 rounded-xl text-amber-800 dark:text-amber-200 shrink-0">
+                <AlertTriangle size={20} />
+              </div>
+              <div>
+                <h4 className="font-black text-sm text-amber-950 dark:text-amber-100 flex items-center gap-2">
+                  <span>Modo Liquidación de Separes Activo</span>
+                  <span className="text-[10px] uppercase tracking-wider font-extrabold px-2 py-0.5 rounded-full bg-amber-200/80 dark:bg-amber-800/70 text-amber-900 dark:text-amber-100">
+                    {datosSesion?.planActual === 'comercio' ? 'Plan Comercio' : 'Plan Gratuito'}
+                  </span>
+                </h4>
+                <p className="text-xs text-amber-800/90 dark:text-amber-300/90 mt-0.5 leading-relaxed">
+                  Tu plan actual no incluye la creación de nuevos apartados, pero puedes consultar tu historial, registrar abonos y entregar la mercancía ya apartada sin ninguna restricción.
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={() => setModalSuscripcionOpen(true)}
+              className="shrink-0 w-full sm:w-auto bg-amber-600 hover:bg-amber-700 text-white font-black text-xs px-4 py-2 rounded-xl shadow-md transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+            >
+              <span>Activar Plan PRO</span>
+              <ChevronRight size={14} />
+            </button>
+          </div>
+        )}
 
         {/* BARRA DE TABS Y BUSCADOR */}
         <div className="flex flex-col sm:flex-row gap-3 items-stretch sm:items-center justify-between">
@@ -1676,6 +1717,14 @@ Gracias por contactarnos.`;
         isOpen={modalTicketFactura.visible}
         onClose={() => setModalTicketFactura({ visible: false, datos: null })}
         datos={modalTicketFactura.datos}
+      />
+
+      {/* MODAL SUSCRIPCIÓN PARA DESBLOQUEAR SEPARES */}
+      <ModalSuscripcion
+        isOpen={modalSuscripcionOpen}
+        onClose={() => setModalSuscripcionOpen(false)}
+        cuentaPrincipalId={cuentaPrincipalId || ""}
+        planInicial="pro"
       />
     </div>
   );

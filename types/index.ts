@@ -131,6 +131,7 @@ export interface UsuarioBD {
   adminId?: string;
   plan?: TipoPlan;
   planVence?: any; // Timestamp de Firebase
+  proximoPlan?: TipoPlan | null;
   cicloPlan?: CicloPlan;
   permisos?: PermisosColaborador;
   activo?: boolean;
@@ -215,6 +216,7 @@ export interface DatosSesionContext {
   rol: 'admin' | 'cajero';
   permisos: PermisosColaborador | null;
   planActual: 'gratis' | 'basico' | 'comercio' | 'pro';
+  proximoPlan?: 'gratis' | 'comercio' | 'pro' | null;
   diasPro: number | null;
   diasRestantesPlan: number | null;
   avisoExpiracion: boolean;

@@ -29,7 +29,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const puedeAbonar = esAdmin || (datosSesion?.permisos?.abonar === true);
   const moduloSepareActivo = datosSesion?.moduloSepareActivo !== false;
   const puedeSepare = (datosSesion?.puedeSepare ?? (datosSesion?.esPro === true)) && moduloSepareActivo;
-  const puedeGestionarSepares = esAdmin === true && datosSesion?.esPro === true && moduloSepareActivo;
+  const puedeGestionarSepares = esAdmin === true && moduloSepareActivo;
   const puedeVerCartera = esAdmin || (datosSesion?.puedeVerCartera === true) || (datosSesion?.permisos?.verCartera === true);
   const puedeVerReportes = esAdmin || (datosSesion?.puedeVerReportes === true) || (datosSesion?.permisos?.verReportes === true);
   // Función para reproducir sonido sutil de campana POS (Web Audio API)

@@ -3,7 +3,7 @@ import { useState, useEffect, Suspense, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { collection, addDoc, getDocs, query, doc, updateDoc, where, increment, writeBatch } from "firebase/firestore";
 import { auth, db } from "../../../firebase";
-import { Search, ShoppingCart, CheckCircle2, ChevronRight, X, AlertCircle, UserCog, Plus, Minus, ArrowLeft, MessageCircle, Banknote, Package, QrCode, Volume2, Printer, Smartphone, CreditCard, Zap, Receipt, ChevronDown, ChevronUp, Tag, Percent, Pause, FolderOpen, User, Trash2, Store } from 'lucide-react';
+import { Search, ShoppingCart, CheckCircle2, ChevronRight, X, AlertCircle, UserCog, Plus, Minus, ArrowLeft, MessageCircle, Banknote, Package, QrCode, Volume2, Printer, Smartphone, CreditCard, Zap, Receipt, ChevronDown, ChevronUp, Tag, Percent, Pause, FolderOpen, User, Trash2, Store, Wallet } from 'lucide-react';
 import { useAuth } from "@/hooks/AuthContext";
 import toast from "react-hot-toast";
 import { notificar } from "@/utils/notificaciones";
@@ -91,6 +91,8 @@ function VenderContenido() {
   const [clienteTransaccion, setClienteTransaccion] = useState<any | null>(null);
   const [busquedaRegistro, setBusquedaRegistro] = useState("");
   const [mostrarResultadosBuscador, setMostrarResultadosBuscador] = useState(false);
+  const [modalCobroMovil, setModalCobroMovil] = useState(false);
+  const [usarSaldoFavor, setUsarSaldoFavor] = useState(true);
   
   const [modalConfirmarFiado, setModalConfirmarFiado] = useState(false);
   const [modalNuevoCliente, setModalNuevoCliente] = useState(false);
@@ -928,6 +930,16 @@ function VenderContenido() {
   const montoDescuentoTotal = calcularMontoDescuento();
   const totalFilasRegistro = Math.max(0, subtotalBruto - montoDescuentoTotal);
 
+  // Cálculos pedagógicos de Saldo a Favor
+  const saldoFavorDisponible = (clienteTransaccion && clienteTransaccion.deudaTotal !== undefined && clienteTransaccion.deudaTotal < 0) 
+    ? Math.abs(clienteTransaccion.deudaTotal) 
+    : 0;
+  const montoSaldoFavorAplicado = (usarSaldoFavor && saldoFavorDisponible > 0)
+    ? Math.min(saldoFavorDisponible, totalFilasRegistro)
+    : 0;
+  const totalNetoACobrar = Math.max(0, totalFilasRegistro - montoSaldoFavorAplicado);
+  const saldoFavorRestante = Math.max(0, saldoFavorDisponible - montoSaldoFavorAplicado);
+
   // Guardar orden pendiente (colaboradores sin permiso de venta directa)
   const enviarOrden = async () => {
     const filasValidas = filasRegistro.filter(f => parseFloat(f.valor) > 0);
@@ -1026,21 +1038,20 @@ function VenderContenido() {
 
     const pagadoRaw = pagoCliente.replace(/\D/g, '');
     const pagadoNum = pagadoRaw === "" 
-      ? (metodoPago !== 'efectivo' ? totalFilasRegistro : (totalFilasRegistro > 0 ? 0 : 0)) 
+      ? (metodoPago !== 'efectivo' ? totalNetoACobrar : (totalNetoACobrar === 0 ? 0 : 0)) 
       : parseFloat(pagadoRaw);
 
-    // CORRECCIÓN A-7: Si el campo de pago está vacío y el método es efectivo,
-    // advertir explícitamente antes de crear un fiado por el monto completo
-    if (pagadoRaw === "" && metodoPago === 'efectivo' && totalFilasRegistro > 0) {
+    // Si el campo de pago está vacío y el método es efectivo y hay saldo por pagar en caja:
+    if (pagadoRaw === "" && metodoPago === 'efectivo' && totalNetoACobrar > 0) {
       const confirmar = await customConfirm(
-        `⚠️ No ingresaste ningún monto de pago.\n\n¿Confirmas fiar el total completo de $${totalFilasRegistro.toLocaleString('es-CO')} a ${clienteTransaccion?.nombre || 'este cliente'}?\n\nPresiona "Confirmar" para continuar o "Cancelar" para ingresar el monto.`
+        `⚠️ No ingresaste ningún monto de pago.\n\n¿Confirmas fiar el valor restante de $${totalNetoACobrar.toLocaleString('es-CO')} a ${clienteTransaccion?.nombre || 'este cliente'}?\n\nPresiona "Confirmar" para continuar o "Cancelar" para ingresar el monto.`
       );
       if (!confirmar) return;
     }
 
-    const faltante = totalFilasRegistro - pagadoNum;
+    const faltanteNeto = Math.max(0, totalNetoACobrar - pagadoNum);
 
-    if (faltante > 0) {
+    if (faltanteNeto > 0) {
         setModalConfirmarFiado(true);
         return;
     }
@@ -1071,12 +1082,15 @@ function VenderContenido() {
       }
 
       const pagadoRaw = pagoCliente.replace(/\D/g, '');
-      const pagadoNum = pagadoRaw === "" ? 0 : parseFloat(pagadoRaw);
-      const saldoVentaActual = Math.max(totalFilasRegistro - pagadoNum, 0);
-      const faltante = totalFilasRegistro - pagadoNum;
-      const fiarFaltante = faltante > 0;
+      const pagadoNum = pagadoRaw === "" 
+        ? (metodoPago !== 'efectivo' ? totalNetoACobrar : (totalNetoACobrar === 0 ? 0 : 0)) 
+        : parseFloat(pagadoRaw);
+
+      const efectivoRealRecibido = pagadoNum >= totalNetoACobrar ? totalNetoACobrar : pagadoNum;
+      const montoTotalNoCubierto = Math.max(0, totalFilasRegistro - efectivoRealRecibido);
+      const fiarFaltante = montoTotalNoCubierto > 0;
       const deudaAnteriorPendiente = clienteTransaccion ? (clienteTransaccion.deudaTotal || 0) : 0;
-      const deudaTotalActual = deudaAnteriorPendiente + saldoVentaActual;
+      const deudaTotalActual = deudaAnteriorPendiente + montoTotalNoCubierto;
       let montoAcumulado = 0; 
       let detallesParaComprobante: any[] = []; 
       let resumenNombres: string[] = [];
@@ -1112,7 +1126,7 @@ function VenderContenido() {
       const subtotalCalculado = ivaHabilitado ? Math.round(totalFilasRegistro / (1 + tasaIva)) : totalFilasRegistro;
       const ivaCalculado = ivaHabilitado ? (totalFilasRegistro - subtotalCalculado) : 0;
 
-      const montoVentaReal = pagadoNum >= totalFilasRegistro ? totalFilasRegistro : pagadoNum;
+      const montoVentaReal = efectivoRealRecibido;
       let clienteFinalActualizado = clienteTransaccion;
       let idTransaccionVenta = "";
       const refPagoCompleta = [subMetodoPago, referenciaPago.trim()].filter(Boolean).join(' — ') || undefined;
@@ -1142,7 +1156,7 @@ function VenderContenido() {
         body: JSON.stringify({
           clienteId: clienteTransaccion ? clienteTransaccion.id : 'mostrador',
           montoVentaReal,
-          descripcionVenta: descripcionUnificada + (fiarFaltante ? ` (Pago parcial de $${totalFilasRegistro.toLocaleString('es-CO')})` : '') + (montoDescuentoTotal > 0 ? ` [Dto: -$${montoDescuentoTotal.toLocaleString('es-CO')}]` : ''),
+          descripcionVenta: descripcionUnificada + (montoSaldoFavorAplicado > 0 ? ` [Saldo a favor: -$${montoSaldoFavorAplicado.toLocaleString('es-CO')}]` : '') + (fiarFaltante && (totalNetoACobrar - efectivoRealRecibido) > 0 ? ` (Fiado: $${(totalNetoACobrar - efectivoRealRecibido).toLocaleString('es-CO')})` : '') + (montoDescuentoTotal > 0 ? ` [Dto: -$${montoDescuentoTotal.toLocaleString('es-CO')}]` : ''),
           detalles: detallesParaComprobante,
           metodoPago,
           referenciaPago: refPagoCompleta,
@@ -1154,7 +1168,7 @@ function VenderContenido() {
           montoDescuento: montoDescuentoTotal > 0 ? montoDescuentoTotal : undefined,
           itemsInventario,
           fiarFaltante,
-          montoFiado: faltante,
+          montoFiado: montoTotalNoCubierto,
           descripcionFiado: `Saldo pendiente de venta: ${descripcionUnificada}`
         })
       });
@@ -1203,12 +1217,14 @@ function VenderContenido() {
         montoDescuento: montoDescuentoTotal > 0 ? montoDescuentoTotal : undefined
       };
 
+      const faltanteReal = Math.max(totalNetoACobrar - pagadoNum, 0);
+      setModalCobroMovil(false);
       setModalExito({ 
         visible: true, 
         cliente: clienteFinalActualizado, 
         montoTotal: totalFilasRegistro, 
-        devuelta: Math.max(pagadoNum - totalFilasRegistro, 0),
-        fiadoAdicional: faltante > 0 ? faltante : 0,
+        devuelta: Math.max(pagadoNum - totalNetoACobrar, 0),
+        fiadoAdicional: faltanteReal > 0 ? faltanteReal : 0,
         deudaPrevia: deudaAnteriorPendiente,
         ticketDatos,
         filasGuardadas: [...filasRegistro],
@@ -1385,6 +1401,451 @@ Estamos atentos para cualquier consulta.
     (c.nombre || "").toLowerCase().includes(busquedaRegistro.toLowerCase()) ||
     (c.celular || "").toString().includes(busquedaRegistro)
   );
+
+  const renderFormularioCobro = ({ esModal = false }: { esModal?: boolean }) => {
+    const pagadoRaw = pagoCliente.replace(/\D/g, '');
+    const pagadoNum = pagadoRaw === "" ? 0 : parseFloat(pagadoRaw);
+
+    return (
+      <div className="flex flex-col gap-2.5 sm:gap-3 w-full">
+        {/* 1. RECUADRO CLIENTE: ALTO CONTRASTE Y PRESENCIA VISUAL */}
+        <div className={`flex flex-col p-2.5 sm:p-3 rounded-2xl transition-all duration-200 ${
+          clienteTransaccion 
+            ? 'bg-emerald-50/80 dark:bg-emerald-950/30 border-2 border-emerald-500 dark:border-emerald-400 shadow-xs' 
+            : 'bg-amber-50/40 dark:bg-amber-950/20 border-2 border-dashed border-amber-400 dark:border-amber-500/80 shadow-xs'
+        }`}>
+          <div className="flex justify-between items-center mb-1 sm:mb-1.5">
+            <label className={`text-[10px] font-black uppercase tracking-wider flex items-center gap-1.5 ${
+              clienteTransaccion ? 'text-emerald-700 dark:text-emerald-300' : 'text-amber-800 dark:text-amber-300'
+            }`}>
+              <UserCog size={13} /> {clienteTransaccion ? '✓ 1. Cliente Asignado' : '1. Cliente (Opcional)'}
+            </label>
+            {!clienteTransaccion ? (
+              <span className="text-[9px] sm:text-[9.5px] font-black text-amber-800 dark:text-amber-200 bg-amber-200/80 dark:bg-amber-900/60 px-2 py-0.5 rounded-md border border-amber-300/50">
+                Mostrador
+              </span>
+            ) : (
+              <span className="text-[9px] sm:text-[9.5px] font-black text-white bg-emerald-600 px-2 py-0.5 rounded-md shadow-2xs">
+                ✓ Asignado
+              </span>
+            )}
+          </div>
+
+          {clienteTransaccion ? (
+            <div className="py-1 sm:py-1.5 px-2.5 bg-white dark:bg-slate-900 rounded-xl border border-emerald-300 dark:border-emerald-700/60 flex justify-between items-center shadow-xs">
+              <div className="flex items-center gap-2 min-w-0">
+                <span className="w-2 sm:w-2.5 h-2 sm:h-2.5 rounded-full bg-emerald-500 shrink-0 animate-pulse"></span>
+                <span className="font-black text-slate-900 dark:text-emerald-300 text-xs truncate">{clienteTransaccion.nombre}</span>
+                {clienteTransaccion.deudaTotal !== undefined && clienteTransaccion.deudaTotal > 0 && (
+                  <span className="text-[9px] sm:text-[9.5px] font-bold text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-500/10 px-1.5 py-0.5 rounded shrink-0">
+                    Debe: ${(clienteTransaccion.deudaTotal || 0).toLocaleString('es-CO')}
+                  </span>
+                )}
+                {clienteTransaccion.deudaTotal !== undefined && clienteTransaccion.deudaTotal < 0 && (
+                  <span className="text-[9px] sm:text-[9.5px] font-bold text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-500/10 px-1.5 py-0.5 rounded shrink-0">
+                    Saldo a favor: ${(Math.abs(clienteTransaccion.deudaTotal || 0)).toLocaleString('es-CO')}
+                  </span>
+                )}
+              </div>
+              <button 
+                type="button"
+                onClick={() => setClienteTransaccion(null)} 
+                title="Remover cliente y volver a Venta de Mostrador"
+                className="text-slate-400 hover:text-rose-500 shrink-0 hover:bg-rose-50 dark:hover:bg-rose-950/40 p-1 rounded-full transition-colors cursor-pointer"
+              >
+                <X size={14}/>
+              </button>
+            </div>
+          ) : (
+            <div className="relative">
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 text-amber-600 dark:text-amber-400" size={13} />
+              <input
+                type="text"
+                value={busquedaRegistro}
+                onChange={(e) => { setBusquedaRegistro(e.target.value); setMostrarResultadosBuscador(true); }}
+                onFocus={() => setMostrarResultadosBuscador(true)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    if (clientesFiltradosRegistro.length > 0) {
+                      setClienteTransaccion(clientesFiltradosRegistro[0]);
+                      setBusquedaRegistro("");
+                      setMostrarResultadosBuscador(false);
+                    } else if (busquedaRegistro.trim()) {
+                      setNombreNuevo(busquedaRegistro.trim());
+                      setModalNuevoCliente(true);
+                      setMostrarResultadosBuscador(false);
+                    }
+                  }
+                }}
+                placeholder="🔎 Toca para buscar o crear cliente..."
+                className="w-full pl-8 pr-2 py-1.5 sm:py-2 bg-white dark:bg-[#0f172a] border-2 border-amber-300 dark:border-amber-600/70 rounded-xl text-xs font-bold outline-none focus:border-amber-500 focus:ring-2 focus:ring-amber-400/20 transition-all text-slate-900 dark:!text-white placeholder:text-slate-400 dark:placeholder:text-slate-500"
+              />
+              {mostrarResultadosBuscador && busquedaRegistro.length > 0 && (
+                <div className="absolute top-full left-0 right-0 mt-1 bg-white dark:bg-[#1e293b] border-2 border-slate-200 dark:border-slate-700 rounded-xl shadow-xl z-50 overflow-hidden">
+                  <div className="max-h-40 overflow-y-auto">
+                    {clientesFiltradosRegistro.map(c => (
+                      <div key={c.id} onClick={() => { setClienteTransaccion(c); setBusquedaRegistro(""); setMostrarResultadosBuscador(false); }} className="p-2.5 border-b border-slate-100 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer flex justify-between items-center text-xs min-w-0">
+                        <span className="min-w-0 mr-2">
+                          <span className="font-bold text-slate-800 dark:text-slate-200 truncate block">{c.nombre}</span>
+                          <span className={`text-[10px] font-black ${Number(c.deudaTotal || 0) > 0 ? 'text-rose-500' : Number(c.deudaTotal || 0) < 0 ? 'text-blue-600 dark:text-blue-400' : 'text-slate-400'}`}>
+                            {Number(c.deudaTotal || 0) > 0 ? `Debe $${Number(c.deudaTotal).toLocaleString('es-CO')}` : Number(c.deudaTotal || 0) < 0 ? `A favor $${Math.abs(Number(c.deudaTotal)).toLocaleString('es-CO')}` : 'Al día'}
+                          </span>
+                        </span>
+                        <ChevronRight size={14} className="text-slate-400 shrink-0"/>
+                      </div>
+                    ))}
+                    {!clientesFiltradosRegistro.some(c => c.nombre.toLowerCase() === busquedaRegistro.toLowerCase()) && (
+                      <button type="button" onClick={() => { setNombreNuevo(busquedaRegistro); setModalNuevoCliente(true); setMostrarResultadosBuscador(false); }} className="w-full text-left p-2.5 bg-emerald-50 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-400 text-xs font-bold">
+                        + Crear "{busquedaRegistro}"
+                      </button>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* 2. CAJA PEDAGÓGICA DE SALDO A FAVOR (Visible cuando el cliente tiene saldo a favor) */}
+        {saldoFavorDisponible > 0 && (
+          <div className="p-2.5 sm:p-3 bg-blue-50/90 dark:bg-blue-950/40 border-2 border-blue-400/80 dark:border-blue-600 rounded-2xl flex flex-col gap-2 animate-in fade-in slide-in-from-top-1 duration-200 shadow-xs">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-1.5 min-w-0">
+                <span className="text-base shrink-0">💎</span>
+                <div className="min-w-0">
+                  <span className="text-[10px] font-black uppercase tracking-wider text-blue-800 dark:text-blue-300 block leading-tight truncate">
+                    Saldo a Favor del Cliente
+                  </span>
+                  <span className="text-xs font-black text-blue-700 dark:text-blue-200">
+                    ${saldoFavorDisponible.toLocaleString('es-CO')} disponibles
+                  </span>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setUsarSaldoFavor(!usarSaldoFavor)}
+                className={`px-2.5 py-1 rounded-xl text-[11px] font-black transition-all cursor-pointer shadow-xs flex items-center gap-1 shrink-0 ${
+                  usarSaldoFavor
+                    ? 'bg-blue-600 text-white shadow-blue-500/20'
+                    : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-300 dark:border-slate-600'
+                }`}
+              >
+                {usarSaldoFavor ? '✓ Aplicado' : 'No usar'}
+              </button>
+            </div>
+
+            {usarSaldoFavor && (
+              <div className="bg-white/90 dark:bg-slate-900/90 rounded-xl p-2.5 text-xs text-slate-700 dark:text-slate-300 space-y-1 border border-blue-200 dark:border-blue-800/60 font-medium">
+                <div className="flex justify-between">
+                  <span>Total de la orden:</span>
+                  <span className="font-bold text-slate-900 dark:text-white">${totalFilasRegistro.toLocaleString('es-CO')}</span>
+                </div>
+                <div className="flex justify-between text-blue-600 dark:text-blue-400 font-bold">
+                  <span>(-) Saldo a favor usado:</span>
+                  <span>-${montoSaldoFavorAplicado.toLocaleString('es-CO')}</span>
+                </div>
+                <div className="flex justify-between pt-1 border-t border-slate-200 dark:border-slate-800 font-black text-slate-900 dark:text-white">
+                  <span>(=) Neto a pagar en caja:</span>
+                  <span className="text-sm text-emerald-600 dark:text-emerald-400 font-black">
+                    ${totalNetoACobrar.toLocaleString('es-CO')}
+                  </span>
+                </div>
+                {saldoFavorRestante > 0 && (
+                  <p className="text-[10.5px] text-blue-600 dark:text-blue-400 italic pt-0.5 leading-snug">
+                    * Le quedarán ${saldoFavorRestante.toLocaleString('es-CO')} de saldo a favor para futuras compras.
+                  </p>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* 3. RECUADRO FORMA DE PAGO */}
+        <div className="flex flex-col bg-white dark:bg-[#0f172a] p-2.5 sm:p-3 rounded-2xl border-2 border-blue-400/80 dark:border-blue-500/60 shadow-xs gap-1.5 sm:gap-2">
+          <div className="flex justify-between items-center">
+            <label className="text-[10px] font-black uppercase tracking-wider text-blue-800 dark:text-blue-300 flex items-center gap-1.5">
+              <CreditCard size={13} /> {saldoFavorDisponible > 0 ? '3. Forma de Pago Restante' : '2. Forma de Pago'}
+            </label>
+            <span className="text-[9px] sm:text-[9.5px] font-black uppercase bg-blue-100 dark:bg-blue-900/50 text-blue-800 dark:text-blue-200 px-2 py-0.5 rounded-md border border-blue-200 dark:border-blue-800/40">
+              {metodoPago === 'efectivo' ? 'Efectivo' : metodoPago === 'transferencia' ? (subMetodoPago || 'Transf.') : metodoPago === 'datafono' ? 'Datáfono' : (subMetodoPago || 'Crédito')}
+            </span>
+          </div>
+
+          <div className="grid grid-cols-4 gap-1 sm:gap-1.5">
+            <button
+              type="button"
+              onClick={() => { setMetodoPago('efectivo'); setSubMetodoPago(''); }}
+              title="Efectivo"
+              className={`py-1.5 sm:py-2 rounded-xl text-[10px] sm:text-[10.5px] font-black flex flex-col items-center gap-0.5 transition-all cursor-pointer ${
+                metodoPago === 'efectivo' 
+                  ? 'bg-emerald-600 text-white shadow-md border-2 border-emerald-700 ring-2 ring-emerald-400 scale-[1.02]' 
+                  : 'bg-slate-50 dark:bg-slate-800/80 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700 hover:border-emerald-400 hover:text-emerald-600'
+              }`}
+            >
+              <Banknote size={13} />
+              <span>Efectivo</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                setMetodoPago('transferencia');
+                setSubMetodoPago('');
+                if (totalNetoACobrar > 0) setPagoCliente(totalNetoACobrar.toLocaleString('es-CO'));
+              }}
+              title="Transferencia / Pago en línea"
+              className={`py-1.5 sm:py-2 rounded-xl text-[10px] sm:text-[10.5px] font-black flex flex-col items-center gap-0.5 transition-all cursor-pointer ${
+                metodoPago === 'transferencia' 
+                  ? 'bg-blue-600 text-white shadow-md border-2 border-blue-700 ring-2 ring-blue-400 scale-[1.02]' 
+                  : 'bg-slate-50 dark:bg-slate-800/80 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700 hover:border-blue-400 hover:text-blue-600'
+              }`}
+            >
+              <Smartphone size={13} />
+              <span className="leading-tight text-center">Transf.</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                setMetodoPago('datafono');
+                setSubMetodoPago('');
+                if (totalNetoACobrar > 0) setPagoCliente(totalNetoACobrar.toLocaleString('es-CO'));
+              }}
+              title="Datáfono / Tarjeta"
+              className={`py-1.5 sm:py-2 rounded-xl text-[10px] sm:text-[10.5px] font-black flex flex-col items-center gap-0.5 transition-all cursor-pointer ${
+                metodoPago === 'datafono' 
+                  ? 'bg-indigo-600 text-white shadow-md border-2 border-indigo-700 ring-2 ring-indigo-400 scale-[1.02]' 
+                  : 'bg-slate-50 dark:bg-slate-800/80 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700 hover:border-indigo-400 hover:text-indigo-600'
+              }`}
+            >
+              <CreditCard size={13} />
+              <span>Datáfono</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                setMetodoPago('credito_externo');
+                setSubMetodoPago('');
+                if (totalNetoACobrar > 0) setPagoCliente(totalNetoACobrar.toLocaleString('es-CO'));
+              }}
+              title="Crédito Externo (Addi, Sistecrédito…)"
+              className={`py-1.5 sm:py-2 rounded-xl text-[10px] sm:text-[10.5px] font-black flex flex-col items-center gap-0.5 transition-all cursor-pointer ${
+                metodoPago === 'credito_externo' 
+                  ? 'bg-purple-600 text-white shadow-md border-2 border-purple-700 ring-2 ring-purple-400 scale-[1.02]' 
+                  : 'bg-slate-50 dark:bg-slate-800/80 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700 hover:border-purple-400 hover:text-purple-600'
+              }`}
+            >
+              <Zap size={13} />
+              <span className="leading-tight text-center">Crédito</span>
+            </button>
+          </div>
+
+          {metodoPago === 'transferencia' && (
+            <div className="animate-in fade-in slide-in-from-top-1 duration-150 pt-0.5">
+              <div className="flex flex-wrap gap-1">
+                {['Nequi', 'Daviplata', 'PSE', 'Bancolombia', 'Otro'].map(op => (
+                  <button
+                    key={op}
+                    type="button"
+                    onClick={() => setSubMetodoPago(subMetodoPago === op ? '' : op)}
+                    className={`px-2 py-0.5 rounded-full text-[10px] font-black transition-all border cursor-pointer ${
+                      subMetodoPago === op
+                        ? 'bg-blue-600 text-white border-blue-600 shadow-xs'
+                        : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-600 hover:border-blue-400'
+                    }`}
+                  >
+                    {op}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {metodoPago === 'credito_externo' && (
+            <div className="animate-in fade-in slide-in-from-top-1 duration-150 pt-0.5">
+              <div className="flex flex-wrap gap-1">
+                {['Addi', 'Sistecrédito', 'Krediya', 'Otro'].map(op => (
+                  <button
+                    key={op}
+                    type="button"
+                    onClick={() => setSubMetodoPago(subMetodoPago === op ? '' : op)}
+                    className={`px-2 py-0.5 rounded-full text-[10px] font-black transition-all border cursor-pointer ${
+                      subMetodoPago === op
+                        ? 'bg-purple-600 text-white border-purple-600 shadow-xs'
+                        : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-600 hover:border-purple-400'
+                    }`}
+                  >
+                    {op}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {metodoPago !== 'efectivo' && (
+            <div className="animate-in fade-in duration-150 pt-0.5">
+              <input
+                type="text"
+                value={referenciaPago}
+                onChange={(e) => setReferenciaPago(e.target.value)}
+                placeholder={
+                  metodoPago === 'transferencia'
+                    ? `Ref. ${subMetodoPago || 'comprobante'} (Opcional)`
+                    : metodoPago === 'datafono'
+                    ? 'No. Voucher (Opcional)'
+                    : `Aprobación ${subMetodoPago || 'crédito'} (Opcional)`
+                }
+                className="w-full px-2.5 py-1.5 bg-slate-50 dark:bg-[#0f172a] border-2 border-slate-200 dark:border-slate-700 rounded-xl outline-none font-medium text-xs text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:border-blue-500 transition-colors"
+              />
+            </div>
+          )}
+        </div>
+
+        {/* 4. RECUADRO DINERO RECIBIDO & CAMBIO */}
+        {totalNetoACobrar === 0 && montoSaldoFavorAplicado > 0 ? (
+          <div className="p-3 bg-emerald-50 dark:bg-emerald-950/40 border-2 border-emerald-500 rounded-2xl flex items-center gap-2.5 shadow-xs">
+            <span className="text-xl">✅</span>
+            <div>
+              <h4 className="text-xs font-black text-emerald-800 dark:text-emerald-200">
+                Cobro cubierto con Saldo a Favor
+              </h4>
+              <p className="text-[11px] text-emerald-700 dark:text-emerald-300 font-medium">
+                No se requiere dinero en efectivo ni transferencia adicional.
+              </p>
+            </div>
+          </div>
+        ) : (
+          <div className="flex flex-col bg-white dark:bg-[#0f172a] p-2.5 sm:p-3 rounded-2xl border-2 border-emerald-500 dark:border-emerald-400 shadow-xs gap-1.5 sm:gap-2">
+            <div className="flex justify-between items-center">
+              <label className="text-[10px] font-black uppercase tracking-wider text-emerald-800 dark:text-emerald-300 flex items-center gap-1.5">
+                <Banknote size={14} /> {saldoFavorDisponible > 0 ? '4. ¿Cuánto dinero en efectivo/pago entrega?' : '3. ¿Con cuánto dinero paga?'}
+              </label>
+              {pagoCliente ? (
+                <span className="text-[9px] sm:text-[9.5px] font-black bg-emerald-600 text-white px-2 py-0.5 rounded-md shadow-2xs">
+                  ✓ Monto Listo
+                </span>
+              ) : (
+                <span className="text-[9px] sm:text-[9.5px] font-bold text-amber-700 dark:text-amber-300 bg-amber-100 dark:bg-amber-950/50 px-2 py-0.5 rounded-md">
+                  Por registrar
+                </span>
+              )}
+            </div>
+
+            <div className="flex items-center gap-2">
+              <div className="relative flex-1">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-emerald-600 font-black text-base">$</span>
+                <input
+                  type="text"
+                  inputMode="decimal" pattern="[0-9]*"
+                  value={pagoCliente}
+                  onChange={(e) => setPagoCliente(formatearMonedaInput(e.target.value))}
+                  placeholder={metodoPago === 'efectivo' ? 'Valor recibido' : 'Monto pagado'}
+                  className="w-full pl-8 pr-2 py-2 bg-slate-50 dark:bg-[#020617] border-2 border-emerald-500 dark:border-emerald-400 rounded-xl outline-none font-black text-base text-slate-900 dark:!text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 placeholder:text-xs placeholder:font-normal focus:ring-2 focus:ring-emerald-400/30"
+                />
+              </div>
+              <button
+                type="button"
+                onClick={() => setPagoCliente(totalNetoACobrar.toLocaleString('es-CO'))}
+                className={`px-3 py-2 rounded-xl font-black text-xs active:scale-95 whitespace-nowrap transition-all border cursor-pointer ${
+                  pagoCliente && parseFloat(pagoCliente.replace(/\D/g, '')) === totalNetoACobrar
+                    ? 'bg-emerald-600 text-white border-emerald-700 shadow-sm'
+                    : 'bg-emerald-500 hover:bg-emerald-600 text-white border-emerald-600 shadow-xs'
+                }`}
+                title="Marcar pago exacto sin cambio"
+              >
+                ✓ Exacto
+              </button>
+            </div>
+
+            {/* Chips de billetes rápidos en efectivo */}
+            {metodoPago === 'efectivo' && (
+              <div className="flex items-center gap-1.5 pt-0.5">
+                {[10000, 20000, 50000, 100000].map(billete => (
+                  <button
+                    key={billete}
+                    type="button"
+                    onClick={() => {
+                      const actual = parseFloat(pagoCliente.replace(/\D/g, '')) || 0;
+                      const nuevo = actual > 0 ? actual + billete : billete;
+                      setPagoCliente(nuevo.toLocaleString('es-CO'));
+                    }}
+                    className="flex-1 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 text-slate-700 dark:text-slate-300 font-bold text-[10.5px] border border-slate-200 dark:border-slate-700 active:scale-95 transition-all cursor-pointer"
+                  >
+                    +${billete / 1000}k
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {/* Devuelta o Saldo a Fiar */}
+            {pagoCliente && pagadoNum >= totalNetoACobrar && totalNetoACobrar > 0 && (
+              <div className="px-3 py-2 bg-emerald-100 dark:bg-emerald-500/20 text-emerald-800 dark:text-emerald-300 rounded-xl flex justify-between items-center animate-in zoom-in-95 duration-150 border border-emerald-300 dark:border-emerald-700/50">
+                <span className="text-[10.5px] uppercase font-black tracking-wider">Devuelta a entregar:</span>
+                <span className="text-lg font-black font-mono">${(pagadoNum - totalNetoACobrar).toLocaleString('es-CO')}</span>
+              </div>
+            )}
+
+            {pagoCliente !== "" && pagadoNum < totalNetoACobrar && totalNetoACobrar > 0 && (
+              <div className="p-2.5 bg-rose-50 dark:bg-rose-950/30 border-2 border-rose-400/80 rounded-xl flex flex-col gap-1 text-rose-800 dark:text-rose-300">
+                <div className="flex justify-between items-center">
+                  <span className="text-[10.5px] uppercase font-black tracking-wider">Saldo restante a fiar:</span>
+                  <span className="text-base font-black font-mono text-rose-600 dark:text-rose-400">
+                    ${(totalNetoACobrar - pagadoNum).toLocaleString('es-CO')}
+                  </span>
+                </div>
+                {!clienteTransaccion && (
+                  <p className="text-[10px] text-rose-600 dark:text-rose-400 font-bold italic">
+                    ⚠️ Selecciona un cliente arriba para poder fiar la diferencia.
+                  </p>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* SI ES MODAL MÓVIL: BOTÓN DE ACCIÓN FINAL DIRECTO */}
+        {esModal && (
+          <div className="pt-2">
+            {(() => {
+              let textoBoton = puedeVentaDirecta ? "Vender" : "Enviar Orden";
+              let bgBoton = "bg-emerald-600 hover:bg-emerald-700";
+
+              if (puedeVentaDirecta) {
+                if (totalNetoACobrar === 0 && montoSaldoFavorAplicado > 0) {
+                  textoBoton = "Cobrar con Saldo a Favor";
+                  bgBoton = "bg-blue-600 hover:bg-blue-700";
+                } else if (pagadoRaw !== "" && pagadoNum === 0 && totalNetoACobrar > 0) {
+                  textoBoton = "Fiar Total";
+                  bgBoton = "bg-rose-600 hover:bg-rose-700";
+                } else if (pagadoNum > 0 && pagadoNum < totalNetoACobrar) {
+                  textoBoton = "Vender y Fiar";
+                  bgBoton = "bg-emerald-600 hover:bg-emerald-700";
+                }
+              } else {
+                bgBoton = "bg-amber-500 hover:bg-amber-600";
+              }
+
+              return (
+                <button
+                  type="button"
+                  onClick={() => {
+                    procesarRegistro();
+                  }}
+                  disabled={guardandoVenta}
+                  className={`w-full ${bgBoton} ${guardandoVenta ? 'opacity-50 cursor-not-allowed' : 'active:scale-95 cursor-pointer'} text-white font-black text-base py-3.5 px-4 rounded-xl shadow-lg flex justify-center items-center gap-2 transition-all`}
+                >
+                  <span>{guardandoVenta ? "Procesando..." : textoBoton}</span>
+                  {puedeVentaDirecta ? <CheckCircle2 size={18} /> : <Receipt size={18} />}
+                </button>
+              );
+            })()}
+          </div>
+        )}
+      </div>
+    );
+  };
 
   return (
     <div className="flex flex-col w-full h-full bg-white dark:bg-[#0f172a] md:rounded-[2rem] overflow-hidden border border-slate-200 dark:border-slate-800 shadow-xl min-h-0 animate-in fade-in duration-300 relative">
@@ -1575,11 +2036,15 @@ Estamos atentos para cualquier consulta.
                               setFilasRegistro(nuevas);
                               setBusquedaProductoIndex(null);
                               setTimeout(() => {
-                                agregarFila();
+                                if (typeof window !== 'undefined' && window.innerWidth >= 1024) {
+                                  agregarFila();
+                                }
                               }, 100);
                             } else if (fila.descripcion.trim().length > 0) {
                               e.preventDefault();
-                              agregarFila();
+                              if (typeof window !== 'undefined' && window.innerWidth >= 1024) {
+                                agregarFila();
+                              }
                             }
                           }
                         }}
@@ -1610,7 +2075,9 @@ Estamos atentos para cualquier consulta.
                                   setFilasRegistro(nuevas);
                                   setBusquedaProductoIndex(null);
                                   setTimeout(() => {
-                                    agregarFila();
+                                    if (typeof window !== 'undefined' && window.innerWidth >= 1024) {
+                                      agregarFila();
+                                    }
                                   }, 100);
                                 }}
                                 className={`p-3 transition-all flex justify-between items-center text-xs sm:text-sm ${
@@ -1805,328 +2272,17 @@ Estamos atentos para cualquier consulta.
         </div>
       </div>
 
-        {/* COLUMNA DERECHA / SECCIÓN INFERIOR: CLIENTE + FORMA DE PAGO + TOTAL */}
-        <div className="w-full lg:w-[360px] xl:w-[380px] bg-white dark:bg-[#0f172a] lg:border-l border-slate-200 dark:border-slate-800 flex flex-col shrink-0 lg:min-h-0 lg:overflow-hidden">
-
-          {/* Formulario derecho o inferior con ancho consistente y espacio inferior suficiente para la barra flotante */}
-          <div className="p-2.5 pb-36 sm:p-5 sm:pb-32 lg:p-3.5 flex flex-col gap-2 sm:gap-3 lg:flex-1 lg:overflow-y-auto max-w-4xl lg:max-w-none mx-auto w-full">
-
-            {/* 1. RECUADRO CLIENTE: ALTO CONTRASTE Y PRESENCIA VISUAL */}
-            <div className={`flex flex-col p-2.5 sm:p-3 rounded-2xl transition-all duration-200 ${
-              clienteTransaccion 
-                ? 'bg-emerald-50/80 dark:bg-emerald-950/30 border-2 border-emerald-500 dark:border-emerald-400 shadow-sm' 
-                : 'bg-amber-50/40 dark:bg-amber-950/20 border-2 border-dashed border-amber-400 dark:border-amber-500/80 shadow-xs'
-            }`}>
-              <div className="flex justify-between items-center mb-1 sm:mb-1.5">
-                <label className={`text-[10px] font-black uppercase tracking-wider flex items-center gap-1.5 ${
-                  clienteTransaccion ? 'text-emerald-700 dark:text-emerald-300' : 'text-amber-800 dark:text-amber-300'
-                }`}>
-                  <UserCog size={13} /> {clienteTransaccion ? '✓ 1. Cliente Asignado' : '1. Cliente (Opcional)'}
-                </label>
-                {!clienteTransaccion ? (
-                  <span className="text-[9px] sm:text-[9.5px] font-black text-amber-800 dark:text-amber-200 bg-amber-200/80 dark:bg-amber-900/60 px-2 py-0.5 rounded-md border border-amber-300/50">
-                    ⚠️ Mostrador
-                  </span>
-                ) : (
-                  <span className="text-[9px] sm:text-[9.5px] font-black text-white bg-emerald-600 px-2 py-0.5 rounded-md shadow-2xs">
-                    ✓ Asignado
-                  </span>
-                )}
-              </div>
-
-              {clienteTransaccion ? (
-                <div className="py-1 sm:py-1.5 px-2.5 bg-white dark:bg-slate-900 rounded-xl border border-emerald-300 dark:border-emerald-700/60 flex justify-between items-center shadow-xs">
-                  <div className="flex items-center gap-2 min-w-0">
-                    <span className="w-2 sm:w-2.5 h-2 sm:h-2.5 rounded-full bg-emerald-500 shrink-0 animate-pulse"></span>
-                    <span className="font-black text-slate-900 dark:text-emerald-300 text-xs truncate">{clienteTransaccion.nombre}</span>
-                    {clienteTransaccion.deudaTotal !== undefined && clienteTransaccion.deudaTotal > 0 && (
-                      <span className="text-[9px] sm:text-[9.5px] font-bold text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-500/10 px-1.5 py-0.5 rounded shrink-0">
-                        Debe: ${(clienteTransaccion.deudaTotal || 0).toLocaleString('es-CO')}
-                      </span>
-                    )}
-                    {clienteTransaccion.deudaTotal !== undefined && clienteTransaccion.deudaTotal < 0 && (
-                      <span className="text-[9px] sm:text-[9.5px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-500/10 px-1.5 py-0.5 rounded shrink-0">
-                        A favor: ${(Math.abs(clienteTransaccion.deudaTotal || 0)).toLocaleString('es-CO')}
-                      </span>
-                    )}
-                  </div>
-                  <button 
-                    onClick={() => setClienteTransaccion(null)} 
-                    title="Remover cliente y volver a Venta de Mostrador"
-                    className="text-slate-400 hover:text-rose-500 shrink-0 hover:bg-rose-50 dark:hover:bg-rose-950/40 p-1 rounded-full transition-colors cursor-pointer"
-                  >
-                    <X size={14}/>
-                  </button>
-                </div>
-              ) : (
-                <div className="relative">
-                  <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 text-amber-600 dark:text-amber-400" size={13} />
-                  <input
-                    type="text"
-                    value={busquedaRegistro}
-                    onChange={(e) => { setBusquedaRegistro(e.target.value); setMostrarResultadosBuscador(true); }}
-                    onFocus={() => setMostrarResultadosBuscador(true)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') {
-                        e.preventDefault();
-                        if (clientesFiltradosRegistro.length > 0) {
-                          setClienteTransaccion(clientesFiltradosRegistro[0]);
-                          setBusquedaRegistro("");
-                          setMostrarResultadosBuscador(false);
-                        } else if (busquedaRegistro.trim()) {
-                          setNombreNuevo(busquedaRegistro.trim());
-                          setModalNuevoCliente(true);
-                          setMostrarResultadosBuscador(false);
-                        }
-                      }
-                    }}
-                    placeholder="🔎 Toca para buscar o crear cliente..."
-                    className="w-full pl-8 pr-2 py-1.5 sm:py-2 bg-white dark:bg-[#0f172a] border-2 border-amber-300 dark:border-amber-600/70 rounded-xl text-xs font-bold outline-none focus:border-amber-500 focus:ring-2 focus:ring-amber-400/20 transition-all text-slate-900 dark:!text-white placeholder:text-slate-400 dark:placeholder:text-slate-500"
-                  />
-                  {mostrarResultadosBuscador && busquedaRegistro.length > 0 && (
-                    <div className="absolute top-full left-0 right-0 mt-1 bg-white dark:bg-[#1e293b] border-2 border-slate-200 dark:border-slate-700 rounded-xl shadow-xl z-50 overflow-hidden">
-                      <div className="max-h-40 overflow-y-auto">
-                        {clientesFiltradosRegistro.map(c => (
-                          <div key={c.id} onClick={() => { setClienteTransaccion(c); setBusquedaRegistro(""); setMostrarResultadosBuscador(false); }} className="p-2.5 border-b border-slate-100 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer flex justify-between items-center text-xs min-w-0">
-                            <span className="min-w-0 mr-2"><span className="font-bold text-slate-800 dark:text-slate-200 truncate block">{c.nombre}</span><span className={`text-[10px] font-black ${Number(c.deudaTotal || 0) > 0 ? 'text-rose-500' : Number(c.deudaTotal || 0) < 0 ? 'text-emerald-600' : 'text-slate-400'}`}>{Number(c.deudaTotal || 0) > 0 ? `Debe $${Number(c.deudaTotal).toLocaleString('es-CO')}` : Number(c.deudaTotal || 0) < 0 ? `A favor $${Math.abs(Number(c.deudaTotal)).toLocaleString('es-CO')}` : 'Al día'}</span></span><ChevronRight size={14} className="text-slate-400 shrink-0"/>
-                          </div>
-                        ))}
-                        {!clientesFiltradosRegistro.some(c => c.nombre.toLowerCase() === busquedaRegistro.toLowerCase()) && (
-                          <button onClick={() => { setNombreNuevo(busquedaRegistro); setModalNuevoCliente(true); setMostrarResultadosBuscador(false); }} className="w-full text-left p-2.5 bg-emerald-50 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-400 text-xs font-bold">
-                            + Crear "{busquedaRegistro}"
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-
-            {/* 2. RECUADRO FORMA DE PAGO: TARJETA VISIBLE CON BORDE AZUL */}
-            <div className="flex flex-col bg-white dark:bg-[#0f172a] p-2.5 sm:p-3 rounded-2xl border-2 border-blue-400/80 dark:border-blue-500/60 shadow-xs gap-1.5 sm:gap-2">
-              <div className="flex justify-between items-center">
-                <label className="text-[10px] font-black uppercase tracking-wider text-blue-800 dark:text-blue-300 flex items-center gap-1.5">
-                  <CreditCard size={13} /> 2. Forma de Pago
-                </label>
-                <span className="text-[9px] sm:text-[9.5px] font-black uppercase bg-blue-100 dark:bg-blue-900/50 text-blue-800 dark:text-blue-200 px-2 py-0.5 rounded-md border border-blue-200 dark:border-blue-800/40">
-                  {metodoPago === 'efectivo' ? 'Efectivo' : metodoPago === 'transferencia' ? (subMetodoPago || 'Transf.') : metodoPago === 'datafono' ? 'Datáfono' : (subMetodoPago || 'Crédito')}
-                </span>
-              </div>
-
-              {/* 4 chips con anillo de foco inteligente */}
-              <div className="grid grid-cols-4 gap-1 sm:gap-1.5">
-                {/* Efectivo */}
-                <button
-                  type="button"
-                  onClick={() => { setMetodoPago('efectivo'); setSubMetodoPago(''); }}
-                  title="Efectivo"
-                  className={`py-1.5 sm:py-2 rounded-xl text-[10px] sm:text-[10.5px] font-black flex flex-col items-center gap-0.5 transition-all cursor-pointer ${
-                    metodoPago === 'efectivo' 
-                      ? 'bg-emerald-600 text-white shadow-md border-2 border-emerald-700 ring-2 ring-emerald-400 scale-[1.02]' 
-                      : 'bg-slate-50 dark:bg-slate-800/80 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700 hover:border-emerald-400 hover:text-emerald-600'
-                  }`}
-                >
-                  <Banknote size={13} />
-                  <span>Efectivo</span>
-                </button>
-
-                {/* Transferencia */}
-                <button
-                  type="button"
-                  onClick={() => {
-                    setMetodoPago('transferencia');
-                    setSubMetodoPago('');
-                    if (totalFilasRegistro > 0) setPagoCliente(totalFilasRegistro.toLocaleString('es-CO'));
-                  }}
-                  title="Transferencia / Pago en línea"
-                  className={`py-1.5 sm:py-2 rounded-xl text-[10px] sm:text-[10.5px] font-black flex flex-col items-center gap-0.5 transition-all cursor-pointer ${
-                    metodoPago === 'transferencia' 
-                      ? 'bg-blue-600 text-white shadow-md border-2 border-blue-700 ring-2 ring-blue-400 scale-[1.02]' 
-                      : 'bg-slate-50 dark:bg-slate-800/80 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700 hover:border-blue-400 hover:text-blue-600'
-                  }`}
-                >
-                  <Smartphone size={13} />
-                  <span className="leading-tight text-center">Transf.</span>
-                </button>
-
-                {/* Datáfono */}
-                <button
-                  type="button"
-                  onClick={() => {
-                    setMetodoPago('datafono');
-                    setSubMetodoPago('');
-                    if (totalFilasRegistro > 0) setPagoCliente(totalFilasRegistro.toLocaleString('es-CO'));
-                  }}
-                  title="Datáfono / Tarjeta"
-                  className={`py-1.5 sm:py-2 rounded-xl text-[10px] sm:text-[10.5px] font-black flex flex-col items-center gap-0.5 transition-all cursor-pointer ${
-                    metodoPago === 'datafono' 
-                      ? 'bg-indigo-600 text-white shadow-md border-2 border-indigo-700 ring-2 ring-indigo-400 scale-[1.02]' 
-                      : 'bg-slate-50 dark:bg-slate-800/80 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700 hover:border-indigo-400 hover:text-indigo-600'
-                  }`}
-                >
-                  <CreditCard size={13} />
-                  <span>Datáfono</span>
-                </button>
-
-                {/* Crédito Externo */}
-                <button
-                  type="button"
-                  onClick={() => {
-                    setMetodoPago('credito_externo');
-                    setSubMetodoPago('');
-                    if (totalFilasRegistro > 0) setPagoCliente(totalFilasRegistro.toLocaleString('es-CO'));
-                  }}
-                  title="Crédito Externo (Addi, Sistecrédito…)"
-                  className={`py-1.5 sm:py-2 rounded-xl text-[10px] sm:text-[10.5px] font-black flex flex-col items-center gap-0.5 transition-all cursor-pointer ${
-                    metodoPago === 'credito_externo' 
-                      ? 'bg-purple-600 text-white shadow-md border-2 border-purple-700 ring-2 ring-purple-400 scale-[1.02]' 
-                      : 'bg-slate-50 dark:bg-slate-800/80 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700 hover:border-purple-400 hover:text-purple-600'
-                  }`}
-                >
-                  <Zap size={13} />
-                  <span className="leading-tight text-center">Crédito</span>
-                </button>
-              </div>
-
-              {/* SUB-SELECTOR: Transferencia / Pago en línea */}
-              {metodoPago === 'transferencia' && (
-                <div className="animate-in fade-in slide-in-from-top-1 duration-150 pt-0.5 sm:pt-1">
-                  <div className="flex flex-wrap gap-1">
-                    {['Nequi', 'Daviplata', 'PSE', 'Bancolombia', 'Otro'].map(op => (
-                      <button
-                        key={op}
-                        type="button"
-                        onClick={() => setSubMetodoPago(subMetodoPago === op ? '' : op)}
-                        className={`px-2 sm:px-2.5 py-0.5 sm:py-1 rounded-full text-[10px] sm:text-[10.5px] font-black transition-all border ${
-                          subMetodoPago === op
-                            ? 'bg-blue-600 text-white border-blue-600 shadow-xs'
-                            : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-600 hover:border-blue-400'
-                        }`}
-                      >
-                        {op}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* SUB-SELECTOR: Crédito Externo */}
-              {metodoPago === 'credito_externo' && (
-                <div className="animate-in fade-in slide-in-from-top-1 duration-150 pt-0.5 sm:pt-1">
-                  <div className="flex flex-wrap gap-1">
-                    {['Addi', 'Sistecrédito', 'Krediya', 'Otro'].map(op => (
-                      <button
-                        key={op}
-                        type="button"
-                        onClick={() => setSubMetodoPago(subMetodoPago === op ? '' : op)}
-                        className={`px-2 sm:px-2.5 py-0.5 sm:py-1 rounded-full text-[10px] sm:text-[10.5px] font-black transition-all border ${
-                          subMetodoPago === op
-                            ? 'bg-purple-600 text-white border-purple-600 shadow-xs'
-                            : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-600 hover:border-purple-400'
-                        }`}
-                      >
-                        {op}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* REFERENCIA / COMPROBANTE — si no es efectivo */}
-              {metodoPago !== 'efectivo' && (
-                <div className="animate-in fade-in duration-150 pt-0.5">
-                  <input
-                    type="text"
-                    value={referenciaPago}
-                    onChange={(e) => setReferenciaPago(e.target.value)}
-                    placeholder={
-                      metodoPago === 'transferencia'
-                        ? `Ref. ${subMetodoPago || 'comprobante'} (Opcional)`
-                        : metodoPago === 'datafono'
-                        ? 'No. Voucher (Opcional)'
-                        : `Aprobación ${subMetodoPago || 'crédito'} (Opcional)`
-                    }
-                    className="w-full px-2.5 py-1 sm:py-1.5 bg-slate-50 dark:bg-[#0f172a] border-2 border-slate-200 dark:border-slate-700 rounded-xl outline-none font-medium text-xs text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:border-blue-500 transition-colors"
-                  />
-                </div>
-              )}
-            </div>
-
-            {/* 3. RECUADRO DINERO RECIBIDO: TARJETA VISIBLE CON BORDE VERDE */}
-            <div className="flex flex-col bg-white dark:bg-[#0f172a] p-2.5 sm:p-3 rounded-2xl border-2 border-emerald-500 dark:border-emerald-400 shadow-xs gap-1.5 sm:gap-2">
-              <div className="flex justify-between items-center">
-                <label className="text-[10px] font-black uppercase tracking-wider text-emerald-800 dark:text-emerald-300 flex items-center gap-1.5">
-                  <Banknote size={14} /> 3. ¿Con cuánto dinero paga?
-                </label>
-                {pagoCliente ? (
-                  <span className="text-[9px] sm:text-[9.5px] font-black bg-emerald-600 text-white px-2 py-0.5 rounded-md shadow-2xs">
-                    ✓ Monto Listo
-                  </span>
-                ) : (
-                  <span className="text-[9px] sm:text-[9.5px] font-bold text-amber-700 dark:text-amber-300 bg-amber-100 dark:bg-amber-950/50 px-2 py-0.5 rounded-md">
-                    Por registrar
-                  </span>
-                )}
-              </div>
-
-              <div className="flex items-center gap-2">
-                <div className="relative flex-1">
-                  <span className="absolute left-2.5 sm:left-3 top-1/2 -translate-y-1/2 text-emerald-600 font-black text-sm sm:text-base">$</span>
-                  <input
-                    type="text"
-                    inputMode="decimal" pattern="[0-9]*"
-                    value={pagoCliente}
-                    onChange={(e) => setPagoCliente(formatearMonedaInput(e.target.value))}
-                    placeholder={metodoPago === 'efectivo' ? 'Ingresa el valor recibido' : 'Monto pagado'}
-                    className="w-full pl-7 sm:pl-8 pr-2 py-1.5 sm:py-2 bg-slate-50 dark:bg-[#020617] border-2 border-emerald-500 dark:border-emerald-400 rounded-xl outline-none font-black text-sm sm:text-base text-slate-900 dark:!text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 placeholder:text-xs placeholder:font-normal focus:ring-2 focus:ring-emerald-400/30"
-                  />
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setPagoCliente(totalFilasRegistro.toLocaleString('es-CO'))}
-                  className={`px-3 sm:px-3.5 py-1.5 sm:py-2 rounded-xl font-black text-xs active:scale-95 whitespace-nowrap transition-all border cursor-pointer ${
-                    pagoCliente && parseFloat(pagoCliente.replace(/\D/g, '')) === totalFilasRegistro
-                      ? 'bg-emerald-600 text-white border-emerald-700 shadow-sm'
-                      : 'bg-emerald-500 hover:bg-emerald-600 text-white border-emerald-600 shadow-xs'
-                  }`}
-                  title="Marcar pago exacto sin cambio"
-                >
-                  ✓ Exacto
-                </button>
-                {clienteTransaccion && clienteTransaccion.deudaTotal !== undefined && clienteTransaccion.deudaTotal < 0 && (
-                  <button
-                    type="button"
-                    onClick={() => setPagoCliente(Math.max(0, totalFilasRegistro - Math.abs(clienteTransaccion.deudaTotal || 0)).toLocaleString('es-CO'))}
-                    className="px-2 sm:px-3 py-1.5 sm:py-2 rounded-xl font-black text-xs active:scale-95 whitespace-nowrap transition-all border cursor-pointer bg-blue-600 hover:bg-blue-700 text-white border-blue-700 shadow-xs flex items-center gap-1"
-                    title="Usar saldo a favor automáticamente"
-                  >
-                    Usar Saldo
-                  </button>
-                )}
-              </div>
-
-              {/* DEVUELTA / SALDO A FIAR EN CINTA COMPACTA */}
-              {pagoCliente && parseFloat(pagoCliente.replace(/\D/g, '')) >= totalFilasRegistro && totalFilasRegistro > 0 && (
-                <div className="px-2.5 py-1.5 sm:px-3 sm:py-2 bg-emerald-100 dark:bg-emerald-500/20 text-emerald-800 dark:text-emerald-300 rounded-xl flex justify-between items-center animate-in zoom-in-95 duration-150 border border-emerald-300 dark:border-emerald-700/50">
-                  <span className="text-[10px] sm:text-[10.5px] uppercase font-black tracking-wider">Devuelta a entregar:</span>
-                  <span className="text-base sm:text-lg font-black font-mono">${(parseFloat(pagoCliente.replace(/\D/g, '')) - totalFilasRegistro).toLocaleString('es-CO')}</span>
-                </div>
-              )}
-              {pagoCliente !== "" && parseFloat(pagoCliente.replace(/\D/g, '')) < totalFilasRegistro && totalFilasRegistro > 0 && (
-                <div className={`${clienteTransaccion && clienteTransaccion.deudaTotal < 0 ? 'bg-blue-100 dark:bg-blue-500/20 text-blue-800 dark:text-blue-300 border-blue-300 dark:border-blue-700/50' : 'bg-rose-100 dark:bg-rose-500/20 text-rose-800 dark:text-rose-300 border-rose-300 dark:border-rose-700/50'} px-2.5 py-1.5 sm:px-3 sm:py-2 rounded-xl flex justify-between items-center animate-in zoom-in-95 duration-150 border`}>
-                  <span className="text-[10px] sm:text-[10.5px] uppercase font-black tracking-wider">{clienteTransaccion && clienteTransaccion.deudaTotal < 0 ? 'Saldo cubierto con saldo a favor:' : 'Saldo restante a Fiar:'}</span>
-                  <span className={`text-base sm:text-lg font-black font-mono ${clienteTransaccion && clienteTransaccion.deudaTotal < 0 ? 'text-blue-600 dark:text-blue-400' : 'text-rose-600 dark:text-rose-400'}`}>${(totalFilasRegistro - parseFloat(pagoCliente.replace(/\D/g, ''))).toLocaleString('es-CO')}</span>
-                </div>
-              )}
-            </div>
-
+        {/* COLUMNA DERECHA EXCLUSIVA DE ESCRITORIO (>= 1024px) */}
+        <div className="hidden lg:flex w-full lg:w-[360px] xl:w-[380px] bg-white dark:bg-[#0f172a] lg:border-l border-slate-200 dark:border-slate-800 flex-col shrink-0 lg:min-h-0 lg:overflow-hidden">
+          {/* Formulario derecho desktop */}
+          <div className="p-2.5 sm:p-5 lg:p-3.5 flex flex-col gap-2.5 sm:gap-3 lg:flex-1 lg:overflow-y-auto max-w-4xl lg:max-w-none mx-auto w-full">
+            {renderFormularioCobro({ esModal: false })}
           </div>
 
-          {/* FOOTER FIJO EN SIDEBAR (SOLO DESKTOP / PANTALLA ANCHA >= 1024px) */}
-          <div className="hidden lg:flex flex-col bg-slate-900 dark:bg-black text-white px-4 py-3.5 shrink-0 border-t border-slate-800 z-30">
-            {/* Desglose de Descuento e IVA */}
-            {(montoDescuentoTotal > 0 || (datosSesion?.habilitarIva && totalFilasRegistro > 0)) && (
+          {/* FOOTER FIJO EN SIDEBAR DESKTOP */}
+          <div className="flex flex-col bg-slate-900 dark:bg-black text-white px-4 py-3.5 shrink-0 border-t border-slate-800 z-30">
+            {/* Desglose de Descuento, IVA y Saldo a Favor */}
+            {(montoDescuentoTotal > 0 || (datosSesion?.habilitarIva && totalFilasRegistro > 0) || (usarSaldoFavor && montoSaldoFavorAplicado > 0)) && (
               <div className="text-[10px] text-slate-400 mb-2 space-y-0.5 border-b border-slate-800 pb-2">
                 {montoDescuentoTotal > 0 && (
                   <>
@@ -2139,6 +2295,12 @@ Estamos atentos para cualquier consulta.
                       <span className="font-bold">-${montoDescuentoTotal.toLocaleString('es-CO')}</span>
                     </div>
                   </>
+                )}
+                {usarSaldoFavor && montoSaldoFavorAplicado > 0 && (
+                  <div className="flex justify-between text-blue-400 font-bold">
+                    <span>Saldo a favor aplicado:</span>
+                    <span>-${montoSaldoFavorAplicado.toLocaleString('es-CO')}</span>
+                  </div>
                 )}
                 {datosSesion?.habilitarIva && totalFilasRegistro > 0 && (
                   <>
@@ -2154,25 +2316,35 @@ Estamos atentos para cualquier consulta.
                 )}
               </div>
             )}
+
             <div className="flex justify-between items-baseline mb-2.5">
-              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Total a Cobrar</span>
-              <span className="text-3xl xl:text-4xl font-black text-white leading-none">${totalFilasRegistro.toLocaleString('es-CO')}</span>
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                {usarSaldoFavor && montoSaldoFavorAplicado > 0 ? 'Neto a Cobrar en Caja' : 'Total a Cobrar'}
+              </span>
+              <span className="text-3xl xl:text-4xl font-black text-white leading-none">${totalNetoACobrar.toLocaleString('es-CO')}</span>
             </div>
+
             {(() => {
               const pagadoRaw = pagoCliente.replace(/\D/g, '');
               const pagadoNum = pagadoRaw === "" ? 0 : parseFloat(pagadoRaw);
               let textoBoton = puedeVentaDirecta ? "Vender" : "Enviar Orden";
               let bgBoton = "bg-emerald-500 hover:bg-emerald-600";
+
               if (puedeVentaDirecta) {
-                const usaSaldoFavor = clienteTransaccion && clienteTransaccion.deudaTotal !== undefined && clienteTransaccion.deudaTotal < 0;
-                if (pagadoRaw !== "" && pagadoNum === 0 && totalFilasRegistro > 0) {
-                  textoBoton = usaSaldoFavor ? "Cobrar con Saldo a Favor" : "Fiar Total"; bgBoton = usaSaldoFavor ? "bg-blue-600 hover:bg-blue-700" : "bg-rose-600 hover:bg-rose-700";
-                } else if (pagadoNum > 0 && pagadoNum < totalFilasRegistro) {
-                  textoBoton = usaSaldoFavor ? "Cobrar y usar Saldo" : "Vender y Fiar"; bgBoton = usaSaldoFavor ? "bg-blue-600 hover:bg-blue-700" : "bg-emerald-600 hover:bg-emerald-700";
+                if (totalNetoACobrar === 0 && montoSaldoFavorAplicado > 0) {
+                  textoBoton = "Cobrar con Saldo a Favor";
+                  bgBoton = "bg-blue-600 hover:bg-blue-700";
+                } else if (pagadoRaw !== "" && pagadoNum === 0 && totalNetoACobrar > 0) {
+                  textoBoton = "Fiar Total";
+                  bgBoton = "bg-rose-600 hover:bg-rose-700";
+                } else if (pagadoNum > 0 && pagadoNum < totalNetoACobrar) {
+                  textoBoton = "Vender y Fiar";
+                  bgBoton = "bg-emerald-600 hover:bg-emerald-700";
                 }
               } else {
                 bgBoton = "bg-amber-500 hover:bg-amber-600";
               }
+
               return (
                 <button 
                   onClick={procesarRegistro} 
@@ -2184,96 +2356,99 @@ Estamos atentos para cualquier consulta.
               );
             })()}
           </div>
-
         </div>
       </div>
 
-      {/* BARRA INFERIOR DOCKED EN TABLETS VERTICALES (768px - 1023px) - EVITA ESPACIOS VACÍOS Y ANCLA EL COBRO AL BORDE INFERIOR */}
-      <div className="hidden md:flex lg:hidden bg-slate-900 dark:bg-black text-white px-5 sm:px-6 py-3.5 shrink-0 border-t border-slate-800 z-30 items-center justify-between gap-4">
-        <div className="flex items-center gap-3 sm:gap-4 min-w-0">
-          <div className="flex flex-col">
-            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Total a Cobrar</span>
-            <span className="text-2xl sm:text-3xl font-black text-white leading-none">${totalFilasRegistro.toLocaleString('es-CO')}</span>
-          </div>
-          {montoDescuentoTotal > 0 && (
-            <span className="text-[11px] font-bold text-emerald-400 bg-emerald-950/80 border border-emerald-800/60 px-2 py-1 rounded-lg truncate">
-              -${montoDescuentoTotal.toLocaleString('es-CO')} Dto
-            </span>
-          )}
-          {datosSesion?.habilitarIva && totalFilasRegistro > 0 && (
-            <span className="text-[11px] font-bold text-slate-300 bg-slate-800 px-2 py-1 rounded-lg">
-              IVA ({datosSesion?.porcentajeIva || 19}%)
-            </span>
-          )}
-        </div>
-
-        {(() => {
-          const pagadoRaw = pagoCliente.replace(/\D/g, '');
-          const pagadoNum = pagadoRaw === "" ? 0 : parseFloat(pagadoRaw);
-          let textoBoton = puedeVentaDirecta ? "Vender" : "Enviar Orden";
-          let bgBoton = "bg-emerald-500 hover:bg-emerald-600";
-          if (puedeVentaDirecta) {
-            const usaSaldoFavor = clienteTransaccion && clienteTransaccion.deudaTotal !== undefined && clienteTransaccion.deudaTotal < 0;
-            if (pagadoRaw !== "" && pagadoNum === 0 && totalFilasRegistro > 0) {
-              textoBoton = usaSaldoFavor ? "Cobrar con Saldo a Favor" : "Fiar Total"; bgBoton = usaSaldoFavor ? "bg-blue-600 hover:bg-blue-700" : "bg-rose-600 hover:bg-rose-700";
-            } else if (pagadoNum > 0 && pagadoNum < totalFilasRegistro) {
-              textoBoton = usaSaldoFavor ? "Cobrar y usar Saldo" : "Vender y Fiar"; bgBoton = usaSaldoFavor ? "bg-blue-600 hover:bg-blue-700" : "bg-emerald-600 hover:bg-emerald-700";
-            }
-          } else {
-            bgBoton = "bg-amber-500 hover:bg-amber-600";
-          }
-          return (
-            <button 
-              onClick={procesarRegistro} 
-              disabled={guardandoVenta}
-              className={`min-w-[190px] sm:min-w-[240px] ${bgBoton} ${guardandoVenta ? 'opacity-50 cursor-not-allowed' : 'active:scale-95 cursor-pointer'} text-white font-black text-base py-3 px-5 rounded-xl shadow-lg flex justify-center items-center gap-2 transition-all`}
-            >
-              <span>{guardandoVenta ? "Procesando..." : textoBoton}</span> {puedeVentaDirecta ? <CheckCircle2 size={19}/> : <Receipt size={19}/>}
-            </button>
-          );
-        })()}
-      </div>
-
-      {/* BARRA FLOTANTE MÓVIL SUSPENDIDA (SOLO PARA CELULARES PEQUEÑOS < 768px) */}
-      <div className="md:hidden fixed bottom-floating-bar left-3 right-3 sm:left-4 sm:right-4 max-w-lg mx-auto bg-white/95 dark:bg-[#0f172a]/95 backdrop-blur-xl border border-slate-200/90 dark:border-slate-800/90 p-2.5 sm:p-3 rounded-2xl sm:rounded-3xl shadow-[0_10px_25px_-5px_rgba(0,0,0,0.15)] dark:shadow-[0_10px_25px_-5px_rgba(0,0,0,0.6)] z-[110] flex items-center justify-between gap-3">
+      {/* BARRA FLOTANTE MÓVIL / TABLET (< 1024px) - FLUJO LIMPIO EN 2 PASOS */}
+      <div className="lg:hidden fixed bottom-floating-bar left-3 right-3 sm:left-4 sm:right-4 max-w-lg mx-auto bg-white/95 dark:bg-[#0f172a]/95 backdrop-blur-xl border border-slate-200/90 dark:border-slate-800/90 p-2.5 sm:p-3 rounded-2xl sm:rounded-3xl shadow-[0_10px_25px_-5px_rgba(0,0,0,0.15)] dark:shadow-[0_10px_25px_-5px_rgba(0,0,0,0.6)] z-[110] flex items-center justify-between gap-3">
         <div className="flex flex-col min-w-0 shrink pl-1">
           {montoDescuentoTotal > 0 && (
-            <div className="text-[9px] text-slate-500 dark:text-slate-400 leading-tight space-y-0.5 mb-0.5">
-              <div>Subtotal: <span className="font-semibold text-slate-700 dark:text-slate-300">${subtotalBruto.toLocaleString('es-CO')}</span></div>
-              <div className="text-emerald-600 dark:text-emerald-400 font-bold">Dto ({tipoDescuento === 'porcentaje' ? `${valorDescuento}%` : 'fijo'}): -${montoDescuentoTotal.toLocaleString('es-CO')}</div>
-            </div>
+            <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-bold leading-tight">
+              Dto: -${montoDescuentoTotal.toLocaleString('es-CO')}
+            </span>
+          )}
+          {usarSaldoFavor && montoSaldoFavorAplicado > 0 && (
+            <span className="text-[10px] text-blue-600 dark:text-blue-400 font-bold leading-tight">
+              Saldo: -${montoSaldoFavorAplicado.toLocaleString('es-CO')}
+            </span>
           )}
           <div className="flex items-baseline gap-1.5">
             <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Total</span>
-            <span className="text-lg sm:text-2xl font-black text-slate-900 dark:text-white whitespace-nowrap overflow-visible leading-none min-w-0">${totalFilasRegistro.toLocaleString('es-CO')}</span>
+            <span className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white whitespace-nowrap overflow-visible leading-none min-w-0">
+              ${totalNetoACobrar.toLocaleString('es-CO')}
+            </span>
           </div>
         </div>
-        {(() => {
-          const pagadoRaw = pagoCliente.replace(/\D/g, '');
-          const pagadoNum = pagadoRaw === "" ? 0 : parseFloat(pagadoRaw);
-          let textoBoton = puedeVentaDirecta ? "Vender" : "Enviar Orden";
-          let bgBoton = "bg-emerald-600 hover:bg-emerald-700";
-          if (puedeVentaDirecta) {
-            const usaSaldoFavor = clienteTransaccion && clienteTransaccion.deudaTotal !== undefined && clienteTransaccion.deudaTotal < 0;
-            if (pagadoRaw !== "" && pagadoNum === 0 && totalFilasRegistro > 0) {
-              textoBoton = usaSaldoFavor ? "Cobrar con Saldo a Favor" : "Fiar Total"; bgBoton = usaSaldoFavor ? "bg-blue-600 hover:bg-rose-700" : "bg-rose-600 hover:bg-rose-700";
-            } else if (pagadoNum > 0 && pagadoNum < totalFilasRegistro) {
-              textoBoton = usaSaldoFavor ? "Cobrar y usar Saldo" : "Vender y Fiar"; bgBoton = usaSaldoFavor ? "bg-blue-600 hover:bg-emerald-700" : "bg-emerald-600 hover:bg-emerald-700";
+
+        <button
+          type="button"
+          onClick={() => {
+            const filasValidas = filasRegistro.filter(f => parseFloat(f.valor) > 0);
+            if (filasValidas.length === 0) {
+              toast.error("Agrega al menos un artículo para cobrar.");
+              return;
             }
-          } else {
-            bgBoton = "bg-amber-500 hover:bg-amber-600";
-          }
-          return (
-            <button 
-              onClick={procesarRegistro} 
-              disabled={guardandoVenta}
-              className={`flex-1 ${bgBoton} ${guardandoVenta ? 'opacity-50 cursor-not-allowed' : 'active:scale-95'} text-white font-black py-3 sm:py-3.5 px-4 rounded-xl sm:rounded-2xl shadow-lg flex items-center justify-center gap-2 text-base sm:text-lg transition-transform`}
-            >
-              <span>{guardandoVenta ? "Procesando..." : textoBoton}</span> {puedeVentaDirecta ? <CheckCircle2 size={18} /> : <Receipt size={18} />}
-            </button>
-          );
-        })()}
+            // Sincronizar monto de pago por defecto si está vacío
+            if (!pagoCliente && totalNetoACobrar > 0 && metodoPago !== 'efectivo') {
+              setPagoCliente(totalNetoACobrar.toLocaleString('es-CO'));
+            }
+            setModalCobroMovil(true);
+          }}
+          disabled={totalFilasRegistro === 0}
+          className={`flex-1 ${
+            totalFilasRegistro > 0
+              ? 'bg-emerald-600 hover:bg-emerald-700 active:scale-95 shadow-emerald-600/30'
+              : 'bg-slate-300 dark:bg-slate-800 text-slate-500 opacity-60 cursor-not-allowed'
+          } text-white font-black py-3 sm:py-3.5 px-4 rounded-xl sm:rounded-2xl shadow-lg flex items-center justify-center gap-2 text-sm sm:text-base transition-transform cursor-pointer`}
+        >
+          <span>{totalFilasRegistro > 0 ? `Cobrar $${totalNetoACobrar.toLocaleString('es-CO')}` : 'Sin artículos'}</span>
+          <ChevronRight size={18} />
+        </button>
       </div>
+
+      {/* MODAL / DRAWER BOTTOM-SHEET DE COBRO EN MÓVIL (< 1024px) */}
+      {modalCobroMovil && (
+        <div className="lg:hidden fixed inset-0 bg-black/70 backdrop-blur-sm z-[200] flex flex-col justify-end animate-in fade-in duration-200">
+          <div className="bg-white dark:bg-[#0f172a] rounded-t-[2rem] max-h-[92dvh] flex flex-col shadow-2xl border-t border-slate-200 dark:border-slate-800 overflow-hidden animate-in slide-in-from-bottom duration-300">
+            {/* CABECERA DEL DRAWER */}
+            <div className="px-4 py-3.5 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between bg-slate-50/80 dark:bg-slate-900/80 shrink-0">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 bg-emerald-100 dark:bg-emerald-950 text-emerald-600 dark:text-emerald-400 rounded-xl">
+                  <Receipt size={18} />
+                </div>
+                <div>
+                  <h3 className="font-black text-sm text-slate-900 dark:text-white">Finalizar Cobro</h3>
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400 font-medium">
+                    {filasRegistro.filter(f => parseFloat(f.valor) > 0).length} artículos en la orden
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-3">
+                <div className="text-right">
+                  <span className="text-[9px] text-slate-400 uppercase font-black block">Total Neto</span>
+                  <span className="text-base font-black text-emerald-600 dark:text-emerald-400 leading-none">
+                    ${totalNetoACobrar.toLocaleString('es-CO')}
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setModalCobroMovil(false)}
+                  className="p-2 bg-slate-200/80 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-300 rounded-full transition-colors cursor-pointer"
+                  title="Volver a los artículos"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+            </div>
+
+            {/* CONTENIDO DEL COBRO SCROLLEABLE */}
+            <div className="p-3.5 pb-8 overflow-y-auto space-y-3 flex-1">
+              {renderFormularioCobro({ esModal: true })}
+            </div>
+          </div>
+        </div>
+      )}
 
 
       {/* MODAL DEL ESCÁNER ULTRA RÁPIDO POS */}

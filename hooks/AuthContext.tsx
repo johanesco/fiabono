@@ -1,7 +1,7 @@
 "use client";
 import { createContext, useContext, useState, useEffect } from "react";
 import { onAuthStateChanged, signOut } from "firebase/auth";
-import { doc, getDoc, updateDoc } from "firebase/firestore";
+import { doc, getDoc, updateDoc, collection, query, where, getDocs } from "firebase/firestore";
 import { auth, db } from "../firebase";
 import { useRouter, usePathname } from "next/navigation";
 import { DatosSesionContext, UsuarioBD } from "../types";
@@ -124,9 +124,41 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
           
           // Si el plan venció hace MÁS de 2 días, forzar downgrade
           if (daysLeft < -2) {
-            planActual = 'gratis';
+            const nuevoPlan: 'gratis' | 'comercio' = (adminData.proximoPlan === 'comercio') ? 'comercio' : 'gratis';
+            planActual = nuevoPlan;
             if (data.rol !== 'cajero') {
-              await updateDoc(doc(db, "usuarios", idParaConsultar), { plan: 'gratis', planVence: null });
+              await updateDoc(doc(db, "usuarios", idParaConsultar), { 
+                plan: nuevoPlan, 
+                planVence: null,
+                proximoPlan: null
+              });
+
+              // Desactivar colaboradores según el nuevo plan
+              if (nuevoPlan === 'gratis') {
+                const qColabs = query(
+                  collection(db, "usuarios"),
+                  where("adminId", "==", idParaConsultar),
+                  where("rol", "==", "cajero")
+                );
+                const snapColabs = await getDocs(qColabs);
+                const desactivaciones = snapColabs.docs.map(d =>
+                  updateDoc(doc(db, "usuarios", d.id), { activo: false })
+                );
+                await Promise.all(desactivaciones);
+              } else if (nuevoPlan === 'comercio') {
+                // En plan comercio solo se permite 1 colaborador activo
+                const qColabs = query(
+                  collection(db, "usuarios"),
+                  where("adminId", "==", idParaConsultar),
+                  where("rol", "==", "cajero"),
+                  where("activo", "==", true)
+                );
+                const snapColabs = await getDocs(qColabs);
+                if (snapColabs.docs.length > 1) {
+                  const sobrantes = snapColabs.docs.slice(1);
+                  await Promise.all(sobrantes.map(d => updateDoc(doc(db, "usuarios", d.id), { activo: false })));
+                }
+              }
             }
           } else {
             diasRestantesPlan = daysLeft;
@@ -173,6 +205,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
           puedeSepare: esPro && (permisos?.planSepare !== false),
           tipoUsuario: data.rol === 'cajero' ? 'colaborador' : 'principal',
           planActual,
+          proximoPlan: adminData.proximoPlan || null,
           esGratis,
           esComercio,
           esPro,

@@ -96,6 +96,7 @@ export async function POST(request: Request) {
       transaction.update(userRef, {
         plan: planOtorgado,
         planVence: nuevaFechaVencimiento,
+        proximoPlan: null,
         cicloPlan: cicloAsignado,
         fechaActualizacionPlan: new Date()
       });

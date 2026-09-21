@@ -845,14 +845,30 @@ export default function PerfilPage() {
       const cred = EmailAuthProvider.credential(usuarioAuth!.email!, passCancelarPro);
       await reauthenticateWithCredential(usuarioAuth!, cred);
       
-      await updateDoc(doc(db, "usuarios", usuarioAuth!.uid), { plan: 'gratis', planVence: null, cicloPlan: 'mensual' });
+      const diasRestantes = datosSesion?.diasRestantesPlan ?? 0;
+
+      // Si aún tiene días pagos restantes, programar proximoPlan: 'gratis' sin cortar días pagados
+      if (diasRestantes > 0) {
+        await updateDoc(doc(db, "usuarios", usuarioAuth!.uid), { proximoPlan: 'gratis' });
+        setDatosSesion((prev: any) => ({ ...prev, proximoPlan: 'gratis' }));
+        setModalCancelarPro(false); setPassCancelarPro(""); setErrorCancelarPro("");
+        setModalAvisoColaborador({
+          visible: true,
+          titulo: "Cancelación Programada",
+          mensaje: `Tu suscripción no se renovará. Conservarás todos los beneficios de tu plan actual durante tus ${diasRestantes} días restantes.\n\nAl vencer esa fecha, tu cuenta pasará automáticamente al Plan Gratuito sin cobros adicionales.`,
+          icono: 'info'
+        });
+        return;
+      }
+
+      await updateDoc(doc(db, "usuarios", usuarioAuth!.uid), { plan: 'gratis', planVence: null, proximoPlan: null, cicloPlan: 'mensual' });
       const qC = query(collection(db, "usuarios"), where("adminId", "==", usuarioAuth!.uid), where("rol", "==", "cajero"));
       const snap = await getDocs(qC);
       const batchPromesas: any[] = [];
       snap.forEach((documento) => { batchPromesas.push(updateDoc(doc(db, "usuarios", documento.id), { activo: false })); });
       await Promise.all(batchPromesas);
 
-      setDatosSesion((prev:any) => ({...prev, planActual: 'gratis', esGratis: true, esPro: false, esComercio: false, diasPro: null}));
+      setDatosSesion((prev:any) => ({...prev, planActual: 'gratis', proximoPlan: null, esGratis: true, esPro: false, esComercio: false, diasPro: null}));
       setModalCancelarPro(false); setPassCancelarPro(""); setErrorCancelarPro("");
       cargarListaColaboradores(usuarioAuth!.uid);
       setModalAvisoColaborador({ visible: true, titulo: "Suscripción Cancelada", mensaje: "Has vuelto al Plan Gratuito con éxito.\n\nTodos tus datos, clientes e inventario se conservan intactos. Las nuevas creaciones respetarán los límites del plan gratuito.", icono: 'info' });
@@ -1951,12 +1967,29 @@ export default function PerfilPage() {
 
                 <div className="flex flex-wrap items-center gap-2 shrink-0">
                   {(planActual === 'pro' || planActual === 'comercio') && (
-                    <button
-                      onClick={() => setModalCancelarPro(true)}
-                      className="px-3.5 py-2.5 rounded-xl font-bold text-xs text-slate-500 hover:text-rose-600 dark:hover:text-rose-400 bg-white/80 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 transition-colors cursor-pointer"
-                    >
-                      Cancelar Suscripción
-                    </button>
+                    datosSesion?.proximoPlan === 'gratis' ? (
+                      <button
+                        onClick={async () => {
+                          try {
+                            await updateDoc(doc(db, "usuarios", usuarioAuth!.uid), { proximoPlan: null });
+                            setDatosSesion((prev: any) => ({ ...prev, proximoPlan: null }));
+                            toast.success("Renovación reactivada con éxito 🙌");
+                          } catch (e) {
+                            toast.error("Error al reactivar la renovación.");
+                          }
+                        }}
+                        className="px-3.5 py-2.5 rounded-xl font-bold text-xs text-amber-700 dark:text-amber-300 bg-amber-100 dark:bg-amber-900/40 border border-amber-300 dark:border-amber-700 transition-colors cursor-pointer"
+                      >
+                        Reactivar Renovación
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() => setModalCancelarPro(true)}
+                        className="px-3.5 py-2.5 rounded-xl font-bold text-xs text-slate-500 hover:text-rose-600 dark:hover:text-rose-400 bg-white/80 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 transition-colors cursor-pointer"
+                      >
+                        Cancelar Suscripción
+                      </button>
+                    )
                   )}
                   <button
                     onClick={() => setModalSuscripcionOpen(true)}
