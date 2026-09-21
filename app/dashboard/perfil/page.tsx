@@ -2232,21 +2232,47 @@ export default function PerfilPage() {
                     <div className="p-4 rounded-2xl bg-violet-50/60 dark:bg-violet-950/20 border border-violet-100 dark:border-violet-900/40">
                       <div className="flex items-center justify-between gap-4">
                         <div>
-                          <h4 className="font-bold text-sm text-slate-900 dark:text-white flex items-center gap-1.5">
-                            <Bookmark size={16} className="text-violet-600 dark:text-violet-400" /> Módulo Plan Separe (Apartados con Abonos)
-                          </h4>
+                          <div className="flex items-center gap-2">
+                            <h4 className="font-bold text-sm text-slate-900 dark:text-white flex items-center gap-1.5">
+                              <Bookmark size={16} className="text-violet-600 dark:text-violet-400" /> Módulo Plan Separe (Apartados con Abonos)
+                            </h4>
+                            {!datosSesion?.esPro && (
+                              <span className="bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300 text-[10px] font-black px-2 py-0.5 rounded-md uppercase tracking-wider">
+                                Exclusivo PRO
+                              </span>
+                            )}
+                          </div>
                           <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                            Muestra el acceso a Planes Separe en la pantalla de inicio y catálogos. Desactívalo si eres tienda de barrio y solo usas ventas y fiados.
+                            {datosSesion?.esPro 
+                              ? "Muestra el acceso a Planes Separe en la pantalla de inicio y catálogos. Desactívalo si eres tienda de barrio y solo usas ventas y fiados."
+                              : "La creación de apartados está disponible en el Plan PRO. Tus apartados anteriores se mantienen intactos en modo liquidación para abonar y entregar."}
                           </p>
                         </div>
-                        <label className="relative inline-flex items-center cursor-pointer shrink-0">
+                        <label 
+                          className="relative inline-flex items-center cursor-pointer shrink-0"
+                          onClick={(e) => {
+                            if (!datosSesion?.esPro) {
+                              e.preventDefault();
+                              toast.error("El módulo Plan Separe está disponible exclusivamente en el Plan PRO.", { icon: "👑" });
+                              setModalSuscripcionOpen(true);
+                            }
+                          }}
+                        >
                           <input 
                             type="checkbox" 
-                            checked={moduloSepareActivo} 
-                            onChange={(e) => setModuloSepareActivo(e.target.checked)} 
+                            checked={datosSesion?.esPro ? moduloSepareActivo : false} 
+                            onChange={(e) => {
+                              if (!datosSesion?.esPro) {
+                                toast.error("El módulo Plan Separe está disponible exclusivamente en el Plan PRO.", { icon: "👑" });
+                                setModalSuscripcionOpen(true);
+                                return;
+                              }
+                              setModuloSepareActivo(e.target.checked);
+                            }} 
+                            disabled={!datosSesion?.esPro}
                             className="sr-only peer" 
                           />
-                          <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer dark:bg-slate-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-violet-600"></div>
+                          <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer dark:bg-slate-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-violet-600 peer-disabled:opacity-50 peer-disabled:cursor-not-allowed"></div>
                         </label>
                       </div>
                     </div>

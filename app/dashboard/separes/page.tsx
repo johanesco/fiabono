@@ -843,10 +843,20 @@ Gracias por contactarnos.`;
             </div>
             {!busqueda && tabActiva === 'activos' && (
               <button
-                onClick={() => router.push('/dashboard/separe')}
-                className="bg-violet-600 hover:bg-violet-700 text-white font-bold text-xs px-5 py-3 rounded-2xl shadow-md transition-all inline-flex items-center gap-2"
+                onClick={() => {
+                  if (!datosSesion?.esPro) {
+                    toast.error("La creación de nuevos apartados requiere el Plan PRO.", { icon: "👑" });
+                    setModalSuscripcionOpen(true);
+                    return;
+                  }
+                  router.push('/dashboard/separe');
+                }}
+                className="bg-violet-600 hover:bg-violet-700 text-white font-bold text-xs px-5 py-3 rounded-2xl shadow-md transition-all inline-flex items-center gap-2 cursor-pointer active:scale-95"
               >
                 <Plus size={16} /> Crear Plan Separe
+                {!datosSesion?.esPro && (
+                  <span className="bg-amber-100 text-amber-800 text-[10px] font-black px-1.5 py-0.5 rounded-md uppercase tracking-wider">PRO</span>
+                )}
               </button>
             )}
           </div>

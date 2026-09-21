@@ -9,11 +9,12 @@ import {
   Tag, AlertCircle, Printer, Image as ImageIcon, Banknote, 
   Smartphone, CreditCard, Zap, Trash2, UserCog, RotateCcw, 
   Upload, Package, Store, Check, FileText, Percent, Eye,
-  QrCode, Receipt
+  QrCode, Receipt, Crown
 } from 'lucide-react';
 import toast from "react-hot-toast";
 import { useAuth } from "@/hooks/AuthContext";
 import TicketFacturaModal, { DatosFacturaProps } from "@/components/TicketFacturaModal";
+import ModalSuscripcion from "@/components/ModalSuscripcion";
 import { Html5Qrcode } from "html5-qrcode";
 import { abrirEnlaceWhatsApp } from "@/utils/whatsapp";
 import { API_DB } from "../../../servicios/db";
@@ -51,6 +52,7 @@ function SepareContenido() {
     }
   }, [datosSesion, router]);
 
+  const [modalSuscripcionOpen, setModalSuscripcionOpen] = useState(false);
   const [listaVendedores, setListaVendedores] = useState<string[]>([]);
   const [vendedorActivo, setVendedorActivo] = useState<string>(nombreUsuario || "Vendedor");
   const [modalNuevoVendedor, setModalNuevoVendedor] = useState(false);
@@ -140,6 +142,11 @@ function SepareContenido() {
   const [nombreNuevo, setNombreNuevo] = useState("");
   const [celularNuevo, setCelularNuevo] = useState("");
   const [guardandoCliente, setGuardandoCliente] = useState(false);
+
+  const clientesFiltrados = (clientes || []).filter((c: any) =>
+    (c.nombre || "").toLowerCase().includes(busquedaCliente.toLowerCase()) ||
+    (c.celular || "").toString().includes(busquedaCliente)
+  );
 
   // Inventario de la base de datos
   const [inventario, setInventario] = useState<any[]>([]);
@@ -1548,11 +1555,54 @@ Estamos atentos para cualquier consulta.
     abrirEnlaceWhatsApp(celLimpio, texto);
   };
 
-  // Clientes filtrados
-  const clientesFiltrados = clientes.filter(c =>
-    (c.nombre || "").toLowerCase().includes(busquedaCliente.toLowerCase()) ||
-    (c.celular || "").toString().includes(busquedaCliente)
-  );
+  // Si el usuario no tiene Plan PRO, bloquear el formulario y mostrar pantalla explicativa
+  if (datosSesion && !datosSesion.esPro) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[70vh] p-6 text-center max-w-lg mx-auto animate-in fade-in duration-200">
+        <div className="w-20 h-20 rounded-3xl bg-violet-100 dark:bg-violet-950/60 text-violet-600 dark:text-violet-400 flex items-center justify-center mb-4 shadow-sm border border-violet-200 dark:border-violet-800/50">
+          <Crown size={38} className="text-amber-500" />
+        </div>
+        <span className="text-xs font-black text-violet-600 dark:text-violet-400 uppercase tracking-widest mb-1.5">
+          Función Exclusiva Plan PRO
+        </span>
+        <h2 className="text-2xl font-black text-slate-900 dark:text-white mb-3">
+          Creación de Planes Separe
+        </h2>
+        <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-300 mb-6 leading-relaxed">
+          Tu cuenta se encuentra en el <strong className="text-slate-900 dark:text-white">Plan {datosSesion.planActual === 'comercio' ? 'Comercio' : 'Gratuito'}</strong>. La creación de nuevos apartados requiere el <strong className="text-violet-600 dark:text-violet-400">Plan PRO</strong>.
+          <br /><br />
+          <span className="inline-block p-3 rounded-xl bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/60 text-amber-800 dark:text-amber-300 text-xs font-medium text-left">
+            🔒 <strong>Modo Liquidación Activo:</strong> Tus apartados anteriores se mantienen intactos en el módulo de Separes para que puedas seguir registrando abonos o entregándolos sin inconvenientes.
+          </span>
+        </p>
+        <div className="flex flex-col sm:flex-row gap-3 w-full">
+          <button
+            type="button"
+            onClick={() => router.push('/dashboard/separes')}
+            className="flex-1 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-bold py-3.5 px-4 rounded-xl transition-all cursor-pointer text-xs sm:text-sm"
+          >
+            Ver mis Separes Activos
+          </button>
+          <button
+            type="button"
+            onClick={() => setModalSuscripcionOpen(true)}
+            className="flex-1 bg-violet-600 hover:bg-violet-700 active:scale-95 text-white font-black py-3.5 px-4 rounded-xl shadow-lg transition-all flex items-center justify-center gap-2 cursor-pointer text-xs sm:text-sm"
+          >
+            <Crown size={16} className="text-amber-300" />
+            <span>Activar Plan PRO</span>
+          </button>
+        </div>
+        {modalSuscripcionOpen && (
+          <ModalSuscripcion
+            isOpen={modalSuscripcionOpen}
+            onClose={() => setModalSuscripcionOpen(false)}
+            cuentaPrincipalId={cuentaPrincipalId || ''}
+            planInicial="pro"
+          />
+        )}
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col w-full h-full bg-white dark:bg-[#0f172a] md:rounded-[2rem] overflow-hidden border border-slate-200 dark:border-slate-800 shadow-xl min-h-0 animate-in fade-in duration-300 relative">

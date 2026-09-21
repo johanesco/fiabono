@@ -32,16 +32,20 @@ export default function InstallPrompt() {
   const [esChromeEnIOS, setEsChromeEnIOS] = useState(false);
 
   useEffect(() => {
-    // Si ya está abierta como PWA instalada o es la ruta pública del comprobante para clientes (/t/...), no mostrar nada
-    if (estaInstalada() || pathname?.startsWith("/t/")) return;
+    if (typeof window === "undefined") return;
+
+    // Si la pantalla es de escritorio/tablet (>= 768px), o si ya está instalada, o es comprobante público (/t/...), NUNCA mostrar
+    if (window.innerWidth >= 768 || estaInstalada() || pathname?.startsWith("/t/")) return;
+
+    // Si el usuario ya la descartó previamente en este dispositivo, no molestar
+    const descartadoPrevio = localStorage.getItem("fiabono-install-dismissed") || sessionStorage.getItem("fiabono-install-dismissed");
+    if (descartadoPrevio) return;
+
+    const isDesktopUA = !/android|iphone|ipad|ipod|mobile/i.test(window.navigator.userAgent);
+    if (isDesktopUA) return;
 
     const esApple = esIOS();
     const esChrome = esChromeIOS();
-    const isDesktop = !/android|iphone|ipad|ipod|mobile/i.test(window.navigator.userAgent);
-    
-    // Si es escritorio, mejor no mostrar el banner flotante invasivo,
-    // el usuario puede instalarlo desde Ajustes o la barra de URL.
-    if (isDesktop) return;
 
     setEsDispositivoIOS(esApple);
     setEsChromeEnIOS(esChrome);
@@ -52,45 +56,43 @@ export default function InstallPrompt() {
     };
     window.addEventListener("abrir-prompt-instalacion", handleAbrirManual);
 
-    // Si ya la cerró en esta sesión actual, no molestar automáticamente
-    const descartadoEnSesion = sessionStorage.getItem("fiabono-install-dismissed");
-
     // Android / Chrome Desktop
     const manejadorAndroid = (e: Event) => {
       e.preventDefault();
       setEventoAndroid(e as Event & { prompt?: () => Promise<void> });
-      if (!descartadoEnSesion) {
-        setMostrarModal(true);
-      }
+      setMostrarModal(true);
     };
     window.addEventListener("beforeinstallprompt", manejadorAndroid);
 
     // iOS (Safari o Chrome en iPhone)
-    if (esApple && !descartadoEnSesion) {
-      const timer = setTimeout(() => {
+    let timer: NodeJS.Timeout | null = null;
+    if (esApple) {
+      timer = setTimeout(() => {
         setMostrarModal(true);
-      }, 1500);
-      return () => {
-        clearTimeout(timer);
-        window.removeEventListener("beforeinstallprompt", manejadorAndroid);
-        window.removeEventListener("abrir-prompt-instalacion", handleAbrirManual);
-      };
+      }, 2000);
     }
 
     return () => {
+      if (timer) clearTimeout(timer);
       window.removeEventListener("beforeinstallprompt", manejadorAndroid);
       window.removeEventListener("abrir-prompt-instalacion", handleAbrirManual);
     };
-  }, []);
+  }, [pathname]);
 
   function descartar() {
-    sessionStorage.setItem("fiabono-install-dismissed", "1");
+    try {
+      localStorage.setItem("fiabono-install-dismissed", "1");
+      sessionStorage.setItem("fiabono-install-dismissed", "1");
+    } catch (e) {}
     setMostrarModal(false);
   }
 
   async function instalarAndroid() {
     if (!eventoAndroid || !eventoAndroid.prompt) return;
     await eventoAndroid.prompt();
+    try {
+      localStorage.setItem("fiabono-install-dismissed", "1");
+    } catch (e) {}
     setMostrarModal(false);
   }
 

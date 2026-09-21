@@ -91,7 +91,7 @@ function VenderContenido() {
   const [clienteTransaccion, setClienteTransaccion] = useState<any | null>(null);
   const [busquedaRegistro, setBusquedaRegistro] = useState("");
   const [mostrarResultadosBuscador, setMostrarResultadosBuscador] = useState(false);
-  const [modalCobroMovil, setModalCobroMovil] = useState(false);
+  const [pasoMovil, setPasoMovil] = useState<'articulos' | 'cobro'>('articulos');
   const [usarSaldoFavor, setUsarSaldoFavor] = useState(true);
   
   const [modalConfirmarFiado, setModalConfirmarFiado] = useState(false);
@@ -1218,7 +1218,7 @@ function VenderContenido() {
       };
 
       const faltanteReal = Math.max(totalNetoACobrar - pagadoNum, 0);
-      setModalCobroMovil(false);
+      setPasoMovil('articulos');
       setModalExito({ 
         visible: true, 
         cliente: clienteFinalActualizado, 
@@ -1507,9 +1507,9 @@ Estamos atentos para cualquier consulta.
           )}
         </div>
 
-        {/* 2. CAJA PEDAGÓGICA DE SALDO A FAVOR (Visible cuando el cliente tiene saldo a favor) */}
+        {/* 2. CAJA SALDO A FAVOR (Visible cuando el cliente tiene saldo a favor) */}
         {saldoFavorDisponible > 0 && (
-          <div className="p-2.5 sm:p-3 bg-blue-50/90 dark:bg-blue-950/40 border-2 border-blue-400/80 dark:border-blue-600 rounded-2xl flex flex-col gap-2 animate-in fade-in slide-in-from-top-1 duration-200 shadow-xs">
+          <div className="p-2.5 sm:p-3 bg-blue-50/90 dark:bg-blue-950/40 border-2 border-blue-400/80 dark:border-blue-600 rounded-2xl flex flex-col gap-1.5 animate-in fade-in slide-in-from-top-1 duration-200 shadow-xs">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-1.5 min-w-0">
                 <span className="text-base shrink-0">💎</span>
@@ -1531,32 +1531,19 @@ Estamos atentos para cualquier consulta.
                     : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-300 dark:border-slate-600'
                 }`}
               >
-                {usarSaldoFavor ? '✓ Aplicado' : 'No usar'}
+                {usarSaldoFavor ? '✓ Aplicar' : 'No usar'}
               </button>
             </div>
 
             {usarSaldoFavor && (
-              <div className="bg-white/90 dark:bg-slate-900/90 rounded-xl p-2.5 text-xs text-slate-700 dark:text-slate-300 space-y-1 border border-blue-200 dark:border-blue-800/60 font-medium">
-                <div className="flex justify-between">
-                  <span>Total de la orden:</span>
-                  <span className="font-bold text-slate-900 dark:text-white">${totalFilasRegistro.toLocaleString('es-CO')}</span>
-                </div>
-                <div className="flex justify-between text-blue-600 dark:text-blue-400 font-bold">
-                  <span>(-) Saldo a favor usado:</span>
-                  <span>-${montoSaldoFavorAplicado.toLocaleString('es-CO')}</span>
-                </div>
-                <div className="flex justify-between pt-1 border-t border-slate-200 dark:border-slate-800 font-black text-slate-900 dark:text-white">
-                  <span>(=) Neto a pagar en caja:</span>
-                  <span className="text-sm text-emerald-600 dark:text-emerald-400 font-black">
-                    ${totalNetoACobrar.toLocaleString('es-CO')}
-                  </span>
-                </div>
+              <p className="text-[11px] text-blue-700 dark:text-blue-300 font-medium">
+                ✓ Se aplicarán <strong className="font-bold">${montoSaldoFavorAplicado.toLocaleString('es-CO')}</strong> a esta venta.
                 {saldoFavorRestante > 0 && (
-                  <p className="text-[10.5px] text-blue-600 dark:text-blue-400 italic pt-0.5 leading-snug">
-                    * Le quedarán ${saldoFavorRestante.toLocaleString('es-CO')} de saldo a favor para futuras compras.
-                  </p>
+                  <span className="text-slate-500 dark:text-slate-400 block text-[10px] pt-0.5">
+                    (Le quedarán ${saldoFavorRestante.toLocaleString('es-CO')} para futuras compras)
+                  </span>
                 )}
-              </div>
+              </p>
             )}
           </div>
         )}
@@ -1701,6 +1688,37 @@ Estamos atentos para cualquier consulta.
               />
             </div>
           )}
+        </div>
+
+        {/* RESUMEN DETALLADO DEL TOTAL DE LA ORDEN (SUBTOTAL, DESCUENTO, SALDO A FAVOR, NETO) */}
+        <div className="bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/80 rounded-2xl p-2.5 sm:p-3 flex flex-col gap-1.5 shadow-2xs">
+          <div className="flex justify-between items-center text-[11px] text-slate-500 dark:text-slate-400 font-medium">
+            <span>Subtotal artículos:</span>
+            <span className="font-bold text-slate-700 dark:text-slate-200">${subtotalBruto.toLocaleString('es-CO')}</span>
+          </div>
+
+          {montoDescuentoTotal > 0 && (
+            <div className="flex justify-between items-center text-[11px] text-emerald-600 dark:text-emerald-400 font-bold">
+              <span>Descuento ({tipoDescuento === 'porcentaje' ? `${valorDescuento}%` : 'fijo'}):</span>
+              <span>-${montoDescuentoTotal.toLocaleString('es-CO')}</span>
+            </div>
+          )}
+
+          {usarSaldoFavor && montoSaldoFavorAplicado > 0 && (
+            <div className="flex justify-between items-center text-[11px] text-blue-600 dark:text-blue-400 font-bold">
+              <span>Saldo a favor aplicado:</span>
+              <span>-${montoSaldoFavorAplicado.toLocaleString('es-CO')}</span>
+            </div>
+          )}
+
+          <div className="pt-1.5 border-t border-slate-200 dark:border-slate-700 flex justify-between items-baseline">
+            <span className="text-[10px] uppercase font-black tracking-wider text-slate-700 dark:text-slate-300">
+              {usarSaldoFavor && montoSaldoFavorAplicado > 0 ? 'Neto a cobrar en caja:' : 'Total a pagar:'}
+            </span>
+            <span className="text-base sm:text-lg font-black text-slate-900 dark:text-white font-mono">
+              ${totalNetoACobrar.toLocaleString('es-CO')}
+            </span>
+          </div>
         </div>
 
         {/* 4. RECUADRO DINERO RECIBIDO & CAMBIO */}
@@ -1972,6 +1990,45 @@ Estamos atentos para cualquier consulta.
         </button>
       </div>
 
+      {/* SELECTOR DE PASOS EN MÓVIL / PANTALLAS PEQUEÑAS (< 1024px) */}
+      <div className="lg:hidden px-3 py-2 bg-slate-100 dark:bg-[#020617] border-b border-slate-200 dark:border-slate-800 flex items-center gap-2 shrink-0">
+        <button
+          type="button"
+          onClick={() => setPasoMovil('articulos')}
+          className={`flex-1 py-2 px-3 rounded-xl text-xs font-black flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+            pasoMovil === 'articulos'
+              ? 'bg-white dark:bg-[#0f172a] text-emerald-600 dark:text-emerald-400 shadow-sm border border-slate-200 dark:border-slate-700'
+              : 'text-slate-500 hover:text-slate-700 dark:text-slate-400'
+          }`}
+        >
+          <ShoppingCart size={14} />
+          <span>1. Artículos ({filasRegistro.filter(f => parseFloat(f.valor) > 0).length})</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => {
+            const filasValidas = filasRegistro.filter(f => parseFloat(f.valor) > 0);
+            if (filasValidas.length === 0) {
+              toast.error("Agrega al menos un artículo para ir al cobro.");
+              return;
+            }
+            if (!pagoCliente && totalNetoACobrar > 0 && metodoPago !== 'efectivo') {
+              setPagoCliente(totalNetoACobrar.toLocaleString('es-CO'));
+            }
+            setPasoMovil('cobro');
+          }}
+          className={`flex-1 py-2 px-3 rounded-xl text-xs font-black flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+            pasoMovil === 'cobro'
+              ? 'bg-emerald-600 text-white shadow-sm'
+              : 'text-slate-500 hover:text-slate-700 dark:text-slate-400'
+          }`}
+        >
+          <Receipt size={14} />
+          <span>2. Cobro {totalFilasRegistro > 0 ? `($${totalNetoACobrar.toLocaleString('es-CO')})` : ''}</span>
+        </button>
+      </div>
+
       {/* CUERPO PRINCIPAL (Flujo vertical amplio en Móviles y Tablets Verticales, 2 columnas en Escritorio/Horizontal) */}
       <div 
         ref={contenedorScrollRef}
@@ -1979,8 +2036,8 @@ Estamos atentos para cualquier consulta.
         className="flex flex-col lg:flex-row flex-1 min-h-0 overflow-y-auto lg:overflow-hidden pb-24 md:pb-4 lg:pb-0 relative"
       >
         
-        {/* SECCIÓN ARTÍCULOS O CONCEPTOS: ANCHO COMPLETO EN TABLET VERTICAL (SIN TEXTOS CORTADOS) */}
-        <div className="flex-1 flex flex-col bg-slate-50/60 dark:bg-[#020617]/50 lg:min-h-0 lg:overflow-hidden shrink-0">
+        {/* SECCIÓN ARTÍCULOS O CONCEPTOS: Visible en desktop y cuando pasoMovil === 'articulos' en móvil */}
+        <div className={`flex-1 flex flex-col bg-slate-50/60 dark:bg-[#020617]/50 lg:min-h-0 lg:overflow-hidden shrink-0 ${pasoMovil === 'cobro' ? 'hidden lg:flex' : 'flex'}`}>
           
           <div ref={scrollArticulosRef} className="p-3 sm:p-5 lg:p-6 xl:p-8 space-y-3 sm:space-y-4 lg:flex-1 lg:overflow-y-auto min-h-0">
             <div className="max-w-4xl mx-auto space-y-3 sm:space-y-4">
@@ -2272,6 +2329,32 @@ Estamos atentos para cualquier consulta.
         </div>
       </div>
 
+        {/* VISTA DE COBRO DIRECTA EN MÓVIL (< 1024px) */}
+        {pasoMovil === 'cobro' && (
+          <div className="lg:hidden flex-1 flex flex-col bg-white dark:bg-[#0f172a] p-3.5 sm:p-5 overflow-y-auto pb-28 animate-in fade-in duration-150">
+            <div className="flex items-center justify-between pb-3 mb-2 border-b border-slate-100 dark:border-slate-800 max-w-xl mx-auto w-full">
+              <button
+                type="button"
+                onClick={() => setPasoMovil('articulos')}
+                className="flex items-center gap-1.5 text-xs font-black text-slate-700 dark:text-slate-200 hover:text-emerald-600 bg-slate-100 dark:bg-slate-800 px-3 py-1.5 rounded-xl transition-all cursor-pointer shadow-2xs active:scale-95"
+              >
+                <ArrowLeft size={14} />
+                <span>Modificar artículos</span>
+              </button>
+              <div className="text-right">
+                <span className="text-[10px] text-slate-400 uppercase font-black block">Artículos</span>
+                <span className="text-xs font-black text-emerald-600 dark:text-emerald-400">
+                  {filasRegistro.filter(f => parseFloat(f.valor) > 0).length} en orden
+                </span>
+              </div>
+            </div>
+
+            <div className="max-w-xl mx-auto w-full">
+              {renderFormularioCobro({ esModal: true })}
+            </div>
+          </div>
+        )}
+
         {/* COLUMNA DERECHA EXCLUSIVA DE ESCRITORIO (>= 1024px) */}
         <div className="hidden lg:flex w-full lg:w-[360px] xl:w-[380px] bg-white dark:bg-[#0f172a] lg:border-l border-slate-200 dark:border-slate-800 flex-col shrink-0 lg:min-h-0 lg:overflow-hidden">
           {/* Formulario derecho desktop */}
@@ -2359,94 +2442,52 @@ Estamos atentos para cualquier consulta.
         </div>
       </div>
 
-      {/* BARRA FLOTANTE MÓVIL / TABLET (< 1024px) - FLUJO LIMPIO EN 2 PASOS */}
-      <div className="lg:hidden fixed bottom-floating-bar left-3 right-3 sm:left-4 sm:right-4 max-w-lg mx-auto bg-white/95 dark:bg-[#0f172a]/95 backdrop-blur-xl border border-slate-200/90 dark:border-slate-800/90 p-2.5 sm:p-3 rounded-2xl sm:rounded-3xl shadow-[0_10px_25px_-5px_rgba(0,0,0,0.15)] dark:shadow-[0_10px_25px_-5px_rgba(0,0,0,0.6)] z-[110] flex items-center justify-between gap-3">
-        <div className="flex flex-col min-w-0 shrink pl-1">
-          {montoDescuentoTotal > 0 && (
-            <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-bold leading-tight">
-              Dto: -${montoDescuentoTotal.toLocaleString('es-CO')}
-            </span>
-          )}
-          {usarSaldoFavor && montoSaldoFavorAplicado > 0 && (
-            <span className="text-[10px] text-blue-600 dark:text-blue-400 font-bold leading-tight">
-              Saldo: -${montoSaldoFavorAplicado.toLocaleString('es-CO')}
-            </span>
-          )}
-          <div className="flex items-baseline gap-1.5">
-            <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Total</span>
-            <span className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white whitespace-nowrap overflow-visible leading-none min-w-0">
-              ${totalNetoACobrar.toLocaleString('es-CO')}
-            </span>
-          </div>
-        </div>
-
-        <button
-          type="button"
-          onClick={() => {
-            const filasValidas = filasRegistro.filter(f => parseFloat(f.valor) > 0);
-            if (filasValidas.length === 0) {
-              toast.error("Agrega al menos un artículo para cobrar.");
-              return;
-            }
-            // Sincronizar monto de pago por defecto si está vacío
-            if (!pagoCliente && totalNetoACobrar > 0 && metodoPago !== 'efectivo') {
-              setPagoCliente(totalNetoACobrar.toLocaleString('es-CO'));
-            }
-            setModalCobroMovil(true);
-          }}
-          disabled={totalFilasRegistro === 0}
-          className={`flex-1 ${
-            totalFilasRegistro > 0
-              ? 'bg-emerald-600 hover:bg-emerald-700 active:scale-95 shadow-emerald-600/30'
-              : 'bg-slate-300 dark:bg-slate-800 text-slate-500 opacity-60 cursor-not-allowed'
-          } text-white font-black py-3 sm:py-3.5 px-4 rounded-xl sm:rounded-2xl shadow-lg flex items-center justify-center gap-2 text-sm sm:text-base transition-transform cursor-pointer`}
-        >
-          <span>{totalFilasRegistro > 0 ? `Cobrar $${totalNetoACobrar.toLocaleString('es-CO')}` : 'Sin artículos'}</span>
-          <ChevronRight size={18} />
-        </button>
-      </div>
-
-      {/* MODAL / DRAWER BOTTOM-SHEET DE COBRO EN MÓVIL (< 1024px) */}
-      {modalCobroMovil && (
-        <div className="lg:hidden fixed inset-0 bg-black/70 backdrop-blur-sm z-[200] flex flex-col justify-end animate-in fade-in duration-200">
-          <div className="bg-white dark:bg-[#0f172a] rounded-t-[2rem] max-h-[92dvh] flex flex-col shadow-2xl border-t border-slate-200 dark:border-slate-800 overflow-hidden animate-in slide-in-from-bottom duration-300">
-            {/* CABECERA DEL DRAWER */}
-            <div className="px-4 py-3.5 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between bg-slate-50/80 dark:bg-slate-900/80 shrink-0">
-              <div className="flex items-center gap-2.5">
-                <div className="p-2 bg-emerald-100 dark:bg-emerald-950 text-emerald-600 dark:text-emerald-400 rounded-xl">
-                  <Receipt size={18} />
-                </div>
-                <div>
-                  <h3 className="font-black text-sm text-slate-900 dark:text-white">Finalizar Cobro</h3>
-                  <p className="text-[11px] text-slate-500 dark:text-slate-400 font-medium">
-                    {filasRegistro.filter(f => parseFloat(f.valor) > 0).length} artículos en la orden
-                  </p>
-                </div>
-              </div>
-
-              <div className="flex items-center gap-3">
-                <div className="text-right">
-                  <span className="text-[9px] text-slate-400 uppercase font-black block">Total Neto</span>
-                  <span className="text-base font-black text-emerald-600 dark:text-emerald-400 leading-none">
-                    ${totalNetoACobrar.toLocaleString('es-CO')}
-                  </span>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setModalCobroMovil(false)}
-                  className="p-2 bg-slate-200/80 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-300 rounded-full transition-colors cursor-pointer"
-                  title="Volver a los artículos"
-                >
-                  <X size={18} />
-                </button>
-              </div>
-            </div>
-
-            {/* CONTENIDO DEL COBRO SCROLLEABLE */}
-            <div className="p-3.5 pb-8 overflow-y-auto space-y-3 flex-1">
-              {renderFormularioCobro({ esModal: true })}
+      {/* BARRA FLOTANTE MÓVIL / TABLET (< 1024px) - SOLO EN PASO ARTÍCULOS */}
+      {pasoMovil === 'articulos' && (
+        <div className="lg:hidden fixed bottom-floating-bar left-3 right-3 sm:left-4 sm:right-4 max-w-lg mx-auto bg-white/95 dark:bg-[#0f172a]/95 backdrop-blur-xl border border-slate-200/90 dark:border-slate-800/90 p-2.5 sm:p-3 rounded-2xl sm:rounded-3xl shadow-[0_10px_25px_-5px_rgba(0,0,0,0.15)] dark:shadow-[0_10px_25px_-5px_rgba(0,0,0,0.6)] z-[110] flex items-center justify-between gap-3 animate-in slide-in-from-bottom-2 duration-200">
+          <div className="flex flex-col min-w-0 shrink pl-1">
+            {montoDescuentoTotal > 0 && (
+              <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-bold leading-tight">
+                Dto: -${montoDescuentoTotal.toLocaleString('es-CO')}
+              </span>
+            )}
+            {usarSaldoFavor && montoSaldoFavorAplicado > 0 && (
+              <span className="text-[10px] text-blue-600 dark:text-blue-400 font-bold leading-tight">
+                Saldo: -${montoSaldoFavorAplicado.toLocaleString('es-CO')}
+              </span>
+            )}
+            <div className="flex items-baseline gap-1.5">
+              <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Total</span>
+              <span className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white whitespace-nowrap overflow-visible leading-none min-w-0">
+                ${totalNetoACobrar.toLocaleString('es-CO')}
+              </span>
             </div>
           </div>
+
+          <button
+            type="button"
+            onClick={() => {
+              const filasValidas = filasRegistro.filter(f => parseFloat(f.valor) > 0);
+              if (filasValidas.length === 0) {
+                toast.error("Agrega al menos un artículo para cobrar.");
+                return;
+              }
+              // Sincronizar monto de pago por defecto si está vacío
+              if (!pagoCliente && totalNetoACobrar > 0 && metodoPago !== 'efectivo') {
+                setPagoCliente(totalNetoACobrar.toLocaleString('es-CO'));
+              }
+              setPasoMovil('cobro');
+            }}
+            disabled={totalFilasRegistro === 0}
+            className={`flex-1 ${
+              totalFilasRegistro > 0
+                ? 'bg-emerald-600 hover:bg-emerald-700 active:scale-95 shadow-emerald-600/30'
+                : 'bg-slate-300 dark:bg-slate-800 text-slate-500 opacity-60 cursor-not-allowed'
+            } text-white font-black py-3 sm:py-3.5 px-4 rounded-xl sm:rounded-2xl shadow-lg flex items-center justify-center gap-2 text-sm sm:text-base transition-transform cursor-pointer`}
+          >
+            <span>{totalFilasRegistro > 0 ? `Cobrar $${totalNetoACobrar.toLocaleString('es-CO')}` : 'Sin artículos'}</span>
+            <ChevronRight size={18} />
+          </button>
         </div>
       )}
 

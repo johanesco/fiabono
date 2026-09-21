@@ -98,6 +98,9 @@ export default function ModalSuscripcion({ isOpen, onClose, cuentaPrincipalId, p
       );
       await Promise.all(desactivaciones);
 
+      if (datosSesion?.esPro) {
+        toast("Tus Planes Separe previos se conservan en Modo Liquidación para abonar y entregar.", { icon: "🔒", duration: 7000 });
+      }
       toast.success("Has cambiado al Plan Gratuito con éxito. Todos tus datos se conservan intactos 🙌");
       handleClose();
       window.location.reload();
@@ -157,6 +160,12 @@ export default function ModalSuscripcion({ isOpen, onClose, cuentaPrincipalId, p
       }
 
       const nombrePlanLabel = data.plan === 'pro' ? 'Plan PRO Almacén' : 'Plan Comercio';
+      if (datosSesion?.esPro && data.plan !== 'pro') {
+        toast("Has pasado a Plan Comercio. Tus Planes Separe previos se conservan activos en Modo Liquidación para que puedas abonar y entregarlos.", {
+          icon: "🔒",
+          duration: 7000
+        });
+      }
       toast.success(`¡Felicidades! Tu ${nombrePlanLabel} ha sido activado por ${data.dias} días 🚀`, { duration: 5000 });
       handleClose();
       window.location.reload();

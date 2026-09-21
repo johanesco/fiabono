@@ -27,7 +27,7 @@ export default function InicioPage() {
   const puedeVerDirectorio = datosSesion?.rol !== 'cajero' || datosSesion?.permisos?.verDirectorio === true;
   const puedeAbonar: boolean = datosSesion?.puedeAbonar ?? true;
   const moduloSepareActivo: boolean = datosSesion?.moduloSepareActivo !== false;
-  const puedeSepare: boolean = (datosSesion?.puedeSepare ?? true) && moduloSepareActivo;
+  const puedeSepare: boolean = datosSesion?.esPro === true && datosSesion?.puedeSepare !== false && moduloSepareActivo;
 
   const [clientes, setClientes] = useState<any[]>([]);
   const [ordenesPendientes, setOrdenesPendientes] = useState<any[]>([]);
