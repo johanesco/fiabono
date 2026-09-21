@@ -1393,6 +1393,7 @@ function VenderContenido() {
 ${detalleTexto.trim()}
 
 ${bloqueFinanciero.trim()}
+
 ${bloquePago.trim()}${estadoCuenta}${enlaceTexto}
 
 Gracias por tu compra.

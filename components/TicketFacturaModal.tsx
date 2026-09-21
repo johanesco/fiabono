@@ -273,11 +273,44 @@ ${detalleTexto.trim()}
 Estamos atentos para cualquier consulta.`;
     } else {
       // Por defecto: COMPROBANTE DE VENTA
-      let infoExtra = "";
-      if (datos.devuelta && datos.devuelta > 0) {
-        infoExtra = `\n*Monto recibido:* $${(datos.pagoRecibido || 0).toLocaleString('es-CO')}\n*Cambio:* $${datos.devuelta.toLocaleString('es-CO')}`;
+      const totalVenta = datos.montoTotal || 0;
+      const dMonto = datos.montoDescuento || 0;
+      const dSubtotal = datos.montoBruto || (datos.subtotal !== undefined ? datos.subtotal : totalVenta);
+      const saldoFavorAplicado = datos.saldoFavorAplicado || 0;
+      const netoCobrado = Math.max(0, totalVenta - saldoFavorAplicado);
+
+      let bloqueFinanciero = "";
+      if (dMonto > 0) {
+        bloqueFinanciero += `*Subtotal:* $${dSubtotal.toLocaleString('es-CO')}\n`;
+        bloqueFinanciero += `*Descuento (${datos.descuentoTipo === 'porcentaje' ? `${datos.descuentoValor}%` : `$${Number(datos.descuentoValor || dMonto).toLocaleString('es-CO')}`}):* -$${dMonto.toLocaleString('es-CO')}\n`;
+        bloqueFinanciero += `*Total venta:* $${totalVenta.toLocaleString('es-CO')}\n`;
       } else {
-        infoExtra = '\n*Pago completo.*';
+        bloqueFinanciero += `*Total venta:* $${totalVenta.toLocaleString('es-CO')}\n`;
+      }
+
+      if (saldoFavorAplicado > 0) {
+        bloqueFinanciero += `*Saldo a favor aplicado:* -$${saldoFavorAplicado.toLocaleString('es-CO')}\n`;
+        bloqueFinanciero += `*Neto a pagar en caja:* $${netoCobrado.toLocaleString('es-CO')}\n`;
+      }
+
+      let infoExtra = "";
+      if (netoCobrado === 0 && saldoFavorAplicado > 0) {
+        infoExtra = `*Pagado con:* Saldo a favor (100% cubierto)`;
+      } else if (datos.devuelta && datos.devuelta > 0) {
+        infoExtra = `*Monto recibido:* $${(datos.pagoRecibido || 0).toLocaleString('es-CO')}\n*Cambio / Devuelta:* $${datos.devuelta.toLocaleString('es-CO')}`;
+      } else {
+        infoExtra = `*Pagado en caja:* $${(datos.pagoRecibido || netoCobrado).toLocaleString('es-CO')} — Pago completo`;
+      }
+
+      let estadoCuenta = "";
+      if (datos.saldoNuevo !== undefined && datos.nombreCliente !== "Venta de Mostrador") {
+        if (datos.saldoNuevo === 0) {
+          estadoCuenta = "\n\n*Estado de cuenta:* Al día ($0)";
+        } else if (datos.saldoNuevo < 0) {
+          estadoCuenta = `\n\n*Estado de cuenta:* Saldo a favor: $${Math.abs(datos.saldoNuevo).toLocaleString('es-CO')}`;
+        } else {
+          estadoCuenta = `\n\n*Estado de cuenta:* Saldo pendiente: $${datos.saldoNuevo.toLocaleString('es-CO')}`;
+        }
       }
 
       resultado = `¡Hola, *${nombreCliente}*! Gracias por tu compra en *${nombreNegocio}*.
@@ -287,8 +320,10 @@ Estamos atentos para cualquier consulta.`;
 ===================
 
 ${detalleTexto.trim()}
-*TOTAL: $${(datos.montoTotal || 0).toLocaleString('es-CO')}*
-${infoExtra.trim()}${enlaceTexto}
+
+${bloqueFinanciero.trim()}
+
+${infoExtra.trim()}${estadoCuenta}${enlaceTexto}
 
 Gracias por tu compra.
 Estamos atentos para cualquier consulta.
