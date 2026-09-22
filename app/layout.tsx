@@ -1,6 +1,6 @@
 import Script from "next/script";
 import "./globals.css";
-import { Toaster } from "react-hot-toast";
+import AppToaster from "@/components/AppToaster";
 import { AuthProvider } from "../hooks/AuthContext";
 import ServiceWorkerRegistrar from "@/components/ServiceWorkerRegistrar";
 import InstallPrompt from "@/components/InstallPrompt";
@@ -71,30 +71,7 @@ export default function RootLayout({
           {children}
         </AuthProvider>
         <InstallPrompt />
-        <Toaster
-          position="top-right"
-          gutter={10}
-          containerStyle={{ zIndex: 2147483647 }}
-          toastOptions={{
-            duration: 3500,
-            className: "border border-slate-200/80 dark:border-slate-800 bg-white/95 dark:bg-[#0f172a]/95 text-slate-800 dark:text-slate-100 shadow-xl shadow-slate-900/10 dark:shadow-slate-950/60 backdrop-blur-xl font-bold text-xs sm:text-sm rounded-2xl py-3 px-4",
-            style: {
-              WebkitBackdropFilter: "blur(16px)",
-            },
-            success: {
-              iconTheme: {
-                primary: '#10b981',
-                secondary: '#ffffff',
-              },
-            },
-            error: {
-              iconTheme: {
-                primary: '#f43f5e',
-                secondary: '#ffffff',
-              },
-            },
-          }}
-        />
+        <AppToaster />
       </body>
     </html>
   );

@@ -190,7 +190,7 @@ export default function ModalProcesarDevolucion({
       const res = await respuesta.json();
       if (!respuesta.ok) throw new Error(res.error || 'No se pudo registrar la devolución.');
 
-      toast.success("Devolución procesada correctamente");
+      toast.success("Devolución hecha con éxito");
       onSuccess({
         idTransaccion: res.movimientoId,
         saldoNuevo: res.nuevoSaldoCliente,
