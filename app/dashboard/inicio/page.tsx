@@ -28,6 +28,7 @@ export default function InicioPage() {
   const puedeAbonar: boolean = datosSesion?.puedeAbonar ?? true;
   const moduloSepareActivo: boolean = datosSesion?.moduloSepareActivo !== false;
   const puedeSepare: boolean = datosSesion?.esPro === true && datosSesion?.puedeSepare !== false && moduloSepareActivo;
+  const puedeEnviarWhatsApp = datosSesion?.puedeEnviarWhatsApp ?? true;
 
   const [clientes, setClientes] = useState<any[]>([]);
   const [ordenesPendientes, setOrdenesPendientes] = useState<any[]>([]);
@@ -684,7 +685,7 @@ Quedamos pendientes para revisar detalles o responder cualquier duda.
                     )}
                   </div>
 
-                  {clienteActivo.celular && datosSesion?.rol !== 'cajero' && (
+                  {clienteActivo.celular && puedeEnviarWhatsApp && (
                     <button 
                       type="button"
                       onClick={() => abrirWhatsApp(generarTextoComprobante('estado', clienteActivo), clienteActivo.celular)} 
@@ -814,7 +815,7 @@ Quedamos pendientes para revisar detalles o responder cualquier duda.
                   </div>
 
                   {/* Fila 4: Botón de WhatsApp con texto visible y claro */}
-                  {clienteActivo.celular && datosSesion?.rol !== 'cajero' && (
+                  {clienteActivo.celular && puedeEnviarWhatsApp && (
                     <button 
                       type="button"
                       onClick={() => abrirWhatsApp(generarTextoComprobante('estado', clienteActivo), clienteActivo.celular)} 

@@ -40,6 +40,7 @@ function SepareContenido() {
   const puedeModificarPrecios = esAdmin || (datosSesion?.permisos?.modificarPrecios === true) || (datosSesion?.permisos?.editarInventario === true);
   const puedeAplicarDescuentos = esAdmin || (datosSesion?.permisos?.aplicarDescuentos === true);
   const puedeGestionarSepares = esAdmin || (datosSesion?.permisos?.abonar === true);
+  const puedeEnviarWhatsApp = datosSesion?.puedeEnviarWhatsApp ?? true;
 
   // Protección estricta: La creación de nuevos separes requiere Plan PRO
   useEffect(() => {
@@ -2648,13 +2649,15 @@ Estamos atentos para cualquier consulta.
             </div>
 
             <div className="space-y-2 pt-2">
-              <button
-                type="button"
-                onClick={enviarWhatsApp}
-                className="w-full bg-[#25D366] hover:bg-[#1ebd5a] text-white font-bold py-3.5 rounded-xl transition-all flex items-center justify-center gap-2 text-sm shadow-md cursor-pointer"
-              >
-                <MessageCircle size={18} /> Enviar Comprobante por WhatsApp
-              </button>
+              {puedeEnviarWhatsApp && (
+                <button
+                  type="button"
+                  onClick={enviarWhatsApp}
+                  className="w-full bg-[#25D366] hover:bg-[#1ebd5a] text-white font-bold py-3.5 rounded-xl transition-all flex items-center justify-center gap-2 text-sm shadow-md cursor-pointer"
+                >
+                  <MessageCircle size={18} /> Enviar Comprobante por WhatsApp
+                </button>
+              )}
 
               <button
                 type="button"

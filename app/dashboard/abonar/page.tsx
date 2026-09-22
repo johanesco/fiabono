@@ -933,7 +933,7 @@ Estamos atentos para cualquier consulta.
               </button>
             )}
 
-            {modalExito.cliente.celular && modalExito.cliente.celular.trim() !== "" && datosSesion?.rol !== 'cajero' && puedeEnviarWhatsApp && (
+            {modalExito.cliente.celular && modalExito.cliente.celular.trim() !== "" && puedeEnviarWhatsApp && (
               <button
                 onClick={() => abrirWhatsApp(modalExito.cliente)}
                 className="w-full bg-[#25D366]/10 hover:bg-[#25D366]/20 text-[#1ebd5a] font-bold py-4 rounded-2xl flex justify-center items-center gap-2 text-lg mb-3"

@@ -38,6 +38,7 @@ function SeparesContenido() {
   const esAdmin = datosSesion?.tipoUsuario === 'principal';
   const puedeVentaDirecta = esAdmin || (datosSesion?.puedeVentaDirecta === true);
   const puedeAbonar = esAdmin || (datosSesion?.permisos?.abonar === true);
+  const puedeEnviarWhatsApp = datosSesion?.puedeEnviarWhatsApp ?? true;
 
   // Protección de acceso: si es colaborador sin permisos de dinero/abonos, redirigir a inicio
   useEffect(() => {
@@ -1571,13 +1572,15 @@ Gracias por contactarnos.`;
             </div>
 
             <div className="space-y-2 pt-2">
-              <button
-                type="button"
-                onClick={() => enviarWhatsAppCancelacion(modalNotificacionCancelado)}
-                className="w-full bg-[#25D366] hover:bg-[#1ebd5a] text-white font-bold py-3.5 rounded-xl transition-all flex items-center justify-center gap-2 text-sm shadow-md cursor-pointer"
-              >
-                <MessageCircle size={18} /> Enviar Notificación por WhatsApp
-              </button>
+              {puedeEnviarWhatsApp && (
+                <button
+                  type="button"
+                  onClick={() => enviarWhatsAppCancelacion(modalNotificacionCancelado)}
+                  className="w-full bg-[#25D366] hover:bg-[#1ebd5a] text-white font-bold py-3.5 rounded-xl transition-all flex items-center justify-center gap-2 text-sm shadow-md cursor-pointer"
+                >
+                  <MessageCircle size={18} /> Enviar Notificación por WhatsApp
+                </button>
+              )}
 
               <button
                 type="button"
@@ -1622,13 +1625,15 @@ Gracias por contactarnos.`;
             </div>
 
             <div className="space-y-2 pt-2">
-              <button
-                type="button"
-                onClick={() => enviarWhatsAppAbono(modalExitoAbono.separe, modalExitoAbono.montoAbonado, modalExitoAbono.nuevoSaldo)}
-                className="w-full bg-[#25D366] hover:bg-[#1ebd5a] text-white font-bold py-3.5 rounded-xl transition-all flex items-center justify-center gap-2 text-sm shadow-md cursor-pointer"
-              >
-                <MessageCircle size={18} /> Enviar Comprobante por WhatsApp
-              </button>
+              {puedeEnviarWhatsApp && (
+                <button
+                  type="button"
+                  onClick={() => enviarWhatsAppAbono(modalExitoAbono.separe, modalExitoAbono.montoAbonado, modalExitoAbono.nuevoSaldo)}
+                  className="w-full bg-[#25D366] hover:bg-[#1ebd5a] text-white font-bold py-3.5 rounded-xl transition-all flex items-center justify-center gap-2 text-sm shadow-md cursor-pointer"
+                >
+                  <MessageCircle size={18} /> Enviar Comprobante por WhatsApp
+                </button>
+              )}
 
               <button
                 type="button"
@@ -1676,13 +1681,15 @@ Gracias por contactarnos.`;
             </div>
 
             <div className="space-y-2 pt-2">
-              <button
-                type="button"
-                onClick={() => enviarWhatsAppEntrega(modalExitoEntrega.separe)}
-                className="w-full bg-[#25D366] hover:bg-[#1ebd5a] text-white font-bold py-3.5 rounded-xl transition-all flex items-center justify-center gap-2 text-sm shadow-md cursor-pointer"
-              >
-                <MessageCircle size={18} /> Enviar Notificación de Entrega
-              </button>
+              {puedeEnviarWhatsApp && (
+                <button
+                  type="button"
+                  onClick={() => enviarWhatsAppEntrega(modalExitoEntrega.separe)}
+                  className="w-full bg-[#25D366] hover:bg-[#1ebd5a] text-white font-bold py-3.5 rounded-xl transition-all flex items-center justify-center gap-2 text-sm shadow-md cursor-pointer"
+                >
+                  <MessageCircle size={18} /> Enviar Notificación de Entrega
+                </button>
+              )}
 
               <button
                 type="button"

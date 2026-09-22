@@ -2815,7 +2815,7 @@ Estamos atentos para cualquier consulta.
               </button>
             )}
 
-            {modalExito.cliente?.celular && modalExito.cliente.celular.trim() !== "" && datosSesion?.rol !== 'cajero' && puedeEnviarWhatsApp && (
+            {modalExito.cliente?.celular && modalExito.cliente.celular.trim() !== "" && puedeEnviarWhatsApp && (
               <button onClick={() => abrirWhatsApp(modalExito.cliente, modalExito.deudaPrevia)} className="w-full mb-3 bg-[#25D366] hover:bg-[#1ebd5a] text-white font-bold py-4 rounded-2xl shadow-lg flex justify-center items-center gap-2 text-lg">
                 <MessageCircle size={24} /> Enviar Comprobante
               </button>

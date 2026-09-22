@@ -29,6 +29,7 @@ export default function HistorialPage() {
   const puedeVerReportes = datosSesion?.rol !== 'cajero' || datosSesion?.permisos?.verReportes === true;
   const puedeSepare = datosSesion?.puedeSepare;
   const esAdmin = datosSesion?.rol !== 'cajero';
+  const puedeEnviarWhatsApp = datosSesion?.puedeEnviarWhatsApp ?? true;
 
   const [clientes, setClientes] = useState<Cliente[]>([]);
   const [todosMovimientos, setTodosMovimientos] = useState<Movimiento[]>([]);
@@ -674,7 +675,7 @@ Quedamos pendientes para revisar detalles o responder cualquier duda.
                     <h3 className="text-2xl font-black">{clienteActivo.nombre}</h3>
                     <div className="flex items-center gap-2 mt-0.5">
                       <p className="text-slate-400 text-sm">{clienteActivo.celular || "Sin celular registrado"}</p>
-                      {clienteActivo.celular && datosSesion?.rol !== 'cajero' && (
+                      {clienteActivo.celular && puedeEnviarWhatsApp && (
                         <button
                           type="button"
                           onClick={() => abrirWhatsApp(generarTextoComprobante('estado', clienteActivo), clienteActivo.celular)}
@@ -764,7 +765,7 @@ Quedamos pendientes para revisar detalles o responder cualquier duda.
                   )}
                 </div>
 
-                {clienteActivo.celular && datosSesion?.rol !== 'cajero' && (
+                {clienteActivo.celular && puedeEnviarWhatsApp && (
                   <button 
                     type="button"
                     onClick={() => abrirWhatsApp(generarTextoComprobante('estado', clienteActivo), clienteActivo.celular)} 
@@ -891,7 +892,7 @@ Quedamos pendientes para revisar detalles o responder cualquier duda.
                 </div>
 
                 {/* Fila 4: Botón de WhatsApp con texto visible y claro */}
-                {clienteActivo.celular && datosSesion?.rol !== 'cajero' && (
+                {clienteActivo.celular && puedeEnviarWhatsApp && (
                   <button 
                     type="button"
                     onClick={() => abrirWhatsApp(generarTextoComprobante('estado', clienteActivo), clienteActivo.celular)} 
