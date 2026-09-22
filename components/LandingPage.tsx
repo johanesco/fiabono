@@ -1,8 +1,9 @@
 "use client";
 import React, { useState } from "react";
 import { signInWithEmailAndPassword, createUserWithEmailAndPassword, signInWithPopup, signInWithRedirect, getRedirectResult, onAuthStateChanged, browserLocalPersistence, setPersistence, GoogleAuthProvider, signOut } from "firebase/auth";
-import { doc, getDoc, getDocFromServer, setDoc, updateDoc } from "firebase/firestore";
+import { doc, getDoc, getDocFromServer, setDoc, updateDoc, collection, query, where, getDocs, limit } from "firebase/firestore";
 import { auth, db } from "../firebase";
+import { generarSlugNegocio } from "@/utils/slug";
 import { 
   CheckCircle2, ChevronRight, Star, BookX, PenTool, 
   MessageCircle, ShieldAlert, Store, Wallet, Shirt, Lock, 
@@ -168,9 +169,33 @@ export default function LandingPage() {
           fechaVence = d;
         }
 
+        // Generar identificador único garantizado para el negocio (slugNegocio)
+        const slugBase = generarSlugNegocio(authForm.negocio.trim());
+        let slugAsignado = slugBase;
+        let contador = 1;
+        let slugDisponible = false;
+
+        while (!slugDisponible && contador <= 50) {
+          try {
+            const qSlug = query(collection(db, "usuarios"), where("slugNegocio", "==", slugAsignado), limit(1));
+            const snapSlug = await getDocs(qSlug);
+            if (snapSlug.empty) {
+              slugDisponible = true;
+            } else {
+              slugAsignado = `${slugBase}${contador}`;
+              contador++;
+            }
+          } catch {
+            // En caso de restricción de lectura previa, usar sufijo aleatorio
+            slugAsignado = `${slugBase}${Math.floor(100 + Math.random() * 900)}`;
+            slugDisponible = true;
+          }
+        }
+
         await setDoc(doc(db, "usuarios", credencial.user.uid), { 
           nombreUsuario: authForm.nombreUsuario.trim(),
           nombreNegocio: authForm.negocio.trim(), 
+          slugNegocio: slugAsignado,
           email: loginEmail, 
           telefonoNegocio: "",
           rol: "admin",

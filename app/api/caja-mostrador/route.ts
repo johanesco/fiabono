@@ -38,21 +38,49 @@ export async function GET(request: Request) {
     const docSnap = snapshot.docs[0];
     const data = docSnap.data();
 
+    // Obtener slug del negocio del admin para asegurar formato multivendedor-{slug}
+    let usuarioAcceso = data.usuarioAcceso;
+    let email = data.email;
+
+    // Si aún tiene el prefijo antiguo caja-, sincronizar a multivendedor-
+    if (!usuarioAcceso || usuarioAcceso.startsWith('caja-')) {
+      const adminDoc = await adminDb.collection('usuarios').doc(adminUid).get();
+      const adminData = adminDoc.data() || {};
+      const slug = adminData.slugNegocio || generarSlugNegocio(adminData.nombreNegocio || 'tienda');
+      usuarioAcceso = `multivendedor-${slug}`;
+      email = `${usuarioAcceso}@fiabono.caja`;
+
+      try {
+        await adminAuth.updateUser(docSnap.id, {
+          email,
+          displayName: 'Terminal Multivendedor'
+        });
+        await docSnap.ref.update({
+          usuarioAcceso,
+          email,
+          baseUsuario: 'multivendedor',
+          nombreUsuario: 'Terminal Multivendedor'
+        });
+      } catch (syncErr) {
+        console.warn('Advertencia al sincronizar terminal a multivendedor:', syncErr);
+      }
+    }
+
     return NextResponse.json({
       existe: true,
       caja: {
         id: docSnap.id,
-        nombreUsuario: data.nombreUsuario || 'Caja Mostrador',
-        usuarioAcceso: data.usuarioAcceso || `caja-${data.slugNegocio || ''}`,
-        email: data.email,
+        nombreUsuario: 'Terminal Multivendedor',
+        usuarioAcceso: usuarioAcceso,
+        email: email,
         activo: data.activo !== false,
         permisos: data.permisos || null,
         fechaCreacion: data.fechaCreacion ? data.fechaCreacion.toDate?.() || data.fechaCreacion : null
       }
     });
   } catch (error: any) {
-    console.error('Error al consultar caja mostrador:', error);
-    return NextResponse.json({ error: error?.message || 'Error interno al consultar caja mostrador.' }, { status: 500 });
+    console.error('Error al consultar terminal multivendedor:', error);
+    return NextResponse.json({ error: error?.message || 'Error interno al consultar terminal multivendedor.' }, { status: 500 });
   }
 }
 
@@ -95,10 +123,10 @@ export async function POST(request: Request) {
     const { accion = 'activar', password, nuevaPassword, activo } = body;
 
     const slug = adminData.slugNegocio || generarSlugNegocio(adminData.nombreNegocio || 'tienda');
-    const usuarioAcceso = `caja-${slug}`;
+    const usuarioAcceso = `multivendedor-${slug}`;
     const emailGenerado = `${usuarioAcceso}@fiabono.caja`;
 
-    // Buscar si ya existe la caja mostrador de este negocio en Firestore
+    // Buscar si ya existe la terminal multivendedor de este negocio en Firestore
     const existingSnap = await adminDb
       .collection('usuarios')
       .where('adminId', '==', adminUid)
@@ -113,7 +141,7 @@ export async function POST(request: Request) {
       }
 
       if (existingSnap.empty) {
-        return NextResponse.json({ error: 'No se encontró una Caja Mostrador configurada.' }, { status: 404 });
+        return NextResponse.json({ error: 'No se encontró una Terminal Multivendedor configurada.' }, { status: 404 });
       }
 
       const cajaId = existingSnap.docs[0].id;
@@ -121,7 +149,7 @@ export async function POST(request: Request) {
 
       return NextResponse.json({
         exito: true,
-        mensaje: 'La contraseña de la Caja Mostrador se actualizó correctamente.'
+        mensaje: 'La contraseña de la Terminal Multivendedor se actualizó correctamente.'
       });
     }
 
@@ -132,7 +160,7 @@ export async function POST(request: Request) {
       }
 
       if (existingSnap.empty) {
-        return NextResponse.json({ error: 'No se encontró una Caja Mostrador configurada.' }, { status: 404 });
+        return NextResponse.json({ error: 'No se encontró una Terminal Multivendedor configurada.' }, { status: 404 });
       }
 
       const cajaId = existingSnap.docs[0].id;
@@ -141,11 +169,11 @@ export async function POST(request: Request) {
       return NextResponse.json({
         exito: true,
         activo,
-        mensaje: activo ? 'Terminal de Caja Mostrador activada.' : 'Terminal de Caja Mostrador pausada.'
+        mensaje: activo ? 'Terminal Multivendedor activada.' : 'Terminal Multivendedor pausada.'
       });
     }
 
-    // 3. ACCIÓN: ACTUALIZAR PERMISOS DE LA CAJA MOSTRADOR
+    // 3. ACCIÓN: ACTUALIZAR PERMISOS DE LA TERMINAL MULTIVENDEDOR
     if (accion === 'actualizar_permisos') {
       const { permisos } = body;
       if (!permisos || typeof permisos !== 'object') {
@@ -153,14 +181,14 @@ export async function POST(request: Request) {
       }
 
       if (existingSnap.empty) {
-        return NextResponse.json({ error: 'No se encontró una Caja Mostrador configurada.' }, { status: 404 });
+        return NextResponse.json({ error: 'No se encontró una Terminal Multivendedor configurada.' }, { status: 404 });
       }
 
       const cajaId = existingSnap.docs[0].id;
       const permisosSanitizados = {
         ventaDirecta: permisos.ventaDirecta === true,
         abonar: permisos.abonar === true,
-        terminalMultivendedor: true, // Siempre activo para Caja Mostrador
+        terminalMultivendedor: true, // Siempre activo para Terminal Multivendedor
         planSepare: permisos.planSepare === true,
         verCelulares: permisos.verCelulares === true,
         verCartera: permisos.verCartera === true,
@@ -180,7 +208,7 @@ export async function POST(request: Request) {
       return NextResponse.json({
         exito: true,
         permisos: permisosSanitizados,
-        mensaje: 'Permisos de la Caja Mostrador actualizados correctamente.'
+        mensaje: 'Permisos de la Terminal Multivendedor actualizados correctamente.'
       });
     }
 
@@ -190,23 +218,28 @@ export async function POST(request: Request) {
     }
 
     if (!existingSnap.empty) {
-      // Ya existe en Firestore, simplemente actualizamos su clave y nos aseguramos de que esté activa
+      // Ya existe en Firestore, simplemente actualizamos su clave y sincronizamos usuario multivendedor-{slug}
       const docCaja = existingSnap.docs[0];
-      await adminAuth.updateUser(docCaja.id, { password });
+      await adminAuth.updateUser(docCaja.id, {
+        password,
+        email: emailGenerado,
+        displayName: 'Terminal Multivendedor'
+      });
       await docCaja.ref.update({
         activo: true,
         usuarioAcceso,
         email: emailGenerado,
-        nombreUsuario: 'Caja Mostrador'
+        baseUsuario: 'multivendedor',
+        nombreUsuario: 'Terminal Multivendedor'
       });
 
       return NextResponse.json({
         exito: true,
-        mensaje: '¡Terminal de Caja Mostrador reactivada con éxito!',
+        mensaje: '¡Terminal Multivendedor reactivada con éxito!',
         caja: {
           id: docCaja.id,
           usuarioAcceso,
-          nombreUsuario: 'Caja Mostrador',
+          nombreUsuario: 'Terminal Multivendedor',
           activo: true
         }
       });
@@ -226,13 +259,13 @@ export async function POST(request: Request) {
     const nuevoUser = await adminAuth.createUser({
       email: emailGenerado,
       password: password,
-      displayName: 'Caja Mostrador'
+      displayName: 'Terminal Multivendedor'
     });
 
-    // Guardar en Firestore con permisos predeterminados de Caja Mostrador (sin venta directa ni abonos por defecto)
+    // Guardar en Firestore con permisos predeterminados de Terminal Multivendedor
     const datosCaja = {
-      nombreUsuario: 'Caja Mostrador',
-      baseUsuario: 'caja',
+      nombreUsuario: 'Terminal Multivendedor',
+      baseUsuario: 'multivendedor',
       usuarioAcceso: usuarioAcceso,
       email: emailGenerado,
       rol: 'cajero',
@@ -261,19 +294,19 @@ export async function POST(request: Request) {
 
     return NextResponse.json({
       exito: true,
-      mensaje: `¡Terminal de Caja Mostrador creada exitosamente!\n\nUsuario de acceso: ${usuarioAcceso}`,
+      mensaje: `¡Terminal Multivendedor creada exitosamente!\n\nUsuario de acceso: ${usuarioAcceso}`,
       caja: {
         id: nuevoUser.uid,
         usuarioAcceso,
-        nombreUsuario: 'Caja Mostrador',
+        nombreUsuario: 'Terminal Multivendedor',
         activo: true
       }
     });
 
   } catch (error: any) {
-    console.error('Error al procesar caja mostrador:', error);
+    console.error('Error al procesar terminal multivendedor:', error);
     return NextResponse.json({ 
-      error: error?.message || 'Error interno al procesar la caja mostrador.' 
+      error: error?.message || 'Error interno al procesar la terminal multivendedor.' 
     }, { status: 500 });
   }
 }
@@ -305,7 +338,7 @@ export async function DELETE(request: Request) {
       .get();
 
     if (snapshot.empty) {
-      return NextResponse.json({ error: 'No se encontró la Caja Mostrador.' }, { status: 404 });
+      return NextResponse.json({ error: 'No se encontró la Terminal Multivendedor.' }, { status: 404 });
     }
 
     const docSnap = snapshot.docs[0];
@@ -323,12 +356,12 @@ export async function DELETE(request: Request) {
 
     return NextResponse.json({
       exito: true,
-      mensaje: 'La Terminal de Caja Mostrador fue eliminada definitivamente del sistema.'
+      mensaje: 'La Terminal Multivendedor fue eliminada definitivamente del sistema.'
     });
   } catch (error: any) {
-    console.error('Error al eliminar caja mostrador:', error);
+    console.error('Error al eliminar terminal multivendedor:', error);
     return NextResponse.json({ 
-      error: error?.message || 'Error interno al eliminar la caja mostrador.' 
+      error: error?.message || 'Error interno al eliminar la terminal multivendedor.' 
     }, { status: 500 });
   }
 }

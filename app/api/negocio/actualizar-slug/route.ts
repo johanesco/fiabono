@@ -16,18 +16,24 @@ function limpiarSlug(slug: string): string {
 }
 
 function extraerBaseUsuario(data: any, oldSlug: string): string {
+  if (data.esCajaMostrador === true) {
+    return 'multivendedor';
+  }
+
   if (data.baseUsuario && typeof data.baseUsuario === 'string') {
-    return data.baseUsuario.trim().toLowerCase().replace(/[^a-z0-9]/g, '');
+    const base = data.baseUsuario.trim().toLowerCase().replace(/[^a-z0-9]/g, '');
+    return base === 'caja' ? 'multivendedor' : base;
   }
 
   const rawUser = data.usuarioAcceso || (data.email ? data.email.split('@')[0] : '');
   if (rawUser && oldSlug && rawUser.endsWith(`-${oldSlug}`)) {
-    return rawUser.slice(0, -(oldSlug.length + 1));
+    const base = rawUser.slice(0, -(oldSlug.length + 1));
+    return base === 'caja' ? 'multivendedor' : base;
   }
 
   if (rawUser && rawUser.includes('-')) {
     const parts = rawUser.split('-');
-    return parts[0];
+    return parts[0] === 'caja' ? 'multivendedor' : parts[0];
   }
 
   return rawUser ? rawUser.replace(/[^a-z0-9]/g, '') : 'cajero';
@@ -113,19 +119,24 @@ export async function POST(request: Request) {
       const nuevoCorreoAuth = `${nuevoUsuarioAcceso}@fiabono.caja`;
 
       try {
+        const esTerminal = colabData.esCajaMostrador === true || baseUsuario === 'multivendedor';
+        const nombreFinal = esTerminal ? 'Terminal Multivendedor' : (colabData.nombreUsuario || colabData.nombre || baseUsuario);
+
         await adminAuth.updateUser(docSnap.id, {
-          email: nuevoCorreoAuth
+          email: nuevoCorreoAuth,
+          ...(esTerminal ? { displayName: 'Terminal Multivendedor' } : {})
         });
 
         batch.update(docSnap.ref, {
           usuarioAcceso: nuevoUsuarioAcceso,
           email: nuevoCorreoAuth,
-          baseUsuario: baseUsuario
+          baseUsuario: baseUsuario,
+          ...(esTerminal ? { nombreUsuario: 'Terminal Multivendedor' } : {})
         });
 
         colaboradoresActualizados.push({
           id: docSnap.id,
-          nombre: colabData.nombreUsuario || colabData.nombre || baseUsuario,
+          nombre: nombreFinal,
           nuevoUsuario: nuevoUsuarioAcceso
         });
       } catch (authErr: any) {

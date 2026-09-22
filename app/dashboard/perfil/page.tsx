@@ -597,9 +597,9 @@ export default function PerfilPage() {
       });
 
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Error al activar la Caja Mostrador.");
+      if (!res.ok) throw new Error(data.error || "Error al activar la Terminal Multivendedor.");
 
-      toast.success(data.mensaje || "¡Terminal de Caja Mostrador activada!");
+      toast.success(data.mensaje || "¡Terminal Multivendedor activada!");
       setModalActivarCajaOpen(false);
       setPassCajaInicial("");
       setConfirmarPassCajaInicial("");
@@ -636,7 +636,7 @@ export default function PerfilPage() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Error al actualizar la contraseña.");
 
-      toast.success(data.mensaje || "Contraseña de Caja Mostrador actualizada.");
+      toast.success(data.mensaje || "Contraseña de la Terminal Multivendedor actualizada.");
       setModalCambiarClaveCajaOpen(false);
       setNuevaClaveCaja("");
       setConfirmarClaveCaja("");
@@ -659,9 +659,9 @@ export default function PerfilPage() {
       });
 
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Error al eliminar la Caja Mostrador.");
+      if (!res.ok) throw new Error(data.error || "Error al eliminar la Terminal Multivendedor.");
 
-      toast.success(data.mensaje || "Terminal de Caja eliminada.");
+      toast.success(data.mensaje || "Terminal Multivendedor eliminada.");
       setModalEliminarCajaOpen(false);
       setCajaMostrador(null);
       if (adminId || usuarioAuth?.uid) cargarListaColaboradores(adminId || usuarioAuth!.uid);
@@ -1184,7 +1184,7 @@ export default function PerfilPage() {
               </div>
             )}
 
-            {/* SECCIÓN EXCLUSIVA PLAN PRO: TERMINAL DE CAJA MOSTRADOR */}
+            {/* SECCIÓN EXCLUSIVA PLAN PRO: TERMINAL MULTIVENDEDOR */}
             {planActual === 'pro' && !modoCrearColaborador && (
               <div className="mb-6 p-5 sm:p-6 bg-gradient-to-br from-indigo-50/90 via-blue-50/40 to-purple-50/30 dark:from-indigo-950/40 dark:via-[#020617] dark:to-slate-900 border border-indigo-200/80 dark:border-indigo-900/60 rounded-2xl shadow-xs">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -1195,7 +1195,7 @@ export default function PerfilPage() {
                     <div>
                       <div className="flex items-center gap-2 flex-wrap">
                         <h4 className="font-black text-slate-900 dark:text-white text-base">
-                          Terminal de Caja Mostrador
+                          Terminal Multivendedor
                         </h4>
                         <span className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-700 dark:bg-indigo-500/20 dark:text-indigo-300">
                           Multivendedor • Plan PRO
@@ -1211,7 +1211,7 @@ export default function PerfilPage() {
                         )}
                       </div>
                       <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 max-w-xl leading-relaxed">
-                        Punto de venta compartido para la tablet o PC fija de tu mostrador. No consume ninguno de tus 4 cupos de colaboradores.
+                        Punto de venta compartido para la tablet o PC fija de tu mostrador. Permite que tus vendedores registren sus ventas de forma ágil. No consume tus cupos de colaboradores.
                       </p>
                     </div>
                   </div>
@@ -1228,7 +1228,7 @@ export default function PerfilPage() {
                       className="px-4 py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-black text-xs sm:text-sm rounded-xl transition-all shadow-md shadow-indigo-600/25 flex items-center justify-center gap-2 cursor-pointer active:scale-95 shrink-0"
                     >
                       <Sparkles size={16} />
-                      Activar Caja Mostrador
+                      Activar Terminal Multivendedor
                     </button>
                   ) : (
                     <div className="flex items-center gap-2 shrink-0">
@@ -1271,7 +1271,7 @@ export default function PerfilPage() {
                           }
                           setModalPermisosCajaOpen(true);
                         }}
-                        title="Configurar permisos de la caja mostrador"
+                        title="Configurar permisos de la terminal multivendedor"
                         className="bg-white dark:bg-[#0f172a] p-2.5 rounded-xl border border-slate-200 dark:border-slate-700 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 text-slate-500 hover:text-indigo-600 dark:text-slate-400 dark:hover:text-indigo-400 transition-colors shadow-xs cursor-pointer flex items-center gap-1.5 text-xs font-bold"
                       >
                         <Shield size={16} />
@@ -1286,7 +1286,7 @@ export default function PerfilPage() {
                           setErrorCambiarClaveCaja("");
                           setModalCambiarClaveCajaOpen(true);
                         }}
-                        title="Cambiar clave de la caja"
+                        title="Cambiar clave de la terminal"
                         className="bg-white dark:bg-[#0f172a] p-2.5 rounded-xl border border-slate-200 dark:border-slate-700 hover:bg-amber-50 dark:hover:bg-amber-900/20 text-slate-500 hover:text-amber-600 dark:text-slate-400 dark:hover:text-amber-400 transition-colors shadow-xs cursor-pointer flex items-center gap-1.5 text-xs font-bold"
                       >
                         <KeyRound size={16} />
@@ -1311,7 +1311,7 @@ export default function PerfilPage() {
                       <div className="flex items-center gap-2 text-xs">
                         <span className="text-slate-500 font-medium">Usuario para ingresar en la tablet:</span>
                         <span className="font-mono font-black text-indigo-700 dark:text-indigo-300 bg-indigo-100/70 dark:bg-indigo-500/20 px-2.5 py-0.5 rounded-md">
-                          {cajaMostrador.usuarioAcceso || `caja-${slugNegocio}`}
+                          {cajaMostrador.usuarioAcceso || `multivendedor-${slugNegocio}`}
                         </span>
                       </div>
 
@@ -2825,7 +2825,7 @@ export default function PerfilPage() {
         </div>
       )}
 
-      {/* MODAL ACTIVAR TERMINAL DE CAJA MOSTRADOR */}
+      {/* MODAL ACTIVAR TERMINAL MULTIVENDEDOR */}
       {modalActivarCajaOpen && (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 z-[320] animate-in zoom-in-95 duration-200">
           <div className="bg-white dark:bg-[#0f172a] p-6 sm:p-8 rounded-[2.5rem] w-full max-w-sm shadow-2xl border border-indigo-100 dark:border-indigo-900/60 text-center">
@@ -2833,14 +2833,14 @@ export default function PerfilPage() {
               <Monitor size={32} />
             </div>
             <h3 className="text-xl font-black text-slate-900 dark:text-white mb-1">
-              Activar Caja Mostrador
+              Activar Terminal Multivendedor
             </h3>
             <p className="text-xs text-slate-500 dark:text-slate-400 mb-4">
               Tu tablet o computador del mostrador ingresará con este usuario:
             </p>
 
             <div className="bg-indigo-50/80 dark:bg-indigo-500/10 border border-indigo-200 dark:border-indigo-500/20 p-3 rounded-xl mb-4 font-mono font-black text-indigo-700 dark:text-indigo-300 text-sm">
-              caja-{slugNegocio}
+              multivendedor-{slugNegocio}
             </div>
 
             <div className="space-y-3 text-left">
@@ -2919,7 +2919,7 @@ export default function PerfilPage() {
         </div>
       )}
 
-      {/* MODAL CAMBIAR CLAVE DE CAJA MOSTRADOR */}
+      {/* MODAL CAMBIAR CLAVE DE TERMINAL MULTIVENDEDOR */}
       {modalCambiarClaveCajaOpen && (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 z-[320] animate-in zoom-in-95 duration-200">
           <div className="bg-white dark:bg-[#0f172a] p-6 sm:p-8 rounded-[2.5rem] w-full max-w-sm shadow-2xl border border-slate-100 dark:border-slate-800/60 text-center">
@@ -2927,10 +2927,10 @@ export default function PerfilPage() {
               <KeyRound size={32} />
             </div>
             <h3 className="text-xl font-black text-slate-900 dark:text-white mb-1">
-              Cambiar Clave de Caja
+              Cambiar Clave de la Terminal
             </h3>
             <p className="text-xs text-slate-500 dark:text-slate-400 mb-5">
-              Asigna una nueva clave para la tablet de mostrador (<strong>caja-{slugNegocio}</strong>).
+              Asigna una nueva clave para la tablet de mostrador (<strong>multivendedor-{slugNegocio}</strong>).
             </p>
 
             <div className="space-y-3 text-left">
@@ -3009,7 +3009,7 @@ export default function PerfilPage() {
         </div>
       )}
 
-      {/* MODAL CONFIRMAR ELIMINAR CAJA MOSTRADOR */}
+      {/* MODAL CONFIRMAR ELIMINAR TERMINAL MULTIVENDEDOR */}
       {modalEliminarCajaOpen && (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 z-[320] animate-in zoom-in-95 duration-200">
           <div className="bg-white dark:bg-[#0f172a] p-6 sm:p-8 rounded-[2.5rem] w-full max-w-sm shadow-2xl border border-rose-200 dark:border-rose-900/60 text-center">
@@ -3017,10 +3017,10 @@ export default function PerfilPage() {
               <Trash2 size={32} />
             </div>
             <h3 className="text-xl font-black text-slate-900 dark:text-white mb-2">
-              ¿Eliminar Caja Mostrador?
+              ¿Eliminar Terminal Multivendedor?
             </h3>
             <p className="text-sm text-slate-600 dark:text-slate-400 mb-6 leading-relaxed">
-              Esta acción eliminará el acceso de la tablet con usuario <strong className="text-slate-900 dark:text-white">caja-{slugNegocio}</strong>.
+              Esta acción eliminará el acceso de la tablet con usuario <strong className="text-slate-900 dark:text-white">multivendedor-{slugNegocio}</strong>.
               <br /><br />
               <span className="text-xs text-slate-400 block">
                 Podrás volver a activarla en cualquier momento desde esta pantalla.
@@ -3031,7 +3031,7 @@ export default function PerfilPage() {
               <button 
                 type="button"
                 onClick={() => setModalEliminarCajaOpen(false)} 
-                disabled={eliminandoCaja}
+                disabled={eliminandoCaja} 
                 className="bg-slate-100 dark:bg-[#020617] hover:bg-slate-200 dark:hover:bg-[#1e293b] text-slate-700 dark:text-slate-300 font-bold py-3.5 rounded-xl transition-colors border dark:border-slate-800/80 text-sm cursor-pointer disabled:opacity-50"
               >
                 Cancelar
@@ -3053,7 +3053,7 @@ export default function PerfilPage() {
         </div>
       )}
 
-      {/* MODAL CONFIGURACIÓN DE PERMISOS CAJA MOSTRADOR */}
+      {/* MODAL CONFIGURACIÓN DE PERMISOS TERMINAL MULTIVENDEDOR */}
       {modalPermisosCajaOpen && (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 z-[320] animate-in zoom-in-95 duration-200">
           <div className="bg-white dark:bg-[#0f172a] p-6 sm:p-7 rounded-[2.5rem] w-full max-w-lg shadow-2xl border border-indigo-100 dark:border-indigo-900/60 flex flex-col max-h-[90vh]">
@@ -3066,10 +3066,10 @@ export default function PerfilPage() {
                 </div>
                 <div>
                   <h3 className="text-lg font-black text-slate-900 dark:text-white">
-                    Permisos de Caja Mostrador
+                    Permisos de la Terminal Multivendedor
                   </h3>
                   <p className="text-xs text-slate-500 dark:text-slate-400">
-                    Terminal compartida (<span className="font-mono font-bold text-indigo-600 dark:text-indigo-400">{cajaMostrador?.usuarioAcceso || `caja-${slugNegocioActual}`}</span>)
+                    Terminal compartida (<span className="font-mono font-bold text-indigo-600 dark:text-indigo-400">{cajaMostrador?.usuarioAcceso || `multivendedor-${slugNegocioActual}`}</span>)
                   </p>
                 </div>
               </div>
