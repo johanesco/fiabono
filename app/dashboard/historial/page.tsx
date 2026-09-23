@@ -35,7 +35,7 @@ export default function HistorialPage() {
   const [todosMovimientos, setTodosMovimientos] = useState<Movimiento[]>([]);
   const [busquedaHistorial, setBusquedaHistorial] = useState("");
   const [filtroTiempoHistorial, setFiltroTiempoHistorial] = useState<'hoy' | 'semana' | 'mes' | 'todos'>('hoy');
-  const [filtroTipoHistorial, setFiltroTipoHistorial] = useState<'todos' | 'venta' | 'abono' | 'fiado' | 'ingreso_inventario'>('todos');
+  const [filtroTipoHistorial, setFiltroTipoHistorial] = useState<'todos' | 'venta' | 'abono' | 'fiado' | 'devolucion' | 'ingreso_inventario'>('todos');
   const [filtroVendedorHistorial, setFiltroVendedorHistorial] = useState<string>('todos');
   
   const [movimientoInventarioDetalle, setMovimientoInventarioDetalle] = useState<Movimiento | null>(null);
@@ -467,17 +467,21 @@ Quedamos pendientes para revisar detalles o responder cualquier duda.
         
         {/* FILA INFERIOR: FILTRO DE TIPOS */}
         <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 w-full">
-          {(puedeGestionarInventario ? ['todos', 'venta', 'abono', 'fiado', 'ingreso_inventario'] : ['todos', 'venta', 'abono', 'fiado']).map((tipo) => (
+          {(puedeGestionarInventario ? ['todos', 'venta', 'abono', 'fiado', 'devolucion', 'ingreso_inventario'] : ['todos', 'venta', 'abono', 'fiado', 'devolucion']).map((tipo) => (
             <button 
               key={tipo} 
               onClick={() => setFiltroTipoHistorial(tipo as any)} 
               className={`flex-1 md:flex-initial text-[11px] sm:text-xs font-black py-1.5 px-3 rounded-lg transition-all cursor-pointer ${
                 filtroTipoHistorial === tipo 
-                  ? (tipo === 'ingreso_inventario' ? 'bg-sky-600 text-white shadow-xs' : 'bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900 shadow-xs') 
+                  ? (tipo === 'ingreso_inventario' 
+                      ? 'bg-sky-600 text-white shadow-xs' 
+                      : (tipo === 'devolucion'
+                          ? 'bg-amber-500 text-white shadow-xs'
+                          : 'bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900 shadow-xs')) 
                   : 'bg-white dark:bg-[#020617] text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-800/80'
               }`}
             >
-              {tipo === 'ingreso_inventario' ? '📦 INVENTARIO' : tipo.toUpperCase()}
+              {tipo === 'ingreso_inventario' ? '📦 INVENTARIO' : (tipo === 'devolucion' ? '↩ DEVOLUCIÓN' : tipo.toUpperCase())}
             </button>
           ))}
         </div>
