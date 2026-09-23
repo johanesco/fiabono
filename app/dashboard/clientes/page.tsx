@@ -472,18 +472,6 @@ Quedamos pendientes para revisar detalles o responder cualquier duda.
     setModalTicketFactura({ visible: true, datos: datosTicket });
   };
 
-  // 6. Acción: Cobrar o escribir por WhatsApp desde la lista
-  const handleCobrarWhatsApp = (cliente: any, e?: React.MouseEvent) => {
-    if (e) e.stopPropagation();
-    if (!cliente.celular) {
-      toast.error("Este cliente no tiene número de celular registrado.");
-      return;
-    }
-
-    const mensaje = generarTextoComprobante('estado', cliente);
-    abrirEnlaceWhatsApp(cliente.celular, mensaje);
-  };
-
   // 7. Acción: Crear Nuevo Cliente
   const handleGuardarNuevoCliente = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -679,16 +667,6 @@ Quedamos pendientes para revisar detalles o responder cualquier duda.
                           className="text-[10px] font-bold px-2 py-1 bg-amber-50 hover:bg-amber-100 text-amber-600 dark:bg-amber-900/30 dark:hover:bg-amber-900/50 dark:text-amber-400 rounded-lg transition-colors cursor-pointer border border-amber-200 dark:border-amber-800 flex items-center gap-1"
                         >
                           <RotateCcw size={12} /> Hacer Devolución
-                        </button>
-                      )}
-                      {cliente.celular && puedeEnviarWhatsApp && (
-                        <button
-                          type="button"
-                          onClick={() => abrirTicketDeMovimiento(mov, cliente)}
-                          title="Ver y enviar comprobante por WhatsApp"
-                          className="p-1.5 rounded-lg bg-[#25D366]/15 hover:bg-[#25D366]/25 text-[#128C7E] dark:text-[#25D366] transition-colors cursor-pointer"
-                        >
-                          <MessageCircle size={15} />
                         </button>
                       )}
                       <button
@@ -1557,22 +1535,6 @@ Quedamos pendientes para revisar detalles o responder cualquier duda.
                           )}
                         </span>
                       </div>
-
-                      {/* Botón WhatsApp rápido */}
-                      {c.celular && puedeEnviarWhatsApp ? (
-                        <button
-                          type="button"
-                          onClick={(e) => handleCobrarWhatsApp(c, e)}
-                          className={`p-2 rounded-xl transition cursor-pointer shrink-0 ${
-                            c.deuda > 0
-                              ? 'bg-emerald-500 hover:bg-emerald-600 text-white shadow-xs'
-                              : 'bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-emerald-600 dark:text-emerald-400'
-                          }`}
-                          title={c.deuda > 0 ? "Cobrar por WhatsApp" : "Escribir por WhatsApp"}
-                        >
-                          <MessageCircle size={15} />
-                        </button>
-                      ) : null}
 
                       {/* Flecha indicadora */}
                       <div className={`p-1 transition-colors ${estaSeleccionado ? 'text-emerald-600' : 'text-slate-300 dark:text-slate-600 group-hover:text-slate-500'}`}>
