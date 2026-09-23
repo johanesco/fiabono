@@ -920,7 +920,7 @@ Quedamos pendientes para revisar detalles o responder cualquier duda.
                                     ? 'bg-orange-100 text-orange-800 dark:bg-orange-500/20 dark:text-orange-300'
                                     : (mov.tipo === 'fiado' ? 'bg-rose-100 text-rose-700 dark:bg-rose-500/20 dark:text-rose-300' : (mov.tipo === 'venta' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300' : 'bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-300')))
                               }`}>
-                                {esDevolucion ? 'DEVOLUCIÓN' : (esDevolucionSepare ? 'DEVOLUCIÓN SEPARE' : (esEgreso ? 'EGRESO' : mov.tipo))}
+                                {esDevolucion ? '↩ DEVOLUCIÓN' : (esDevolucionSepare ? '↩ DEV. SEPARE' : (esEgreso ? 'EGRESO' : mov.tipo))}
                               </span>
 
                               {tieneDevolucion && (
@@ -998,7 +998,7 @@ Quedamos pendientes para revisar detalles o responder cualquier duda.
                               <span className={`text-base md:text-xl ${
                                 esDevolucion || esDevolucionSepare || esEgreso ? 'text-amber-600 dark:text-amber-400' : (mov.tipo === 'fiado' ? 'text-rose-500' : (mov.tipo === 'venta' ? 'text-emerald-500' : 'text-blue-500'))
                               }`}>
-                                {mov.tipo === 'fiado' ? '-' : (esDevolucion || esDevolucionSepare || esEgreso ? (mov.metodoDevolucion === 'saldo_a_favor' ? '+' : '-') : '+')}${mov.monto.toLocaleString('es-CO')}
+                                {mov.tipo === 'fiado' || esDevolucion || esDevolucionSepare || esEgreso ? '-' : '+'}${mov.monto.toLocaleString('es-CO')}
                               </span>
                             </div>
                           </div>

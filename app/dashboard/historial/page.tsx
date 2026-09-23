@@ -557,17 +557,22 @@ Quedamos pendientes para revisar detalles o responder cualquier duda.
                           +{mov.cantidadAgregada || 1} un.
                         </span>
                       ) : (
-                        <p className={`font-black text-xl text-right ${mov.tipo === 'fiado' ? 'text-rose-500' : (mov.tipo === 'venta' ? 'text-emerald-500' : 'text-blue-500')}`}>
-                          {mov.tipo === 'fiado' ? '-' : '+'}${mov.monto.toLocaleString('es-CO')}
+                        <p className={`font-black text-xl text-right ${
+                          mov.tipo === 'devolucion' || mov.tipo === 'egreso' ? 'text-amber-600 dark:text-amber-400' :
+                          mov.tipo === 'fiado' ? 'text-rose-500' : (mov.tipo === 'venta' ? 'text-emerald-500' : 'text-blue-500')
+                        }`}>
+                          {mov.tipo === 'fiado' || mov.tipo === 'egreso' || mov.tipo === 'devolucion' ? '-' : '+'}${mov.monto.toLocaleString('es-CO')}
                         </p>
                       )}
                     </div>
                     <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded-md ${
                       esIngresoInv ? 'bg-sky-100 text-sky-700 dark:bg-sky-950/40 dark:text-sky-300' :
+                      mov.tipo === 'devolucion' ? 'bg-amber-100 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300' :
+                      mov.tipo === 'egreso' ? 'bg-amber-100 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300' :
                       mov.tipo === 'fiado' ? 'bg-rose-100 text-rose-700 dark:bg-rose-500/20 dark:text-rose-300' : 
                       (mov.tipo === 'venta' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300' : 'bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-300')
                     }`}>
-                      {esIngresoInv ? '+STOCK' : mov.tipo}
+                      {esIngresoInv ? '+STOCK' : (mov.tipo === 'devolucion' ? '↩ DEVOLUCIÓN' : mov.tipo)}
                     </span>
                   </div>
                 </div>
@@ -973,11 +978,20 @@ Quedamos pendientes para revisar detalles o responder cualquier duda.
                 <h4 className="font-bold text-slate-400 uppercase text-xs tracking-wider mb-3 flex items-center gap-2"><Clock size={16}/> Historial Completo</h4>
                 {movimientosCliente.map(mov => (
                   <div key={mov.id} className="p-4 md:p-5 bg-slate-50 dark:bg-[#020617] rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm relative overflow-hidden space-y-2 md:space-y-3">
-                    <div className={`absolute left-0 top-0 bottom-0 w-1.5 ${mov.tipo === 'fiado' ? 'bg-rose-500' : (mov.tipo === 'venta' ? 'bg-emerald-500' : 'bg-blue-500')}`}></div>
+                    <div className={`absolute left-0 top-0 bottom-0 w-1.5 ${
+                      mov.tipo === 'devolucion' ? 'bg-amber-500' :
+                      mov.tipo === 'fiado' ? 'bg-rose-500' : (mov.tipo === 'venta' ? 'bg-emerald-500' : 'bg-blue-500')
+                    }`}></div>
                     
                     <div className="pl-1 md:pl-2">
                       <div className="flex flex-wrap sm:flex-nowrap justify-between items-center gap-1.5 pb-1 md:pb-2 md:border-b md:border-slate-100 dark:border-slate-800/80">
-                        <span className={`text-[10px] md:text-xs font-black uppercase px-2.5 py-0.5 md:px-3 md:py-1 rounded-md md:rounded-lg shrink-0 ${mov.tipo === 'fiado' ? 'bg-rose-100 text-rose-700 dark:bg-rose-500/20 dark:text-rose-300' : (mov.tipo === 'venta' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300' : 'bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-300')}`}>{mov.tipo}</span>
+                        <span className={`text-[10px] md:text-xs font-black uppercase px-2.5 py-0.5 md:px-3 md:py-1 rounded-md md:rounded-lg shrink-0 ${
+                          mov.tipo === 'devolucion' ? 'bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-300' :
+                          mov.tipo === 'fiado' ? 'bg-rose-100 text-rose-700 dark:bg-rose-500/20 dark:text-rose-300' : 
+                          (mov.tipo === 'venta' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300' : 'bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-300')
+                        }`}>
+                          {mov.tipo === 'devolucion' ? '↩ DEVOLUCIÓN' : mov.tipo}
+                        </span>
                         
                         <div className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[10px] md:text-[11px] font-bold uppercase">
                           {mov.registradoPor && (
@@ -1028,8 +1042,11 @@ Quedamos pendientes para revisar detalles o responder cualquier duda.
                           >
                             <Printer size={15} />
                           </button>
-                          <span className={`text-base md:text-xl ${mov.tipo === 'fiado' ? 'text-rose-500' : (mov.tipo === 'venta' ? 'text-emerald-500' : 'text-blue-500')}`}>
-                            {mov.tipo === 'fiado' ? '-' : '+'}${mov.monto.toLocaleString('es-CO')}
+                          <span className={`text-base md:text-xl ${
+                            mov.tipo === 'devolucion' || mov.tipo === 'egreso' ? 'text-amber-600 dark:text-amber-400' :
+                            mov.tipo === 'fiado' ? 'text-rose-500' : (mov.tipo === 'venta' ? 'text-emerald-500' : 'text-blue-500')
+                          }`}>
+                            {mov.tipo === 'fiado' || mov.tipo === 'egreso' || mov.tipo === 'devolucion' ? '-' : '+'}${mov.monto.toLocaleString('es-CO')}
                           </span>
                         </div>
                       </div>

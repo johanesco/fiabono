@@ -595,7 +595,7 @@ Quedamos pendientes para revisar detalles o responder cualquier duda.
                             ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300' 
                             : 'bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-300')
                       }`}>
-                        {mov.tipo}
+                        {mov.tipo === 'devolucion' ? '↩ DEVOLUCIÓN' : mov.tipo}
                       </span>
                       
                       {tieneDevolucion && (
@@ -681,7 +681,7 @@ Quedamos pendientes para revisar detalles o responder cualquier duda.
                         mov.tipo === 'devolucion' ? 'text-amber-500' :
                         mov.tipo === 'fiado' ? 'text-rose-500' : (mov.tipo === 'venta' ? 'text-emerald-500' : 'text-blue-500')
                       }`}>
-                        {mov.tipo === 'fiado' ? '-' : (mov.tipo === 'devolucion' ? (mov.metodoDevolucion === 'saldo_a_favor' ? '+' : '') : '+')}${Math.round(mov.monto || 0).toLocaleString('es-CO')}
+                        {mov.tipo === 'fiado' || mov.tipo === 'devolucion' ? '-' : '+'}${Math.round(mov.monto || 0).toLocaleString('es-CO')}
                       </span>
                     </div>
                   </div>

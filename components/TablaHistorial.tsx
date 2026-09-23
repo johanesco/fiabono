@@ -86,6 +86,7 @@ export default function TablaHistorial({ movimientos, getNombreCliente, onRowCli
                 <td className="py-2.5 px-2.5 sm:px-3 lg:px-4 whitespace-nowrap">
                   <span className={`px-1.5 sm:px-2 py-0.5 rounded-md text-[9.5px] sm:text-[10.5px] font-black uppercase ${
                     esIngresoInv ? 'bg-sky-100 text-sky-700 dark:bg-sky-950/40 dark:text-sky-300' :
+                    mov.tipo === 'devolucion' ? 'bg-amber-100 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300' :
                     mov.tipo === 'egreso' ? 'bg-amber-100 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300' :
                     mov.tipo === 'entrega_separe' ? 'bg-purple-100 text-purple-700 dark:bg-purple-950/40 dark:text-purple-300' :
                     mov.separeId || mov.descripcion?.toLowerCase().includes('separe') ? 'bg-violet-100 text-violet-700 dark:bg-violet-950/40 dark:text-violet-300' :
@@ -93,6 +94,7 @@ export default function TablaHistorial({ movimientos, getNombreCliente, onRowCli
                     mov.tipo === 'venta' ? 'bg-emerald-100 text-emerald-600 dark:bg-emerald-950/40 dark:text-emerald-300' : 'bg-blue-100 text-blue-600 dark:bg-blue-950/40 dark:text-blue-300'
                   }`}>
                     {esIngresoInv ? '📦 INV' :
+                     mov.tipo === 'devolucion' ? '↩ DEVOLUCIÓN' :
                      mov.tipo === 'egreso' ? 'EGRESO' :
                      mov.tipo === 'entrega_separe' ? 'ENTREGA' :
                      (mov.separeId || mov.descripcion?.toLowerCase().includes('separe') ? '✦ SEPARE' : mov.tipo)}
@@ -100,13 +102,14 @@ export default function TablaHistorial({ movimientos, getNombreCliente, onRowCli
                 </td>
                 <td className={`py-2.5 px-2.5 sm:px-3 lg:px-4 font-black text-right text-xs sm:text-sm lg:text-base whitespace-nowrap ${
                   esIngresoInv ? 'text-sky-600 dark:text-sky-400' :
+                  mov.tipo === 'devolucion' ? 'text-amber-600 dark:text-amber-400' :
                   mov.tipo === 'egreso' ? 'text-amber-600 dark:text-amber-400' :
                   mov.tipo === 'fiado' ? 'text-rose-500' : 
                   mov.tipo === 'entrega_separe' ? 'text-purple-600 dark:text-purple-400' :
                   mov.separeId || mov.descripcion?.toLowerCase().includes('separe') ? 'text-violet-600 dark:text-violet-400' :
                   mov.tipo === 'venta' ? 'text-emerald-500' : 'text-blue-500'
                 }`}>
-                  {esIngresoInv ? `+${(mov as any).cantidadAgregada || 1} un.` : `${mov.tipo === 'fiado' || mov.tipo === 'egreso' ? '-' : '+'}$${mov.monto.toLocaleString('es-CO')}`}
+                  {esIngresoInv ? `+${(mov as any).cantidadAgregada || 1} un.` : `${mov.tipo === 'fiado' || mov.tipo === 'egreso' || mov.tipo === 'devolucion' ? '-' : '+'}$${mov.monto.toLocaleString('es-CO')}`}
                 </td>
                 <td className="py-2.5 px-2.5 sm:px-3 lg:px-4 text-center w-12" onClick={(e) => e.stopPropagation()}>
                   {!esIngresoInv && onImprimir ? (
