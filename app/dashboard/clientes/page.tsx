@@ -67,6 +67,7 @@ function ClientesContenido() {
   const puedeSepare = Boolean(datosSesion?.puedeSepare ?? true);
   const esCajero = datosSesion?.rol === 'cajero';
   const puedeVerCartera = datosSesion?.puedeVerCartera === true;
+  const puedeEnviarWhatsApp = Boolean(datosSesion?.puedeEnviarWhatsApp ?? false);
 
   useEffect(() => {
     if (!authCargando && datosSesion && !puedeVerCartera) {
@@ -680,6 +681,16 @@ Quedamos pendientes para revisar detalles o responder cualquier duda.
                           <RotateCcw size={12} /> Hacer Devolución
                         </button>
                       )}
+                      {cliente.celular && puedeEnviarWhatsApp && (
+                        <button
+                          type="button"
+                          onClick={() => abrirTicketDeMovimiento(mov, cliente)}
+                          title="Ver y enviar comprobante por WhatsApp"
+                          className="p-1.5 rounded-lg bg-[#25D366]/15 hover:bg-[#25D366]/25 text-[#128C7E] dark:text-[#25D366] transition-colors cursor-pointer"
+                        >
+                          <MessageCircle size={15} />
+                        </button>
+                      )}
                       <button
                         type="button"
                         onClick={() => abrirTicketDeMovimiento(mov, cliente)}
@@ -948,7 +959,7 @@ Quedamos pendientes para revisar detalles o responder cualquier duda.
             </div>
 
             {/* Fila 4: Botón WhatsApp */}
-            {cliente.celular && !esCajero && (
+            {cliente.celular && puedeEnviarWhatsApp && (
               <button 
                 type="button"
                 onClick={() => abrirEnlaceWhatsApp(cliente.celular, generarTextoComprobante('estado', cliente))} 
@@ -1097,7 +1108,7 @@ Quedamos pendientes para revisar detalles o responder cualquier duda.
             </div>
 
             {/* Fila 4: Botón de WhatsApp oficial */}
-            {cliente.celular && !esCajero && (
+            {cliente.celular && puedeEnviarWhatsApp && (
               <button 
                 type="button"
                 onClick={() => abrirEnlaceWhatsApp(cliente.celular, generarTextoComprobante('estado', cliente))} 
@@ -1548,7 +1559,7 @@ Quedamos pendientes para revisar detalles o responder cualquier duda.
                       </div>
 
                       {/* Botón WhatsApp rápido */}
-                      {c.celular ? (
+                      {c.celular && puedeEnviarWhatsApp ? (
                         <button
                           type="button"
                           onClick={(e) => handleCobrarWhatsApp(c, e)}
