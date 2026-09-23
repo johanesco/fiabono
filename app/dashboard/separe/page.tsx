@@ -1747,7 +1747,7 @@ Estamos atentos para cualquier consulta.
                 Artículos a Separar <span className="text-rose-500">*</span>
               </h4>
 
-              <div className="space-y-3">
+              <div className="space-y-2 sm:space-y-2.5">
                 {filas.map((fila, index) => {
                   const productosSugeridos = ordenarProductosSugeridos(inventario, fila.descripcion);
                   const itemInventarioRegistrado = inventario.find(p => p.nombre.trim().toLowerCase() === fila.descripcion.trim().toLowerCase());
@@ -1756,18 +1756,8 @@ Estamos atentos para cualquier consulta.
                   return (
                     <div
                       key={fila.id}
-                      className={`flex flex-col sm:flex-row gap-2.5 sm:gap-3 md:gap-4 p-3 sm:p-4 bg-white dark:bg-[#0f172a] rounded-2xl border border-slate-200 dark:border-slate-800 relative shadow-sm transition-colors hover:border-violet-300 ${busquedaProductoIndex === index ? 'z-40' : 'z-10'}`}
+                      className={`flex flex-col sm:flex-row gap-2 sm:gap-2.5 md:gap-3 p-2.5 sm:py-2.5 sm:px-3.5 bg-white dark:bg-[#0f172a] rounded-xl sm:rounded-2xl border border-slate-200 dark:border-slate-800 relative shadow-xs transition-colors hover:border-violet-300 ${busquedaProductoIndex === index ? 'z-40' : 'z-10'}`}
                     >
-                      {filas.length > 1 && (
-                        <button
-                          type="button"
-                          onClick={() => eliminarFila(index)}
-                          className="absolute -top-2 -right-2 bg-rose-100 text-rose-600 rounded-full p-1 shadow-sm hover:scale-110 transition-transform z-10 cursor-pointer"
-                          title="Eliminar fila"
-                        >
-                          <X size={13} />
-                        </button>
-                      )}
 
                       {/* Input de descripción con buscador de inventario */}
                       <div className="flex-1 min-w-0 relative">
@@ -1799,7 +1789,7 @@ Estamos atentos para cualquier consulta.
                             }
                           }}
                           placeholder="Escribe nombre o SKU..."
-                          className="w-full px-3 py-2 h-[42px] sm:h-[46px] md:h-[50px] bg-slate-50 dark:bg-[#020617] border border-slate-200 dark:border-slate-800 rounded-xl outline-none font-bold text-xs sm:text-sm md:text-base min-w-0 shadow-sm focus:border-violet-500 transition-colors text-slate-900 dark:!text-white placeholder:text-slate-400 placeholder:font-normal"
+                          className="w-full px-3 py-1.5 h-[38px] sm:h-[40px] md:h-[42px] bg-slate-50 dark:bg-[#020617] border border-slate-200 dark:border-slate-800 rounded-xl outline-none font-bold text-xs sm:text-sm md:text-base min-w-0 shadow-xs focus:border-violet-500 transition-colors text-slate-900 dark:!text-white placeholder:text-slate-400 placeholder:font-normal"
                         />
 
                         {/* Dropdown de autocompletar inventario */}
@@ -1872,29 +1862,29 @@ Estamos atentos para cualquier consulta.
                         )}
                       </div>
 
-                      {/* Controles de Cantidad + Precio + Foto */}
-                      <div className="flex flex-row gap-2 sm:gap-3 w-full sm:w-auto shrink-0 items-end">
+                      {/* Controles de Cantidad + Precio + Foto + Eliminar */}
+                      <div className="flex flex-row items-end gap-1.5 sm:gap-2 w-full sm:w-auto shrink-0">
                         
                         {/* Cantidad (+/-) */}
-                        <div className="w-[85px] sm:w-[95px] shrink-0">
+                        <div className="w-[85px] sm:w-[95px] md:w-[105px] shrink-0">
                           <label className="text-[9px] md:text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1 block whitespace-nowrap">
                             Cant.
                           </label>
-                          <div className="flex items-center bg-slate-50 dark:bg-[#020617] border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden shrink-0 h-[42px] sm:h-[46px] md:h-[50px]">
+                          <div className="flex items-center bg-slate-50 dark:bg-[#020617] border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden shrink-0 h-[38px] sm:h-[40px] md:h-[42px]">
                             <button
                               type="button"
                               onClick={() => actualizarCantidadFila(index, -1)}
-                              className="px-2 sm:px-2.5 h-full hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-500 font-black cursor-pointer"
+                              className="px-2 sm:px-2.5 h-full hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-500 font-black cursor-pointer transition-colors"
                             >
                               <Minus size={13} />
                             </button>
-                            <span className="flex-1 text-center font-black text-xs sm:text-sm text-slate-900 dark:text-white">
+                            <span className="flex-1 text-center font-black text-xs sm:text-sm md:text-base text-slate-900 dark:!text-white">
                               {fila.cantidad}
                             </span>
                             <button
                               type="button"
                               onClick={() => actualizarCantidadFila(index, 1)}
-                              className="px-2 sm:px-2.5 h-full hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-500 font-black cursor-pointer"
+                              className="px-2 sm:px-2.5 h-full hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-500 font-black cursor-pointer transition-colors"
                             >
                               <Plus size={13} />
                             </button>
@@ -1902,12 +1892,12 @@ Estamos atentos para cualquier consulta.
                         </div>
 
                         {/* Precio Unitario */}
-                        <div className="flex-1 sm:w-32 min-w-0">
+                        <div className="flex-1 sm:w-28 md:w-32 min-w-0">
                           <label className="text-[9px] md:text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1 block whitespace-nowrap">
                             Precio Unit.
                           </label>
-                          <div className="relative h-[42px] sm:h-[46px] md:h-[50px]">
-                            <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-xs sm:text-sm">$</span>
+                          <div className="relative w-full h-[38px] sm:h-[40px] md:h-[42px] shadow-xs rounded-xl">
+                            <span className="absolute left-2.5 sm:left-3 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-xs sm:text-sm">$</span>
                             <input
                               type="text"
                               inputMode="decimal" pattern="[0-9]*"
@@ -1915,17 +1905,17 @@ Estamos atentos para cualquier consulta.
                               onChange={(e) => actualizarFila(index, 'valor', e.target.value)}
                               disabled={esPrecioBloqueado}
                               placeholder="0"
-                              className={`w-full pl-6 pr-2.5 h-full bg-slate-50 dark:bg-[#020617] border rounded-xl outline-none font-black text-xs sm:text-sm text-right text-slate-900 dark:text-white focus:border-violet-500 ${
-                                esPrecioBloqueado ? 'bg-slate-100 dark:bg-slate-800 text-slate-400 cursor-not-allowed border-slate-200 dark:border-slate-700' : 'border-slate-200 dark:border-slate-800'
+                              className={`w-full h-full pl-6 sm:pl-7 pr-2.5 border rounded-xl outline-none font-black text-xs sm:text-sm md:text-base text-right text-slate-900 dark:!text-white focus:border-violet-500 transition-colors placeholder:text-slate-400 dark:placeholder:text-slate-500 placeholder:font-normal ${
+                                esPrecioBloqueado ? 'bg-slate-100 dark:bg-slate-800/60 text-slate-500 dark:text-slate-400 cursor-not-allowed border-slate-200 dark:border-slate-700' : 'bg-slate-50 dark:bg-[#020617] border-slate-200 dark:border-slate-800'
                               }`}
                             />
                           </div>
                         </div>
 
                         {/* Botón de Cámara y Miniatura con Lightbox */}
-                        <div className="shrink-0 h-[42px] sm:h-[46px] md:h-[50px] flex items-end">
+                        <div className="shrink-0 flex items-end">
                           {fila.fotoUrl ? (
-                            <div className="relative group w-10 h-10 rounded-xl overflow-hidden border border-violet-300 dark:border-violet-700 shadow-sm shrink-0 bg-slate-900">
+                            <div className="relative group w-[38px] sm:w-[40px] md:w-[42px] h-[38px] sm:h-[40px] md:h-[42px] rounded-xl overflow-hidden border border-violet-300 dark:border-violet-700 shadow-xs shrink-0 bg-slate-900">
                               <img
                                 src={fila.fotoUrl}
                                 alt="Foto"
@@ -1949,7 +1939,7 @@ Estamos atentos para cualquier consulta.
                             <button
                               type="button"
                               onClick={() => abrirCamaraEnVivo(index)}
-                              className="h-10 px-2.5 bg-violet-50 dark:bg-violet-500/10 text-violet-600 dark:text-violet-400 border border-violet-200 dark:border-violet-800 rounded-xl hover:bg-violet-100 flex items-center gap-1 text-xs font-bold transition-all cursor-pointer"
+                              className="h-[38px] sm:h-[40px] md:h-[42px] px-2.5 bg-violet-50 dark:bg-violet-500/10 text-violet-600 dark:text-violet-400 border border-violet-200 dark:border-violet-800 rounded-xl hover:bg-violet-100 dark:hover:bg-violet-500/20 flex items-center gap-1 text-xs font-bold transition-all cursor-pointer shrink-0 active:scale-95"
                               title="Tomar o adjuntar foto"
                             >
                               <Camera size={14} />
@@ -1957,6 +1947,18 @@ Estamos atentos para cualquier consulta.
                             </button>
                           )}
                         </div>
+
+                        {/* Botón Eliminar fila integrado al final */}
+                        {filas.length > 1 && (
+                          <button 
+                            type="button"
+                            onClick={() => eliminarFila(index)} 
+                            title="Eliminar artículo"
+                            className="h-[38px] sm:h-[40px] md:h-[42px] w-[34px] sm:w-[38px] bg-slate-100/80 dark:bg-slate-800/80 hover:bg-rose-50 hover:text-rose-600 dark:hover:bg-rose-950/40 dark:hover:text-rose-400 text-slate-400 rounded-xl transition-colors flex items-center justify-center shrink-0 cursor-pointer active:scale-95"
+                          >
+                            <Trash2 size={15}/>
+                          </button>
+                        )}
 
                       </div>
                     </div>

@@ -1345,18 +1345,12 @@ Estamos atentos para cualquier consulta.
                         <div className="max-w-4xl mx-auto space-y-3 sm:space-y-4">
                             <h4 className="font-bold text-slate-400 uppercase text-[10px] md:text-xs tracking-wider">Artículos a Fiar</h4>
 
-                            <div className="space-y-3">
+                            <div className="space-y-2 sm:space-y-2.5">
                                 {filasRegistro.map((fila, index) => {
                                     const productosFiltradosInventario = ordenarProductosSugeridos(inventario, fila.descripcion);
 
                                     return (
-                                        <div key={index} className={`flex flex-col sm:flex-row gap-2.5 sm:gap-3 md:gap-4 p-3 sm:p-4 bg-white dark:bg-[#0f172a] rounded-2xl border border-slate-200 dark:border-slate-800 relative shadow-sm transition-colors hover:border-rose-300 ${busquedaProductoIndex === index ? 'z-40' : 'z-10'}`}>
-
-                                            {filasRegistro.length > 1 && (
-                                                <button onClick={() => eliminarFila(index)} className="absolute -top-2 -right-2 bg-rose-100 text-rose-600 rounded-full p-1 shadow-sm hover:scale-110 transition-transform z-10">
-                                                    <X size={13} />
-                                                </button>
-                                            )}
+                                        <div key={index} className={`flex flex-col sm:flex-row gap-2 sm:gap-2.5 md:gap-3 p-2.5 sm:py-2.5 sm:px-3.5 bg-white dark:bg-[#0f172a] rounded-xl sm:rounded-2xl border border-slate-200 dark:border-slate-800 relative shadow-xs transition-colors hover:border-rose-300 ${busquedaProductoIndex === index ? 'z-40' : 'z-10'}`}>
 
                                             <div className="flex-1 min-w-0 relative">
                                                 <label className="text-[9px] md:text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1 block whitespace-nowrap truncate flex items-center gap-1">
@@ -1404,7 +1398,7 @@ Estamos atentos para cualquier consulta.
                                                          }
                                                     }}
                                                     placeholder="Escribe nombre o SKU..."
-                                                    className="w-full px-3 py-2 h-[42px] sm:h-[46px] md:h-[50px] bg-slate-50 dark:bg-[#020617] border border-slate-200 dark:border-slate-800 rounded-xl outline-none font-bold text-xs sm:text-sm md:text-base min-w-0 shadow-sm focus:border-rose-500 transition-colors text-slate-900 dark:!text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 placeholder:text-xs sm:placeholder:text-sm placeholder:font-normal"
+                                                    className="w-full px-3 py-1.5 h-[38px] sm:h-[40px] md:h-[42px] bg-slate-50 dark:bg-[#020617] border border-slate-200 dark:border-slate-800 rounded-xl outline-none font-bold text-xs sm:text-sm md:text-base min-w-0 shadow-xs focus:border-rose-500 transition-colors text-slate-900 dark:!text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 placeholder:text-xs sm:placeholder:text-sm placeholder:font-normal"
                                                 />
 
                                                 {busquedaProductoIndex === index && fila.descripcion.trim().length > 0 && productosFiltradosInventario.length > 0 && (
@@ -1482,13 +1476,13 @@ Estamos atentos para cualquier consulta.
                                                 )}
                                             </div>
 
-                                            <div className="flex flex-row gap-2 sm:gap-3 w-full sm:w-[240px] md:w-[270px] shrink-0">
-                                                <div className="w-[90px] sm:w-[100px] md:w-[115px] shrink-0">
+                                            <div className="flex flex-row items-end gap-1.5 sm:gap-2 w-full sm:w-[270px] md:w-[295px] shrink-0">
+                                                <div className="w-[85px] sm:w-[95px] md:w-[105px] shrink-0">
                                                     <label className="text-[9px] md:text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1 block whitespace-nowrap">Cant.</label>
-                                                    <div className="flex items-center bg-slate-50 dark:bg-[#020617] border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden shrink-0 h-[42px] sm:h-[46px] md:h-[50px]">
-                                                        <button onClick={() => actualizarCantidadFila(index, -1)} className="px-2 sm:px-2.5 h-full hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-500 transition-colors"><Minus size={14} /></button>
-                                                        <span className="flex-1 text-center font-black text-sm sm:text-base md:text-lg text-slate-900 dark:!text-white">{fila.cantidad}</span>
-                                                        <button onClick={() => actualizarCantidadFila(index, 1)} className="px-2 sm:px-2.5 h-full hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-500 transition-colors"><Plus size={14} /></button>
+                                                    <div className="flex items-center bg-slate-50 dark:bg-[#020617] border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden shrink-0 h-[38px] sm:h-[40px] md:h-[42px]">
+                                                        <button type="button" onClick={() => actualizarCantidadFila(index, -1)} className="px-2 sm:px-2.5 h-full hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-500 transition-colors"><Minus size={13} /></button>
+                                                        <span className="flex-1 text-center font-black text-xs sm:text-sm md:text-base text-slate-900 dark:!text-white">{fila.cantidad}</span>
+                                                        <button type="button" onClick={() => actualizarCantidadFila(index, 1)} className="px-2 sm:px-2.5 h-full hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-500 transition-colors"><Plus size={13} /></button>
                                                     </div>
                                                 </div>
 
@@ -1499,8 +1493,8 @@ Estamos atentos para cualquier consulta.
                                                         const precioBloqueado = !puedeModificarPrecios && !!itemInventarioRegistrado;
 
                                                         return (
-                                                            <div className="relative w-full h-[42px] sm:h-[46px] md:h-[50px] shadow-sm rounded-xl">
-                                                                <span className="absolute left-2.5 sm:left-3 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-sm sm:text-base">$</span>
+                                                            <div className="relative w-full h-[38px] sm:h-[40px] md:h-[42px] shadow-xs rounded-xl">
+                                                                <span className="absolute left-2.5 sm:left-3 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-xs sm:text-sm">$</span>
                                                                 <input
                                                                     type="text"
                                                                     inputMode="decimal" pattern="[0-9]*"
@@ -1509,12 +1503,23 @@ Estamos atentos para cualquier consulta.
                                                                     disabled={precioBloqueado}
                                                                     title={precioBloqueado ? "Precio fijado por inventario (no editable)" : ""}
                                                                     placeholder="0"
-                                                                    className={`w-full h-full pl-6 sm:pl-7 pr-2.5 border rounded-xl outline-none font-black text-sm sm:text-base md:text-lg text-right text-slate-900 dark:!text-white focus:border-rose-500 transition-colors placeholder:text-slate-400 dark:placeholder:text-slate-500 placeholder:font-normal ${precioBloqueado ? 'bg-slate-100 dark:bg-slate-800/60 text-slate-500 dark:text-slate-400 cursor-not-allowed border-slate-200 dark:border-slate-700' : 'bg-slate-50 dark:bg-[#020617] border-slate-200 dark:border-slate-800'}`}
+                                                                    className={`w-full h-full pl-6 sm:pl-7 pr-2.5 border rounded-xl outline-none font-black text-xs sm:text-sm md:text-base text-right text-slate-900 dark:!text-white focus:border-rose-500 transition-colors placeholder:text-slate-400 dark:placeholder:text-slate-500 placeholder:font-normal ${precioBloqueado ? 'bg-slate-100 dark:bg-slate-800/60 text-slate-500 dark:text-slate-400 cursor-not-allowed border-slate-200 dark:border-slate-700' : 'bg-slate-50 dark:bg-[#020617] border-slate-200 dark:border-slate-800'}`}
                                                                 />
                                                             </div>
                                                         );
                                                     })()}
                                                 </div>
+
+                                                {filasRegistro.length > 1 && (
+                                                    <button 
+                                                        type="button"
+                                                        onClick={() => eliminarFila(index)} 
+                                                        title="Eliminar artículo"
+                                                        className="h-[38px] sm:h-[40px] md:h-[42px] w-[34px] sm:w-[38px] bg-slate-100/80 dark:bg-slate-800/80 hover:bg-rose-50 hover:text-rose-600 dark:hover:bg-rose-950/40 dark:hover:text-rose-400 text-slate-400 rounded-xl transition-colors flex items-center justify-center shrink-0 cursor-pointer active:scale-95"
+                                                    >
+                                                        <Trash2 size={15}/>
+                                                    </button>
+                                                )}
                                             </div>
                                         </div>
                                     );
