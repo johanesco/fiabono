@@ -117,8 +117,11 @@ export interface MediosPagoNegocio {
 export interface UsuarioBD {
   id?: string;
   nombreUsuario: string;
+  nombre?: string;
   nombreNegocio?: string;
   telefonoNegocio?: string;
+  celular?: string;
+  telefono?: string;
   logoNegocio?: string | null;
   nitNegocio?: string;
   direccionNegocio?: string;
@@ -135,6 +138,8 @@ export interface UsuarioBD {
   cicloPlan?: CicloPlan;
   permisos?: PermisosColaborador;
   activo?: boolean;
+  horariosActividad?: any[];
+  manualOverride?: boolean;
   tipoNegocio?: string;
   moduloSepareActivo?: boolean;
   slugNegocio?: string;
@@ -226,6 +231,7 @@ export interface DatosSesionContext {
   moduloSepareActivo: boolean;
   slugNegocio?: string;
   esCajaMostrador?: boolean;
+  telefonoAdmin?: string;
 
   // Helpers derivados
   esAdmin: boolean;

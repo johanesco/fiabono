@@ -6,6 +6,7 @@ import { auth, db } from "../firebase";
 import { useRouter, usePathname } from "next/navigation";
 import { DatosSesionContext, UsuarioBD } from "../types";
 import toast from "react-hot-toast";
+import ModalAccesoColaborador, { BloqueoColaboradorInfo } from "@/components/ModalAccesoColaborador";
 
 interface AuthContextType {
   datosSesion: DatosSesionContext | null;
@@ -19,6 +20,7 @@ const AuthContext = createContext<AuthContextType | null>(null);
 export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [datosSesion, setDatosSesion] = useState<DatosSesionContext | null>(null);
   const [cargando, setCargando] = useState(true);
+  const [bloqueoColaborador, setBloqueoColaborador] = useState<BloqueoColaboradorInfo | null>(null);
   const router = useRouter();
   const pathname = usePathname();
 
@@ -49,32 +51,6 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         }
         
         const data = userDoc.data();
-        if (data.rol === 'cajero' && data.activo === false) throw new Error("Inactivo");
-
-        // Validación dinámica en tiempo real de Horarios de Actividad (si fueron configurados)
-        if (data.rol === 'cajero' && Array.isArray(data.horariosActividad) && data.horariosActividad.length > 0) {
-          const tieneHorariosValidos = data.horariosActividad.some((h: any) => h?.activoAuto !== false);
-          if (tieneHorariosValidos) {
-            const nombresDias = ['Dom', 'Lun', 'Mar', 'Mie', 'Jue', 'Vie', 'Sab'];
-            const ahora = new Date();
-            const diaHoy = nombresDias[ahora.getDay()];
-            const horaActual = `${String(ahora.getHours()).padStart(2, '0')}:${String(ahora.getMinutes()).padStart(2, '0')}`;
-
-            const dentroDeHorario = data.horariosActividad.some((h: any) => {
-              if (h?.activoAuto === false) return false;
-              const dias = h.dias || [];
-              if (!dias.includes(diaHoy)) return false;
-              const inicio = h.inicio || '00:00';
-              const fin = h.fin || '23:59';
-              return inicio <= horaActual && horaActual < fin;
-            });
-
-            if (!dentroDeHorario && data.manualOverride !== true) {
-              throw new Error("FueraDeHorario");
-            }
-          }
-        }
-
         let idParaConsultar = user.uid;
         let adminData = data;
 
@@ -85,6 +61,56 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
             adminData = adminDoc.data();
           } else {
             throw new Error("NegocioNoExiste");
+          }
+
+          const telefonoAdmin = adminData.telefonoNegocio || adminData.celular || adminData.telefono || "";
+          const nombreNegocio = adminData.nombreNegocio || adminData.nombre || "tu negocio";
+          const nombreColaborador = data.nombre || data.nombreUsuario || data.displayName || "Colaborador";
+
+          // 1. Verificación si el colaborador está deshabilitado / inactivo
+          if (data.activo === false) {
+            setBloqueoColaborador({
+              motivo: 'inactivo',
+              nombreColaborador,
+              nombreNegocio,
+              telefonoAdmin,
+            });
+            setCargando(false);
+            setDatosSesion(null);
+            return;
+          }
+
+          // 2. Verificación de Horarios de Actividad (si fueron configurados)
+          if (Array.isArray(data.horariosActividad) && data.horariosActividad.length > 0) {
+            const tieneHorariosValidos = data.horariosActividad.some((h: any) => h?.activoAuto !== false);
+            if (tieneHorariosValidos) {
+              const nombresDias = ['Dom', 'Lun', 'Mar', 'Mie', 'Jue', 'Vie', 'Sab'];
+              const ahora = new Date();
+              const diaHoy = nombresDias[ahora.getDay()];
+              const horaActual = `${String(ahora.getHours()).padStart(2, '0')}:${String(ahora.getMinutes()).padStart(2, '0')}`;
+
+              const dentroDeHorario = data.horariosActividad.some((h: any) => {
+                if (h?.activoAuto === false) return false;
+                const dias = h.dias || [];
+                if (!dias.includes(diaHoy)) return false;
+                const inicio = h.inicio || '00:00';
+                const fin = h.fin || '23:59';
+                return inicio <= horaActual && horaActual < fin;
+              });
+
+              if (!dentroDeHorario && data.manualOverride !== true) {
+                setBloqueoColaborador({
+                  motivo: 'fuera_de_horario',
+                  nombreColaborador,
+                  nombreNegocio,
+                  telefonoAdmin,
+                  horarios: data.horariosActividad,
+                });
+                setCargando(false);
+                setDatosSesion(null);
+                return;
+              }
+            }
           }
 
           // Validar si el negocio está en plan gratuito (no permite colaboradores)
@@ -103,12 +129,14 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
             }
           }
 
-
           // REGLA CRÍTICA DE NEGOCIO: Si el negocio está en Plan Gratis, el colaborador no puede acceder
           if (planAdmin === 'gratis') {
             throw new Error("PlanGratisSinColaboradores");
           }
         }
+
+        // Si pasa todas las validaciones, despejamos cualquier bloqueo previo
+        setBloqueoColaborador(null);
 
         // Validar expiración plan de la cuenta principal
         let planRaw = (adminData.plan || 'gratis').toLowerCase();
@@ -179,6 +207,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
           nombreUsuario: data.nombreUsuario,
           nombreNegocio: adminData.nombreNegocio,
           telefonoNegocio: adminData.telefonoNegocio || "",
+          telefonoAdmin: adminData.telefonoNegocio || adminData.celular || adminData.telefono || "",
           correoNegocio: adminData.email || user.email || "",
           logoNegocio: adminData.logoNegocio || null,
           nitNegocio: adminData.nitNegocio || "",
@@ -249,7 +278,6 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
             toast.error("Tu acceso ha sido restringido o no tienes permisos en este negocio.", { duration: 5000 });
           }
 
-
           await signOut(auth);
           setDatosSesion(null);
           router.push('/');
@@ -267,10 +295,62 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
   // OPT-07: useEffect separado para proteger rutas sin relanzar el listener de Auth
   useEffect(() => {
-    if (!cargando && !datosSesion && pathname?.includes('/dashboard')) {
+    if (!cargando && !datosSesion && !bloqueoColaborador && pathname?.includes('/dashboard')) {
       router.push('/');
     }
-  }, [pathname, cargando, datosSesion, router]);
+  }, [pathname, cargando, datosSesion, bloqueoColaborador, router]);
+
+  // Monitoreo en tiempo real cada 60s si un colaborador activo finaliza su turno laboral mientras trabaja
+  useEffect(() => {
+    if (!datosSesion || datosSesion.rol !== 'cajero') return;
+
+    const verificarHorarioEnVivo = () => {
+      const orig = datosSesion.datosUsuarioOriginales;
+      if (!orig) return;
+
+      if (orig.activo === false) {
+        setBloqueoColaborador({
+          motivo: 'inactivo',
+          nombreColaborador: orig.nombre || orig.nombreUsuario || 'Colaborador',
+          nombreNegocio: datosSesion.nombreNegocio || 'tu negocio',
+          telefonoAdmin: datosSesion.telefonoAdmin || datosSesion.telefonoNegocio || '',
+        });
+        return;
+      }
+
+      if (Array.isArray(orig.horariosActividad) && orig.horariosActividad.length > 0) {
+        const tieneHorariosValidos = orig.horariosActividad.some((h: any) => h?.activoAuto !== false);
+        if (tieneHorariosValidos && orig.manualOverride !== true) {
+          const nombresDias = ['Dom', 'Lun', 'Mar', 'Mie', 'Jue', 'Vie', 'Sab'];
+          const ahora = new Date();
+          const diaHoy = nombresDias[ahora.getDay()];
+          const horaActual = `${String(ahora.getHours()).padStart(2, '0')}:${String(ahora.getMinutes()).padStart(2, '0')}`;
+
+          const dentroDeHorario = orig.horariosActividad.some((h: any) => {
+            if (h?.activoAuto === false) return false;
+            const dias = h.dias || [];
+            if (!dias.includes(diaHoy)) return false;
+            const inicio = h.inicio || '00:00';
+            const fin = h.fin || '23:59';
+            return inicio <= horaActual && horaActual < fin;
+          });
+
+          if (!dentroDeHorario) {
+            setBloqueoColaborador({
+              motivo: 'fuera_de_horario',
+              nombreColaborador: orig.nombre || orig.nombreUsuario || 'Colaborador',
+              nombreNegocio: datosSesion.nombreNegocio || 'tu negocio',
+              telefonoAdmin: datosSesion.telefonoAdmin || datosSesion.telefonoNegocio || '',
+              horarios: orig.horariosActividad,
+            });
+          }
+        }
+      }
+    };
+
+    const intervalId = setInterval(verificarHorarioEnVivo, 60000);
+    return () => clearInterval(intervalId);
+  }, [datosSesion]);
 
   const cerrarSesion = async () => {
     try {
@@ -282,9 +362,24 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     }
   };
 
+  const handleCerrarSesionBloqueo = async () => {
+    setBloqueoColaborador(null);
+    try {
+      await signOut(auth);
+    } catch (e) {
+      console.error('Error al cerrar sesión de bloqueo:', e);
+    }
+    setDatosSesion(null);
+    router.push('/');
+  };
+
   return (
     <AuthContext.Provider value={{ datosSesion, cargando, setDatosSesion, cerrarSesion }}>
       {children}
+      <ModalAccesoColaborador
+        info={bloqueoColaborador}
+        onCerrarSesion={handleCerrarSesionBloqueo}
+      />
     </AuthContext.Provider>
   );
 };

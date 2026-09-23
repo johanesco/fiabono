@@ -1263,7 +1263,23 @@ Muchas gracias por tu compra. Estamos atentos para cualquier consulta.
   // =========================================================================
   if (datosSesion?.esGratis && !datosSesion?.esPro && !datosSesion?.esComercio) {
     return (
-      <div className="flex flex-col gap-6 animate-in fade-in duration-500 max-w-6xl mx-auto w-full pb-16">
+      <div className="flex flex-col gap-6 animate-in fade-in duration-500 max-w-6xl mx-auto w-full pb-16 px-2 sm:px-4">
+        {/* Barra superior con navegación hacia Inicio */}
+        <div className="flex items-center justify-between">
+          <button
+            type="button"
+            onClick={() => router.push('/dashboard/inicio')}
+            className="inline-flex items-center gap-2 px-3.5 py-2 rounded-2xl bg-white dark:bg-[#0f172a] text-slate-700 dark:text-slate-300 font-bold text-xs hover:bg-slate-100 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-800 shadow-xs transition-colors cursor-pointer"
+          >
+            <ArrowLeft size={16} />
+            <span>Volver al Inicio</span>
+          </button>
+
+          <span className="text-[11px] font-bold text-slate-400 dark:text-slate-500">
+            Módulo de Supervisión
+          </span>
+        </div>
+
         {/* Cabecera Principal con Badge */}
         <div className="bg-gradient-to-br from-amber-500 via-orange-600 to-slate-900 text-white p-6 sm:p-10 rounded-[2.5rem] shadow-2xl border border-white/10 relative overflow-hidden">
           <div className="absolute right-0 top-0 -mt-10 -mr-10 w-60 h-60 bg-white/10 rounded-full blur-3xl pointer-events-none" />
@@ -1288,9 +1304,9 @@ Muchas gracias por tu compra. Estamos atentos para cualquier consulta.
                   setPlanInicialSuscripcion('comercio');
                   setModalSuscripcionOpen(true);
                 }}
-                className="w-full md:w-auto bg-white text-slate-900 hover:bg-amber-50 font-black text-sm sm:text-base py-4 px-8 rounded-2xl shadow-xl transition-all transform active:scale-95 flex items-center justify-center gap-2 cursor-pointer"
+                className="w-full md:w-auto bg-white text-slate-900 hover:bg-amber-50 font-black text-sm sm:text-base py-3.5 sm:py-4 px-6 sm:px-8 rounded-2xl shadow-xl transition-all transform active:scale-95 flex items-center justify-center gap-2 cursor-pointer"
               >
-                <Zap size={18} className="text-amber-500 fill-current" /> Activar Plan Comercio ($19.900/mes)
+                <Zap size={18} className="text-amber-500 fill-current" /> Activar Plan Comercio
               </button>
               <button
                 type="button"
@@ -1300,7 +1316,7 @@ Muchas gracias por tu compra. Estamos atentos para cualquier consulta.
                 }}
                 className="w-full md:w-auto bg-amber-400/20 hover:bg-amber-400/30 text-white font-bold text-xs py-2.5 px-4 rounded-xl border border-white/20 transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
               >
-                <Crown size={14} className="text-amber-300" /> Ver Plan PRO Almacén ($44.900/mes)
+                <Crown size={14} className="text-amber-300" /> Ver Plan PRO Almacén
               </button>
             </div>
           </div>
@@ -1358,22 +1374,26 @@ Muchas gracias por tu compra. Estamos atentos para cualquier consulta.
 
         {/* Comparativa de Planes para este Módulo */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div className="p-6 bg-white dark:bg-[#0f172a] rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-3">
-            <div className="flex items-center justify-between">
-              <h4 className="font-black text-lg text-slate-900 dark:text-white flex items-center gap-2">
-                <Users className="text-blue-500" size={20} /> Plan Comercio
-              </h4>
-              <span className="text-sm font-black text-blue-600 dark:text-blue-400">$19.900/mes</span>
+          <div className="p-6 bg-white dark:bg-[#0f172a] rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-3 flex flex-col justify-between">
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <h4 className="font-black text-lg text-slate-900 dark:text-white flex items-center gap-2">
+                  <Users className="text-blue-500" size={20} /> Plan Comercio
+                </h4>
+                <span className="text-[11px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-500/10 px-2.5 py-0.5 rounded-full border border-emerald-200/60 dark:border-emerald-500/20">
+                  Próximamente • 14 Días Gratis
+                </span>
+              </div>
+              <p className="text-xs text-slate-500 dark:text-slate-400">
+                Ideal para tiendas de barrio y minimarkets con 1 cajero o empleado adicional.
+              </p>
+              <ul className="text-xs space-y-1.5 text-slate-600 dark:text-slate-300 font-medium">
+                <li className="flex items-center gap-2">✓ <strong>1 Colaborador</strong> con usuario y contraseña propios</li>
+                <li className="flex items-center gap-2">✓ <strong>Módulo de Órdenes</strong> con aprobación del dueño</li>
+                <li className="flex items-center gap-2">✓ Clientes e Inventario <strong>100% Ilimitados</strong></li>
+                <li className="flex items-center gap-2">✓ Factura térmica con logo y comprobantes por WhatsApp</li>
+              </ul>
             </div>
-            <p className="text-xs text-slate-500 dark:text-slate-400">
-              Ideal para tiendas de barrio y minimarkets con 1 cajero o empleado adicional.
-            </p>
-            <ul className="text-xs space-y-1.5 text-slate-600 dark:text-slate-300 font-medium">
-              <li className="flex items-center gap-2">✓ <strong>1 Colaborador</strong> con usuario y contraseña propios</li>
-              <li className="flex items-center gap-2">✓ <strong>Módulo de Órdenes</strong> con aprobación del dueño</li>
-              <li className="flex items-center gap-2">✓ Clientes e Inventario <strong>100% Ilimitados</strong></li>
-              <li className="flex items-center gap-2">✓ Factura térmica con logo y comprobantes por WhatsApp</li>
-            </ul>
             <button
               type="button"
               onClick={() => {
@@ -1386,22 +1406,26 @@ Muchas gracias por tu compra. Estamos atentos para cualquier consulta.
             </button>
           </div>
 
-          <div className="p-6 bg-gradient-to-br from-purple-50 via-indigo-50/50 to-white dark:from-purple-950/20 dark:via-indigo-950/10 dark:to-[#0f172a] rounded-3xl border border-purple-200 dark:border-purple-800/60 shadow-sm space-y-3">
-            <div className="flex items-center justify-between">
-              <h4 className="font-black text-lg text-slate-900 dark:text-white flex items-center gap-2">
-                <Crown className="text-amber-500 fill-current" size={20} /> Plan PRO Almacén
-              </h4>
-              <span className="text-sm font-black text-purple-600 dark:text-purple-400">$44.900/mes</span>
+          <div className="p-6 bg-gradient-to-br from-purple-50 via-indigo-50/50 to-white dark:from-purple-950/20 dark:via-indigo-950/10 dark:to-[#0f172a] rounded-3xl border border-purple-200 dark:border-purple-800/60 shadow-sm space-y-3 flex flex-col justify-between">
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <h4 className="font-black text-lg text-slate-900 dark:text-white flex items-center gap-2">
+                  <Crown className="text-amber-500 fill-current" size={20} /> Plan PRO Almacén
+                </h4>
+                <span className="text-[11px] font-bold text-purple-600 dark:text-purple-400 bg-purple-50 dark:bg-purple-500/10 px-2.5 py-0.5 rounded-full border border-purple-200/60 dark:border-purple-500/20">
+                  Próximamente • 14 Días Gratis
+                </span>
+              </div>
+              <p className="text-xs text-slate-500 dark:text-slate-400">
+                Para almacenes de ropa, calzado, tecnología y boutiques con múltiples vendedores.
+              </p>
+              <ul className="text-xs space-y-1.5 text-slate-600 dark:text-slate-300 font-medium">
+                <li className="flex items-center gap-2">✓ <strong>Hasta 4 Colaboradores</strong> independientes</li>
+                <li className="flex items-center gap-2">✓ Modo Terminal Multivendedor con reportes por vendedor</li>
+                <li className="flex items-center gap-2">✓ <strong>Plan Separe completo</strong> con fechas límite y fotos</li>
+                <li className="flex items-center gap-2">✓ Generador e impresor de <strong>Etiquetas QR Adhesivas</strong></li>
+              </ul>
             </div>
-            <p className="text-xs text-slate-500 dark:text-slate-400">
-              Para almacenes de ropa, calzado, tecnología y boutiques con múltiples vendedores.
-            </p>
-            <ul className="text-xs space-y-1.5 text-slate-600 dark:text-slate-300 font-medium">
-              <li className="flex items-center gap-2">✓ <strong>Hasta 4 Colaboradores</strong> independientes</li>
-              <li className="flex items-center gap-2">✓ Modo Terminal Multivendedor con reportes por vendedor</li>
-              <li className="flex items-center gap-2">✓ <strong>Plan Separe completo</strong> con fechas límite y fotos</li>
-              <li className="flex items-center gap-2">✓ Generador e impresor de <strong>Etiquetas QR Adhesivas</strong></li>
-            </ul>
             <button
               type="button"
               onClick={() => {

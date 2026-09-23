@@ -897,9 +897,9 @@ export default function InventarioPage() {
       if (cerrarAlFinal) {
         setModalProducto(false);
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error guardando producto:", error);
-      toast.error("Error al guardar el producto. Inténtalo de nuevo.");
+      toast.error(error?.message || "Error al guardar el producto. Inténtalo de nuevo.");
     } finally {
       setGuardando(false);
     }
@@ -4725,377 +4725,256 @@ export default function InventarioPage() {
             {/* Cuerpo del Modal: Doble Columna en Escritorio */}
             <div className="flex-1 overflow-hidden grid grid-cols-1 lg:grid-cols-[1.15fr_0.85fr] xl:grid-cols-[1.2fr_0.8fr]">
               
-              {/* COLUMNA IZQUIERDA: FORMULARIO DE INGRESO Y EDICIÓN */}
-              <div className={`flex flex-col h-full overflow-y-auto p-2 sm:p-5 space-y-2 sm:space-y-3 ${tabMovilModal === 'formulario' ? 'flex' : 'hidden lg:flex'}`}>
+              {/* COLUMNA IZQUIERDA: FORMULARIO DE INGRESO Y EDICIÓN COMPACTO SIN SCROLL */}
+              <div className={`flex flex-col h-full overflow-y-auto lg:overflow-hidden p-2.5 sm:p-5 space-y-3 sm:space-y-4 ${tabMovilModal === 'formulario' ? 'flex' : 'hidden lg:flex'}`}>
                 
                 {/* Banner de Modo Edición Activo */}
                 {editandoId && (
-                  <div className="p-2 sm:p-3 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/50 rounded-xl sm:rounded-2xl flex items-center justify-between gap-2 sm:gap-3 shadow-xs">
-                    <div className="flex items-center gap-2 sm:gap-2.5 min-w-0">
-                      <div className="w-6 h-6 sm:w-8 sm:h-8 rounded-lg sm:rounded-xl bg-amber-500 text-white flex items-center justify-center shrink-0">
+                  <div className="p-2.5 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/50 rounded-xl flex items-center justify-between gap-2 shadow-xs shrink-0">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <div className="w-6 h-6 rounded-lg bg-amber-500 text-white flex items-center justify-center shrink-0">
                         <Edit3 size={13} />
                       </div>
                       <div className="min-w-0">
                         <p className="text-xs font-black text-amber-900 dark:text-amber-200 truncate">
                           Editando: "{nombre || 'Sin nombre'}"
                         </p>
-                        <p className="text-[10px] text-amber-700 dark:text-amber-400 hidden xs:block">
-                          Ajusta los datos y presiona "Actualizar en Catálogo".
-                        </p>
                       </div>
                     </div>
                     <button
                       type="button"
                       onClick={limpiarFormulario}
-                      className="px-2.5 py-1 text-xs font-bold bg-white dark:bg-slate-800 border border-amber-300 dark:border-amber-700 text-amber-800 dark:text-amber-300 rounded-lg sm:rounded-xl hover:bg-amber-100 dark:hover:bg-slate-700 transition shrink-0 cursor-pointer"
+                      className="px-2.5 py-1 text-xs font-bold bg-white dark:bg-slate-800 border border-amber-300 dark:border-amber-700 text-amber-800 dark:text-amber-300 rounded-lg hover:bg-amber-100 dark:hover:bg-slate-700 transition shrink-0 cursor-pointer"
                     >
                       Cancelar
                     </button>
                   </div>
                 )}
 
-                {/* Campos del Formulario */}
-                <div className="space-y-2 sm:space-y-3.5">
+                {/* Contenedor Unificado del Formulario (Grilla Compacta) */}
+                <div className="bg-slate-50/80 dark:bg-slate-900/50 rounded-2xl border border-slate-200 dark:border-slate-800 p-3 sm:p-4 space-y-3 shadow-xs shrink-0">
                   
-                  {/* Fila 1: Nombre del Producto */}
-                  <div className="rounded-xl sm:rounded-2xl border border-slate-200 bg-slate-50 p-2 sm:p-3.5 dark:border-slate-800 dark:bg-slate-900/40 space-y-1 sm:space-y-1.5">
-                    <label className="text-[10px] sm:text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider block">
-                      Nombre del Producto *
-                    </label>
-                    <input 
-                      type="text" 
-                      value={nombre} 
-                      onChange={(e) => { setNombre(e.target.value); setErrores(prev => ({ ...prev, nombre: '' })); }} 
-                      placeholder="Ej. Camisa Polo Manga Corta" 
-                      className={`w-full p-2 sm:p-3 bg-white dark:bg-[#020617] border rounded-xl outline-none font-bold text-xs sm:text-base text-slate-900 dark:text-white transition-all shadow-xs ${errores.nombre ? 'border-rose-500 ring-2 ring-rose-500/30 bg-rose-50/20' : 'border-slate-200 dark:border-slate-700 focus:border-emerald-500'}`} 
-                    />
-                    {errores.nombre && <p className="mt-0.5 text-[10px] sm:text-[11px] text-rose-500 font-bold flex items-center gap-1">⚠️ {errores.nombre}</p>}
-                    
-                    {/* Detector de productos similares para evitar duplicados */}
-                    {!editandoId && nombre.trim().length >= 2 && (
-                      (() => {
-                        const coincidencias = inventario.filter(p => 
-                          p.nombre.toLowerCase().includes(nombre.trim().toLowerCase())
-                        ).slice(0, 3);
+                  {/* Fila 1: Nombre y Categoría */}
+                  <div className="grid grid-cols-1 sm:grid-cols-12 gap-2 sm:gap-3">
+                    {/* Nombre del Producto */}
+                    <div className="sm:col-span-7 space-y-1">
+                      <div className="flex items-center justify-between">
+                        <label className="text-[10px] sm:text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider block">
+                          Nombre del Producto *
+                        </label>
+                      </div>
+                      <input 
+                        type="text" 
+                        value={nombre} 
+                        onChange={(e) => { setNombre(e.target.value); setErrores(prev => ({ ...prev, nombre: '' })); }} 
+                        placeholder="Ej. Camisa Polo Manga Corta" 
+                        className={`w-full py-2 px-3 bg-white dark:bg-[#020617] border rounded-xl outline-none font-bold text-xs sm:text-sm text-slate-900 dark:text-white transition-all shadow-xs ${errores.nombre ? 'border-rose-500 ring-2 ring-rose-500/30 bg-rose-50/20' : 'border-slate-200 dark:border-slate-700 focus:border-emerald-500'}`} 
+                      />
+                      {errores.nombre && <p className="text-[10px] text-rose-500 font-bold flex items-center gap-1">⚠️ {errores.nombre}</p>}
+                      
+                      {/* Detector compacto de similares */}
+                      {!editandoId && nombre.trim().length >= 2 && (
+                        (() => {
+                          const coincidencias = inventario.filter(p => 
+                            p.nombre.toLowerCase().includes(nombre.trim().toLowerCase())
+                          ).slice(0, 2);
 
-                        if (coincidencias.length === 0) return null;
+                          if (coincidencias.length === 0) return null;
 
-                        return (
-                          <div className="mt-2 p-2.5 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/40 rounded-xl space-y-1.5 animate-in fade-in duration-150">
-                            <p className="text-[11px] font-bold text-amber-800 dark:text-amber-300 flex items-center gap-1.5">
-                              <AlertTriangle size={13} className="shrink-0" /> 
-                              Coincide con productos existentes en tu catálogo:
-                            </p>
-                            <div className="space-y-1">
-                              {coincidencias.map((prodSim) => (
-                                <div key={prodSim.id} className="flex items-center justify-between p-1.5 bg-white dark:bg-slate-900 rounded-lg border border-amber-100 dark:border-slate-800 text-xs">
-                                  <div className="min-w-0 pr-2">
-                                    <span className="font-bold text-slate-800 dark:text-slate-100 truncate block">{prodSim.nombre}</span>
-                                    <div className="flex items-center gap-1.5 text-[10px] text-slate-400">
-                                      <span>Stock: <strong className="text-emerald-600">{prodSim.stock ?? 0}</strong></span>
-                                      <span>•</span>
-                                      <span>${Number(prodSim.precioVenta || 0).toLocaleString('es-CO')}</span>
-                                    </div>
-                                  </div>
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      abrirEdicion(prodSim);
-                                      toast.success(`Cargado "${prodSim.nombre}" para actualizar`, { icon: '✏️' });
-                                    }}
-                                    className="px-2 py-1 bg-amber-500 hover:bg-amber-600 text-white font-bold rounded-lg text-[10px] shrink-0 transition-colors cursor-pointer"
-                                  >
-                                    Actualizar
-                                  </button>
-                                </div>
-                              ))}
+                          return (
+                            <div className="p-1.5 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/40 rounded-lg flex items-center justify-between gap-1.5 text-[11px] animate-in fade-in duration-150">
+                              <span className="text-amber-800 dark:text-amber-300 font-bold truncate">
+                                ⚠️ Ya existe: "{coincidencias[0].nombre}" (${Number(coincidencias[0].precioVenta || 0).toLocaleString('es-CO')})
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  abrirEdicion(coincidencias[0]);
+                                  toast.success(`Cargado "${coincidencias[0].nombre}"`, { icon: '✏️' });
+                                }}
+                                className="px-2 py-0.5 bg-amber-500 hover:bg-amber-600 text-white font-bold rounded text-[10px] shrink-0 transition cursor-pointer"
+                              >
+                                Cargar
+                              </button>
                             </div>
-                          </div>
-                        );
-                      })()
-                    )}
-                  </div>
+                          );
+                        })()
+                      )}
+                    </div>
 
-                  {/* Fila 2: Código de Producto */}
-                  <div className="rounded-xl sm:rounded-2xl border border-slate-200 bg-slate-50 p-2 sm:p-3.5 dark:border-slate-800 dark:bg-slate-900/40 space-y-1 sm:space-y-1.5">
-                    <div className="flex items-center justify-between">
-                      <label className="text-[10px] sm:text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider block">
-                        Código de Producto
-                      </label>
-                      <div className="flex items-center gap-1.5 sm:gap-2">
+                    {/* Categoría con Selector Rápido */}
+                    <div className="sm:col-span-5 space-y-1">
+                      <div className="flex items-center justify-between">
+                        <label className="text-[10px] sm:text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider block">
+                          Categoría
+                        </label>
                         <button
                           type="button"
-                          onClick={() => {
-                            const nuevoSku = `COD-${Math.floor(1000 + Math.random() * 9000)}`;
-                            setSku(nuevoSku);
-                            toast.success(`Código generado: ${nuevoSku}`, { icon: '✨' });
-                          }}
-                          className="text-[10px] sm:text-[11px] font-bold text-indigo-600 dark:text-indigo-400 hover:underline flex items-center gap-1 cursor-pointer"
-                          title="Generar código automático"
+                          onClick={() => setModalGestionCategorias(true)}
+                          className="text-[10px] sm:text-[11px] font-bold text-sky-600 dark:text-sky-400 hover:underline flex items-center gap-0.5 cursor-pointer"
+                          title="Administrar categorías"
                         >
-                          <Sparkles size={11} /> Auto
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setModalProducto(false);
-                            setModalEscanerInventario(true);
-                          }}
-                          className="text-[10px] sm:text-[11px] font-bold text-emerald-600 dark:text-emerald-400 hover:underline flex items-center gap-1 cursor-pointer"
-                          title="Escanear con la cámara del celular"
-                        >
-                          <ScanLine size={11} /> Escanear
+                          <Tag size={10} /> <span>Admin</span>
                         </button>
                       </div>
-                    </div>
-                    <input 
-                      type="text" 
-                      value={sku} 
-                      onChange={(e) => setSku(e.target.value)} 
-                      placeholder="Código de barras o referencia (ej. 77012345 o CAM-01)" 
-                      className="w-full p-2 sm:p-3 bg-white dark:bg-[#020617] border border-slate-200 dark:border-slate-700 rounded-xl outline-none font-mono font-bold text-xs sm:text-base focus:border-emerald-500 text-slate-900 dark:text-white transition-all shadow-xs" 
-                    />
-
-                    {/* Coincidencia inteligente por código */}
-                    {!editandoId && sku.trim().length >= 2 && (
-                      (() => {
-                        const sNorm = sku.trim().toUpperCase().replace(/^(SKU|REF|COD)[-_ ]*/i, '');
-                        const coincidenciaSku = inventario.find(p => {
-                          const pSku = (p.sku || '').trim().toUpperCase();
-                          const pBar = (p.codigoBarras || '').trim().toUpperCase();
-                          const pSkuNorm = pSku.replace(/^(SKU|REF|COD)[-_ ]*/i, '');
-                          const pBarNorm = pBar.replace(/^(SKU|REF|COD)[-_ ]*/i, '');
-                          return pSku === sku.trim().toUpperCase() || pBar === sku.trim().toUpperCase() || (sNorm && (pSkuNorm === sNorm || pBarNorm === sNorm));
-                        });
-
-                        if (!coincidenciaSku) return null;
-
-                        return (
-                          <div className="mt-2 p-2 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-300 dark:border-emerald-800/60 rounded-xl flex items-center justify-between gap-2 animate-in fade-in duration-150">
-                            <div className="min-w-0">
-                              <p className="text-[11px] font-bold text-emerald-800 dark:text-emerald-300 truncate">
-                                ✓ Código ya registrado en: "{coincidenciaSku.nombre}"
-                              </p>
-                              <p className="text-[10px] text-emerald-600 dark:text-emerald-400">
-                                Stock actual: {coincidenciaSku.stock ?? 0} un. • ${(Number(coincidenciaSku.precioVenta) || 0).toLocaleString('es-CO')}
-                              </p>
-                            </div>
+                      <div className="relative">
+                        <div className={`flex items-center gap-1 rounded-xl border ${errores.categoria ? 'border-rose-500 ring-2 ring-rose-500/30 bg-rose-50/20' : 'border-slate-200 dark:border-slate-700 focus-within:border-emerald-500'} bg-white px-2.5 py-1.5 dark:bg-[#020617] shadow-xs`}>
+                          <input
+                            value={categoria}
+                            onFocus={() => setCategoriaFoco(true)}
+                            onBlur={() => setTimeout(() => setCategoriaFoco(false), 200)}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') {
+                                e.preventDefault();
+                                if (categoriasFiltradas.length > 0) {
+                                  setCategoria(categoriasFiltradas[0]);
+                                  setCategoriaFoco(false);
+                                  setErrores(prev => ({ ...prev, categoria: '' }));
+                                } else if (categoria.trim()) {
+                                  agregarCategoria();
+                                }
+                              }
+                            }}
+                            onChange={(e) => {
+                              setCategoria(e.target.value);
+                              setErrores(prev => ({ ...prev, categoria: '' }));
+                              setCategoriaFoco(true);
+                            }}
+                            placeholder="Categoría..."
+                            className="w-full bg-transparent text-xs sm:text-sm font-semibold text-slate-800 dark:text-slate-100 outline-none placeholder:text-slate-400"
+                          />
+                          {categoria.trim() && !categoriasDisponibles.some(c => c.toLowerCase() === categoria.trim().toLowerCase()) && (
                             <button
                               type="button"
-                              onClick={() => {
-                                abrirEdicion(coincidenciaSku);
-                                toast.success(`Cargado "${coincidenciaSku.nombre}"`, { icon: '✏️' });
-                              }}
-                              className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-lg text-[10px] shrink-0 cursor-pointer shadow-xs"
+                              onMouseDown={(e) => e.preventDefault()}
+                              onClick={agregarCategoria}
+                              className="px-1.5 py-0.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded text-[10px] font-bold shrink-0 flex items-center gap-0.5 cursor-pointer"
+                              title="Crear categoría"
                             >
-                              Cargar
+                              <Plus size={11} /> <span>Crear</span>
                             </button>
-                          </div>
-                        );
-                      })()
-                    )}
-                  </div>
-
-                  {/* Fila 3: Categoría */}
-                  <div className="rounded-xl sm:rounded-2xl border border-slate-200 bg-slate-50 p-2 sm:p-3.5 dark:border-slate-800 dark:bg-slate-900/40 space-y-1 sm:space-y-1.5">
-                    <div className="flex items-center justify-between">
-                      <label className="text-[10px] sm:text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider block">
-                        Categoría
-                      </label>
-                      <button
-                        type="button"
-                        onClick={() => setModalGestionCategorias(true)}
-                        className="text-[11px] font-bold text-sky-600 dark:text-sky-400 hover:text-sky-700 dark:hover:text-sky-300 hover:underline flex items-center gap-1 cursor-pointer transition-colors"
-                        title="Administrar catálogo completo de categorías"
-                      >
-                        <Tag size={12} />
-                        <span>Administrar categorías</span>
-                      </button>
-                    </div>
-                    <div className="relative">
-                      <div className={`flex items-center gap-1.5 rounded-xl border ${errores.categoria ? 'border-rose-500 ring-2 ring-rose-500/30 bg-rose-50/20' : 'border-slate-200 dark:border-slate-700 focus-within:border-emerald-500'} bg-white p-0.5 sm:p-1 shadow-xs transition-all dark:bg-[#020617]`}>
-                        <input
-                          value={categoria}
-                          onFocus={() => setCategoriaFoco(true)}
-                          onBlur={() => setTimeout(() => setCategoriaFoco(false), 200)}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter') {
-                              e.preventDefault();
-                              if (categoriasFiltradas.length > 0) {
-                                setCategoria(categoriasFiltradas[0]);
-                                setCategoriaFoco(false);
-                                setErrores(prev => ({ ...prev, categoria: '' }));
-                              } else if (categoria.trim()) {
-                                agregarCategoria();
-                              }
-                            }
-                          }}
-                          onChange={(e) => {
-                            setCategoria(e.target.value);
-                            setErrores(prev => ({ ...prev, categoria: '' }));
-                            setCategoriaFoco(true);
-                          }}
-                          placeholder="Selecciona o escribe una categoría..."
-                          className="w-full bg-transparent px-2.5 py-1.5 sm:py-2 text-xs sm:text-sm font-semibold text-slate-800 outline-none placeholder:text-slate-400 dark:text-slate-100"
-                        />
-                        {categoria.trim() && !categoriasDisponibles.some(c => c.toLowerCase() === categoria.trim().toLowerCase()) && (
+                          )}
                           <button
                             type="button"
                             onMouseDown={(e) => e.preventDefault()}
-                            onClick={agregarCategoria}
-                            className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold shrink-0 transition flex items-center gap-1 cursor-pointer shadow-xs"
-                            title="Guardar y usar esta nueva categoría"
+                            onClick={() => setCategoriaFoco((prev) => !prev)}
+                            className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 text-xs px-1 cursor-pointer shrink-0"
+                            aria-label="Ver categorías"
                           >
-                            <Plus size={13} />
-                            <span>Crear</span>
+                            ▾
                           </button>
+                        </div>
+
+                        {categoriaFoco && categoriasFiltradas.length > 0 && (
+                          <div className="absolute left-0 right-0 top-[calc(100%+4px)] z-30 max-h-44 overflow-y-auto rounded-xl border border-slate-200 bg-white p-1 shadow-2xl dark:border-slate-700 dark:bg-[#0f172a] scrollbar-thin">
+                            {categoriasFiltradas.map((item) => (
+                              <button
+                                key={item}
+                                type="button"
+                                onMouseDown={(e) => e.preventDefault()}
+                                onClick={() => {
+                                  setCategoria(item);
+                                  setCategoriaFoco(false);
+                                  setErrores(prev => ({ ...prev, categoria: '' }));
+                                }}
+                                className={`w-full text-left px-2.5 py-1.5 text-xs font-semibold rounded-lg transition flex items-center justify-between cursor-pointer ${
+                                  categoria.toLowerCase() === item.toLowerCase()
+                                    ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 font-bold'
+                                    : 'text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800'
+                                }`}
+                              >
+                                <span>{item}</span>
+                                {categoria.toLowerCase() === item.toLowerCase() && (
+                                  <CheckCircle2 size={13} className="text-emerald-500" />
+                                )}
+                              </button>
+                            ))}
+                          </div>
                         )}
-                        <button
-                          type="button"
-                          onMouseDown={(e) => e.preventDefault()}
-                          onClick={() => setCategoriaFoco((prev) => !prev)}
-                          className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-slate-50 text-slate-600 transition hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 shrink-0 cursor-pointer"
-                          aria-label="Mostrar categorías disponibles"
-                        >
-                          ▾
-                        </button>
                       </div>
-
-                      {categoriaFoco && categoriasFiltradas.length > 0 && (
-                        <div className="absolute left-0 right-0 top-[calc(100%+6px)] z-30 max-h-56 overflow-y-auto rounded-2xl border border-slate-200 bg-white p-1.5 shadow-2xl dark:border-slate-700 dark:bg-[#0f172a] scrollbar-thin">
-                          {categoriasFiltradas.map((item) => (
-                            <button
-                              key={item}
-                              type="button"
-                              onMouseDown={(e) => e.preventDefault()}
-                              onClick={() => {
-                                setCategoria(item);
-                                setCategoriaFoco(false);
-                                setErrores(prev => ({ ...prev, categoria: '' }));
-                              }}
-                              className={`w-full text-left px-3 py-2 text-xs font-semibold rounded-xl transition flex items-center justify-between cursor-pointer ${
-                                categoria.toLowerCase() === item.toLowerCase()
-                                  ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 font-bold'
-                                  : 'text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800'
-                              }`}
-                            >
-                              <span>{item}</span>
-                              {categoria.toLowerCase() === item.toLowerCase() && (
-                                <CheckCircle2 size={14} className="text-emerald-500" />
-                              )}
-                            </button>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                    {errores.categoria && <p className="mt-1 text-[11px] text-rose-500 font-bold flex items-center gap-1">⚠️ {errores.categoria}</p>}
-                  </div>
-
-                  {/* Fila 4 (Móvil): Tipo, Stock y Precio en 3 columnas compactas */}
-                  <div className="grid grid-cols-3 gap-1.5 sm:hidden">
-                    {/* Tipo */}
-                    <div className="rounded-xl border border-slate-200 bg-slate-50 p-1.5 dark:border-slate-800 dark:bg-slate-900/40 space-y-0.5">
-                      <label className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider block truncate">
-                        Tipo
-                      </label>
-                      <select 
-                        value={tipoProducto} 
-                        onChange={(e) => {
-                          const val = e.target.value as 'producto' | 'servicio';
-                          setTipoProducto(val);
-                          if (val === 'servicio') {
-                            setInventariable(false);
-                            setStock('0');
-                            setErrores(prev => ({ ...prev, stock: '' }));
-                          } else {
-                            setInventariable(true);
-                          }
-                        }} 
-                        className="w-full p-1.5 bg-white dark:bg-[#020617] border border-slate-200 dark:border-slate-700 rounded-lg outline-none font-bold text-[11px] focus:border-emerald-500 text-slate-900 dark:text-white"
-                      >
-                        <option value="producto">Producto</option>
-                        <option value="servicio">Servicio</option>
-                      </select>
-                    </div>
-
-                    {/* Stock */}
-                    <div className="rounded-xl border border-slate-200 bg-slate-50 p-1.5 dark:border-slate-800 dark:bg-slate-900/40 space-y-0.5">
-                      <label className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider block truncate">
-                        Stock
-                      </label>
-                      {tipoProducto === 'producto' && inventariable ? (
-                        <input 
-                          type="number" 
-                          min="0" 
-                          value={stock} 
-                          onChange={(e) => { 
-                            const valor = Number(e.target.value); 
-                            setStock(String(Math.max(0, valor))); 
-                            setErrores(prev => ({ ...prev, stock: '' })); 
-                          }} 
-                          placeholder="0" 
-                          className={`w-full p-1.5 bg-white dark:bg-[#020617] border rounded-lg outline-none font-black text-xs text-slate-900 dark:text-white transition-colors ${errores.stock ? 'border-rose-500 ring-1 ring-rose-500 bg-rose-50/20' : 'border-slate-200 dark:border-slate-700 focus:border-emerald-500'}`} 
-                        />
-                      ) : (
-                        <div className="w-full p-1.5 bg-indigo-50 dark:bg-indigo-950/30 border border-indigo-200 dark:border-indigo-900/50 rounded-lg text-center">
-                          <span className="text-indigo-600 dark:text-indigo-300 font-bold text-[10px]">Ilimitado</span>
-                        </div>
-                      )}
-                      {errores.stock && <p className="text-[9px] text-rose-500 font-bold leading-tight mt-0.5">⚠️ Requerido</p>}
-                    </div>
-
-                    {/* Precio Venta */}
-                    <div className="rounded-xl border border-slate-200 bg-slate-50 p-1.5 dark:border-slate-800 dark:bg-slate-900/40 space-y-0.5">
-                      <label className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider block truncate">
-                        Venta ($)
-                      </label>
-                      <input 
-                        type="text" 
-                        inputMode="decimal" pattern="[0-9]*" 
-                        value={formatearMonedaInput(precioVenta)} 
-                        onChange={(e) => { 
-                          setPrecioVenta(e.target.value.replace(/\D/g, '')); 
-                          setErrores(prev => ({ ...prev, precio: '' })); 
-                        }} 
-                        placeholder="$0" 
-                        className={`w-full p-1.5 bg-white dark:bg-[#020617] border rounded-lg outline-none font-black text-xs text-slate-900 dark:text-white transition-colors ${errores.precio ? 'border-rose-500 ring-1 ring-rose-500 bg-rose-50/20' : 'border-slate-200 dark:border-slate-700 focus:border-emerald-500'}`} 
-                      />
-                      {errores.precio && <p className="text-[9px] text-rose-500 font-bold leading-tight mt-0.5">⚠️ Requerido</p>}
+                      {errores.categoria && <p className="text-[10px] text-rose-500 font-bold">⚠️ {errores.categoria}</p>}
                     </div>
                   </div>
 
-                  {/* Fila Costo de Compra Móvil (Exclusivo Admin) */}
-                  {datosSesion?.esAdmin !== false && (
-                    <div className="sm:hidden rounded-xl border border-indigo-200 dark:border-indigo-900/50 bg-indigo-50/40 dark:bg-indigo-950/20 p-2 space-y-1">
+                  {/* Fila 2: Código / SKU y Tipo / Control de Stock */}
+                  <div className="grid grid-cols-1 sm:grid-cols-12 gap-2 sm:gap-3">
+                    {/* Código SKU */}
+                    <div className="sm:col-span-6 space-y-1">
                       <div className="flex items-center justify-between">
-                        <label className="text-[10px] font-bold text-indigo-700 dark:text-indigo-300 uppercase tracking-wider flex items-center gap-1">
-                          💰 Costo de Compra ($)
+                        <label className="text-[10px] sm:text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider block">
+                          Código de Producto / SKU
                         </label>
-                        <span className="text-[9px] font-black px-1.5 py-0.2 rounded bg-indigo-200/80 dark:bg-indigo-900/60 text-indigo-800 dark:text-indigo-200">
-                          Solo Admin
-                        </span>
+                        <div className="flex items-center gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const nuevoSku = `COD-${Math.floor(1000 + Math.random() * 9000)}`;
+                              setSku(nuevoSku);
+                              toast.success(`Código: ${nuevoSku}`, { icon: '✨' });
+                            }}
+                            className="text-[10px] sm:text-[11px] font-bold text-indigo-600 dark:text-indigo-400 hover:underline flex items-center gap-0.5 cursor-pointer"
+                          >
+                            <Sparkles size={10} /> Auto
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setModalProducto(false);
+                              setModalEscanerInventario(true);
+                            }}
+                            className="text-[10px] sm:text-[11px] font-bold text-emerald-600 dark:text-emerald-400 hover:underline flex items-center gap-0.5 cursor-pointer"
+                          >
+                            <ScanLine size={10} /> Escanear
+                          </button>
+                        </div>
                       </div>
                       <input 
                         type="text" 
-                        inputMode="decimal" pattern="[0-9]*" 
-                        value={formatearMonedaInput(costoCompra)} 
-                        onChange={(e) => setCostoCompra(e.target.value.replace(/\D/g, ''))} 
-                        placeholder="¿Cuánto te costó? (opcional)" 
-                        className="w-full p-1.5 bg-white dark:bg-[#020617] border border-indigo-200 dark:border-indigo-800 rounded-lg outline-none font-bold text-xs text-slate-900 dark:text-white focus:border-indigo-500" 
+                        value={sku} 
+                        onChange={(e) => setSku(e.target.value)} 
+                        placeholder="Código de barras o ref." 
+                        className="w-full py-2 px-3 bg-white dark:bg-[#020617] border border-slate-200 dark:border-slate-700 rounded-xl outline-none font-mono font-bold text-xs sm:text-sm focus:border-emerald-500 text-slate-900 dark:text-white transition-all shadow-xs" 
                       />
-                      {precioVenta && costoCompra && Number(precioVenta.replace(/\D/g, '')) > 0 && (
-                        <p className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400">
-                          Ganancia estimada: ${(Number(precioVenta.replace(/\D/g, '')) - Number(costoCompra.replace(/\D/g, ''))).toLocaleString('es-CO')}
-                        </p>
+
+                      {/* Coincidencia inteligente por código */}
+                      {!editandoId && sku.trim().length >= 2 && (
+                        (() => {
+                          const sNorm = sku.trim().toUpperCase().replace(/^(SKU|REF|COD)[-_ ]*/i, '');
+                          const coincidenciaSku = inventario.find(p => {
+                            const pSku = (p.sku || '').trim().toUpperCase();
+                            const pBar = (p.codigoBarras || '').trim().toUpperCase();
+                            const pSkuNorm = pSku.replace(/^(SKU|REF|COD)[-_ ]*/i, '');
+                            const pBarNorm = pBar.replace(/^(SKU|REF|COD)[-_ ]*/i, '');
+                            return pSku === sku.trim().toUpperCase() || pBar === sku.trim().toUpperCase() || (sNorm && (pSkuNorm === sNorm || pBarNorm === sNorm));
+                          });
+
+                          if (!coincidenciaSku) return null;
+
+                          return (
+                            <div className="p-1.5 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-300 dark:border-emerald-800/60 rounded-lg flex items-center justify-between gap-1.5 text-[11px] animate-in fade-in duration-150">
+                              <span className="text-emerald-800 dark:text-emerald-300 font-bold truncate">
+                                ✓ Registrado en: "{coincidenciaSku.nombre}"
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  abrirEdicion(coincidenciaSku);
+                                  toast.success(`Cargado "${coincidenciaSku.nombre}"`, { icon: '✏️' });
+                                }}
+                                className="px-2 py-0.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded text-[10px] shrink-0 cursor-pointer shadow-xs"
+                              >
+                                Cargar
+                              </button>
+                            </div>
+                          );
+                        })()
                       )}
                     </div>
-                  )}
 
-                  {/* Filas 4 y 5 (Escritorio): Diseño completo y espacioso */}
-                  <div className="hidden sm:block space-y-3">
-                    <div className="grid grid-cols-2 gap-2.5 sm:gap-3">
-                      <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3 dark:border-slate-800 dark:bg-slate-900/40 space-y-1">
-                        <label className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider block">
+                    {/* Tipo y Control de Stock en 2 columnas */}
+                    <div className="sm:col-span-6 grid grid-cols-2 gap-2">
+                      <div className="space-y-1">
+                        <label className="text-[10px] sm:text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider block">
                           Tipo
                         </label>
                         <select 
@@ -5111,16 +4990,16 @@ export default function InventarioPage() {
                               setInventariable(true);
                             }
                           }} 
-                          className="w-full p-2.5 bg-white dark:bg-[#020617] border border-slate-200 dark:border-slate-700 rounded-xl outline-none font-bold text-xs sm:text-sm focus:border-emerald-500 text-slate-900 dark:text-white"
+                          className="w-full py-2 px-2 bg-white dark:bg-[#020617] border border-slate-200 dark:border-slate-700 rounded-xl outline-none font-bold text-xs sm:text-sm focus:border-emerald-500 text-slate-900 dark:text-white"
                         >
                           <option value="producto">Producto Físico</option>
                           <option value="servicio">Servicio</option>
                         </select>
                       </div>
 
-                      <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3 dark:border-slate-800 dark:bg-slate-900/40 space-y-1">
-                        <label className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider block">
-                          ¿Inventariable?
+                      <div className="space-y-1">
+                        <label className="text-[10px] sm:text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider block">
+                          ¿Controla Stock?
                         </label>
                         <select 
                           value={inventariable ? 'si' : 'no'} 
@@ -5132,105 +5011,102 @@ export default function InventarioPage() {
                               setErrores(prev => ({ ...prev, stock: '' }));
                             }
                           }} 
-                          className="w-full p-2.5 bg-white dark:bg-[#020617] border border-slate-200 dark:border-slate-700 rounded-xl outline-none font-bold text-xs sm:text-sm focus:border-emerald-500 text-slate-900 dark:text-white"
+                          className="w-full py-2 px-2 bg-white dark:bg-[#020617] border border-slate-200 dark:border-slate-700 rounded-xl outline-none font-bold text-xs sm:text-sm focus:border-emerald-500 text-slate-900 dark:text-white"
                         >
-                          <option value="si">Sí (Controla Stock)</option>
-                          <option value="no">No (Stock Ilimitado)</option>
+                          <option value="si">Sí (Controlar)</option>
+                          <option value="no">No (Ilimitado)</option>
                         </select>
                       </div>
                     </div>
+                  </div>
 
-                    <div className={`grid ${datosSesion?.esAdmin !== false ? 'grid-cols-3' : 'grid-cols-2'} gap-2.5 sm:gap-3`}>
-                      {tipoProducto === 'producto' && inventariable ? (
-                        <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3 dark:border-slate-800 dark:bg-slate-900/40 space-y-1">
-                          <label className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider block">
-                            Stock
-                          </label>
-                          <input 
-                            type="number" 
-                            min="0" 
-                            value={stock} 
-                            onChange={(e) => { 
-                              const valor = Number(e.target.value); 
-                              setStock(String(Math.max(0, valor))); 
-                              setErrores(prev => ({ ...prev, stock: '' })); 
-                            }} 
-                            placeholder="0" 
-                            className={`w-full p-2.5 sm:p-3 bg-white dark:bg-[#020617] border rounded-xl outline-none font-black text-sm sm:text-base text-slate-900 dark:text-white ${errores.stock ? 'border-rose-500 ring-2 ring-rose-500/30 bg-rose-50/20' : 'border-slate-200 dark:border-slate-700 focus:border-emerald-500'}`} 
-                          />
-                          {errores.stock && <p className="mt-1 text-[11px] text-rose-500 font-bold flex items-center gap-1">⚠️ {errores.stock}</p>}
-                        </div>
-                      ) : (
-                        <div className="rounded-2xl border border-dashed border-indigo-200 bg-indigo-50/60 dark:border-indigo-900/50 dark:bg-indigo-950/20 p-3 flex flex-col justify-center">
-                          <label className="text-xs font-bold text-indigo-500 uppercase tracking-wider mb-0.5 block">Stock</label>
-                          <span className="text-indigo-700 dark:text-indigo-300 font-black text-xs sm:text-sm">🛠️ Ilimitado</span>
-                        </div>
-                      )}
+                  {/* Fila 3: Precio Venta, Costo Compra y Stock (Todo en 1 fila) */}
+                  <div className={`grid ${datosSesion?.esAdmin !== false ? 'grid-cols-3 sm:grid-cols-3' : 'grid-cols-2 sm:grid-cols-2'} gap-2 sm:gap-3`}>
+                    
+                    {/* Precio Venta */}
+                    <div className="space-y-1">
+                      <label className="text-[10px] sm:text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider block truncate">
+                        Precio Venta ($) *
+                      </label>
+                      <input 
+                        type="text" 
+                        inputMode="decimal" pattern="[0-9]*" 
+                        value={formatearMonedaInput(precioVenta)} 
+                        onChange={(e) => { 
+                          setPrecioVenta(e.target.value.replace(/\D/g, '')); 
+                          setErrores(prev => ({ ...prev, precio: '' })); 
+                        }} 
+                        placeholder="$0" 
+                        className={`w-full py-2 px-3 bg-white dark:bg-[#020617] border rounded-xl outline-none font-black text-xs sm:text-sm text-slate-900 dark:text-white transition-colors ${errores.precio ? 'border-rose-500 ring-1 ring-rose-500 bg-rose-50/20' : 'border-slate-200 dark:border-slate-700 focus:border-emerald-500'}`} 
+                      />
+                      {errores.precio && <p className="text-[9px] text-rose-500 font-bold leading-tight">⚠️ {errores.precio}</p>}
+                    </div>
 
-                      <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3 dark:border-slate-800 dark:bg-slate-900/40 space-y-1">
-                        <label className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider block">
-                          Precio Venta ($)
+                    {/* Costo Compra (Solo Admin) */}
+                    {datosSesion?.esAdmin !== false && (
+                      <div className="space-y-1">
+                        <label className="text-[10px] sm:text-xs font-bold text-indigo-700 dark:text-indigo-300 uppercase tracking-wider block truncate">
+                          Costo Compra ($)
                         </label>
                         <input 
                           type="text" 
                           inputMode="decimal" pattern="[0-9]*" 
-                          value={formatearMonedaInput(precioVenta)} 
-                          onChange={(e) => { 
-                            setPrecioVenta(e.target.value.replace(/\D/g, '')); 
-                            setErrores(prev => ({ ...prev, precio: '' })); 
-                          }} 
-                          placeholder="$0" 
-                          className={`w-full p-2.5 sm:p-3 bg-white dark:bg-[#020617] border rounded-xl outline-none font-black text-sm sm:text-base text-slate-900 dark:text-white ${errores.precio ? 'border-rose-500 ring-2 ring-rose-500/30 bg-rose-50/20' : 'border-slate-200 dark:border-slate-700 focus:border-emerald-500'}`} 
+                          value={formatearMonedaInput(costoCompra)} 
+                          onChange={(e) => setCostoCompra(e.target.value.replace(/\D/g, ''))} 
+                          placeholder="$0 (opcional)" 
+                          className="w-full py-2 px-3 bg-white dark:bg-[#020617] border border-indigo-200 dark:border-indigo-800 rounded-xl outline-none font-bold text-xs sm:text-sm text-slate-900 dark:text-white focus:border-indigo-500" 
                         />
-                        {errores.precio && <p className="mt-1 text-[11px] text-rose-500 font-bold flex items-center gap-1">⚠️ {errores.precio}</p>}
                       </div>
+                    )}
 
-                      {/* Costo de Compra Escritorio (Solo Admin) */}
-                      {datosSesion?.esAdmin !== false && (
-                        <div className="rounded-2xl border border-indigo-200 dark:border-indigo-900/50 bg-indigo-50/40 dark:bg-indigo-950/20 p-3 space-y-1">
-                          <div className="flex items-center justify-between">
-                            <label className="text-xs font-bold text-indigo-700 dark:text-indigo-300 uppercase tracking-wider block">
-                              Costo Compra ($)
-                            </label>
-                            <span className="text-[9px] font-black px-1.5 py-0.5 rounded bg-indigo-200/80 dark:bg-indigo-900/60 text-indigo-800 dark:text-indigo-200">
-                              Solo Admin
-                            </span>
-                          </div>
-                          <input 
-                            type="text" 
-                            inputMode="decimal" pattern="[0-9]*" 
-                            value={formatearMonedaInput(costoCompra)} 
-                            onChange={(e) => setCostoCompra(e.target.value.replace(/\D/g, ''))} 
-                            placeholder="Costo real (opcional)" 
-                            className="w-full p-2.5 sm:p-3 bg-white dark:bg-[#020617] border border-indigo-200 dark:border-indigo-800 rounded-xl outline-none font-bold text-sm sm:text-base text-slate-900 dark:text-white focus:border-indigo-500" 
-                          />
+                    {/* Stock Inicial */}
+                    <div className="space-y-1">
+                      <label className="text-[10px] sm:text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider block truncate">
+                        Stock Inicial
+                      </label>
+                      {tipoProducto === 'producto' && inventariable ? (
+                        <input 
+                          type="number" 
+                          min="0" 
+                          value={stock} 
+                          onChange={(e) => { 
+                            const valor = Number(e.target.value); 
+                            setStock(String(Math.max(0, valor))); 
+                            setErrores(prev => ({ ...prev, stock: '' })); 
+                          }} 
+                          placeholder="0" 
+                          className={`w-full py-2 px-3 bg-white dark:bg-[#020617] border rounded-xl outline-none font-black text-xs sm:text-sm text-slate-900 dark:text-white ${errores.stock ? 'border-rose-500 ring-1 ring-rose-500 bg-rose-50/20' : 'border-slate-200 dark:border-slate-700 focus:border-emerald-500'}`} 
+                        />
+                      ) : (
+                        <div className="w-full py-2 px-2 bg-indigo-50 dark:bg-indigo-950/30 border border-indigo-200 dark:border-indigo-900/50 rounded-xl text-center">
+                          <span className="text-indigo-600 dark:text-indigo-300 font-bold text-[11px] sm:text-xs">Ilimitado</span>
                         </div>
                       )}
+                      {errores.stock && <p className="text-[9px] text-rose-500 font-bold leading-tight">⚠️ {errores.stock}</p>}
                     </div>
+
                   </div>
 
-                  {/* Vista Previa Compacta (Solo escritorio) */}
-                  <div className="hidden sm:flex rounded-2xl border border-emerald-200/80 bg-emerald-50/60 p-3 dark:border-emerald-500/20 dark:bg-emerald-500/5 text-xs text-slate-700 dark:text-slate-200 flex-wrap items-center justify-between gap-2">
-                    <span className="font-bold text-emerald-800 dark:text-emerald-300">Resumen:</span>
-                    <span>Tipo: <strong>{tipoProducto === 'servicio' ? 'Servicio' : 'Producto'}</strong></span>
-                    <span>Categoría: <strong>{categoria || 'General'}</strong></span>
-                    <span>Stock: <strong>{stock || '0'} un.</strong></span>
-                    <span>Precio: <strong className="text-emerald-600 dark:text-emerald-400 font-black">${formatearMonedaInput(precioVenta) || '0'}</strong></span>
-                    {datosSesion?.esAdmin !== false && costoCompra && (
-                      <span>Costo: <strong className="text-indigo-600 dark:text-indigo-400 font-bold">${formatearMonedaInput(costoCompra)}</strong></span>
-                    )}
-                  </div>
+                  {/* Resumen de ganancia estimada (si es admin y ambos tienen valor) */}
+                  {datosSesion?.esAdmin !== false && precioVenta && costoCompra && Number(precioVenta.replace(/\D/g, '')) > 0 && Number(costoCompra.replace(/\D/g, '')) > 0 && (
+                    <div className="p-2 bg-emerald-500/10 border border-emerald-500/20 rounded-xl text-xs flex items-center justify-between">
+                      <span className="text-emerald-700 dark:text-emerald-300 font-bold">Ganancia estimada por unidad:</span>
+                      <span className="text-emerald-700 dark:text-emerald-300 font-black">
+                        +${(Number(precioVenta.replace(/\D/g, '')) - Number(costoCompra.replace(/\D/g, ''))).toLocaleString('es-CO')}
+                      </span>
+                    </div>
+                  )}
 
                 </div>
 
-                {/* Botones de Acción de la Columna Izquierda (Sticky sin solapamiento y elevado en móvil) */}
-                <div className="sticky bottom-0 bg-white/95 dark:bg-[#0f172a]/95 backdrop-blur-md mt-auto pt-2.5 sm:pt-3 pb-3 sm:pb-2 border-t border-slate-200 dark:border-slate-800 space-y-2 z-10">
+                {/* Botones de Acción integrados directamente con el formulario */}
+                <div className="shrink-0 space-y-2">
                   {editandoId ? (
                     <div className="grid grid-cols-2 gap-2 sm:gap-3">
                       <button
                         type="button"
                         onClick={limpiarFormulario}
-                        className="py-2.5 sm:py-3 px-3 sm:px-4 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-700 dark:text-slate-300 font-bold rounded-xl text-xs sm:text-sm transition cursor-pointer"
+                        className="py-2.5 px-3 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-700 dark:text-slate-300 font-bold rounded-xl text-xs sm:text-sm transition cursor-pointer"
                       >
                         Cancelar Edición
                       </button>
@@ -5238,7 +5114,7 @@ export default function InventarioPage() {
                         type="button"
                         onClick={() => guardarProducto(false)}
                         disabled={guardando}
-                        className="py-2.5 sm:py-3 px-3 sm:px-4 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-black rounded-xl shadow-lg shadow-emerald-600/25 flex items-center justify-center gap-1.5 text-xs sm:text-sm transition active:scale-95 cursor-pointer"
+                        className="py-2.5 px-3 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-black rounded-xl shadow-md shadow-emerald-600/25 flex items-center justify-center gap-1.5 text-xs sm:text-sm transition active:scale-95 cursor-pointer"
                       >
                         {guardando ? 'Actualizando...' : <>✓ Actualizar en Catálogo</>}
                       </button>
@@ -5249,7 +5125,7 @@ export default function InventarioPage() {
                         type="button"
                         onClick={agregarProductoALaCarga}
                         disabled={guardando}
-                        className="w-full py-3 sm:py-3.5 px-4 bg-sky-600 hover:bg-sky-700 disabled:opacity-50 text-white font-black rounded-xl shadow-md text-xs sm:text-sm flex items-center justify-center gap-2 active:scale-98 transition cursor-pointer"
+                        className="w-full py-2.5 sm:py-3 px-4 bg-sky-600 hover:bg-sky-700 disabled:opacity-50 text-white font-black rounded-xl shadow-md text-xs sm:text-sm flex items-center justify-center gap-2 active:scale-98 transition cursor-pointer"
                         title="Encola este producto a la lista en vivo de la derecha y limpia los campos para seguir agregando"
                       >
                         ➕ Encolar y Seguir Agregando
@@ -5259,10 +5135,10 @@ export default function InventarioPage() {
                         <button
                           type="button"
                           onClick={() => setTabMovilModal('lista')}
-                          className="lg:hidden w-full py-2 px-3 bg-sky-50 hover:bg-sky-100 dark:bg-sky-950/40 dark:hover:bg-sky-900/50 border border-sky-200 dark:border-sky-800 text-sky-700 dark:text-sky-300 font-bold rounded-xl text-xs flex items-center justify-between transition cursor-pointer"
+                          className="lg:hidden w-full py-1.5 px-3 bg-sky-50 hover:bg-sky-100 dark:bg-sky-950/40 dark:hover:bg-sky-900/50 border border-sky-200 dark:border-sky-800 text-sky-700 dark:text-sky-300 font-bold rounded-xl text-xs flex items-center justify-between transition cursor-pointer"
                         >
                           <span className="flex items-center gap-1.5">
-                            <LayoutList size={14} className="text-sky-600 dark:text-sky-400" />
+                            <LayoutList size={13} className="text-sky-600 dark:text-sky-400" />
                             <span>{productosEnCarga.length} producto(s) en la cola</span>
                           </span>
                           <span className="text-[11px] underline font-black">Ver cola →</span>
@@ -5270,6 +5146,10 @@ export default function InventarioPage() {
                       )}
                     </div>
                   )}
+
+                  <p className="text-[11px] text-slate-400 dark:text-slate-500 text-center">
+                    💡 <span className="font-semibold">Tip:</span> Al encolar, el producto se agrega a la lista de la derecha para que revises toda tu tanda antes de guardarla.
+                  </p>
                 </div>
 
               </div>
@@ -5588,9 +5468,9 @@ export default function InventarioPage() {
         </div>
       )}
 
-      {/* MODAL DEDICADO DE GESTIÓN DE CATEGORÍAS (Portal z-[100] para quedar siempre al frente de todo) */}
+      {/* MODAL DEDICADO DE GESTIÓN DE CATEGORÍAS (Portal z-[1000] para quedar siempre al frente de todo) */}
       {modalGestionCategorias && mounted && createPortal(
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-3 sm:p-4 bg-slate-950/80 backdrop-blur-sm animate-in fade-in duration-150">
+        <div className="fixed inset-0 z-[1000] flex items-center justify-center p-3 sm:p-4 bg-slate-950/80 backdrop-blur-sm animate-in fade-in duration-150">
           <div className="bg-white dark:bg-[#0f172a] w-full max-w-lg rounded-3xl border border-slate-200 dark:border-slate-800 shadow-2xl overflow-hidden flex flex-col max-h-[90vh] animate-in zoom-in-95 duration-150">
             {/* Cabecera */}
             <div className="p-4 sm:p-5 border-b border-slate-100 dark:border-slate-800/80 flex items-center justify-between gap-3 bg-gradient-to-r from-violet-500/10 via-purple-500/5 to-transparent">
@@ -5814,7 +5694,7 @@ export default function InventarioPage() {
 
       {/* MODAL DE CONFIRMACIÓN PROPIO PARA ELIMINAR CATEGORÍA (CERO MENSAJES DEL SISTEMA) */}
       {categoriaAEliminarConfirm && mounted && createPortal(
-        <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md animate-in fade-in duration-150">
+        <div className="fixed inset-0 z-[1010] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md animate-in fade-in duration-150">
           <div className="bg-white dark:bg-[#0f172a] w-full max-w-md rounded-3xl border border-slate-200 dark:border-slate-800 shadow-2xl p-6 text-center animate-in zoom-in-95 duration-150">
             <div className="w-16 h-16 rounded-3xl bg-rose-50 dark:bg-rose-500/10 text-rose-500 flex items-center justify-center mx-auto mb-4 border border-rose-100 dark:border-rose-900/40 shadow-inner">
               <Trash2 size={30} />

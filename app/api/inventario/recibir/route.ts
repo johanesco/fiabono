@@ -14,7 +14,8 @@ export async function POST(request: Request) {
     const usuario = usuarioSnap.data() as any;
     const esAdmin = usuario.rol !== 'cajero';
     const cuentaPrincipalId = esAdmin ? decodedToken.uid : usuario.adminId;
-    if (!cuentaPrincipalId || (!esAdmin && usuario.permisos?.ingresoInventario !== true)) {
+    const puedeIngresar = esAdmin || usuario.permisos?.ingresoInventario === true || usuario.permisos?.editarInventario === true;
+    if (!cuentaPrincipalId || !puedeIngresar) {
       return NextResponse.json({ error: 'No tienes permiso para ingresar inventario.' }, { status: 403 });
     }
 
@@ -28,24 +29,37 @@ export async function POST(request: Request) {
       const idsCreados: string[] = [];
       const movimientos: Array<{ productoId: string; nombre: string; cantidad: number }> = [];
 
+      // 1. LECTURAS PREVIAS (Requisito estricto de Firestore: todos los gets antes de cualquier set/update/create)
+      const productosExistentesSnaps: Array<{ producto: any; snap: any; ref: any }> = [];
       for (const producto of productos) {
+        if (producto.esExistente && typeof producto.productoId === 'string') {
+          const productoRef = adminDb.collection('inventario').doc(producto.productoId);
+          const snap = await transaction.get(productoRef);
+          productosExistentesSnaps.push({ producto, snap, ref: productoRef });
+        }
+      }
+
+      // 2. ACTUALIZACIÓN DE PRODUCTOS EXISTENTES
+      for (const item of productosExistentesSnaps) {
+        const { producto, snap, ref } = item;
+        if (!snap.exists || snap.data()?.usuarioId !== cuentaPrincipalId) throw new Error('PRODUCTO_NO_AUTORIZADO');
+        const productoActual = snap.data() as any;
+        const stockActual = Number(productoActual.stock || 0);
+        if (!Number.isFinite(stockActual) || stockActual < 0) throw new Error('STOCK_INVALIDO');
+        const cantidad = Number(producto.stock);
+        if (!Number.isInteger(cantidad) || cantidad < 0) throw new Error('CANTIDAD_INVALIDA');
+        const cantidadAplicada = productoActual.inventariable === false || productoActual.tipoProducto === 'servicio' ? 0 : cantidad;
+        transaction.update(ref, { stock: stockActual + cantidadAplicada, fechaActualizacion: new Date() });
+        if (cantidadAplicada > 0) movimientos.push({ productoId: producto.productoId, nombre: productoActual.nombre || producto.nombre || 'Producto', cantidad: cantidadAplicada });
+        actualizados++;
+      }
+
+      // 3. CREACIÓN DE NUEVOS PRODUCTOS
+      for (const producto of productos) {
+        if (producto.esExistente) continue; // Ya procesado en el bloque anterior
         const cantidad = Number(producto.stock);
         if (!Number.isInteger(cantidad) || cantidad < 0) throw new Error('CANTIDAD_INVALIDA');
         const esInventariable = producto.inventariable !== false && producto.tipoProducto !== 'servicio';
-
-        if (producto.esExistente && typeof producto.productoId === 'string') {
-          const productoRef = adminDb.collection('inventario').doc(producto.productoId);
-          const productoSnap = await transaction.get(productoRef);
-          if (!productoSnap.exists || productoSnap.data()?.usuarioId !== cuentaPrincipalId) throw new Error('PRODUCTO_NO_AUTORIZADO');
-          const productoActual = productoSnap.data() as any;
-          const stockActual = Number(productoActual.stock || 0);
-          if (!Number.isFinite(stockActual) || stockActual < 0) throw new Error('STOCK_INVALIDO');
-          const cantidadAplicada = productoActual.inventariable === false || productoActual.tipoProducto === 'servicio' ? 0 : cantidad;
-          transaction.update(productoRef, { stock: stockActual + cantidadAplicada, fechaActualizacion: new Date() });
-          if (cantidadAplicada > 0) movimientos.push({ productoId: producto.productoId, nombre: productoActual.nombre || producto.nombre || 'Producto', cantidad: cantidadAplicada });
-          actualizados++;
-          continue;
-        }
 
         if (!producto.nombre || typeof producto.nombre !== 'string' || !producto.nombre.trim()) throw new Error('PRODUCTO_INVALIDO');
         const productoRef = adminDb.collection('inventario').doc();
@@ -69,6 +83,7 @@ export async function POST(request: Request) {
         creados++;
       }
 
+      // 4. REGISTRO DE MOVIMIENTOS DE AUDITORÍA
       for (const movimiento of movimientos) {
         const movimientoRef = adminDb.collection('movimientos').doc();
         transaction.create(movimientoRef, {
