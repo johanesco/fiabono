@@ -43,6 +43,8 @@ import {
   Upload,
   ChevronLeft,
   ChevronRight,
+  ChevronDown,
+  SlidersHorizontal,
   MoreVertical,
   Bookmark,
   Crown,
@@ -2398,15 +2400,15 @@ export default function InventarioPage() {
       
       {/* HEADER ULTRA RESPONSIVE */}
       <div className="bg-emerald-600 dark:bg-emerald-700 p-3 sm:p-4 text-white flex justify-between items-center shrink-0 z-30 shadow-sm relative">
-        <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
+        <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1 mr-2 sm:mr-4">
           <button onClick={() => router.push('/dashboard/inicio')} className="bg-white/20 hover:bg-white/30 p-2 sm:p-2.5 rounded-full transition-colors backdrop-blur-sm shrink-0">
             <ArrowLeft size={18} />
           </button>
-          <div className="min-w-0">
-            <h2 className="text-base sm:text-2xl font-black uppercase tracking-wide flex items-center gap-1.5 whitespace-nowrap">
+          <div className="min-w-0 flex-1">
+            <h2 className="text-base sm:text-xl lg:text-2xl font-black uppercase tracking-wide flex items-center gap-1.5 truncate">
               <Package size={20} className="shrink-0"/> 
-              <span className="sm:hidden">Inventario</span>
-              <span className="hidden sm:inline">Inventario General</span>
+              <span className="sm:hidden truncate">Inventario</span>
+              <span className="hidden sm:inline truncate">Inventario General</span>
             </h2>
             <p className="text-[11px] text-white/80 font-medium hidden lg:block truncate">
               {esAdmin || puedeEditarInventario ? "Control de stock, precios y catálogo de productos" : "Consulta de catálogo, precios y disponibilidad"}
@@ -2417,11 +2419,11 @@ export default function InventarioPage() {
         <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
           {esAdmin && (
             <>
-              {/* En Desktop (>= lg): Botones directos con labels */}
-              <div className="hidden lg:flex items-center gap-1.5">
+              {/* En Pantallas Muy Anchas (>= 2xl): Botones directos con labels */}
+              <div className="hidden 2xl:flex items-center gap-1.5">
                 <button 
                   onClick={() => setModalGestionCategorias(true)} 
-                  className="bg-white/20 hover:bg-white/30 px-3 py-2 rounded-xl font-bold text-xs flex items-center gap-1.5 transition-colors backdrop-blur-sm shadow-sm cursor-pointer"
+                  className="bg-white/20 hover:bg-white/30 px-3 py-2 rounded-xl font-bold text-xs flex items-center gap-1.5 transition-colors backdrop-blur-sm shadow-sm cursor-pointer whitespace-nowrap"
                   title="Administrar categorías del catálogo (crear, renombrar, eliminar)"
                 >
                   <Tag size={15}/> <span>Categorías</span>
@@ -2440,7 +2442,7 @@ export default function InventarioPage() {
                     }
                     setModalExportarExcel(true);
                   }} 
-                  className="bg-white/20 hover:bg-white/30 px-3 py-2 rounded-xl font-bold text-xs flex items-center gap-1.5 transition-colors backdrop-blur-sm shadow-sm cursor-pointer"
+                  className="bg-white/20 hover:bg-white/30 px-3 py-2 rounded-xl font-bold text-xs flex items-center gap-1.5 transition-colors backdrop-blur-sm shadow-sm cursor-pointer whitespace-nowrap"
                   title="Descargar inventario en archivo Excel .xlsx"
                 >
                   <FileSpreadsheet size={15}/> <span>Exportar Excel</span>
@@ -2461,7 +2463,7 @@ export default function InventarioPage() {
                     setProductosAImportar([]); 
                     setModalImportarExcel(true); 
                   }} 
-                  className="bg-white/20 hover:bg-white/30 px-3 py-2 rounded-xl font-bold text-xs flex items-center gap-1.5 transition-colors backdrop-blur-sm shadow-sm cursor-pointer"
+                  className="bg-white/20 hover:bg-white/30 px-3 py-2 rounded-xl font-bold text-xs flex items-center gap-1.5 transition-colors backdrop-blur-sm shadow-sm cursor-pointer whitespace-nowrap"
                   title="Cargar productos masivamente desde un archivo Excel"
                 >
                   <Upload size={15}/> <span>Importar Excel</span>
@@ -2481,7 +2483,7 @@ export default function InventarioPage() {
                     }
                     setModalExportarQR(true);
                   }} 
-                  className="bg-white/20 hover:bg-white/30 px-3 py-2 rounded-xl font-bold text-xs flex items-center gap-1.5 transition-colors backdrop-blur-sm shadow-sm cursor-pointer"
+                  className="bg-white/20 hover:bg-white/30 px-3 py-2 rounded-xl font-bold text-xs flex items-center gap-1.5 transition-colors backdrop-blur-sm shadow-sm cursor-pointer whitespace-nowrap"
                   title="Imprimir o exportar etiquetas con códigos QR"
                 >
                   <Printer size={15}/> <span>Etiquetas QR</span>
@@ -2489,102 +2491,110 @@ export default function InventarioPage() {
                 </button>
               </div>
 
-              {/* En Móvil y Tablet Portrait (< lg): Menú Desplegable de Herramientas */}
-              <div className="relative lg:hidden">
+              {/* Menú Desplegable de Herramientas para pantallas < 2xl (móviles, tablets y laptops) */}
+              <div className="relative 2xl:hidden">
                 <button 
                   type="button"
                   onClick={() => setMenuHerramientasMovil(!menuHerramientasMovil)}
-                  className="bg-white/20 hover:bg-white/30 p-2 rounded-xl font-bold text-xs flex items-center justify-center transition-colors backdrop-blur-sm shadow-sm text-white active:scale-95 cursor-pointer"
+                  className="bg-white/20 hover:bg-white/30 px-2.5 sm:px-3 py-2 rounded-xl font-bold text-xs flex items-center gap-1.5 transition-colors backdrop-blur-sm shadow-sm text-white active:scale-95 cursor-pointer whitespace-nowrap"
                   title="Herramientas de inventario (Categorías, Excel, Importar, QRs)"
                 >
-                  <MoreVertical size={18}/>
+                  <SlidersHorizontal size={15}/>
+                  <span className="hidden sm:inline">Herramientas</span>
+                  <ChevronDown size={14} className={`hidden sm:inline transition-transform duration-200 ${menuHerramientasMovil ? 'rotate-180' : ''}`} />
                 </button>
 
                 {menuHerramientasMovil && (
-                  <div className="absolute right-0 top-full mt-2 w-56 bg-white dark:bg-[#0f172a] text-slate-800 dark:text-white rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 p-1.5 z-50 animate-in zoom-in-95 duration-150">
-                    <button
-                      onClick={() => {
-                        setMenuHerramientasMovil(false);
-                        setModalGestionCategorias(true);
-                      }}
-                      className="w-full flex items-center justify-between px-3 py-2.5 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl text-xs font-bold text-left transition-colors cursor-pointer"
-                    >
-                      <div className="flex items-center gap-2">
-                        <Tag size={16} className="text-violet-600 dark:text-violet-400"/>
-                        <span>🏷️ Categorías</span>
-                      </div>
-                    </button>
+                  <>
+                    <div 
+                      className="fixed inset-0 z-40" 
+                      onClick={() => setMenuHerramientasMovil(false)} 
+                    />
+                    <div className="absolute right-0 top-full mt-2 w-60 bg-white dark:bg-[#0f172a] text-slate-800 dark:text-white rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 p-1.5 z-50 animate-in zoom-in-95 duration-150">
+                      <button
+                        onClick={() => {
+                          setMenuHerramientasMovil(false);
+                          setModalGestionCategorias(true);
+                        }}
+                        className="w-full flex items-center justify-between px-3 py-2.5 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl text-xs font-bold text-left transition-colors cursor-pointer"
+                      >
+                        <div className="flex items-center gap-2">
+                          <Tag size={16} className="text-violet-600 dark:text-violet-400"/>
+                          <span>🏷️ Administrar Categorías</span>
+                        </div>
+                      </button>
 
-                    <button
-                      onClick={() => {
-                        setMenuHerramientasMovil(false);
-                        if (!datosSesion?.esPro) {
-                          setModalUpsell({
-                            visible: true,
-                            titulo: "Exportación a Excel en Plan PRO",
-                            mensaje: "Descarga reportes de inventario y catálogos en Excel ilimitadamente con el Plan PRO Almacén.",
-                            plan: 'pro'
-                          });
-                          return;
-                        }
-                        setModalExportarExcel(true);
-                      }}
-                      className="w-full flex items-center justify-between px-3 py-2.5 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl text-xs font-bold text-left transition-colors cursor-pointer"
-                    >
-                      <div className="flex items-center gap-2">
-                        <FileSpreadsheet size={16} className="text-emerald-600"/>
-                        <span>Exportar a Excel</span>
-                      </div>
-                      {!datosSesion?.esPro && <Crown size={12} className="text-amber-500" />}
-                    </button>
+                      <button
+                        onClick={() => {
+                          setMenuHerramientasMovil(false);
+                          if (!datosSesion?.esPro) {
+                            setModalUpsell({
+                              visible: true,
+                              titulo: "Exportación a Excel en Plan PRO",
+                              mensaje: "Descarga reportes de inventario y catálogos en Excel ilimitadamente con el Plan PRO Almacén.",
+                              plan: 'pro'
+                            });
+                            return;
+                          }
+                          setModalExportarExcel(true);
+                        }}
+                        className="w-full flex items-center justify-between px-3 py-2.5 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl text-xs font-bold text-left transition-colors cursor-pointer"
+                      >
+                        <div className="flex items-center gap-2">
+                          <FileSpreadsheet size={16} className="text-emerald-600"/>
+                          <span>Exportar a Excel</span>
+                        </div>
+                        {!datosSesion?.esPro && <Crown size={12} className="text-amber-500" />}
+                      </button>
 
-                    <button
-                      onClick={() => {
-                        setMenuHerramientasMovil(false);
-                        if (!datosSesion?.esPro) {
-                          setModalUpsell({
-                            visible: true,
-                            titulo: "Carga Masiva en Excel (Plan PRO)",
-                            mensaje: "Importa cientos de productos con stock y precios en segundos desde un archivo Excel con el Plan PRO Almacén.",
-                            plan: 'pro'
-                          });
-                          return;
-                        }
-                        setProductosAImportar([]);
-                        setModalImportarExcel(true);
-                      }}
-                      className="w-full flex items-center justify-between px-3 py-2.5 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl text-xs font-bold text-left transition-colors cursor-pointer"
-                    >
-                      <div className="flex items-center gap-2">
-                        <Upload size={16} className="text-blue-600"/>
-                        <span>Importar desde Excel</span>
-                      </div>
-                      {!datosSesion?.esPro && <Crown size={12} className="text-amber-500" />}
-                    </button>
+                      <button
+                        onClick={() => {
+                          setMenuHerramientasMovil(false);
+                          if (!datosSesion?.esPro) {
+                            setModalUpsell({
+                              visible: true,
+                              titulo: "Carga Masiva en Excel (Plan PRO)",
+                              mensaje: "Importa cientos o miles de productos con stock y precios en segundos desde un archivo Excel con el Plan PRO Almacén.",
+                              plan: 'pro'
+                            });
+                            return;
+                          }
+                          setProductosAImportar([]);
+                          setModalImportarExcel(true);
+                        }}
+                        className="w-full flex items-center justify-between px-3 py-2.5 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl text-xs font-bold text-left transition-colors cursor-pointer"
+                      >
+                        <div className="flex items-center gap-2">
+                          <Upload size={16} className="text-blue-600"/>
+                          <span>Importar desde Excel</span>
+                        </div>
+                        {!datosSesion?.esPro && <Crown size={12} className="text-amber-500" />}
+                      </button>
 
-                    <button
-                      onClick={() => {
-                        setMenuHerramientasMovil(false);
-                        if (!datosSesion?.esPro) {
-                          setModalUpsell({
-                            visible: true,
-                            titulo: "Etiquetas Adhesivas QR para Productos",
-                            mensaje: "Genera e imprime planchas térmicas con Código QR, Nombre y Precio para pegar en tus prendas o estanterías.",
-                            plan: 'pro'
-                          });
-                          return;
-                        }
-                        setModalExportarQR(true);
-                      }}
-                      className="w-full flex items-center justify-between px-3 py-2.5 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl text-xs font-bold text-left transition-colors cursor-pointer"
-                    >
-                      <div className="flex items-center gap-2">
-                        <Printer size={16} className="text-indigo-600"/>
-                        <span>Etiquetas QR Adhesivas</span>
-                      </div>
-                      {!datosSesion?.esPro && <Crown size={12} className="text-amber-500" />}
-                    </button>
-                  </div>
+                      <button
+                        onClick={() => {
+                          setMenuHerramientasMovil(false);
+                          if (!datosSesion?.esPro) {
+                            setModalUpsell({
+                              visible: true,
+                              titulo: "Etiquetas Adhesivas QR para Productos",
+                              mensaje: "Genera e imprime planchas térmicas con Código QR, Nombre y Precio para pegar en tus prendas o estanterías.",
+                              plan: 'pro'
+                            });
+                            return;
+                          }
+                          setModalExportarQR(true);
+                        }}
+                        className="w-full flex items-center justify-between px-3 py-2.5 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl text-xs font-bold text-left transition-colors cursor-pointer"
+                      >
+                        <div className="flex items-center gap-2">
+                          <Printer size={16} className="text-indigo-600"/>
+                          <span>Etiquetas QR Adhesivas</span>
+                        </div>
+                        {!datosSesion?.esPro && <Crown size={12} className="text-amber-500" />}
+                      </button>
+                    </div>
+                  </>
                 )}
               </div>
             </>
@@ -2606,7 +2616,7 @@ export default function InventarioPage() {
                 limpiarFormulario(); 
                 setModalProducto(true); 
               }} 
-              className="bg-white text-emerald-700 hover:bg-emerald-50 px-2.5 sm:px-4 py-2 rounded-xl font-black text-xs sm:text-sm flex items-center gap-1 shadow-md transition-transform active:scale-95 shrink-0 cursor-pointer"
+              className="bg-white text-emerald-700 hover:bg-emerald-50 px-2.5 sm:px-4 py-2 rounded-xl font-black text-xs sm:text-sm flex items-center gap-1 shadow-md transition-transform active:scale-95 shrink-0 cursor-pointer whitespace-nowrap"
               title="Agregar nuevos productos o servicios al inventario"
             >
               <Plus size={16}/> <span>Agregar<span className="hidden sm:inline"> Productos</span></span>
