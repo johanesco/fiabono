@@ -268,7 +268,8 @@ export default function LandingPage() {
     }
 
     if (!userDocSnap.exists()) {
-      const nombreSugerido = user.displayName || "";
+      const nombreSugerido = authForm.nombreUsuario.trim() || user.displayName || "";
+      const negocioSugerido = authForm.negocio.trim() || "";
 
       setGoogleUserPendiente({
         uid: user.uid,
@@ -279,7 +280,7 @@ export default function LandingPage() {
 
       setFormGoogleOnboarding({
         nombreUsuario: nombreSugerido,
-        nombreNegocio: "",
+        nombreNegocio: negocioSugerido,
         tipoNegocio: "Moda y Calzado",
         telefonoNegocio: "",
         moduloSepare: true,
@@ -460,10 +461,14 @@ export default function LandingPage() {
     setModalLandingInfo({ visible: false, tipo: null });
     setMostrarPassword(false);
     setMostrarConfirmPassword(false);
+    setAceptaTerminos(false);
+    setAceptaTerminosGoogle(false);
   };
 
   const abrirRegistroConPlan = (plan: 'gratis' | 'comercio' | 'pro') => {
     setPlanSeleccionadoRegistro(plan);
+    setAceptaTerminos(false);
+    setAceptaTerminosGoogle(false);
     setModalLandingInfo({ visible: true, tipo: 'registro' });
   };
 
@@ -2300,7 +2305,8 @@ export default function LandingPage() {
 
               <button 
                 type="submit" 
-                className="w-full bg-blue-600 hover:bg-blue-700 text-white font-black text-base py-4 rounded-xl shadow-lg shadow-blue-600/25 transition-transform transform active:scale-95 mt-2 cursor-pointer"
+                disabled={modalLandingInfo.tipo === 'registro' && !aceptaTerminos}
+                className="w-full bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-black text-base py-4 rounded-xl shadow-lg shadow-blue-600/25 transition-transform transform active:scale-95 mt-2 cursor-pointer"
               >
                 {modalLandingInfo.tipo === 'login' ? 'Iniciar Sesión' : 'Crear mi Cuenta'}
               </button>
@@ -2755,8 +2761,8 @@ export default function LandingPage() {
 
                     <button 
                       type="submit" 
-                      disabled={guardandoGoogleOnboarding}
-                      className="flex-1 flex items-center justify-center gap-2 bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 hover:opacity-95 text-white font-black text-sm py-4 rounded-2xl shadow-xl shadow-blue-600/30 transition-all transform active:scale-95 cursor-pointer disabled:opacity-50"
+                      disabled={guardandoGoogleOnboarding || !aceptaTerminosGoogle}
+                      className="flex-1 flex items-center justify-center gap-2 bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 hover:opacity-95 text-white font-black text-sm py-4 rounded-2xl shadow-xl shadow-blue-600/30 transition-all transform active:scale-95 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       {guardandoGoogleOnboarding ? (
                         <>

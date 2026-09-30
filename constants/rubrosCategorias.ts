@@ -15,11 +15,14 @@ export const RUBROS_NEGOCIOS: RubroNegocio[] = [
     icono: "👗",
     color: "from-pink-500/10 to-rose-500/10 border-pink-200 dark:border-pink-800 text-pink-700 dark:text-pink-400",
     categorias: [
+      "Ropa Dama",
+      "Ropa Hombre",
       "Blusas y Camisas",
       "Pantalones y Jeans",
       "Vestidos y Conjuntos",
       "Ropa Interior y Pijamas",
-      "Accesorios y Complementos"
+      "Accesorios y Complementos",
+      "Varios"
     ]
   },
   {
@@ -33,7 +36,23 @@ export const RUBROS_NEGOCIOS: RubroNegocio[] = [
       "Calzado Caballero",
       "Calzado Infantil",
       "Bolsos y Morrales",
-      "Cuidado y Accesorios"
+      "Cuidado y Accesorios",
+      "Varios"
+    ]
+  },
+  {
+    id: "jugueteria_pinateria",
+    nombre: "Juguetería y Piñatería",
+    descripcion: "Juguetes, piñatas, fiestas y bebés",
+    icono: "🧸",
+    color: "from-teal-500/10 to-emerald-500/10 border-teal-200 dark:border-teal-800 text-teal-700 dark:text-teal-400",
+    categorias: [
+      "Juguetería",
+      "Juegos de Mesa",
+      "Bebés y Primera Infancia",
+      "Artículos de Fiesta y Piñatas",
+      "Peluches y Figuras",
+      "Varios"
     ]
   },
   {
@@ -47,7 +66,8 @@ export const RUBROS_NEGOCIOS: RubroNegocio[] = [
       "Cargadores y Cables",
       "Estuches y Vidrios",
       "Audífonos y Audio",
-      "Servicio Técnico / Reparación"
+      "Servicio Técnico / Reparación",
+      "Varios"
     ]
   },
   {
@@ -61,7 +81,8 @@ export const RUBROS_NEGOCIOS: RubroNegocio[] = [
       "Maquillaje",
       "Cuidado Facial y Corporal",
       "Perfumería",
-      "Servicios y Tratamientos"
+      "Servicios y Tratamientos",
+      "Varios"
     ]
   },
   {
@@ -75,7 +96,8 @@ export const RUBROS_NEGOCIOS: RubroNegocio[] = [
       "Anillos y Argollas",
       "Aretes y Topos",
       "Pulseras y Manillas",
-      "Relojes y Accesorios"
+      "Relojes y Accesorios",
+      "Varios"
     ]
   },
   {
@@ -89,7 +111,8 @@ export const RUBROS_NEGOCIOS: RubroNegocio[] = [
       "Snacks y Dulcería",
       "Abarrotes y Despensa",
       "Aseo y Limpieza",
-      "Panadería y Pasabocas"
+      "Panadería y Pasabocas",
+      "Varios"
     ]
   },
   {
@@ -100,10 +123,11 @@ export const RUBROS_NEGOCIOS: RubroNegocio[] = [
     color: "from-indigo-500/10 to-blue-500/10 border-indigo-200 dark:border-indigo-800 text-indigo-700 dark:text-indigo-400",
     categorias: [
       "Útiles Escolares y Oficina",
+      "Juguetería",
       "Regalos y Empaques",
-      "Juguetes y Novedades",
       "Impresiones y Servicios",
-      "Hogar y Cacharrería"
+      "Hogar y Cacharrería",
+      "Varios"
     ]
   },
   {
@@ -116,7 +140,8 @@ export const RUBROS_NEGOCIOS: RubroNegocio[] = [
       "Servicios / Mano de Obra",
       "Repuestos e Insumos",
       "Mantenimiento",
-      "General"
+      "General",
+      "Varios"
     ]
   }
 ];
