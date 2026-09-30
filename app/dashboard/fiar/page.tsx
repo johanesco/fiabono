@@ -79,6 +79,7 @@ function FiarContenido() {
     const [clienteTransaccion, setClienteTransaccion] = useState<any | null>(null);
     const [busquedaRegistro, setBusquedaRegistro] = useState("");
     const [mostrarResultadosBuscador, setMostrarResultadosBuscador] = useState(false);
+    const [pasoMovil, setPasoMovil] = useState<'articulos' | 'cobro'>('articulos');
     const [busquedaProductoIndex, setBusquedaProductoIndex] = useState<number | null>(null);
 
     const [modoVisual, setModoVisual] = useState(false);
@@ -1250,17 +1251,16 @@ function FiarContenido() {
     };
 
     const procesarRegistro = () => {
-        const filasValidas = filasRegistro.filter(f => parseFloat(f.valor) > 0);
-        if (filasValidas.length === 0) return toast.error("Ingresa al menos un monto válido en los artículos.");
+        const filasConDescripcion = filasRegistro.filter(f => f.descripcion.trim().length > 0);
+        if (filasConDescripcion.length === 0) return toast.error("Ingresa al menos un artículo.");
 
-        // Validar permisos de venta libre
         if (!puedeVentaLibre) {
-            const filaNoPermitida = filasValidas.find(f => !inventario.some(p => p.nombre.toLowerCase().trim() === f.descripcion.toLowerCase().trim()));
-            if (filaNoPermitida) {
-                toast.error(`No tienes permisos para venta libre (artículo no registrado: "${filaNoPermitida.descripcion}").`);
-                return;
-            }
+            const filaNoPermitida = filasConDescripcion.find(f => !inventario.some(p => p.nombre.toLowerCase().trim() === f.descripcion.toLowerCase().trim()));
+            if (filaNoPermitida) return toast.error(`Quita el artículo no inventariado: "${filaNoPermitida.descripcion}" antes de continuar.`);
         }
+
+        const filasValidas = filasConDescripcion.filter(f => parseFloat(f.valor) > 0);
+        if (filasValidas.length !== filasConDescripcion.length) return toast.error("Hay artículos con precio en cero o vacío. Complétalos o quítalos antes de continuar.");
 
         if (!puedeVentaDirecta) {
             enviarOrden();
@@ -1668,16 +1668,43 @@ Estamos atentos para cualquier consulta.
                 </button>
             </div>
 
+            {/* TABS DE NAVEGACION MOVIL (< 1024px) */}
+            <div className="lg:hidden px-3 py-2 bg-slate-100 dark:bg-[#020617] border-b border-slate-200 dark:border-slate-800 flex items-center gap-2 shrink-0">
+              <button
+                type="button"
+                onClick={() => setPasoMovil('articulos')}
+                className={`flex-1 py-2 px-3 rounded-xl text-xs font-black flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                  pasoMovil === 'articulos'
+                    ? 'bg-white dark:bg-[#0f172a] text-rose-600 dark:text-rose-400 shadow-sm border border-slate-200 dark:border-slate-700'
+                    : 'text-slate-500 hover:text-slate-700 dark:text-slate-400'
+                }`}
+              >
+                <ShoppingCart size={14} /> Artículos {filasRegistro.reduce((sum, f) => sum + f.cantidad, 0) > 0 && `(${filasRegistro.reduce((sum, f) => sum + f.cantidad, 0)})`}
+              </button>
+              <button
+                type="button"
+                onClick={() => setPasoMovil('cobro')}
+                className={`flex-1 py-2 px-3 rounded-xl text-xs font-black flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                  pasoMovil === 'cobro'
+                    ? 'bg-rose-600 text-white shadow-sm'
+                    : 'text-slate-500 hover:text-slate-700 dark:text-slate-400'
+                }`}
+              >
+                <UserPlus size={14} /> Cliente y Fiar
+              </button>
+            </div>
+
                 {/* CUERPO PRINCIPAL (Flujo vertical amplio en Móviles y Tablets Verticales, 2 columnas en Escritorio/Horizontal) */}
                 <div 
                     ref={contenedorScrollRef}
                     onScroll={handleScrollContenedor}
-                    className="flex flex-col lg:flex-row flex-1 min-h-0 overflow-y-auto lg:overflow-hidden pb-24 md:pb-4 lg:pb-0 relative"
+                    className={`flex flex-col lg:flex-row flex-1 min-h-0 ${pasoMovil === 'cobro' ? 'pb-0 overflow-hidden' : 'pb-24 md:pb-4 lg:pb-0 overflow-y-auto lg:overflow-hidden'} relative`}
                 >
                     
                     {/* COLUMNA IZQUIERDA: ARTÍCULOS O CONCEPTOS */}
+                    <div className={`flex-1 flex flex-col bg-slate-50/60 dark:bg-[#020617]/50 lg:min-h-0 lg:overflow-hidden shrink-0 ${pasoMovil === 'cobro' ? 'hidden lg:flex' : 'flex'}`}>
                     {modoVisual ? renderModoVisualGrid() : (
-                    <div className="flex-1 flex flex-col bg-slate-50/60 dark:bg-[#020617]/50 lg:min-h-0 lg:overflow-hidden shrink-0">
+                    <div className="flex-1 flex flex-col lg:min-h-0 lg:overflow-hidden shrink-0">
                         
                         <div ref={scrollArticulosRef} className="p-3 sm:p-4 md:p-5 lg:p-6 xl:p-8 space-y-3 sm:space-y-4 lg:flex-1 lg:overflow-y-auto min-h-0">
                         <div className="max-w-4xl mx-auto space-y-3 sm:space-y-4">
@@ -1971,9 +1998,10 @@ Estamos atentos para cualquier consulta.
                         </div>
                     </div>
                     )}
+                    </div>
 
                 {/* COLUMNA DERECHA / SECCIÓN INFERIOR: CLIENTE + TOTAL */}
-                <div className="w-full lg:w-[360px] xl:w-[380px] bg-white dark:bg-[#0f172a] lg:border-l border-slate-200 dark:border-slate-800 flex flex-col shrink-0 lg:min-h-0 lg:overflow-hidden">
+                <div className={`w-full lg:w-[360px] xl:w-[380px] bg-white dark:bg-[#0f172a] lg:border-l border-slate-200 dark:border-slate-800 flex flex-col shrink-0 lg:min-h-0 lg:overflow-hidden ${pasoMovil === 'articulos' ? 'hidden lg:flex' : 'flex'}`}>
 
                     <div className="p-3 pb-36 sm:p-5 sm:pb-32 lg:p-3.5 flex flex-col gap-3 lg:flex-1 lg:overflow-y-auto max-w-4xl lg:max-w-none mx-auto w-full">
 
@@ -2138,8 +2166,27 @@ Estamos atentos para cualquier consulta.
                 </button>
             </div>
 
-            {/* BARRA FLOTANTE MÓVIL SUSPENDIDA (SOLO PARA CELULARES PEQUEÑOS < 768px) */}
-            <div className="md:hidden fixed bottom-floating-bar left-3 right-3 sm:left-4 sm:right-4 max-w-lg mx-auto bg-white/95 dark:bg-[#0f172a]/95 backdrop-blur-xl border border-slate-200/90 dark:border-slate-800/90 p-2.5 sm:p-3 rounded-2xl sm:rounded-3xl shadow-[0_10px_25px_-5px_rgba(0,0,0,0.15)] dark:shadow-[0_10px_25px_-5px_rgba(0,0,0,0.6)] z-[110] flex items-center justify-between gap-3">
+            {/* BARRAS FLOTANTES MÓVIL */}
+            {pasoMovil === 'articulos' && (
+              <div className="lg:hidden fixed bottom-3 left-3 right-3 sm:left-4 sm:right-4 max-w-lg mx-auto bg-white/95 dark:bg-[#0f172a]/95 backdrop-blur-xl border border-slate-200/90 dark:border-slate-800/90 p-2.5 sm:p-3 rounded-2xl sm:rounded-3xl shadow-[0_10px_25px_-5px_rgba(0,0,0,0.15)] dark:shadow-[0_10px_25px_-5px_rgba(0,0,0,0.6)] z-[110] flex items-center justify-between gap-3 animate-in slide-in-from-bottom-2 duration-200">
+                <div className="flex flex-col min-w-0 shrink pl-1">
+                  <div className="flex items-baseline gap-1.5">
+                      <span className="text-[10px] font-black uppercase text-slate-400 tracking-wider">Subtotal</span>
+                      <span className="text-lg sm:text-2xl font-black text-rose-500 whitespace-nowrap overflow-visible leading-none min-w-0">${totalFilasRegistro.toLocaleString('es-CO')}</span>
+                  </div>
+                </div>
+                <button 
+                    onClick={() => setPasoMovil('cobro')} 
+                    disabled={totalFilasRegistro === 0}
+                    className={`flex-1 bg-rose-600 hover:bg-rose-700 ${totalFilasRegistro === 0 ? 'opacity-50' : 'active:scale-95'} text-white font-black py-3 sm:py-3.5 px-4 rounded-xl sm:rounded-2xl shadow-lg flex items-center justify-center gap-2 text-base sm:text-lg transition-transform`}
+                >
+                    <span>Ir a Fiar</span> <ArrowRight size={18} />
+                </button>
+              </div>
+            )}
+
+            {pasoMovil === 'cobro' && (
+            <div className="lg:hidden fixed bottom-3 left-3 right-3 sm:left-4 sm:right-4 max-w-lg mx-auto bg-white/95 dark:bg-[#0f172a]/95 backdrop-blur-xl border border-slate-200/90 dark:border-slate-800/90 p-2.5 sm:p-3 rounded-2xl sm:rounded-3xl shadow-[0_10px_25px_-5px_rgba(0,0,0,0.15)] dark:shadow-[0_10px_25px_-5px_rgba(0,0,0,0.6)] z-[110] flex items-center justify-between gap-3 animate-in slide-in-from-bottom-2 duration-200">
                 <div className="flex flex-col min-w-0 shrink pl-1">
                     {montoDescuentoTotal > 0 && (
                         <div className="text-[9px] text-slate-500 dark:text-slate-400 leading-tight space-y-0.5 mb-0.5">
@@ -2160,6 +2207,7 @@ Estamos atentos para cualquier consulta.
                     <span>{guardandoFiado ? "Procesando..." : (puedeVentaDirecta ? 'Fiar' : 'Enviar Orden')}</span> {puedeVentaDirecta ? <CheckCircle2 size={18} /> : <Receipt size={18} />}
                 </button>
             </div>
+            )}
 
             {/* MODAL DEL ESCÁNER ULTRA RÁPIDO POS */}
             {modalEscanner && (

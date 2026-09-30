@@ -977,18 +977,17 @@ function VenderContenido() {
 
   // Guardar orden pendiente (colaboradores sin permiso de venta directa)
   const enviarOrden = async () => {
-    const filasValidas = filasRegistro.filter(f => parseFloat(f.valor) > 0);
-    if (filasValidas.length === 0) return toast.error("Ingresa al menos un artículo con valor.");
-    if (!cuentaPrincipalId) return;
+    const filasConDescripcion = filasRegistro.filter(f => f.descripcion.trim().length > 0);
+    if (filasConDescripcion.length === 0) return toast.error("Ingresa al menos un artículo.");
 
-    // Validar permisos de venta libre
     if (!puedeVentaLibre) {
-      const filaNoPermitida = filasValidas.find(f => !inventario.some(p => p.nombre.toLowerCase().trim() === f.descripcion.toLowerCase().trim()));
-      if (filaNoPermitida) {
-        toast.error(`No tienes permisos para venta libre (artículo no registrado: "${filaNoPermitida.descripcion}").`);
-        return;
-      }
+      const filaNoPermitida = filasConDescripcion.find(f => !inventario.some(p => p.nombre.toLowerCase().trim() === f.descripcion.toLowerCase().trim()));
+      if (filaNoPermitida) return toast.error(`Quita el artículo no inventariado: "${filaNoPermitida.descripcion}" antes de continuar.`);
     }
+
+    const filasValidas = filasConDescripcion.filter(f => parseFloat(f.valor) > 0);
+    if (filasValidas.length !== filasConDescripcion.length) return toast.error("Hay artículos con precio en cero o vacío. Complétalos o quítalos antes de continuar.");
+    if (!cuentaPrincipalId) return;
 
     // Validar stock antes de enviar orden
     for (const fila of filasValidas) {
@@ -1106,17 +1105,30 @@ function VenderContenido() {
     setGuardandoVenta(true);
 
     try {
-      const filasValidas = filasRegistro.filter(f => parseFloat(f.valor) > 0);
-      
-      // Validar permisos de venta libre
+      const filasConDescripcion = filasRegistro.filter(f => f.descripcion.trim().length > 0);
+      if (filasConDescripcion.length === 0) {
+        toast.error("Ingresa al menos un artículo.");
+        setGuardandoVenta(false);
+        isSubmittingVentaRef.current = false;
+        return;
+      }
+
       if (!puedeVentaLibre) {
-        const filaNoPermitida = filasValidas.find(f => !inventario.some(p => p.nombre.toLowerCase().trim() === f.descripcion.toLowerCase().trim()));
+        const filaNoPermitida = filasConDescripcion.find(f => !inventario.some(p => p.nombre.toLowerCase().trim() === f.descripcion.toLowerCase().trim()));
         if (filaNoPermitida) {
-          toast.error(`No tienes permisos para venta libre (artículo no registrado: "${filaNoPermitida.descripcion}").`);
+          toast.error(`Quita el artículo no inventariado: "${filaNoPermitida.descripcion}" antes de continuar.`);
           setGuardandoVenta(false);
           isSubmittingVentaRef.current = false;
           return;
         }
+      }
+
+      const filasValidas = filasConDescripcion.filter(f => parseFloat(f.valor) > 0);
+      if (filasValidas.length !== filasConDescripcion.length) {
+        toast.error("Hay artículos con precio en cero o vacío. Complétalos o quítalos antes de continuar.");
+        setGuardandoVenta(false);
+        isSubmittingVentaRef.current = false;
+        return;
       }
       
       for (const fila of filasValidas) {

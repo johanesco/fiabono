@@ -1533,21 +1533,24 @@ function SepareContenido() {
       return;
     }
 
-    const itemsFiltrados = filas
-      .filter(f => f.descripcion.trim() !== "" && (parseFloat(f.valor) || 0) > 0);
-
-    if (itemsFiltrados.length === 0) {
+    const filasConDescripcion = filas.filter(f => f.descripcion.trim().length > 0);
+    if (filasConDescripcion.length === 0) {
       toast.error("Debes agregar al menos un producto al plan separe.");
       return;
     }
 
-    // Validar permisos de venta libre
     if (!puedeVentaLibre) {
-      const filaNoPermitida = itemsFiltrados.find(f => !inventario.some(p => p.nombre.toLowerCase().trim() === f.descripcion.toLowerCase().trim()));
+      const filaNoPermitida = filasConDescripcion.find(f => !inventario.some(p => p.nombre.toLowerCase().trim() === f.descripcion.toLowerCase().trim()));
       if (filaNoPermitida) {
-        toast.error(`No tienes permisos para venta libre (artículo no registrado: "${filaNoPermitida.descripcion}").`);
+        toast.error(`Quita el artículo no inventariado: "${filaNoPermitida.descripcion}" antes de continuar.`);
         return;
       }
+    }
+
+    const itemsFiltrados = filasConDescripcion.filter(f => parseFloat(f.valor) > 0);
+    if (itemsFiltrados.length !== filasConDescripcion.length) {
+      toast.error("Hay artículos con precio en cero o vacío. Complétalos o quítalos antes de continuar.");
+      return;
     }
 
     const itemsGuardar = itemsFiltrados.map(f => {

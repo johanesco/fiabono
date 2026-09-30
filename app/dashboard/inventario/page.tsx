@@ -787,6 +787,7 @@ export default function InventarioPage() {
       tipoProducto,
       categoria: (categoria.trim() || 'General'),
       inventariable: esInventariable,
+      imagen: imagenUrl || null,
       fechaCreacion: new Date(),
       fechaActualizacion: new Date()
     };
@@ -882,7 +883,8 @@ export default function InventarioPage() {
             costoCompra: costoNum,
             tipoProducto,
             categoria: categoria.trim() || 'General',
-            inventariable: esInventariable
+            inventariable: esInventariable,
+            imagen: imagenUrl || null
           })
         });
         if (!respuestaActualizacion.ok) throw new Error((await respuestaActualizacion.json()).error || 'No se pudo actualizar el producto.');
@@ -952,6 +954,7 @@ export default function InventarioPage() {
     }
     setEditandoId(prod.id);
     setNombre(prod.nombre);
+    setImagenUrl(prod.imagen || null);
     setSku(prod.sku || "");
     setStock(prod.stock?.toString() || "0");
     setPrecioVenta(prod.precioVenta?.toString() || "");
@@ -962,6 +965,92 @@ export default function InventarioPage() {
     setModalProducto(true);
   };
 
+  // ======== CÁMARA ========
+  const reproducirSonidoCamara = () => {
+    try {
+      const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      osc.connect(gain);
+      gain.connect(audioCtx.destination);
+      osc.type = 'square';
+      osc.frequency.setValueAtTime(800, audioCtx.currentTime);
+      osc.frequency.exponentialRampToValueAtTime(400, audioCtx.currentTime + 0.1);
+      gain.gain.setValueAtTime(0.1, audioCtx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.1);
+      osc.start();
+      osc.stop(audioCtx.currentTime + 0.1);
+    } catch(e){}
+  };
+
+  const abrirCamaraEnVivo = async () => {
+    setModalCamaraEnVivo(true);
+    if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: 'environment', width: { ideal: 800 } }
+        });
+        setMediaStream(stream);
+      } catch (e) {
+        toast.error("No se pudo acceder a la cámara.");
+        setModalCamaraEnVivo(false);
+      }
+    } else {
+      toast.error("Tu navegador no soporta la cámara en vivo.");
+      setModalCamaraEnVivo(false);
+    }
+  };
+
+  useEffect(() => {
+    if (videoRef.current && mediaStream) {
+      videoRef.current.srcObject = mediaStream;
+      videoRef.current.play().catch(e => console.log("Play error:", e));
+    }
+  }, [mediaStream, modalCamaraEnVivo]);
+
+  const capturarFotoEnVivo = () => {
+    if (!videoRef.current) return;
+    reproducirSonidoCamara();
+    setFlashEfecto(true);
+    setTimeout(() => setFlashEfecto(false), 200);
+
+    const canvas = document.createElement("canvas");
+    canvas.width = videoRef.current.videoWidth || 800;
+    canvas.height = videoRef.current.videoHeight || 600;
+    const ctx = canvas.getContext("2d");
+    if (ctx) {
+      ctx.drawImage(videoRef.current, 0, 0, canvas.width, canvas.height);
+      const dataUrl = canvas.toDataURL("image/jpeg", 0.6);
+      setImagenUrl(dataUrl);
+      toast.success("Foto del producto capturada 📸");
+    }
+
+    if (mediaStream) {
+      mediaStream.getTracks().forEach(t => t.stop());
+      setMediaStream(null);
+    }
+    setModalCamaraEnVivo(false);
+  };
+
+  const cerrarCamara = () => {
+    if (mediaStream) {
+      mediaStream.getTracks().forEach(t => t.stop());
+      setMediaStream(null);
+    }
+    setModalCamaraEnVivo(false);
+  };
+
+  const manejarSubidaArchivo = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      setImagenUrl(event.target?.result as string);
+    };
+    reader.readAsDataURL(file);
+  };
+  // ==========================
+
   const limpiarFormulario = () => {
     setEditandoId(null);
     setNombre("");
@@ -969,6 +1058,7 @@ export default function InventarioPage() {
     setStock("");
     setPrecioVenta("");
     setCostoCompra("");
+    setImagenUrl(null);
     setTipoProducto('producto');
     setCategoria('');
     setInventariable(true);
@@ -4773,7 +4863,54 @@ export default function InventarioPage() {
                 {/* Contenedor Unificado del Formulario (Grilla Compacta) */}
                 <div className="bg-slate-50/80 dark:bg-slate-900/50 rounded-2xl border border-slate-200 dark:border-slate-800 p-3 sm:p-4 space-y-3 shadow-xs shrink-0">
                   
-                  {/* Fila 1: Nombre y Categoría */}
+                  {/* Fila Foto + Fila 1 */}
+                  <div className="flex flex-col sm:flex-row gap-3">
+                    {/* AVATAR Y BOTON FOTO */}
+                    <div className="flex sm:flex-col items-center gap-2 sm:w-[90px] shrink-0">
+                      <div 
+                        className="w-14 h-14 sm:w-full sm:h-[90px] rounded-xl border-2 border-dashed border-slate-300 dark:border-slate-700 flex items-center justify-center bg-white dark:bg-[#020617] overflow-hidden relative cursor-pointer hover:border-violet-400 transition-colors"
+                        onClick={() => !imagenUrl && abrirCamaraEnVivo()}
+                      >
+                        {imagenUrl ? (
+                          <img src={imagenUrl} alt="Preview" className="w-full h-full object-cover" />
+                        ) : (
+                          <Camera className="text-slate-400" size={24} />
+                        )}
+                        
+                        {imagenUrl && (
+                          <button 
+                            type="button"
+                            onClick={(e) => { e.stopPropagation(); setImagenUrl(null); }}
+                            className="absolute top-1 right-1 w-5 h-5 bg-black/60 rounded-full flex items-center justify-center text-white hover:bg-rose-500 transition-colors cursor-pointer"
+                          >
+                            <X size={12} />
+                          </button>
+                        )}
+                      </div>
+                      
+                      <div className="flex flex-col sm:flex-row gap-1 w-full">
+                        <button 
+                          type="button"
+                          onClick={abrirCamaraEnVivo}
+                          className="flex-1 py-1.5 px-2 bg-violet-50 text-violet-600 rounded-lg text-[10px] font-bold border border-violet-100 hover:bg-violet-100 flex items-center justify-center gap-1 cursor-pointer"
+                          title="Tomar foto"
+                        >
+                          <Camera size={12}/>
+                        </button>
+                        <button 
+                          type="button"
+                          onClick={() => fileInputRef.current?.click()}
+                          className="flex-1 py-1.5 px-2 bg-slate-100 text-slate-600 rounded-lg text-[10px] font-bold border border-slate-200 hover:bg-slate-200 flex items-center justify-center cursor-pointer"
+                          title="Subir archivo"
+                        >
+                          <Upload size={12}/>
+                        </button>
+                        <input type="file" ref={fileInputRef} onChange={manejarSubidaArchivo} accept="image/*" className="hidden" />
+                      </div>
+                    </div>
+
+                    <div className="flex-1 space-y-3">
+                      {/* Fila 1: Nombre y Categoría */}
                   <div className="grid grid-cols-1 sm:grid-cols-12 gap-2 sm:gap-3">
                     {/* Nombre del Producto */}
                     <div className="sm:col-span-7 space-y-1">
@@ -5759,6 +5896,48 @@ export default function InventarioPage() {
           </div>
         </div>,
         document.body
+      )}
+
+      {/* MODAL DE CÁMARA EN VIVO */}
+      {modalCamaraEnVivo && (
+        <div className="fixed inset-0 bg-black/90 backdrop-blur-md flex items-center justify-center p-4 z-[200] animate-in fade-in duration-200">
+          <div className="bg-slate-900 border border-slate-800 rounded-3xl overflow-hidden w-full max-w-lg shadow-2xl flex flex-col">
+            <div className="p-3.5 bg-slate-950/80 flex items-center justify-between border-b border-slate-800 text-white">
+              <div className="flex items-center gap-2">
+                <Camera size={17} className="text-violet-400" />
+                <span className="font-bold text-xs sm:text-sm">Foto del Producto</span>
+              </div>
+              <button
+                type="button"
+                onClick={cerrarCamara}
+                className="w-8 h-8 flex items-center justify-center bg-slate-800 hover:bg-rose-500 rounded-full transition-colors cursor-pointer"
+              >
+                <X size={16} />
+              </button>
+            </div>
+            <div className="relative bg-black w-full aspect-[4/3] flex items-center justify-center overflow-hidden">
+              {flashEfecto && <div className="absolute inset-0 bg-white z-50 animate-out fade-out duration-300" />}
+              <video
+                ref={videoRef}
+                autoPlay
+                playsInline
+                muted
+                className="w-full h-full object-cover scale-x-[-1]"
+              />
+              <div className="absolute inset-0 shadow-[inset_0_0_50px_rgba(0,0,0,0.5)] pointer-events-none" />
+            </div>
+            <div className="p-4 bg-slate-950 flex items-center justify-center">
+              <button
+                type="button"
+                onClick={capturarFotoEnVivo}
+                className="w-14 h-14 rounded-full bg-white border-4 border-violet-600 shadow-xl flex items-center justify-center text-violet-700 hover:scale-105 active:scale-90 transition-transform cursor-pointer"
+                title="Capturar Foto"
+              >
+                <Camera size={24} />
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* MODAL UPSELL DE SUSCRIPCIÓN PARA EXCEL, QR O LÍMITES */}

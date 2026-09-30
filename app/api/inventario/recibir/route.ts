@@ -75,6 +75,7 @@ export async function POST(request: Request) {
           tipoProducto: producto.tipoProducto || 'producto',
           categoria: producto.categoria || 'General',
           inventariable: esInventariable,
+          imagen: producto.imagen || null,
           fechaCreacion: new Date(),
           fechaActualizacion: new Date()
         });
