@@ -319,9 +319,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
       {/* CONTENEDOR PRINCIPAL */}
       {(() => {
-        const esRutaVender = pathname?.includes('/dashboard/vender');
+        const esRutaPOS = pathname?.includes('/dashboard/vender') || pathname?.includes('/dashboard/fiar') || pathname?.includes('/dashboard/separe');
         return (
-          <main className={`flex-1 flex flex-col h-full relative p-0 md:p-3 lg:p-6 ${esRutaVender ? 'pb-0' : 'pb-16 md:pb-24 lg:pb-0'} overflow-hidden`}>
+          <main className={`flex-1 flex flex-col h-full relative p-0 md:p-3 lg:p-6 ${esRutaPOS ? 'pb-0' : 'pb-16 md:pb-24 lg:pb-0'} overflow-hidden`}>
             <GlobalExpirationWarning />
             <GlobalAnnouncements />
             {/* Desplazamiento fluido sin solapamiento con BottomNav */}
@@ -330,7 +330,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             </div>
 
             {/* Barra de navegación inferior móvil (oculta en punto de venta para aprovechar 100% de pantalla) */}
-            {!esRutaVender && (
+            {!esRutaPOS && (
               <div className="lg:hidden">
                 <BottomNav 
                   puedeVerReportes={puedeVerReportes} 
@@ -345,7 +345,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             )}
 
             {/* Indicador inteligente de desplazamiento arriba/abajo */}
-            {/* !esRutaVender && <ScrollIndicator /> */}
+            {/* !esRutaPOS && <ScrollIndicator /> */}
           </main>
         );
       })()}

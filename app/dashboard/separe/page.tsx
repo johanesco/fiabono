@@ -2810,7 +2810,7 @@ Estamos atentos para cualquier consulta.
 
       {/* BARRA FLOTANTE MÓVIL / TABLET (< 1024px) - EN PASO ARTÍCULOS */}
       {pasoMovil === 'articulos' && (
-        <div className="lg:hidden fixed bottom-[72px] sm:bottom-[76px] md:bottom-[80px] left-3 right-3 sm:left-4 sm:right-4 max-w-lg mx-auto bg-white/95 dark:bg-[#0f172a]/95 backdrop-blur-xl border border-slate-200/90 dark:border-slate-800/90 p-2.5 sm:p-3 rounded-2xl sm:rounded-3xl shadow-2xl z-[95] flex items-center justify-between gap-3 animate-in slide-in-from-bottom-2 duration-200">
+        <div className="lg:hidden fixed bottom-3 sm:bottom-4 left-3 right-3 sm:left-4 sm:right-4 max-w-lg mx-auto bg-white/95 dark:bg-[#0f172a]/95 backdrop-blur-xl border border-slate-200/90 dark:border-slate-800/90 p-2.5 sm:p-3 rounded-2xl sm:rounded-3xl shadow-2xl z-[95] flex items-center justify-between gap-3 animate-in slide-in-from-bottom-2 duration-200">
           <div className="flex flex-col min-w-0 shrink pl-1">
             <span className="text-[9px] font-black uppercase text-slate-400 tracking-wider">Total Separe</span>
             <span className="text-lg sm:text-2xl font-black text-violet-600 dark:text-violet-400 whitespace-nowrap overflow-visible leading-none min-w-0">${totalSepare.toLocaleString('es-CO')}</span>
@@ -2839,7 +2839,7 @@ Estamos atentos para cualquier consulta.
 
       {/* BARRA FLOTANTE MÓVIL / TABLET (< 1024px) - EN PASO COBRO */}
       {pasoMovil === 'cobro' && (
-        <div className="lg:hidden fixed bottom-[72px] sm:bottom-[76px] md:bottom-[80px] left-3 right-3 sm:left-4 sm:right-4 max-w-lg mx-auto bg-white/95 dark:bg-[#0f172a]/95 backdrop-blur-xl border border-slate-200/90 dark:border-slate-800/90 p-2.5 sm:p-3 rounded-2xl sm:rounded-3xl shadow-2xl z-[95] flex items-center justify-between gap-3 animate-in slide-in-from-bottom-2 duration-200">
+        <div className="lg:hidden fixed bottom-3 sm:bottom-4 left-3 right-3 sm:left-4 sm:right-4 max-w-lg mx-auto bg-white/95 dark:bg-[#0f172a]/95 backdrop-blur-xl border border-slate-200/90 dark:border-slate-800/90 p-2.5 sm:p-3 rounded-2xl sm:rounded-3xl shadow-2xl z-[95] flex items-center justify-between gap-3 animate-in slide-in-from-bottom-2 duration-200">
           <div className="flex flex-col min-w-0 shrink pl-1">
             <span className="text-[9px] font-black uppercase text-slate-400 tracking-wider">Pendiente</span>
             <span className="text-base sm:text-xl font-black text-amber-500 whitespace-nowrap overflow-visible leading-none min-w-0">${saldoPendiente.toLocaleString('es-CO')}</span>

@@ -2178,7 +2178,7 @@ Estamos atentos para cualquier consulta.
 
             {/* BARRAS FLOTANTES MÓVIL */}
             {pasoMovil === 'articulos' && (
-              <div className="lg:hidden fixed bottom-[72px] sm:bottom-[76px] md:bottom-[80px] left-3 right-3 sm:left-4 sm:right-4 max-w-lg mx-auto bg-white/95 dark:bg-[#0f172a]/95 backdrop-blur-xl border border-slate-200/90 dark:border-slate-800/90 p-2.5 sm:p-3 rounded-2xl sm:rounded-3xl shadow-2xl z-[95] flex items-center justify-between gap-3 animate-in slide-in-from-bottom-2 duration-200">
+              <div className="lg:hidden fixed bottom-3 sm:bottom-4 left-3 right-3 sm:left-4 sm:right-4 max-w-lg mx-auto bg-white/95 dark:bg-[#0f172a]/95 backdrop-blur-xl border border-slate-200/90 dark:border-slate-800/90 p-2.5 sm:p-3 rounded-2xl sm:rounded-3xl shadow-2xl z-[95] flex items-center justify-between gap-3 animate-in slide-in-from-bottom-2 duration-200">
                 <div className="flex flex-col min-w-0 shrink pl-1">
                   <div className="flex items-baseline gap-1.5">
                       <span className="text-[10px] font-black uppercase text-slate-400 tracking-wider">Subtotal</span>
@@ -2196,7 +2196,7 @@ Estamos atentos para cualquier consulta.
             )}
 
             {pasoMovil === 'cobro' && (
-            <div className="lg:hidden fixed bottom-[72px] sm:bottom-[76px] md:bottom-[80px] left-3 right-3 sm:left-4 sm:right-4 max-w-lg mx-auto bg-white/95 dark:bg-[#0f172a]/95 backdrop-blur-xl border border-slate-200/90 dark:border-slate-800/90 p-2.5 sm:p-3 rounded-2xl sm:rounded-3xl shadow-2xl z-[95] flex items-center justify-between gap-3 animate-in slide-in-from-bottom-2 duration-200">
+            <div className="lg:hidden fixed bottom-3 sm:bottom-4 left-3 right-3 sm:left-4 sm:right-4 max-w-lg mx-auto bg-white/95 dark:bg-[#0f172a]/95 backdrop-blur-xl border border-slate-200/90 dark:border-slate-800/90 p-2.5 sm:p-3 rounded-2xl sm:rounded-3xl shadow-2xl z-[95] flex items-center justify-between gap-3 animate-in slide-in-from-bottom-2 duration-200">
                 <div className="flex flex-col min-w-0 shrink pl-1">
                     {montoDescuentoTotal > 0 && (
                         <div className="text-[9px] text-slate-500 dark:text-slate-400 leading-tight space-y-0.5 mb-0.5">

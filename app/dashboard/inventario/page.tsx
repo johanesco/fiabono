@@ -51,6 +51,7 @@ import {
   Lock,
   ListCheck,
   Camera,
+  SwitchCamera,
   Minus
 } from 'lucide-react';
 import { useAuth } from "@/hooks/AuthContext";
@@ -167,6 +168,8 @@ export default function InventarioPage() {
   const [modalCamaraEnVivo, setModalCamaraEnVivo] = useState(false);
   const [mediaStream, setMediaStream] = useState<MediaStream | null>(null);
   const [flashEfecto, setFlashEfecto] = useState(false);
+  const [facingMode, setFacingMode] = useState<'environment' | 'user'>('environment');
+  const [iniciandoCamara, setIniciandoCamara] = useState(false);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [fotoLightbox, setFotoLightbox] = useState<string | null>(null);
@@ -987,22 +990,45 @@ export default function InventarioPage() {
     } catch(e){}
   };
 
-  const abrirCamaraEnVivo = async () => {
+  const abrirCamaraEnVivo = async (modo?: 'environment' | 'user' | unknown) => {
+    const modoFinal: 'environment' | 'user' = (modo === 'user' || modo === 'environment') ? modo : facingMode;
     setModalCamaraEnVivo(true);
+    setIniciandoCamara(true);
+    if (mediaStream) {
+      mediaStream.getTracks().forEach(t => t.stop());
+      setMediaStream(null);
+    }
     if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
       try {
         const stream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: 'environment', width: { ideal: 800 } }
+          video: { facingMode: { ideal: modoFinal }, width: { ideal: 1280 } }
         });
+        setFacingMode(modoFinal);
         setMediaStream(stream);
       } catch (e) {
-        toast.error("No se pudo acceder a la cámara.");
-        setModalCamaraEnVivo(false);
+        console.error("Error al acceder a la cámara:", e);
+        try {
+          const fallbackStream = await navigator.mediaDevices.getUserMedia({
+            video: true
+          });
+          setMediaStream(fallbackStream);
+        } catch (errFallback) {
+          toast.error("No se pudo acceder a la cámara.");
+          setModalCamaraEnVivo(false);
+        }
+      } finally {
+        setIniciandoCamara(false);
       }
     } else {
       toast.error("Tu navegador no soporta la cámara en vivo.");
       setModalCamaraEnVivo(false);
+      setIniciandoCamara(false);
     }
+  };
+
+  const alternarCamara = () => {
+    const nuevoModo = facingMode === 'environment' ? 'user' : 'environment';
+    abrirCamaraEnVivo(nuevoModo);
   };
 
   useEffect(() => {
@@ -1018,13 +1044,19 @@ export default function InventarioPage() {
     setFlashEfecto(true);
     setTimeout(() => setFlashEfecto(false), 200);
 
+    const video = videoRef.current;
     const canvas = document.createElement("canvas");
-    canvas.width = videoRef.current.videoWidth || 800;
-    canvas.height = videoRef.current.videoHeight || 600;
+    canvas.width = video.videoWidth || 800;
+    canvas.height = video.videoHeight || 600;
     const ctx = canvas.getContext("2d");
     if (ctx) {
-      ctx.drawImage(videoRef.current, 0, 0, canvas.width, canvas.height);
-      const dataUrl = canvas.toDataURL("image/jpeg", 0.6);
+      if (facingMode === 'user') {
+        // En selfie (frontal), volteamos horizontalmente para que guarde como se ve en el preview espejo
+        ctx.translate(canvas.width, 0);
+        ctx.scale(-1, 1);
+      }
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+      const dataUrl = canvas.toDataURL("image/jpeg", 0.7);
       setImagenUrl(dataUrl);
       toast.success("Foto del producto capturada 📸");
     }
@@ -5913,14 +5945,29 @@ export default function InventarioPage() {
               <div className="flex items-center gap-2">
                 <Camera size={17} className="text-violet-400" />
                 <span className="font-bold text-xs sm:text-sm">Foto del Producto</span>
+                <span className="text-[10px] bg-slate-800 text-slate-300 px-2 py-0.5 rounded-full font-medium">
+                  {facingMode === 'environment' ? '📷 Trasera' : '🤳 Frontal'}
+                </span>
               </div>
-              <button
-                type="button"
-                onClick={cerrarCamara}
-                className="w-8 h-8 flex items-center justify-center bg-slate-800 hover:bg-rose-500 rounded-full transition-colors cursor-pointer"
-              >
-                <X size={16} />
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={alternarCamara}
+                  disabled={iniciandoCamara}
+                  className="flex items-center gap-1.5 px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl transition text-xs font-semibold cursor-pointer active:scale-95 disabled:opacity-50"
+                  title="Cambiar entre cámara trasera y frontal"
+                >
+                  <SwitchCamera size={15} className={`text-violet-400 ${iniciandoCamara ? 'animate-spin' : ''}`} />
+                  <span className="hidden sm:inline">Cambiar cámara</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={cerrarCamara}
+                  className="w-8 h-8 flex items-center justify-center bg-slate-800 hover:bg-rose-500 rounded-full transition-colors cursor-pointer"
+                >
+                  <X size={16} />
+                </button>
+              </div>
             </div>
             <div className="relative bg-black w-full aspect-[4/3] flex items-center justify-center overflow-hidden">
               {flashEfecto && <div className="absolute inset-0 bg-white z-50 animate-out fade-out duration-300" />}
@@ -5929,7 +5976,7 @@ export default function InventarioPage() {
                 autoPlay
                 playsInline
                 muted
-                className="w-full h-full object-cover scale-x-[-1]"
+                className={`w-full h-full object-cover ${facingMode === 'user' ? 'scale-x-[-1]' : ''}`}
               />
               <div className="absolute inset-0 shadow-[inset_0_0_50px_rgba(0,0,0,0.5)] pointer-events-none" />
             </div>
@@ -5937,7 +5984,8 @@ export default function InventarioPage() {
               <button
                 type="button"
                 onClick={capturarFotoEnVivo}
-                className="w-14 h-14 rounded-full bg-white border-4 border-violet-600 shadow-xl flex items-center justify-center text-violet-700 hover:scale-105 active:scale-90 transition-transform cursor-pointer"
+                disabled={iniciandoCamara}
+                className="w-14 h-14 rounded-full bg-white border-4 border-violet-600 shadow-xl flex items-center justify-center text-violet-700 hover:scale-105 active:scale-90 transition-transform cursor-pointer disabled:opacity-50"
                 title="Capturar Foto"
               >
                 <Camera size={24} />
