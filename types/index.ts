@@ -147,6 +147,7 @@ export interface UsuarioBD {
   moduloSepareActivo?: boolean;
   slugNegocio?: string;
   esCajaMostrador?: boolean;
+  pruebaGratisUsada?: boolean;
 }
 
 export interface Cliente {
@@ -229,6 +230,7 @@ export interface DatosSesionContext {
   diasRestantesPlan: number | null;
   avisoExpiracion: boolean;
   enPeriodoGracia: boolean;
+  pruebaGratisUsada?: boolean;
   datosUsuarioOriginales: UsuarioBD;
   tipoNegocio?: string;
   rubroNegocio?: string;

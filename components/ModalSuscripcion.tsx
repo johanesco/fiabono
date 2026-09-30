@@ -20,8 +20,49 @@ export default function ModalSuscripcion({ isOpen, onClose, cuentaPrincipalId, p
   const [mostrarCanjeBono, setMostrarCanjeBono] = useState(false);
   const [codigoBono, setCodigoBono] = useState("");
   const [cargando, setCargando] = useState(false);
+  const [activandoPrueba, setActivandoPrueba] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const { datosSesion } = useAuth();
+
+  const puedeActivarPruebaGratis = !datosSesion?.pruebaGratisUsada && datosSesion?.esGratis;
+
+  const activarPruebaGratisDirecta = async (tipo: 'comercio' | 'pro') => {
+    setActivandoPrueba(true);
+    setError(null);
+    try {
+      const idToken = await auth.currentUser?.getIdToken();
+      if (!idToken) {
+        toast.error("Debes tener una sesión activa.");
+        setActivandoPrueba(false);
+        return;
+      }
+
+      const res = await fetch('/api/suscripcion/activar-prueba', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${idToken}`
+        },
+        body: JSON.stringify({
+          plan: tipo
+        })
+      });
+
+      const data = await res.json();
+      if (!res.ok || !data.ok) {
+        throw new Error(data.error || "No se pudo activar la prueba.");
+      }
+
+      toast.success(`🎉 ¡Prueba de 14 días de ${tipo === 'pro' ? 'Plan PRO Almacén' : 'Plan Comercio'} activada con éxito!`, { duration: 6000 });
+      handleClose();
+      window.location.reload();
+    } catch (err: any) {
+      toast.error(err.message || "Error al activar periodo de prueba.");
+      setError(err.message);
+    } finally {
+      setActivandoPrueba(false);
+    }
+  };
 
   // CORRECCIÓN A-3: Sincronizar planSeleccionado cuando el modal abre o cambia planInicial.
   // El modal siempre está montado (no se destruye), entonces useState(planInicial) solo se
@@ -274,29 +315,71 @@ export default function ModalSuscripcion({ isOpen, onClose, cuentaPrincipalId, p
 
           {/* Botones de Acción — FLUJO SEGURO */}
           <div className="flex flex-col gap-2.5">
-            {/* BOTÓN PRINCIPAL: WhatsApp para coordinar el pago real */}
-            <button
-              type="button"
-              onClick={() => abrirSoportePagoWhatsApp(planSeleccionado)}
-              className={`w-full py-4 rounded-2xl font-black text-base text-white shadow-lg transition-transform active:scale-95 cursor-pointer ${
-                planSeleccionado === 'pro'
-                  ? 'bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 shadow-purple-600/30'
-                  : 'bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 shadow-blue-600/30'
-              }`}
-            >
-              <span className="flex items-center justify-center gap-2">
-                <MessageCircle size={18} />
-                Activar {planSeleccionado === 'pro' ? 'PRO Almacén' : 'Comercio'} por WhatsApp
-              </span>
-            </button>
+            {puedeActivarPruebaGratis ? (
+              <>
+                {/* BOTÓN 1-CLIC: Activación inmediata de prueba gratis */}
+                <button
+                  type="button"
+                  disabled={activandoPrueba}
+                  onClick={() => activarPruebaGratisDirecta(planSeleccionado)}
+                  className={`w-full py-4 rounded-2xl font-black text-base text-white shadow-xl transition-all active:scale-95 cursor-pointer disabled:opacity-50 ${
+                    planSeleccionado === 'pro'
+                      ? 'bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 hover:from-purple-700 hover:to-indigo-800 shadow-purple-600/30'
+                      : 'bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-700 hover:from-blue-700 hover:to-indigo-800 shadow-blue-600/30'
+                  }`}
+                >
+                  <span className="flex items-center justify-center gap-2">
+                    {activandoPrueba ? (
+                      <div className="w-5 h-5 border-2 border-white/40 border-t-white rounded-full animate-spin" />
+                    ) : (
+                      <Sparkles size={18} className="animate-pulse" />
+                    )}
+                    {activandoPrueba ? 'Activando tu prueba...' : `Activar 14 Días de Prueba Gratis (${planSeleccionado === 'pro' ? 'PRO Almacén' : 'Comercio'})`}
+                  </span>
+                </button>
 
-            {/* Nota informativa del proceso de activación */}
-            <div className="flex items-start gap-2 bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-800 rounded-xl p-3">
-              <Lock size={14} className="text-slate-400 mt-0.5 shrink-0" />
-              <p className="text-[11px] text-slate-500 dark:text-slate-400 font-medium leading-relaxed">
-                Escríbenos por WhatsApp, te enviamos los datos de pago (PSE / Nequi / Transferencia) y en minutos activamos tu plan manualmente. Sin tarjeta de crédito requerida.
-              </p>
-            </div>
+                {/* Nota informativa de prueba gratis */}
+                <div className="flex items-center justify-center gap-2 text-center text-[11px] font-bold text-emerald-600 dark:text-emerald-400">
+                  <CheckCircle2 size={13} />
+                  <span>Sin tarjeta de crédito • Acceso inmediato a todas las herramientas</span>
+                </div>
+
+                {/* Opción secundaria WhatsApp para coordinar pago anticipado */}
+                <button
+                  type="button"
+                  onClick={() => abrirSoportePagoWhatsApp(planSeleccionado)}
+                  className="text-[11px] font-bold text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors py-1 flex items-center justify-center gap-1 cursor-pointer"
+                >
+                  <MessageCircle size={13} /> ¿Deseas adquirir la suscripción mensual o anual directamente? Escríbenos por WhatsApp
+                </button>
+              </>
+            ) : (
+              <>
+                {/* BOTÓN PRINCIPAL CUANDO YA USÓ LA PRUEBA: WhatsApp para coordinar el pago */}
+                <button
+                  type="button"
+                  onClick={() => abrirSoportePagoWhatsApp(planSeleccionado)}
+                  className={`w-full py-4 rounded-2xl font-black text-base text-white shadow-lg transition-transform active:scale-95 cursor-pointer ${
+                    planSeleccionado === 'pro'
+                      ? 'bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 shadow-purple-600/30'
+                      : 'bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 shadow-blue-600/30'
+                  }`}
+                >
+                  <span className="flex items-center justify-center gap-2">
+                    <MessageCircle size={18} />
+                    Renovar / Adquirir {planSeleccionado === 'pro' ? 'PRO Almacén' : 'Comercio'} por WhatsApp
+                  </span>
+                </button>
+
+                {/* Nota informativa del proceso de activación */}
+                <div className="flex items-start gap-2 bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-800 rounded-xl p-3">
+                  <Lock size={14} className="text-slate-400 mt-0.5 shrink-0" />
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400 font-medium leading-relaxed">
+                    Escríbenos por WhatsApp, te enviamos los datos de pago (PSE / Nequi / Transferencia) y en minutos activamos tu plan manualmente. Sin tarjeta de crédito requerida.
+                  </p>
+                </div>
+              </>
+            )}
           </div>
 
           {/* Sección de Canje de Bono Promocional */}

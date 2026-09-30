@@ -251,6 +251,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
           diasRestantesPlan,
           avisoExpiracion,
           enPeriodoGracia,
+          pruebaGratisUsada: adminData.pruebaGratisUsada === true,
           tipoNegocio: adminData.tipoNegocio || "Comercio",
           rubroNegocio: adminData.rubroNegocio || "moda_ropa",
           categoriasPersonalizadas: adminData.categoriasPersonalizadas || undefined,

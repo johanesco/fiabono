@@ -2139,6 +2139,76 @@ export default function LandingPage() {
             <form onSubmit={manejarAuth} className="flex flex-col gap-3.5">
               {modalLandingInfo.tipo === 'registro' && ( 
                 <>
+                  {/* SELECTOR DE PLAN DE PRUEBA / INICIO */}
+                  <div className="space-y-1.5 mb-1">
+                    <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                      Selecciona tu Plan de Inicio
+                    </label>
+                    <div className="grid grid-cols-3 gap-2">
+                      {/* GRATIS */}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setPlanSeleccionadoRegistro('gratis');
+                          setFormGoogleOnboarding(p => ({ ...p, plan: 'gratis' }));
+                        }}
+                        className={`p-2.5 rounded-xl border-2 text-left transition-all cursor-pointer flex flex-col justify-between ${
+                          planSeleccionadoRegistro === 'gratis'
+                            ? 'border-emerald-500 bg-emerald-50/70 dark:bg-emerald-950/40 shadow-xs ring-1 ring-emerald-500/20'
+                            : 'border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/40 hover:border-slate-300'
+                        }`}
+                      >
+                        <div>
+                          <span className="text-[9px] font-black uppercase text-emerald-600 dark:text-emerald-400">Gratis</span>
+                          <p className="text-xs font-black text-slate-900 dark:text-white leading-tight mt-0.5">Básico</p>
+                        </div>
+                        <p className="text-[10px] text-slate-500 dark:text-slate-400 font-medium mt-1">Sin límite de tiempo</p>
+                      </button>
+
+                      {/* COMERCIO */}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setPlanSeleccionadoRegistro('comercio');
+                          setFormGoogleOnboarding(p => ({ ...p, plan: 'comercio' }));
+                        }}
+                        className={`p-2.5 rounded-xl border-2 text-left transition-all cursor-pointer flex flex-col justify-between relative ${
+                          planSeleccionadoRegistro === 'comercio'
+                            ? 'border-blue-500 bg-blue-50/70 dark:bg-blue-950/40 shadow-xs ring-1 ring-blue-500/20'
+                            : 'border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/40 hover:border-slate-300'
+                        }`}
+                      >
+                        <div>
+                          <span className="text-[9px] font-black uppercase px-1.5 py-0.5 rounded bg-blue-600 text-white">14d Gratis</span>
+                          <p className="text-xs font-black text-slate-900 dark:text-white leading-tight mt-1">Comercio</p>
+                        </div>
+                        <p className="text-[10px] text-slate-500 dark:text-slate-400 font-medium mt-1">1 Colaborador</p>
+                      </button>
+
+                      {/* PRO */}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setPlanSeleccionadoRegistro('pro');
+                          setFormGoogleOnboarding(p => ({ ...p, plan: 'pro' }));
+                        }}
+                        className={`p-2.5 rounded-xl border-2 text-left transition-all cursor-pointer flex flex-col justify-between relative ${
+                          planSeleccionadoRegistro === 'pro'
+                            ? 'border-purple-500 bg-purple-50/70 dark:bg-purple-950/40 shadow-xs ring-1 ring-purple-500/20'
+                            : 'border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/40 hover:border-slate-300'
+                        }`}
+                      >
+                        <div>
+                          <span className="text-[9px] font-black uppercase px-1.5 py-0.5 rounded bg-purple-600 text-white flex items-center gap-0.5 w-fit">
+                            <Crown size={9} className="text-amber-300 fill-current"/> 14d Gratis
+                          </span>
+                          <p className="text-xs font-black text-slate-900 dark:text-white leading-tight mt-1">PRO Total</p>
+                        </div>
+                        <p className="text-[10px] text-purple-600 dark:text-purple-400 font-bold mt-1">Separe + QR</p>
+                      </button>
+                    </div>
+                  </div>
+
                   <div>
                     <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1">Tu Nombre</label>
                     <input 

@@ -92,6 +92,7 @@ export async function POST(request: Request) {
       planVence: fechaVence,
       cicloPlan,
       creadoCon: decodedToken.firebase?.sign_in_provider === 'google.com' ? 'google' : 'email',
+      pruebaGratisUsada: planFinal !== 'gratis',
       terminosAceptados: true,
       fechaAceptacionTerminos: new Date(),
       fechaRegistro: new Date(),
