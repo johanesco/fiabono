@@ -5253,7 +5253,10 @@ export default function InventarioPage() {
                     </div>
                   )}
 
-                </div>
+                    </div>{/* end flex-1 space-y-3 */}
+                  </div>{/* end flex flex-col sm:flex-row (photo row) */}
+
+                </div>{/* end form container */}
 
                 {/* Botones de Acción integrados directamente con el formulario */}
                 <div className="shrink-0 space-y-2">
