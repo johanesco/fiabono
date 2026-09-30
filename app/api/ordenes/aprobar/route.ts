@@ -3,7 +3,13 @@ import { getAdminAuth, getAdminDb } from '@/lib/firebase-admin';
 
 function parseMonto(valor: any): number {
   if (typeof valor === 'number' && Number.isFinite(valor)) return Math.round(valor);
-  const n = Number(String(valor ?? '').replace(/\D/g, ''));
+  const raw = String(valor ?? '');
+  // Handle locale-formatted numbers: "15.000" or "15,000" => 15000
+  // Try direct parse first
+  let n = Number(raw.replace(/[.,]/g, '').replace(/\s/g, ''));
+  if (!Number.isFinite(n)) {
+    n = Number(raw.replace(/\D/g, ''));
+  }
   return Number.isFinite(n) ? n : NaN;
 }
 
@@ -98,7 +104,7 @@ export async function POST(request: Request) {
       const pagoOrden = typeof orden.pagoCliente === 'number'
         ? orden.pagoCliente
         : parseMonto(orden.pagoCliente || 0);
-      if (!Number.isFinite(pagoOrden) || pagoOrden < 0 || pagoOrden > totalOrden) throw new Error('PAGO_INVALIDO');
+      if (!Number.isFinite(pagoOrden) || pagoOrden < 0) throw new Error('PAGO_INVALIDO');
 
       const itemsStock = Array.isArray(body.descontarStockItems) ? body.descontarStockItems : [];
       const stockDocs = new Map<string, { ref: any; data: any }>();

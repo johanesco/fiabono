@@ -1521,7 +1521,7 @@ Estamos atentos para cualquier consulta.
     }, 0);
 
     if (esInventariable && (cantidadEnCarrito + 1) > (producto.stock || 0)) {
-      toast.error(`⚠️ Agotado. Solo tienes ${producto.stock || 0} de "${producto.nombre}".`, { duration: 1000, position: 'bottom-center', icon: '🚫' });
+      toast.error(`⚠️ Agotado. Solo tienes ${producto.stock || 0} de "${producto.nombre}".`, { duration: 2000, position: 'bottom-center', icon: '🚫' });
       return;
     }
 
@@ -1560,7 +1560,7 @@ Estamos atentos para cualquier consulta.
 
       const stockTotalPermitido = (prodInv.stock || 0) - cantidadEnOtrasFilas;
       if (esInventariable && (fila.cantidad + delta) > stockTotalPermitido) {
-         toast.error(`⚠️ Agotado. Solo tienes ${prodInv.stock || 0} de "${prodInv.nombre}".`, { duration: 1000, position: 'bottom-center', icon: '🚫' });
+         toast.error(`⚠️ Agotado. Solo tienes ${prodInv.stock || 0} de "${prodInv.nombre}".`, { duration: 2000, position: 'bottom-center', icon: '🚫' });
          return;
       }
     }
@@ -1784,18 +1784,27 @@ Estamos atentos para cualquier consulta.
           )}
         </div>
 
-        {/* Botón Cobro Manual */}
-        {!sinPermisoVentaLibre && (
-          <button
-            type="button"
-            onClick={() => {
-              setModalCobroManual(true);
-            }}
-            className="w-full mt-1 border border-dashed border-emerald-400 dark:border-emerald-600/50 bg-emerald-50/50 dark:bg-emerald-950/20 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-100 dark:hover:bg-emerald-900/40 rounded-xl py-2 text-xs font-black flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
-          >
-            <Plus size={14} /> + Artículo Libre
-          </button>
-        )}
+        {/* Botones Cobro Manual y Descuento */}
+        <div className="flex gap-1.5">
+          {!sinPermisoVentaLibre && (
+            <button
+              type="button"
+              onClick={() => setModalCobroManual(true)}
+              className="flex-1 border border-dashed border-emerald-400 dark:border-emerald-600/50 bg-emerald-50/50 dark:bg-emerald-950/20 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-100 dark:hover:bg-emerald-900/40 rounded-xl py-2 text-xs font-black flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+            >
+              <Plus size={13} /> Libre
+            </button>
+          )}
+          {puedeAplicarDescuentos && !mostrarDescuento && (
+            <button
+              type="button"
+              onClick={() => { setMostrarDescuento(true); setValorDescuento(''); }}
+              className="flex-1 border border-dashed border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-900/40 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800/60 rounded-xl py-2 text-xs font-black flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+            >
+              <Tag size={13} /> Descuento
+            </button>
+          )}
+        </div>
       </div>
     );
   };
@@ -2523,7 +2532,7 @@ Estamos atentos para cualquier consulta.
                               const stockDisp = (p.stock || 0) - cantEnOtras;
 
                               if (p.tipoProducto !== 'servicio' && p.inventariable !== false && stockDisp <= 0) {
-                                toast.error("Sin stock disponible de " + p.nombre, { duration: 1000 });
+                                toast.error("Sin stock disponible de " + p.nombre, { duration: 2000 });
                                 return;
                               }
 
@@ -2568,7 +2577,7 @@ Estamos atentos para cualquier consulta.
                                 key={p.id} 
                                 onClick={() => {
                                   if (estaAgotado) {
-                                    toast.error(`⚠️ "${p.nombre}" no tiene existencias disponibles.`, { duration: 1000, position: 'bottom-center', icon: '🚫' });
+                                    toast.error(`⚠️ "${p.nombre}" no tiene existencias disponibles.`, { duration: 2000, position: 'bottom-center', icon: '🚫' });
                                     return;
                                   }
                                   const nuevas = [...filasRegistro];
@@ -2682,7 +2691,8 @@ Estamos atentos para cualquier consulta.
                 );
               })}
 
-              {/* BOTONES INFERIORES: AÑADIR ARTÍCULO + APLICAR DESCUENTO */}
+              {/* BOTONES INFERIORES: AÑADIR ARTÍCULO + APLICAR DESCUENTO (solo modo lista clásico) */}
+              {!modoVisual && (
               <div className="flex flex-wrap items-center gap-2 pt-1">
                 <button
                   type="button"
@@ -2706,6 +2716,7 @@ Estamos atentos para cualquier consulta.
                   </button>
                 )}
               </div>
+              )}
 
               {/* TARJETA DE DESCUENTO EN COLUMNA IZQUIERDA */}
               {mostrarDescuento && puedeAplicarDescuentos && (
