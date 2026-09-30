@@ -106,7 +106,9 @@ service cloud.firestore {
             // Puede actualizar datos de perfil sin tocar plan ni fechas de vencimiento
             !request.resource.data.diff(resource.data).affectedKeys().hasAny(['plan', 'planVence', 'cicloPlan']) ||
             // O bajando voluntariamente a plan gratuito (con planVence nulo)
-            (request.resource.data.plan == 'gratis' && request.resource.data.planVence == null)
+            (request.resource.data.plan == 'gratis' && request.resource.data.planVence == null) ||
+            // O configurando su plan inicial si el documento no tenía plan definido (onboarding inicial)
+            (!('plan' in resource.data) || resource.data.plan == null)
           )
         ) ||
         // Un admin actualizando el estado activo o permisos de su colaborador

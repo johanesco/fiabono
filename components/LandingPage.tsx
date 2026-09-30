@@ -45,7 +45,7 @@ export default function LandingPage() {
   const [formGoogleOnboarding, setFormGoogleOnboarding] = useState({
     nombreUsuario: "",
     nombreNegocio: "",
-    tipoNegocio: "Moda y Calzado",
+    tipoNegocio: "Moda y Ropa",
     telefonoNegocio: "",
     moduloSepare: true,
     plan: 'comercio' as 'gratis' | 'comercio' | 'pro'
@@ -299,7 +299,7 @@ export default function LandingPage() {
       setFormGoogleOnboarding({
         nombreUsuario: nombreSugerido,
         nombreNegocio: negocioSugerido,
-        tipoNegocio: "Moda y Calzado",
+        tipoNegocio: "Moda y Ropa",
         telefonoNegocio: "",
         moduloSepare: true,
         plan: codigoAplicado ? codigoAplicado.planOtorgado : (planSeleccionadoRegistro || 'comercio')
@@ -426,13 +426,18 @@ export default function LandingPage() {
         fechaVence = d;
       }
 
-      const userDocRef = doc(db, "usuarios", googleUserPendiente.uid);
+      const uidActual = auth.currentUser?.uid || googleUserPendiente.uid;
+      const userDocRef = doc(db, "usuarios", uidActual);
+      const slugBase = generarSlugNegocio(formGoogleOnboarding.nombreNegocio.trim());
+      const slugAsignado = `${slugBase}${Math.floor(100 + Math.random() * 900)}`;
+
       await setDoc(userDocRef, {
         nombreUsuario: formGoogleOnboarding.nombreUsuario.trim() || (googleUserPendiente.nombre || "Comerciante"),
         nombreNegocio: formGoogleOnboarding.nombreNegocio.trim(),
+        slugNegocio: slugAsignado,
         tipoNegocio: formGoogleOnboarding.tipoNegocio,
         moduloSepareActivo: formGoogleOnboarding.moduloSepare,
-        email: googleUserPendiente.email,
+        email: googleUserPendiente.email || auth.currentUser?.email || "",
         telefonoNegocio: formGoogleOnboarding.telefonoNegocio.trim(),
         rol: "admin",
         plan: planFinal,
@@ -2512,10 +2517,10 @@ export default function LandingPage() {
                     </label>
                     <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                       {[
-                        { id: "Moda y Calzado", icon: Shirt, label: "Moda / Ropa", usaSepare: true },
-                        { id: "Tienda de Barrio / Minimarket", icon: ShoppingBag, label: "Tienda / Mini", usaSepare: false },
-                        { id: "Cosméticos y Belleza", icon: Sparkles, label: "Belleza", usaSepare: true },
-                        { id: "Ferretería / Papelería / Otro", icon: Briefcase, label: "Otro Comercio", usaSepare: false },
+                        { id: "Moda y Ropa", icon: Shirt, label: "Moda / Ropa", usaSepare: true },
+                        { id: "Tienda y Minimarket", icon: ShoppingBag, label: "Tienda / Mini", usaSepare: false },
+                        { id: "Belleza y Cosméticos", icon: Sparkles, label: "Belleza", usaSepare: true },
+                        { id: "Otro Comercio", icon: Briefcase, label: "Otro Comercio", usaSepare: false },
                       ].map(t => {
                         const Icono = t.icon;
                         const activo = formGoogleOnboarding.tipoNegocio === t.id;
