@@ -13,6 +13,7 @@ import ModalSuscripcion from "@/components/ModalSuscripcion";
 import ModalAjustarImagen from "@/components/ModalAjustarImagen";
 import { MediosPagoNegocio, PermisosColaborador } from "@/types";
 import { generarSlugNegocio, limpiarUsuarioColaborador } from "@/utils/slug";
+import { RUBROS_NEGOCIOS } from "@/constants/rubrosCategorias";
 import toast from "react-hot-toast";
 
 export default function PerfilPage() {
@@ -26,6 +27,7 @@ export default function PerfilPage() {
 
   const [nombreUsuario, setNombreUsuario] = useState(datosSesion?.nombreUsuario || "");
   const [nombreNegocio, setNombreNegocio] = useState(datosSesion?.nombreNegocio || "");
+  const [rubroNegocio, setRubroNegocio] = useState(datosSesion?.rubroNegocio || "moda_ropa");
   const [telefonoNegocio, setTelefonoNegocio] = useState(datosSesion?.telefonoNegocio || "");
   const [logoNegocio, setLogoNegocio] = useState<string | null>(datosSesion?.logoNegocio || null);
   const [nitNegocio, setNitNegocio] = useState(datosSesion?.nitNegocio || "");
@@ -197,6 +199,7 @@ export default function PerfilPage() {
     if (datosSesion) {
       setNombreUsuario(datosSesion.nombreUsuario || "");
       setNombreNegocio(datosSesion.nombreNegocio || "");
+      setRubroNegocio(datosSesion.rubroNegocio || "moda_ropa");
       setTelefonoNegocio(datosSesion.telefonoNegocio || "");
       setLogoNegocio(datosSesion.logoNegocio || null);
       setNitNegocio(datosSesion.nitNegocio || "");
@@ -361,6 +364,7 @@ export default function PerfilPage() {
 
       await updateDoc(doc(db, "usuarios", usuarioAuth.uid), { 
         nombreNegocio, 
+        rubroNegocio: rubroNegocio || "moda_ropa",
         telefonoNegocio, 
         nitNegocio,
         direccionNegocio,
@@ -377,6 +381,7 @@ export default function PerfilPage() {
       setDatosSesion((prev: any) => ({
         ...prev, 
         nombreNegocio, 
+        rubroNegocio: rubroNegocio || "moda_ropa",
         telefonoNegocio, 
         nitNegocio, 
         direccionNegocio, 
@@ -2193,6 +2198,21 @@ export default function PerfilPage() {
                       <div>
                         <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1.5">WhatsApp / Teléfono Comercial</label>
                         <input type="tel" value={telefonoNegocio} onChange={(e) => setTelefonoNegocio(e.target.value)} placeholder="Ej. 3001234567" className="w-full p-4 bg-slate-50 dark:bg-[#020617] border border-slate-200 dark:border-slate-800/80 rounded-2xl outline-none focus:border-blue-500 dark:focus:border-blue-400 font-bold text-base text-slate-900 dark:text-white placeholder-slate-400" />
+                      </div>
+
+                      <div className="md:col-span-2">
+                        <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1.5">Rubro o Tipo de Negocio</label>
+                        <select 
+                          value={rubroNegocio} 
+                          onChange={(e) => setRubroNegocio(e.target.value)} 
+                          className="w-full p-4 bg-slate-50 dark:bg-[#020617] border border-slate-200 dark:border-slate-800/80 rounded-2xl outline-none focus:border-blue-500 dark:focus:border-blue-400 font-bold text-base text-slate-900 dark:text-white cursor-pointer"
+                        >
+                          {RUBROS_NEGOCIOS.map((r) => (
+                            <option key={r.id} value={r.id} className="bg-white dark:bg-slate-900 text-slate-900 dark:text-white">
+                              {r.icono} {r.nombre} — ({r.descripcion})
+                            </option>
+                          ))}
+                        </select>
                       </div>
 
                       {/* IDENTIFICADOR / CÓDIGO DEL NEGOCIO PARA COLABORADORES */}

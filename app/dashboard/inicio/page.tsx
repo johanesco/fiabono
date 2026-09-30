@@ -1093,6 +1093,7 @@ Quedamos pendientes para revisar detalles o responder cualquier duda.
         }}
         nombreUsuario={datosSesion?.nombreUsuario || ''}
         nombreNegocio={nombreNegocio || ''}
+        cuentaPrincipalId={cuentaPrincipalId || ''}
         plan={planActual || 'comercio'}
       />
 

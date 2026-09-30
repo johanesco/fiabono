@@ -2,8 +2,9 @@
 import { useState, useEffect, useMemo, useRef } from "react";
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
-import { collection, getDocs, query, doc, updateDoc, deleteDoc, where, addDoc, writeBatch, increment } from "firebase/firestore";
+import { collection, getDocs, getDoc, query, doc, updateDoc, deleteDoc, where, addDoc, writeBatch, increment } from "firebase/firestore";
 import { auth, db } from "../../../firebase";
+import { RUBROS_NEGOCIOS, CATEGORIAS_POR_DEFECTO_GENERAL } from "@/constants/rubrosCategorias";
 import { 
   Package, 
   Plus, 
@@ -189,11 +190,18 @@ export default function InventarioPage() {
   const [filtroStockModal, setFiltroStockModal] = useState<'todos' | 'en_stock' | 'bajo_stock' | 'sin_stock'>('todos');
   const [tabMovilModal, setTabMovilModal] = useState<'formulario' | 'lista'>('formulario');
   const [errores, setErrores] = useState({ nombre: '', categoria: '', stock: '', precio: '' });
-  const [categoriasDisponibles, setCategoriasDisponibles] = useState([
-    'General', 'Varios', 'Servicios', 'Ropa hombre', 'Ropa dama', 'Ropa interior', 'Hogar', 'Joyería',
-    'Calzado', 'Ropa infantil', 'Bolsos', 'Deporte', 'Juguetería', 'Tecnología', 'Gorras y accesorios',
-    'Tienda del Peluquero', 'Bebe accesorios', 'Bienestar', 'Buzos', 'Cacharro', 'Colegial'
-  ]);
+  const [categoriasDisponibles, setCategoriasDisponibles] = useState<string[]>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const local = localStorage.getItem('fiabono_rubro_negocio');
+        if (local) {
+          const rubro = RUBROS_NEGOCIOS.find(r => r.id === local);
+          if (rubro) return rubro.categorias;
+        }
+      } catch (e) {}
+    }
+    return CATEGORIAS_POR_DEFECTO_GENERAL;
+  });
 
   const [modalGestionCategorias, setModalGestionCategorias] = useState(false);
   const [busquedaCategoriasModal, setBusquedaCategoriasModal] = useState('');
@@ -204,6 +212,21 @@ export default function InventarioPage() {
   const [categoriaAEliminarConfirm, setCategoriaAEliminarConfirm] = useState<{ nombre: string; conteoProds: number } | null>(null);
 
   const [limiteRender, setLimiteRender] = useState(20);
+
+  const persistirCategoriasEnFirestore = async (nuevasCategorias: string[]) => {
+    try {
+      if (typeof window !== 'undefined' && cuentaPrincipalId) {
+        localStorage.setItem(`fiabono_categorias_${cuentaPrincipalId}`, JSON.stringify(nuevasCategorias));
+      }
+      if (cuentaPrincipalId) {
+        await updateDoc(doc(db, "usuarios", cuentaPrincipalId), {
+          categoriasPersonalizadas: nuevasCategorias
+        });
+      }
+    } catch (err) {
+      console.warn("No se pudo sincronizar categorías en Firestore:", err);
+    }
+  };
 
   // Recuperar borrador de productos en carga al iniciar sesión
   useEffect(() => {
@@ -247,6 +270,36 @@ export default function InventarioPage() {
     if (!uid) return;
     try {
       setCargando(true);
+
+      // 1. Cargar configuración de categorías personalizadas o rubro del usuario
+      let categoriasBase: string[] = [];
+      try {
+        const userDoc = await getDoc(doc(db, "usuarios", uid));
+        if (userDoc.exists()) {
+          const uData = userDoc.data();
+          if (Array.isArray(uData.categoriasPersonalizadas) && uData.categoriasPersonalizadas.length > 0) {
+            categoriasBase = uData.categoriasPersonalizadas;
+          } else if (uData.rubroNegocio) {
+            const rubro = RUBROS_NEGOCIOS.find(r => r.id === uData.rubroNegocio);
+            if (rubro) categoriasBase = rubro.categorias;
+          }
+        }
+      } catch (e) {}
+
+      if (categoriasBase.length === 0 && typeof window !== 'undefined') {
+        const local = localStorage.getItem(`fiabono_categorias_${uid}`);
+        if (local) {
+          try {
+            const parsed = JSON.parse(local);
+            if (Array.isArray(parsed) && parsed.length > 0) categoriasBase = parsed;
+          } catch(e) {}
+        }
+      }
+
+      if (categoriasBase.length === 0) {
+        categoriasBase = CATEGORIAS_POR_DEFECTO_GENERAL;
+      }
+
       const q = query(collection(db, "inventario"), where("usuarioId", "==", uid));
       const snap = await getDocs(q);
       const lista: any[] = [];
@@ -260,13 +313,10 @@ export default function InventarioPage() {
       const categoriasPresentes = lista
         .map((p) => (p.categoria || '').trim())
         .filter(Boolean);
-      if (categoriasPresentes.length > 0) {
-        setCategoriasDisponibles((prev) =>
-          [...new Set([...prev, ...categoriasPresentes])].sort((a, b) =>
-            a.localeCompare(b, 'es')
-          )
-        );
-      }
+
+      setCategoriasDisponibles([...new Set([...categoriasBase, ...categoriasPresentes])].sort((a, b) =>
+        a.localeCompare(b, 'es')
+      ));
     } catch (error: any) {
       console.error("Error cargando inventario:", error);
       if (reintento === 0) {
@@ -2337,6 +2387,7 @@ export default function InventarioPage() {
     if (!valor || valor === 'General') return;
     const nuevaLista = [...new Set([...categoriasDisponibles, valor])].sort((a, b) => a.localeCompare(b, 'es'));
     setCategoriasDisponibles(nuevaLista);
+    persistirCategoriasEnFirestore(nuevaLista);
     setCategoria(valor);
     setErrores(prev => ({ ...prev, categoria: '' }));
     setCategoriaFoco(false);
@@ -2351,6 +2402,7 @@ export default function InventarioPage() {
     const nuevaLista = [...new Set(listaActualizada)].sort((a, b) => a.localeCompare(b, 'es'));
 
     setCategoriasDisponibles(nuevaLista);
+    persistirCategoriasEnFirestore(nuevaLista);
     setCategoria(valor);
     setCategoriaEditando(null);
     setNombreCategoriaEditada('');
@@ -2361,6 +2413,7 @@ export default function InventarioPage() {
   const eliminarCategoria = (valor: string) => {
     const nuevaLista = categoriasDisponibles.filter(item => item !== valor);
     setCategoriasDisponibles(nuevaLista);
+    persistirCategoriasEnFirestore(nuevaLista);
     if (categoria === valor) setCategoria('');
     setCategoriaEditando(null);
     setNombreCategoriaEditada('');
@@ -2379,6 +2432,7 @@ export default function InventarioPage() {
     }
     const nuevaLista = [...new Set([...categoriasDisponibles, val])].sort((a, b) => a.localeCompare(b, 'es'));
     setCategoriasDisponibles(nuevaLista);
+    persistirCategoriasEnFirestore(nuevaLista);
     setNuevaCatModalInput('');
     toast.success(`Categoría "${val}" creada`, { icon: '🏷️' });
   };
@@ -2414,10 +2468,10 @@ export default function InventarioPage() {
         ));
       }
 
-      setCategoriasDisponibles(prev => {
-        const filtrada = prev.filter(c => c.toLowerCase() !== catVieja.toLowerCase());
-        return [...new Set([...filtrada, catNueva])].sort((a, b) => a.localeCompare(b, 'es'));
-      });
+      const filtrada = categoriasDisponibles.filter(c => c.toLowerCase() !== catVieja.toLowerCase());
+      const nuevaLista = [...new Set([...filtrada, catNueva])].sort((a, b) => a.localeCompare(b, 'es'));
+      setCategoriasDisponibles(nuevaLista);
+      persistirCategoriasEnFirestore(nuevaLista);
 
       if (categoria.toLowerCase() === catVieja.toLowerCase()) {
         setCategoria(catNueva);
@@ -2470,7 +2524,9 @@ export default function InventarioPage() {
         ));
       }
 
-      setCategoriasDisponibles(prev => prev.filter(c => c.toLowerCase() !== catAEliminar.toLowerCase()));
+      const nuevaLista = categoriasDisponibles.filter(c => c.toLowerCase() !== catAEliminar.toLowerCase());
+      setCategoriasDisponibles(nuevaLista);
+      persistirCategoriasEnFirestore(nuevaLista);
       if (categoria.toLowerCase() === catAEliminar.toLowerCase()) {
         setCategoria('General');
       }

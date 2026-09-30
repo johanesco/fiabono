@@ -252,6 +252,8 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
           avisoExpiracion,
           enPeriodoGracia,
           tipoNegocio: adminData.tipoNegocio || "Comercio",
+          rubroNegocio: adminData.rubroNegocio || "moda_ropa",
+          categoriasPersonalizadas: adminData.categoriasPersonalizadas || undefined,
           moduloSepareActivo: adminData.moduloSepareActivo !== false,
           slugNegocio: adminData.slugNegocio || "",
           datosUsuarioOriginales: data as UsuarioBD

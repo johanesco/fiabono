@@ -142,6 +142,8 @@ export interface UsuarioBD {
   horariosActividad?: any[];
   manualOverride?: boolean;
   tipoNegocio?: string;
+  rubroNegocio?: string;
+  categoriasPersonalizadas?: string[];
   moduloSepareActivo?: boolean;
   slugNegocio?: string;
   esCajaMostrador?: boolean;
@@ -229,6 +231,8 @@ export interface DatosSesionContext {
   enPeriodoGracia: boolean;
   datosUsuarioOriginales: UsuarioBD;
   tipoNegocio?: string;
+  rubroNegocio?: string;
+  categoriasPersonalizadas?: string[];
   moduloSepareActivo: boolean;
   slugNegocio?: string;
   esCajaMostrador?: boolean;
