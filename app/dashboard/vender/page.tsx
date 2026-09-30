@@ -97,6 +97,11 @@ function VenderContenido() {
   const [modoVisual, setModoVisual] = useState(false);
   const [categoriaVisualActiva, setCategoriaVisualActiva] = useState("Todas");
   const [busquedaVisual, setBusquedaVisual] = useState("");
+  const [limiteVisual, setLimiteVisual] = useState(36);
+
+  useEffect(() => {
+    setLimiteVisual(36);
+  }, [categoriaVisualActiva, busquedaVisual]);
 
   useEffect(() => {
     const guardado = localStorage.getItem('vender_modo_visual');
@@ -1668,7 +1673,7 @@ Estamos atentos para cualquier consulta.
 
         {/* Cuadrícula de Productos */}
         <div className="flex-1 overflow-y-auto p-3 sm:p-4 grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 xl:grid-cols-6 gap-3 content-start pb-24 lg:pb-4">
-          {productosFiltrados.map(prod => {
+          {productosFiltrados.slice(0, limiteVisual).map(prod => {
             const indexCarrito = filasRegistro.findIndex(f => f.descripcion.trim().toLowerCase() === (prod.nombre || "").toLowerCase());
             const cantidadCarrito = indexCarrito >= 0 ? filasRegistro[indexCarrito].cantidad : 0;
 
@@ -1743,6 +1748,18 @@ Estamos atentos para cualquier consulta.
           {productosFiltrados.length === 0 && (
             <div className="col-span-full py-10 text-center text-slate-400 text-sm font-bold">
               No se encontraron productos.
+            </div>
+          )}
+          {productosFiltrados.length > limiteVisual && (
+            <div className="col-span-full py-4 flex justify-center">
+              <button
+                type="button"
+                onClick={() => setLimiteVisual(prev => prev + 36)}
+                className="px-5 py-2.5 bg-white dark:bg-[#0f172a] hover:bg-emerald-50 dark:hover:bg-emerald-950/30 text-emerald-700 dark:text-emerald-400 font-black text-xs rounded-2xl border border-emerald-200 dark:border-emerald-800 shadow-sm transition-all active:scale-95 cursor-pointer flex items-center gap-2"
+              >
+                <span>Mostrar más productos (+36)</span>
+                <span className="text-[10px] text-slate-400 font-normal">({limiteVisual} de {productosFiltrados.length})</span>
+              </button>
             </div>
           )}
         </div>

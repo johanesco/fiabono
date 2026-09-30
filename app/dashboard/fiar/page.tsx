@@ -85,6 +85,11 @@ function FiarContenido() {
     const [modoVisual, setModoVisual] = useState(false);
     const [categoriaVisualActiva, setCategoriaVisualActiva] = useState("Todas");
     const [busquedaVisual, setBusquedaVisual] = useState("");
+    const [limiteVisual, setLimiteVisual] = useState(36);
+
+    useEffect(() => {
+        setLimiteVisual(36);
+    }, [categoriaVisualActiva, busquedaVisual]);
 
     useEffect(() => {
         const guardado = localStorage.getItem('fiar_modo_visual');
@@ -916,7 +921,7 @@ function FiarContenido() {
 
             {/* Cuadrícula de Productos */}
             <div className="flex-1 overflow-y-auto p-3 sm:p-4 grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 xl:grid-cols-6 gap-3 content-start pb-24 lg:pb-4">
-              {productosFiltrados.map(prod => {
+              {productosFiltrados.slice(0, limiteVisual).map(prod => {
                 const indexCarrito = filasRegistro.findIndex(f => f.descripcion.trim().toLowerCase() === (prod.nombre || "").toLowerCase());
                 const cantidadCarrito = indexCarrito >= 0 ? filasRegistro[indexCarrito].cantidad : 0;
 
@@ -991,6 +996,18 @@ function FiarContenido() {
               {productosFiltrados.length === 0 && (
                 <div className="col-span-full py-10 text-center text-slate-400 text-sm font-bold">
                   No se encontraron productos.
+                </div>
+              )}
+              {productosFiltrados.length > limiteVisual && (
+                <div className="col-span-full py-4 flex justify-center">
+                  <button
+                    type="button"
+                    onClick={() => setLimiteVisual(prev => prev + 36)}
+                    className="px-5 py-2.5 bg-white dark:bg-[#0f172a] hover:bg-rose-50 dark:hover:bg-rose-950/30 text-rose-700 dark:text-rose-400 font-black text-xs rounded-2xl border border-rose-200 dark:border-rose-800 shadow-sm transition-all active:scale-95 cursor-pointer flex items-center gap-2"
+                  >
+                    <span>Mostrar más productos (+36)</span>
+                    <span className="text-[10px] text-slate-400 font-normal">({limiteVisual} de {productosFiltrados.length})</span>
+                  </button>
                 </div>
               )}
             </div>
@@ -1624,17 +1641,6 @@ Estamos atentos para cualquier consulta.
                         </div>
                     )}
 
-                    {/* Toggle Modo Visual */}
-                    <button 
-                        type="button" 
-                        onClick={toggleModoVisual} 
-                        className="flex items-center gap-1.5 px-3 py-1.5 bg-white/20 hover:bg-white/30 dark:!bg-white/20 dark:hover:!bg-white/30 text-white rounded-xl font-bold text-xs transition-colors cursor-pointer border border-white/30"
-                        title={modoVisual ? "Cambiar a lista clásica" : "Cambiar a cuadrícula con fotos"}
-                    >
-                        {modoVisual ? <List size={15} className="shrink-0" /> : <LayoutGrid size={15} className="shrink-0" />} 
-                        <span className="hidden sm:inline">{modoVisual ? "Rápido" : "Visual"}</span>
-                    </button>
-
                     {/* Escanear QR */}
                     <button
                         onClick={abrirEscanner}
@@ -1642,7 +1648,18 @@ Estamos atentos para cualquier consulta.
                         title="Escanear Código QR"
                     >
                         <QrCode size={15} className="shrink-0" /> 
-                        <span>Escanear QR</span>
+                        <span>Escanear</span>
+                    </button>
+
+                    {/* Toggle Modo Visual */}
+                    <button 
+                        type="button" 
+                        onClick={toggleModoVisual} 
+                        className="bg-rose-800 text-rose-100 border border-rose-500/30 hover:bg-rose-700 px-2.5 sm:px-3 py-1.5 sm:py-2 rounded-xl font-black text-xs sm:text-sm flex items-center gap-1.5 shadow-md transition-transform active:scale-95 cursor-pointer shrink-0"
+                        title={modoVisual ? "Cambiar a lista clásica" : "Cambiar a cuadrícula con fotos"}
+                    >
+                        {modoVisual ? <List size={15} className="shrink-0" /> : <LayoutGrid size={15} className="shrink-0" />} 
+                        <span className="hidden sm:inline">{modoVisual ? "Rápido" : "Visual"}</span>
                     </button>
                 </div>
             </div>

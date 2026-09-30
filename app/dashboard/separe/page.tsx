@@ -248,6 +248,11 @@ function SepareContenido() {
   const [modoVisual, setModoVisual] = useState(false);
   const [categoriaVisualActiva, setCategoriaVisualActiva] = useState("Todas");
   const [busquedaVisual, setBusquedaVisual] = useState("");
+  const [limiteVisual, setLimiteVisual] = useState(36);
+
+  useEffect(() => {
+    setLimiteVisual(36);
+  }, [categoriaVisualActiva, busquedaVisual]);
 
   useEffect(() => {
     const guardado = localStorage.getItem('separe_modo_visual');
@@ -984,7 +989,7 @@ function SepareContenido() {
 
         {/* Cuadrícula de Productos */}
         <div className="flex-1 overflow-y-auto p-3 sm:p-4 grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 xl:grid-cols-6 gap-3 content-start pb-24 lg:pb-4">
-          {productosFiltrados.map(prod => {
+          {productosFiltrados.slice(0, limiteVisual).map(prod => {
             const indexCarrito = filas.findIndex(f => f.descripcion.trim().toLowerCase() === (prod.nombre || "").toLowerCase());
             const cantidadCarrito = indexCarrito >= 0 ? filas[indexCarrito].cantidad : 0;
 
@@ -1059,6 +1064,18 @@ function SepareContenido() {
           {productosFiltrados.length === 0 && (
             <div className="col-span-full py-10 text-center text-slate-400 text-sm font-bold">
               No se encontraron productos.
+            </div>
+          )}
+          {productosFiltrados.length > limiteVisual && (
+            <div className="col-span-full py-4 flex justify-center">
+              <button
+                type="button"
+                onClick={() => setLimiteVisual(prev => prev + 36)}
+                className="px-5 py-2.5 bg-white dark:bg-[#0f172a] hover:bg-purple-50 dark:hover:bg-purple-950/30 text-purple-700 dark:text-purple-400 font-black text-xs rounded-2xl border border-purple-200 dark:border-purple-800 shadow-sm transition-all active:scale-95 cursor-pointer flex items-center gap-2"
+              >
+                <span>Mostrar más productos (+36)</span>
+                <span className="text-[10px] text-slate-400 font-normal">({limiteVisual} de {productosFiltrados.length})</span>
+              </button>
             </div>
           )}
         </div>
@@ -2035,12 +2052,14 @@ Estamos atentos para cualquier consulta.
             title="Escanear producto con código de barras o QR"
           >
             <QrCode size={15} className="shrink-0" />
-            <span className="hidden sm:inline">Escanear QR</span>
+            <span>Escanear</span>
           </button>
+
+          {/* Toggle Modo Visual */}
           <button
             type="button"
             onClick={toggleModoVisual} 
-            className="bg-white/10 hover:bg-white/20 text-white border border-white/20 px-2.5 sm:px-3 py-1.5 sm:py-2 rounded-xl font-bold text-xs flex items-center gap-1.5 transition-transform active:scale-95 cursor-pointer shrink-0"
+            className="bg-violet-900 text-violet-100 border border-violet-500/30 hover:bg-violet-800 px-2.5 sm:px-3 py-1.5 sm:py-2 rounded-xl font-black text-xs sm:text-sm flex items-center gap-1.5 shadow-md transition-transform active:scale-95 cursor-pointer shrink-0"
             title={modoVisual ? "Cambiar a lista clásica" : "Cambiar a cuadrícula con fotos"}
           >
             {modoVisual ? <List size={15} className="shrink-0" /> : <LayoutGrid size={15} className="shrink-0" />} 
