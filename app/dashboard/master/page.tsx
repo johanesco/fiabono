@@ -40,13 +40,19 @@ export default function MasterPage() {
   });
 
   useEffect(() => {
-    // PROTECCIÓN ESTRICTA
-    if (datosSesion && datosSesion.correoNegocio !== 'johanescobar1@gmail.com') {
+    // PROTECCIÓN ULTRA ESTRICTA: Solo el email de login real johanescobar1@gmail.com (nunca un cajero ni un negocio con correo secundario)
+    const emailLogin = auth.currentUser?.email?.toLowerCase().trim();
+    const esMasterValido = (emailLogin === 'johanescobar1@gmail.com' || datosSesion?.email?.toLowerCase().trim() === 'johanescobar1@gmail.com') && 
+      datosSesion?.rol !== 'cajero' && 
+      (datosSesion?.tipoUsuario === 'principal' || datosSesion?.tipoUsuario === undefined);
+
+    if (datosSesion && !esMasterValido) {
+      toast.error("Acceso restringido al Administrador General.", { icon: "🛡️" });
       router.replace('/dashboard/inicio');
       return;
     }
 
-    if (datosSesion?.correoNegocio === 'johanescobar1@gmail.com') {
+    if (esMasterValido) {
       cargarDatos();
     }
   }, [datosSesion, router]);

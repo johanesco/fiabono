@@ -909,6 +909,16 @@ Muchas gracias por tu compra. Estamos atentos para cualquier consulta.
   }, [cuentaPrincipalId]);
 
   const ordenesFiltradas = ordenes.filter(ord => {
+    // 0. Regla de privacidad: Colaborador solo ve sus propias órdenes
+    const esColaborador = !esAdmin || datosSesion?.rol === 'cajero';
+    if (esColaborador) {
+      const nombreActual = (datosSesion?.nombreUsuario || '').trim().toLowerCase();
+      const nomColab = (ord.nombreColaborador || '').trim().toLowerCase();
+      const creador = ord.creadoPor || '';
+      const matchPropio = (nombreActual && nomColab === nombreActual) || (datosSesion?.uid && creador === datosSesion.uid);
+      if (!matchPropio) return false;
+    }
+
     // 1. Filtro por Tab de Estado
     if (filtroTab === 'pendientes' && ord.estado !== 'pendiente') return false;
     if (filtroTab === 'aprobadas' && ord.estado !== 'aprobado') return false;
@@ -929,7 +939,7 @@ Muchas gracias por tu compra. Estamos atentos para cualquier consulta.
     return true;
   });
 
-  const pendientesCount = ordenes.filter(o => o.estado === 'pendiente').length;
+  const pendientesCount = ordenesFiltradas.filter(o => o.estado === 'pendiente').length;
 
   // Aprobar y convertir en transacción real
   const aprobarOrden = async (orden: OrdenPendiente) => {
@@ -953,7 +963,7 @@ Muchas gracias por tu compra. Estamos atentos para cualquier consulta.
             .reduce((sum, it) => sum + it.cantidad, 0);
 
           if (totalRequerido > (pInv.stock || 0)) {
-            toast.error(`¡Sin stock suficiente de "${pInv.nombre}"! Solicitado: ${totalRequerido}, Quedan: ${pInv.stock || 0}`);
+            toast.error(`⚠️ ¡Sin stock suficiente de "${pInv.nombre}"! Solicitado: ${totalRequerido}, Disponibles: ${pInv.stock || 0}. Usa el botón "Editar" en la orden para ajustar las cantidades o sustituir productos antes de aprobarla.`, { duration: 6000 });
             setProcesandoId(null);
             return;
           }

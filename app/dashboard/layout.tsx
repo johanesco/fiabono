@@ -32,6 +32,11 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const puedeGestionarSepares = (esAdmin || datosSesion?.permisos?.planSepare === true) && moduloSepareActivo;
   const puedeVerCartera = esAdmin || (datosSesion?.puedeVerCartera === true) || (datosSesion?.permisos?.verCartera === true);
   const puedeVerReportes = esAdmin || (datosSesion?.puedeVerReportes === true) || (datosSesion?.permisos?.verReportes === true);
+  const esMaster = Boolean(
+    (auth?.usuarioFirebase?.email?.toLowerCase().trim() === 'johanescobar1@gmail.com' || datosSesion?.email?.toLowerCase().trim() === 'johanescobar1@gmail.com') && 
+    datosSesion?.rol !== 'cajero' && 
+    (datosSesion?.tipoUsuario === 'principal' || datosSesion?.tipoUsuario === undefined)
+  );
   // Función para reproducir sonido sutil de campana POS (Web Audio API)
   const reproducirSonidoOrden = () => {
     try {
@@ -289,7 +294,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         </nav>
 
         <div className="p-3 border-t border-slate-100 dark:border-slate-800/60 flex flex-col gap-1.5">
-          {datosSesion?.correoNegocio === 'johanescobar1@gmail.com' && (
+          {esMaster && (
             <button
               onClick={() => router.push('/dashboard/master')}
               title="Panel Maestro"
@@ -334,7 +339,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                   ordenesPendientesCount={ordenesPendientesCount}
                   puedeSepare={puedeSepare}
                   separesActivosCount={separesActivosCount}
-                  esMaster={datosSesion?.correoNegocio === 'johanescobar1@gmail.com'}
+                  esMaster={esMaster}
                 />
               </div>
             )}

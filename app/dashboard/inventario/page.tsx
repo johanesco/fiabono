@@ -714,6 +714,7 @@ export default function InventarioPage() {
         tipoProducto,
         categoria: categoria.trim() || 'General',
         inventariable: esInventariable,
+        imagen: imagenUrl || null,
         enCarga: true,
       };
 
@@ -727,6 +728,7 @@ export default function InventarioPage() {
     setPrecioVenta('');
     setCostoCompra('');
     setCategoria('');
+    setImagenUrl(null);
     setErrores({ nombre: '', categoria: '', stock: '', precio: '' });
   };
 
@@ -830,9 +832,10 @@ export default function InventarioPage() {
       const esInventariable = tipoProducto === 'producto' && inventariable;
 
       if (!nombre.trim()) erroresNuevos.nombre = 'El nombre del producto es obligatorio.';
-      if (!categoria.trim()) erroresNuevos.categoria = 'Selecciona o agrega una categoría.';
-      else if (!categoriasDisponibles.some(item => item.toLowerCase() === categoria.trim().toLowerCase())) {
-        erroresNuevos.categoria = 'Agrega esta categoría antes de continuar.';
+      if (!categoria.trim()) {
+        setCategoria('General');
+      } else if (!categoriasDisponibles.some(item => item.toLowerCase() === categoria.trim().toLowerCase())) {
+        setCategoriasDisponibles(prev => [...new Set([...prev, categoria.trim()])]);
       }
       if (esInventariable && stock.trim() === '') erroresNuevos.stock = 'El stock es obligatorio para productos físicos.';
       if (!precioVenta) erroresNuevos.precio = 'El precio de venta es obligatorio.';

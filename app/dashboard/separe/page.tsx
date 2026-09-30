@@ -975,8 +975,8 @@ function SepareContenido() {
                     agregarProductoVisual(prod);
                   }}
                 >
-                  {prod.imagenUrl || prod.fotoUrl ? (
-                    <img src={prod.imagenUrl || prod.fotoUrl} alt={prod.nombre} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
+                  {(prod.imagen || prod.imagenUrl || prod.fotoUrl) ? (
+                    <img src={prod.imagen || prod.imagenUrl || prod.fotoUrl} alt={prod.nombre} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
                   ) : (
                     <span className="text-3xl font-black text-slate-300 dark:text-slate-700 tracking-tighter">
                       {prod.nombre ? prod.nombre.substring(0, 2).toUpperCase() : '??'}

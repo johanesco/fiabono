@@ -908,8 +908,8 @@ function FiarContenido() {
                         agregarProductoVisual(prod);
                       }}
                     >
-                      {prod.imagen ? (
-                        <img src={prod.imagen} alt={prod.nombre} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
+                      {(prod.imagen || (prod as any).fotoUrl || (prod as any).imagenUrl) ? (
+                        <img src={prod.imagen || (prod as any).fotoUrl || (prod as any).imagenUrl} alt={prod.nombre} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
                       ) : (
                         <span className="text-3xl font-black text-slate-300 dark:text-slate-700 tracking-tighter">
                           {prod.nombre ? prod.nombre.substring(0, 2).toUpperCase() : '??'}
