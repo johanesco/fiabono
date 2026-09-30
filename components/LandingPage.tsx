@@ -418,62 +418,47 @@ export default function LandingPage() {
 
     setGuardandoGoogleOnboarding(true);
     try {
-      let planFinal = codigoAplicado ? codigoAplicado.planOtorgado : formGoogleOnboarding.plan;
-      let diasOtorgados = codigoAplicado ? codigoAplicado.diasOtorgados : (planFinal !== 'gratis' ? 14 : null);
-      let fechaVence: Date | null = null;
-      if (diasOtorgados) {
-        const d = new Date();
-        d.setDate(d.getDate() + diasOtorgados);
-        fechaVence = d;
+      if (!auth.currentUser) {
+        throw new Error("No hay una sesión activa de Google. Por favor intenta iniciar sesión de nuevo.");
       }
 
-      const uidActual = auth.currentUser?.uid || googleUserPendiente.uid;
-      const userDocRef = doc(db, "usuarios", uidActual);
-      const slugBase = generarSlugNegocio(formGoogleOnboarding.nombreNegocio.trim());
-      const slugAsignado = `${slugBase}${Math.floor(100 + Math.random() * 900)}`;
+      const idToken = await auth.currentUser.getIdToken(true);
 
-      await setDoc(userDocRef, {
-        nombreUsuario: formGoogleOnboarding.nombreUsuario.trim() || (googleUserPendiente.nombre || "Comerciante"),
-        nombreNegocio: formGoogleOnboarding.nombreNegocio.trim(),
-        slugNegocio: slugAsignado,
-        tipoNegocio: formGoogleOnboarding.tipoNegocio,
-        moduloSepareActivo: formGoogleOnboarding.moduloSepare,
-        email: googleUserPendiente.email || auth.currentUser?.email || "",
-        telefonoNegocio: formGoogleOnboarding.telefonoNegocio.trim(),
-        rol: "admin",
-        plan: planFinal,
-        planVence: fechaVence,
-        cicloPlan: cicloFacturacion,
-        creadoCon: "google",
-        terminosAceptados: true,
-        fechaAceptacionTerminos: new Date(),
-        fechaRegistro: new Date(),
-        ...(codigoAplicado ? { codigoPromocionalUsado: codigoAplicado.codigo } : {})
+      const resp = await fetch('/api/auth/completar-onboarding', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${idToken}`
+        },
+        body: JSON.stringify({
+          nombreUsuario: formGoogleOnboarding.nombreUsuario.trim() || (googleUserPendiente.nombre || "Comerciante"),
+          nombreNegocio: formGoogleOnboarding.nombreNegocio.trim(),
+          tipoNegocio: formGoogleOnboarding.tipoNegocio,
+          moduloSepare: formGoogleOnboarding.moduloSepare,
+          telefonoNegocio: formGoogleOnboarding.telefonoNegocio.trim(),
+          plan: formGoogleOnboarding.plan,
+          cicloPlan: cicloFacturacion,
+          codigoPromocional: codigoAplicado ? codigoAplicado.codigo : undefined
+        })
       });
 
-      if (codigoAplicado && codigoAplicado.unSoloUso) {
-        try {
-          await updateDoc(doc(db, "codigos_promocionales", codigoAplicado.codigo), {
-            activo: false,
-            usadoPor: googleUserPendiente.uid,
-            fechaUso: new Date()
-          });
-        } catch (e) {
-          console.error("Error al desactivar código promocional en Google:", e);
-        }
+      const data = await resp.json();
+      if (!resp.ok || !data.ok) {
+        throw new Error(data.error || "Ocurrió un error al crear tu negocio.");
       }
 
       setModalGoogleOnboarding(false);
       setGoogleUserPendiente(null);
       // Marcamos para que el dashboard de inicio le muestre el tour de bienvenida al llegar
       if (typeof window !== 'undefined') {
+        sessionStorage.removeItem('fiabono_registro_temp');
         localStorage.setItem('fiabono_mostrar_tour', 'true');
       }
       // Redirigir de inmediato al dashboard
       window.location.href = "/dashboard/inicio";
     } catch (err: any) {
       console.error("Error guardando negocio Google:", err);
-      setErrorGoogleOnboarding("Ocurrió un error al crear tu negocio. Intenta nuevamente.");
+      setErrorGoogleOnboarding(err.message || "Ocurrió un error al crear tu negocio. Intenta nuevamente.");
     } finally {
       setGuardandoGoogleOnboarding(false);
     }
