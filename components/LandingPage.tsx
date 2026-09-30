@@ -46,7 +46,7 @@ export default function LandingPage() {
   const [formGoogleOnboarding, setFormGoogleOnboarding] = useState({
     nombreUsuario: "",
     nombreNegocio: "",
-    tipoNegocio: "Moda y Ropa",
+    tipoNegocio: "",
     telefonoNegocio: "",
     moduloSepare: true,
     plan: 'comercio' as 'gratis' | 'comercio' | 'pro'
@@ -300,7 +300,7 @@ export default function LandingPage() {
       setFormGoogleOnboarding({
         nombreUsuario: nombreSugerido,
         nombreNegocio: negocioSugerido,
-        tipoNegocio: "Moda y Ropa",
+        tipoNegocio: "",
         telefonoNegocio: "",
         moduloSepare: true,
         plan: codigoAplicado ? codigoAplicado.planOtorgado : (planSeleccionadoRegistro || 'comercio')
@@ -2662,6 +2662,10 @@ export default function LandingPage() {
                     onClick={() => {
                       if (!formGoogleOnboarding.nombreNegocio.trim()) {
                         setErrorGoogleOnboarding("Por favor ingresa el nombre de tu negocio.");
+                        return;
+                      }
+                      if (!formGoogleOnboarding.tipoNegocio) {
+                        setErrorGoogleOnboarding("Por favor selecciona el tipo de negocio.");
                         return;
                       }
                       if (!formGoogleOnboarding.telefonoNegocio.trim()) {

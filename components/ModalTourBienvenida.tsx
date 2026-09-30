@@ -31,7 +31,7 @@ export default function ModalTourBienvenida({
   onGuardarCategorias
 }: Props) {
   const [paso, setPaso] = useState(1);
-  const [rubrosSeleccionadosIds, setRubrosSeleccionadosIds] = useState<string[]>(["moda_ropa"]);
+  const [rubrosSeleccionadosIds, setRubrosSeleccionadosIds] = useState<string[]>([]);
   const [guardandoRubro, setGuardandoRubro] = useState(false);
   const router = useRouter();
 
@@ -55,8 +55,10 @@ export default function ModalTourBienvenida({
         const guardadoSimple = localStorage.getItem('fiabono_rubro_negocio');
         if (guardadoSimple && RUBROS_NEGOCIOS.some(r => r.id === guardadoSimple)) {
           setRubrosSeleccionadosIds([guardadoSimple]);
+          return;
         }
       } catch (e) {}
+      setRubrosSeleccionadosIds([]);
     }
   }, [isOpen]);
 
@@ -65,10 +67,6 @@ export default function ModalTourBienvenida({
   const alternarRubro = (id: string) => {
     setRubrosSeleccionadosIds(prev => {
       if (prev.includes(id)) {
-        if (prev.length === 1) {
-          toast.error("Selecciona al menos un tipo de negocio.");
-          return prev;
-        }
         return prev.filter(item => item !== id);
       } else {
         return [...prev, id];
@@ -77,9 +75,11 @@ export default function ModalTourBienvenida({
   };
 
   const guardarConfiguracionRubros = async () => {
+    if (rubrosSeleccionadosIds.length === 0) return;
     try {
+      const rubroPrincipal = rubrosSeleccionadosIds[0] || 'moda_ropa';
       if (typeof window !== 'undefined') {
-        localStorage.setItem('fiabono_rubro_negocio', rubrosSeleccionadosIds[0] || 'moda_ropa');
+        localStorage.setItem('fiabono_rubro_negocio', rubroPrincipal);
         localStorage.setItem('fiabono_rubros_negocio', JSON.stringify(rubrosSeleccionadosIds));
         localStorage.setItem(`fiabono_categorias_${cuentaPrincipalId || 'local'}`, JSON.stringify(categoriasCombinadas));
       }
@@ -87,7 +87,7 @@ export default function ModalTourBienvenida({
       if (cuentaPrincipalId) {
         setGuardandoRubro(true);
         await updateDoc(doc(db, "usuarios", cuentaPrincipalId), {
-          rubroNegocio: rubrosSeleccionadosIds[0] || 'moda_ropa',
+          rubroNegocio: rubroPrincipal,
           rubrosNegocio: rubrosSeleccionadosIds,
           categoriasPersonalizadas: categoriasCombinadas,
           fechaConfiguracionRubro: new Date()
@@ -95,7 +95,7 @@ export default function ModalTourBienvenida({
       }
 
       if (onGuardarCategorias) {
-        onGuardarCategorias(rubrosSeleccionadosIds[0] || 'moda_ropa', categoriasCombinadas);
+        onGuardarCategorias(rubroPrincipal, categoriasCombinadas);
       }
     } catch (e) {
       console.warn("No se pudo guardar rubro en Firestore (se mantiene local):", e);
@@ -108,6 +108,10 @@ export default function ModalTourBienvenida({
 
   const irSiguiente = async () => {
     if (paso === 1) {
+      if (rubrosSeleccionadosIds.length === 0) {
+        toast.error("Por favor selecciona al menos un tipo de negocio para continuar.");
+        return;
+      }
       await guardarConfiguracionRubros();
     }
     if (paso < totalPasos) {
@@ -233,14 +237,20 @@ export default function ModalTourBienvenida({
                 </div>
 
                 <div className="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto no-scrollbar pt-0.5">
-                  {categoriasCombinadas.map((cat, idx) => (
-                    <span 
-                      key={idx}
-                      className="px-2.5 py-1 rounded-xl text-xs font-bold bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 shadow-2xs animate-in zoom-in-95 duration-150"
-                    >
-                      {cat}
-                    </span>
-                  ))}
+                  {categoriasCombinadas.length === 0 ? (
+                    <div className="w-full py-4 text-center text-xs font-bold text-slate-400">
+                      Selecciona uno o más rubros arriba para ver tus categorías sugeridas.
+                    </div>
+                  ) : (
+                    categoriasCombinadas.map((cat, idx) => (
+                      <span 
+                        key={idx}
+                        className="px-2.5 py-1 rounded-xl text-xs font-bold bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 shadow-2xs animate-in zoom-in-95 duration-150"
+                      >
+                        {cat}
+                      </span>
+                    ))
+                  )}
                 </div>
 
                 {/* Nota Amigable y Tranquilizadora */}
@@ -507,8 +517,8 @@ export default function ModalTourBienvenida({
               <button
                 type="button"
                 onClick={irSiguiente}
-                disabled={guardandoRubro}
-                className="flex-1 flex items-center justify-center gap-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-black text-sm py-3.5 sm:py-4 rounded-2xl shadow-xl shadow-blue-600/25 transition-all transform active:scale-95 cursor-pointer"
+                disabled={guardandoRubro || (paso === 1 && rubrosSeleccionadosIds.length === 0)}
+                className="flex-1 flex items-center justify-center gap-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-black text-sm py-3.5 sm:py-4 rounded-2xl shadow-xl shadow-blue-600/25 transition-all transform active:scale-95 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <span>Siguiente</span>
                 <ArrowRight size={18}/>
