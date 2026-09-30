@@ -1,5 +1,5 @@
 "use client";
-import React, { useState } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import { signInWithEmailAndPassword, createUserWithEmailAndPassword, signInWithPopup, signInWithRedirect, getRedirectResult, onAuthStateChanged, browserLocalPersistence, setPersistence, GoogleAuthProvider, signOut } from "firebase/auth";
 import { doc, getDoc, getDocFromServer, setDoc, updateDoc, collection, query, where, getDocs, limit } from "firebase/firestore";
 import { auth, db } from "../firebase";
@@ -20,6 +20,10 @@ import LogoFiabono, { IsotipoFiabono } from "@/components/LogoFiabono";
 export default function LandingPage() {
   const [modalLandingInfo, setModalLandingInfo] = useState<{ visible: boolean, tipo: 'login' | 'registro' | null }>({ visible: false, tipo: null });
   const [authForm, setAuthForm] = useState({ email: "", password: "", confirmPassword: "", nombreUsuario: "", negocio: "" });
+  const authFormRef = useRef(authForm);
+  useEffect(() => {
+    authFormRef.current = authForm;
+  }, [authForm]);
   const [authErrores, setAuthErrores] = useState({ email: "", password: "", confirmPassword: "", general: "" });
   const [cicloFacturacion, setCicloFacturacion] = useState<'mensual' | 'anual'>('mensual');
   const [planSeleccionadoRegistro, setPlanSeleccionadoRegistro] = useState<'gratis' | 'comercio' | 'pro'>('gratis');
@@ -268,8 +272,22 @@ export default function LandingPage() {
     }
 
     if (!userDocSnap.exists()) {
-      const nombreSugerido = authForm.nombreUsuario.trim() || user.displayName || "";
-      const negocioSugerido = authForm.negocio.trim() || "";
+      let nombreGuardado = (authFormRef.current?.nombreUsuario || "").trim();
+      let negocioGuardado = (authFormRef.current?.negocio || "").trim();
+
+      if (!nombreGuardado || !negocioGuardado) {
+        try {
+          const raw = typeof window !== 'undefined' ? sessionStorage.getItem('fiabono_registro_temp') : null;
+          if (raw) {
+            const parsed = JSON.parse(raw);
+            if (!nombreGuardado && parsed.nombreUsuario) nombreGuardado = String(parsed.nombreUsuario).trim();
+            if (!negocioGuardado && parsed.negocio) negocioGuardado = String(parsed.negocio).trim();
+          }
+        } catch (e) {}
+      }
+
+      const nombreSugerido = nombreGuardado || user.displayName || "";
+      const negocioSugerido = negocioGuardado || "";
 
       setGoogleUserPendiente({
         uid: user.uid,
@@ -330,6 +348,15 @@ export default function LandingPage() {
     setAuthErrores({ email: "", password: "", confirmPassword: "", general: "" });
     setCargandoGoogle(true);
     try {
+      if (typeof window !== 'undefined') {
+        try {
+          sessionStorage.setItem('fiabono_registro_temp', JSON.stringify({
+            nombreUsuario: authForm.nombreUsuario,
+            negocio: authForm.negocio
+          }));
+        } catch (e) {}
+      }
+
       const provider = new GoogleAuthProvider();
       provider.setCustomParameters({ prompt: 'select_account' });
       await setPersistence(auth, browserLocalPersistence);
@@ -2155,7 +2182,15 @@ export default function LandingPage() {
                       type="text" 
                       placeholder="Ej. Juan Pérez" 
                       value={authForm.nombreUsuario} 
-                      onChange={e => {setAuthForm({...authForm, nombreUsuario: e.target.value}); setAuthErrores({...authErrores, general: ""})}} 
+                      onChange={e => {
+                        const val = e.target.value;
+                        setAuthForm(p => {
+                          const n = {...p, nombreUsuario: val};
+                          try { sessionStorage.setItem('fiabono_registro_temp', JSON.stringify({ nombreUsuario: val, negocio: p.negocio })); } catch(err){}
+                          return n;
+                        });
+                        setAuthErrores(p => ({...p, general: ""}));
+                      }} 
                       className="w-full p-3.5 bg-slate-50 dark:bg-[#020617] border border-slate-200 dark:border-slate-800 rounded-xl outline-none focus:border-blue-500 dark:text-white font-bold text-sm" 
                     /> 
                   </div>
@@ -2165,7 +2200,15 @@ export default function LandingPage() {
                       type="text" 
                       placeholder="Ej. Tienda Los Álamos" 
                       value={authForm.negocio} 
-                      onChange={e => {setAuthForm({...authForm, negocio: e.target.value}); setAuthErrores({...authErrores, general: ""})}} 
+                      onChange={e => {
+                        const val = e.target.value;
+                        setAuthForm(p => {
+                          const n = {...p, negocio: val};
+                          try { sessionStorage.setItem('fiabono_registro_temp', JSON.stringify({ nombreUsuario: p.nombreUsuario, negocio: val })); } catch(err){}
+                          return n;
+                        });
+                        setAuthErrores(p => ({...p, general: ""}));
+                      }} 
                       className="w-full p-3.5 bg-slate-50 dark:bg-[#020617] border border-slate-200 dark:border-slate-800 rounded-xl outline-none focus:border-blue-500 dark:text-white font-bold text-sm" 
                     /> 
                   </div>
