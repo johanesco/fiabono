@@ -1,7 +1,7 @@
 "use client";
 import { useState, useEffect, Suspense, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { collection, addDoc, getDocs, query, where, Timestamp, doc, updateDoc, increment } from "firebase/firestore";
+import { collection, addDoc, getDocs, getDoc, query, where, Timestamp, doc, updateDoc, increment } from "firebase/firestore";
 import { auth, db } from "../../../firebase";
 import { 
   Camera, X, Plus, Minus, ArrowLeft, Bookmark, Calendar, 
@@ -92,37 +92,60 @@ function SepareContenido() {
     const cargarVendedores = async () => {
       try {
         const nombres: string[] = [];
-        if (nombreUsuario) nombres.push(nombreUsuario);
 
-        // 1. Consultar colaboradores creados en Perfil (adminId == cuentaPrincipalId)
+        // 1. Obtener el nombre del Administrador / Dueño del negocio desde su documento
+        try {
+          const snapAdminDoc = await getDoc(doc(db, "usuarios", cuentaPrincipalId));
+          if (snapAdminDoc.exists()) {
+            const dataAdmin = snapAdminDoc.data();
+            const nomAdmin = dataAdmin.nombreUsuario || dataAdmin.nombreNegocio || "Administrador";
+            if (nomAdmin && !nomAdmin.toLowerCase().includes('multivendedor') && !nomAdmin.toLowerCase().includes('caja mostrador') && !nombres.includes(nomAdmin)) {
+              nombres.push(nomAdmin);
+            }
+          }
+        } catch (e) {}
+
+        // 2. Si el usuario actual es un usuario regular (no terminal), incluirlo
+        const esUsuarioTerminal = datosSesion?.esCajaMostrador || datosSesion?.esTerminalMultivendedor || (nombreUsuario && (nombreUsuario.toLowerCase().includes('multivendedor') || nombreUsuario.toLowerCase().includes('caja mostrador')));
+        if (nombreUsuario && !esUsuarioTerminal && !nombres.includes(nombreUsuario)) {
+          nombres.push(nombreUsuario);
+        }
+
+        // 3. Consultar colaboradores creados en Perfil (adminId == cuentaPrincipalId)
         try {
           const qAdmin = query(collection(db, "usuarios"), where("adminId", "==", cuentaPrincipalId));
           const snapAdmin = await getDocs(qAdmin);
           snapAdmin.forEach(d => {
             const u = d.data();
-            if (u.activo === false) return;
+            if (u.activo === false || u.esCajaMostrador === true || u.esTerminalMultivendedor === true) return;
             const nom = u.nombreUsuario || u.nombre || u.nombreColaborador;
-            if (nom && !nombres.includes(nom)) {
+            if (nom && !nom.toLowerCase().includes('multivendedor') && !nom.toLowerCase().includes('caja mostrador') && !nombres.includes(nom)) {
               nombres.push(nom);
             }
           });
         } catch (e) {}
 
-        // 2. Consultar usuarios donde cuentaPrincipalId == cuentaPrincipalId
+        // 4. Consultar usuarios donde cuentaPrincipalId == cuentaPrincipalId
         try {
           const qUsers = query(collection(db, "usuarios"), where("cuentaPrincipalId", "==", cuentaPrincipalId));
           const snapU = await getDocs(qUsers);
           snapU.forEach(d => {
             const u = d.data();
-            if (u.activo === false) return;
+            if (u.activo === false || u.esCajaMostrador === true || u.esTerminalMultivendedor === true) return;
             const nom = u.nombreUsuario || u.nombre || u.nombreColaborador;
-            if (nom && !nombres.includes(nom)) {
+            if (nom && !nom.toLowerCase().includes('multivendedor') && !nom.toLowerCase().includes('caja mostrador') && !nombres.includes(nom)) {
               nombres.push(nom);
             }
           });
         } catch (e) {}
 
-        setListaVendedores(nombres.length > 0 ? nombres : [nombreUsuario || "Vendedor"]);
+        const listaFinal = nombres.length > 0 ? nombres : [nombreUsuario || "Vendedor"];
+        setListaVendedores(listaFinal);
+
+        // Si es la Terminal Multivendedor / Caja Mostrador y el vendedor activo actual es 'Caja Mostrador' o 'Multivendedor', cambiarlo al primer vendedor real
+        if (esUsuarioTerminal && listaFinal.length > 0 && (!vendedorActivo || vendedorActivo.toLowerCase().includes("caja mostrador") || vendedorActivo.toLowerCase().includes("multivendedor"))) {
+          setVendedorActivo(listaFinal[0]);
+        }
       } catch (e) {
         console.error("Error al cargar vendedores:", e);
       }

@@ -1,7 +1,7 @@
 "use client";
 import { useState, useEffect, Suspense, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { collection, addDoc, getDocs, query, doc, updateDoc, where, increment, writeBatch } from "firebase/firestore";
+import { collection, addDoc, getDocs, getDoc, query, doc, updateDoc, where, increment, writeBatch } from "firebase/firestore";
 import { auth, db } from "../../../firebase";
 import { Search, ShoppingBag, CheckCircle2, ChevronRight, X, AlertCircle, UserCog, Plus, Minus, ArrowLeft, ArrowRight, MessageCircle, Package, QrCode, Volume2, Printer, ChevronDown, ChevronUp, Tag, Receipt, Pause, FolderOpen, User, UserPlus, Trash2, LayoutGrid, List, ShoppingCart } from 'lucide-react';
 import { useAuth } from "@/hooks/AuthContext";
@@ -422,37 +422,60 @@ function FiarContenido() {
         const cargarVendedores = async () => {
             try {
                 const nombres: string[] = [];
-                if (nombreUsuario) nombres.push(nombreUsuario);
 
-                // 1. Consultar colaboradores creados en Perfil (adminId == cuentaPrincipalId)
+                // 1. Obtener el nombre del Administrador / Dueño del negocio desde su documento
+                try {
+                    const snapAdminDoc = await getDoc(doc(db, "usuarios", cuentaPrincipalId));
+                    if (snapAdminDoc.exists()) {
+                        const dataAdmin = snapAdminDoc.data();
+                        const nomAdmin = dataAdmin.nombreUsuario || dataAdmin.nombreNegocio || "Administrador";
+                        if (nomAdmin && !nomAdmin.toLowerCase().includes('multivendedor') && !nomAdmin.toLowerCase().includes('caja mostrador') && !nombres.includes(nomAdmin)) {
+                            nombres.push(nomAdmin);
+                        }
+                    }
+                } catch (e) {}
+
+                // 2. Si el usuario actual es un usuario regular (no terminal), incluirlo
+                const esUsuarioTerminal = datosSesion?.esCajaMostrador || datosSesion?.esTerminalMultivendedor || (nombreUsuario && (nombreUsuario.toLowerCase().includes('multivendedor') || nombreUsuario.toLowerCase().includes('caja mostrador')));
+                if (nombreUsuario && !esUsuarioTerminal && !nombres.includes(nombreUsuario)) {
+                    nombres.push(nombreUsuario);
+                }
+
+                // 3. Consultar colaboradores creados en Perfil (adminId == cuentaPrincipalId)
                 try {
                     const qAdmin = query(collection(db, "usuarios"), where("adminId", "==", cuentaPrincipalId));
                     const snapAdmin = await getDocs(qAdmin);
                     snapAdmin.forEach(d => {
                         const u = d.data();
-                        if (u.activo === false) return;
+                        if (u.activo === false || u.esCajaMostrador === true || u.esTerminalMultivendedor === true) return;
                         const nom = u.nombreUsuario || u.nombre || u.nombreColaborador;
-                        if (nom && !nombres.includes(nom)) {
+                        if (nom && !nom.toLowerCase().includes('multivendedor') && !nom.toLowerCase().includes('caja mostrador') && !nombres.includes(nom)) {
                             nombres.push(nom);
                         }
                     });
                 } catch (e) {}
 
-                // 2. Consultar usuarios donde cuentaPrincipalId == cuentaPrincipalId
+                // 4. Consultar usuarios donde cuentaPrincipalId == cuentaPrincipalId
                 try {
                     const qUsers = query(collection(db, "usuarios"), where("cuentaPrincipalId", "==", cuentaPrincipalId));
                     const snapU = await getDocs(qUsers);
                     snapU.forEach(d => {
                         const u = d.data();
-                        if (u.activo === false) return;
+                        if (u.activo === false || u.esCajaMostrador === true || u.esTerminalMultivendedor === true) return;
                         const nom = u.nombreUsuario || u.nombre || u.nombreColaborador;
-                        if (nom && !nombres.includes(nom)) {
+                        if (nom && !nom.toLowerCase().includes('multivendedor') && !nom.toLowerCase().includes('caja mostrador') && !nombres.includes(nom)) {
                             nombres.push(nom);
                         }
                     });
                 } catch (e) {}
 
-                setListaVendedores(nombres.length > 0 ? nombres : [nombreUsuario || "Vendedor"]);
+                const listaFinal = nombres.length > 0 ? nombres : [nombreUsuario || "Vendedor"];
+                setListaVendedores(listaFinal);
+
+                // Si es la Terminal Multivendedor / Caja Mostrador y el vendedor activo actual es 'Caja Mostrador' o 'Multivendedor', cambiarlo al primer vendedor real
+                if (esUsuarioTerminal && listaFinal.length > 0 && (!vendedorActivo || vendedorActivo.toLowerCase().includes("caja mostrador") || vendedorActivo.toLowerCase().includes("multivendedor"))) {
+                    setVendedorActivo(listaFinal[0]);
+                }
             } catch (e) {
                 console.error("Error al cargar vendedores:", e);
             }
@@ -2143,28 +2166,7 @@ Estamos atentos para cualquier consulta.
                 </div>
             </div>
 
-            {/* BARRA INFERIOR DOCKED EN TABLETS VERTICALES (768px - 1023px) - EVITA ESPACIOS VACÍOS Y ANCLA AL BORDE INFERIOR */}
-            <div className="hidden md:flex lg:hidden bg-slate-900 dark:bg-black text-white px-5 sm:px-6 py-3.5 shrink-0 border-t border-slate-800 z-30 items-center justify-between gap-4">
-                <div className="flex items-center gap-3 sm:gap-4 min-w-0">
-                    <div className="flex flex-col">
-                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Monto a Fiar</span>
-                        <span className="text-2xl sm:text-3xl font-black text-rose-400 leading-none">${totalFilasRegistro.toLocaleString('es-CO')}</span>
-                    </div>
-                    {montoDescuentoTotal > 0 && (
-                        <span className="text-[11px] font-bold text-rose-400 bg-rose-950/80 border border-rose-800/60 px-2 py-1 rounded-lg truncate">
-                            -${montoDescuentoTotal.toLocaleString('es-CO')} Dto
-                        </span>
-                    )}
-                </div>
 
-                <button 
-                    onClick={procesarRegistro} 
-                    disabled={guardandoFiado}
-                    className={`min-w-[190px] sm:min-w-[240px] ${puedeVentaDirecta ? 'bg-rose-600 hover:bg-rose-700' : 'bg-amber-500 hover:bg-amber-600'} ${guardandoFiado ? 'opacity-50 cursor-not-allowed' : 'active:scale-95 cursor-pointer'} text-white font-black text-base py-3 px-5 rounded-xl shadow-lg flex justify-center items-center gap-2 transition-all`}
-                >
-                    <span>{guardandoFiado ? "Procesando..." : (puedeVentaDirecta ? 'Fiar' : 'Enviar Orden')}</span> {puedeVentaDirecta ? <CheckCircle2 size={19}/> : <Receipt size={19}/>}
-                </button>
-            </div>
 
             {/* BARRAS FLOTANTES MÓVIL */}
             {pasoMovil === 'articulos' && (

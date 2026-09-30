@@ -1,7 +1,7 @@
 "use client";
 import { useState, useEffect, Suspense, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { collection, addDoc, getDocs, query, doc, updateDoc, where, increment, writeBatch } from "firebase/firestore";
+import { collection, addDoc, getDocs, getDoc, query, doc, updateDoc, where, increment, writeBatch } from "firebase/firestore";
 import { auth, db } from "../../../firebase";
 import { Search, ShoppingCart, CheckCircle2, ChevronRight, X, AlertCircle, UserCog, Plus, Minus, ArrowLeft, MessageCircle, Banknote, Package, QrCode, Volume2, Printer, Smartphone, CreditCard, Zap, Receipt, ChevronDown, ChevronUp, Tag, Percent, Pause, FolderOpen, User, Trash2, Store, Wallet, LayoutGrid, List } from 'lucide-react';
 import { useAuth } from "@/hooks/AuthContext";
@@ -485,31 +485,48 @@ function VenderContenido() {
     const cargarVendedores = async () => {
       try {
         const nombres: string[] = [];
-        if (nombreUsuario && !datosSesion?.esCajaMostrador) nombres.push(nombreUsuario);
 
-        // 1. Consultar colaboradores creados en Perfil (adminId == cuentaPrincipalId)
+        // 1. Obtener el nombre del Administrador / Dueño del negocio desde su documento
+        try {
+          const snapAdminDoc = await getDoc(doc(db, "usuarios", cuentaPrincipalId));
+          if (snapAdminDoc.exists()) {
+            const dataAdmin = snapAdminDoc.data();
+            const nomAdmin = dataAdmin.nombreUsuario || dataAdmin.nombreNegocio || "Administrador";
+            if (nomAdmin && !nomAdmin.toLowerCase().includes('multivendedor') && !nomAdmin.toLowerCase().includes('caja mostrador') && !nombres.includes(nomAdmin)) {
+              nombres.push(nomAdmin);
+            }
+          }
+        } catch (e) {}
+
+        // 2. Si el usuario actual es un usuario regular (no terminal), incluirlo
+        const esUsuarioTerminal = datosSesion?.esCajaMostrador || datosSesion?.esTerminalMultivendedor || (nombreUsuario && (nombreUsuario.toLowerCase().includes('multivendedor') || nombreUsuario.toLowerCase().includes('caja mostrador')));
+        if (nombreUsuario && !esUsuarioTerminal && !nombres.includes(nombreUsuario)) {
+          nombres.push(nombreUsuario);
+        }
+
+        // 3. Consultar colaboradores creados en Perfil (adminId == cuentaPrincipalId)
         try {
           const qAdmin = query(collection(db, "usuarios"), where("adminId", "==", cuentaPrincipalId));
           const snapAdmin = await getDocs(qAdmin);
           snapAdmin.forEach(d => {
             const u = d.data();
-            if (u.activo === false || u.esCajaMostrador === true) return;
+            if (u.activo === false || u.esCajaMostrador === true || u.esTerminalMultivendedor === true) return;
             const nom = u.nombreUsuario || u.nombre || u.nombreColaborador;
-            if (nom && !nombres.includes(nom)) {
+            if (nom && !nom.toLowerCase().includes('multivendedor') && !nom.toLowerCase().includes('caja mostrador') && !nombres.includes(nom)) {
               nombres.push(nom);
             }
           });
         } catch (e) {}
 
-        // 2. Consultar usuarios donde cuentaPrincipalId == cuentaPrincipalId
+        // 4. Consultar usuarios donde cuentaPrincipalId == cuentaPrincipalId
         try {
           const qUsers = query(collection(db, "usuarios"), where("cuentaPrincipalId", "==", cuentaPrincipalId));
           const snapU = await getDocs(qUsers);
           snapU.forEach(d => {
             const u = d.data();
-            if (u.activo === false || u.esCajaMostrador === true) return;
+            if (u.activo === false || u.esCajaMostrador === true || u.esTerminalMultivendedor === true) return;
             const nom = u.nombreUsuario || u.nombre || u.nombreColaborador;
-            if (nom && !nombres.includes(nom)) {
+            if (nom && !nom.toLowerCase().includes('multivendedor') && !nom.toLowerCase().includes('caja mostrador') && !nombres.includes(nom)) {
               nombres.push(nom);
             }
           });
@@ -518,8 +535,8 @@ function VenderContenido() {
         const listaFinal = nombres.length > 0 ? nombres : [nombreUsuario || "Vendedor"];
         setListaVendedores(listaFinal);
 
-        // Si es la Caja Mostrador y el vendedor activo actual es 'Caja Mostrador', cambiarlo al primer vendedor real
-        if (datosSesion?.esCajaMostrador && listaFinal.length > 0 && (!vendedorActivo || vendedorActivo === "Caja Mostrador")) {
+        // Si es la Terminal Multivendedor / Caja Mostrador y el vendedor activo actual es 'Caja Mostrador' o 'Multivendedor', cambiarlo al primer vendedor real
+        if (esUsuarioTerminal && listaFinal.length > 0 && (!vendedorActivo || vendedorActivo.toLowerCase().includes("caja mostrador") || vendedorActivo.toLowerCase().includes("multivendedor"))) {
           setVendedorActivo(listaFinal[0]);
         }
       } catch (e) {

@@ -558,6 +558,10 @@ export default function PerfilPage() {
   const toggleEstadoCajaMostrador = async () => {
     if (!cajaMostrador) return;
     const nuevoEstado = !(cajaMostrador.activo !== false);
+    if (nuevoEstado && colaboradoresRegistrados.length === 0) {
+      toast.error("Para habilitar la Terminal Multivendedor necesitas al menos 2 usuarios en tu negocio: el Administrador y como mínimo 1 Colaborador registrado.");
+      return;
+    }
     try {
       const token = await usuarioAuth?.getIdToken();
       if (!token) throw new Error("Sesión no válida");
@@ -577,6 +581,10 @@ export default function PerfilPage() {
 
   const ejecutarActivarCajaMostrador = async () => {
     setErrorPassCaja("");
+    if (colaboradoresRegistrados.length === 0) {
+      setErrorPassCaja("Para activar la Terminal Multivendedor necesitas al menos 2 usuarios en tu negocio: el Administrador y como mínimo 1 Colaborador registrado.");
+      return;
+    }
     if (!passCajaInicial || passCajaInicial.length < 6) {
       setErrorPassCaja("La contraseña debe tener al menos 6 caracteres.");
       return;
@@ -1221,6 +1229,10 @@ export default function PerfilPage() {
                     <button
                       type="button"
                       onClick={() => {
+                        if (colaboradoresRegistrados.length === 0) {
+                          toast.error("Para activar la Terminal Multivendedor necesitas al menos 2 usuarios en tu negocio: el Administrador y como mínimo 1 Colaborador registrado.");
+                          return;
+                        }
                         setPassCajaInicial("");
                         setConfirmarPassCajaInicial("");
                         setErrorPassCaja("");
@@ -2393,6 +2405,23 @@ export default function PerfilPage() {
             
             {(() => {
               const esCuentaGoogle = usuarioAuth?.providerData?.some(p => p.providerId === 'google.com');
+              const esUsuarioMultivendedor = datosSesion?.esCajaMostrador || datosSesion?.esTerminalMultivendedor || datosSesion?.usuarioAcceso?.includes('multivendedor') || datosSesion?.nombreUsuario?.toLowerCase().includes('multivendedor');
+
+              if (esUsuarioMultivendedor) {
+                return (
+                  <div className="bg-slate-50 dark:bg-slate-900/50 p-6 rounded-2xl border border-slate-200 dark:border-slate-800 text-center flex flex-col items-center gap-3">
+                    <div className="w-12 h-12 rounded-2xl bg-amber-500/10 text-amber-600 dark:text-amber-400 flex items-center justify-center border border-amber-500/20 shadow-inner">
+                      <Store size={24} />
+                    </div>
+                    <div>
+                      <h4 className="font-black text-slate-900 dark:text-white text-base mb-1">Terminal Multivendedor</h4>
+                      <p className="text-slate-600 dark:text-slate-300 font-medium text-sm max-w-md">
+                        Esta terminal es compartida por los vendedores del negocio. Por seguridad, la contraseña y accesos solo pueden ser modificados directamente por el <strong>Administrador</strong> desde la sección <em>Colaboradores</em>.
+                      </p>
+                    </div>
+                  </div>
+                );
+              }
 
               if (esCuentaGoogle) {
                 return (

@@ -158,6 +158,17 @@ export default function OrdenesPage() {
     ticketDatos: null
   });
 
+  // Modal de Error Estético por Stock al Aprobar
+  const [modalErrorStock, setModalErrorStock] = useState<{
+    visible: boolean;
+    orden: OrdenPendiente | null;
+    mensaje: string;
+  }>({
+    visible: false,
+    orden: null,
+    mensaje: ""
+  });
+
   // Modal de Confirmación tras Guardar Cambios
   const [modalConfirmacionGuardado, setModalConfirmacionGuardado] = useState<{
     visible: boolean;
@@ -963,7 +974,11 @@ Muchas gracias por tu compra. Estamos atentos para cualquier consulta.
             .reduce((sum, it) => sum + it.cantidad, 0);
 
           if (totalRequerido > (pInv.stock || 0)) {
-            toast.error(`⚠️ ¡Sin stock suficiente de "${pInv.nombre}"! Solicitado: ${totalRequerido}, Disponibles: ${pInv.stock || 0}. Usa el botón "Editar" en la orden para ajustar las cantidades o sustituir productos antes de aprobarla.`, { duration: 6000 });
+            setModalErrorStock({
+              visible: true,
+              orden: orden,
+              mensaje: `No hay existencias suficientes para "${pInv.nombre}". Se solicitan ${totalRequerido} unidad(es), pero solo quedan ${pInv.stock || 0} disponibles en inventario.`
+            });
             setProcesandoId(null);
             return;
           }
@@ -1254,9 +1269,18 @@ Muchas gracias por tu compra. Estamos atentos para cualquier consulta.
         },
         ticketDatos: ticketGenerado
       });
-    } catch (e) {
+    } catch (e: any) {
       console.error(e);
-      toast.error("Error al aprobar la orden.");
+      const errMsg = e?.message || "Error al aprobar la orden.";
+      if (errMsg.toLowerCase().includes('stock') || errMsg.toLowerCase().includes('existencia') || errMsg.toLowerCase().includes('inventario') || errMsg.includes('SIN_STOCK')) {
+        setModalErrorStock({
+          visible: true,
+          orden: orden,
+          mensaje: errMsg
+        });
+      } else {
+        toast.error(errMsg);
+      }
     } finally {
       setProcesandoId(null);
     }
@@ -3016,6 +3040,73 @@ Muchas gracias por tu compra. Estamos atentos para cualquier consulta.
               onClick={(e) => e.stopPropagation()}
             />
             <p className="text-white/80 text-xs font-bold mt-3 text-center">Toca en cualquier parte para cerrar</p>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL DE ERROR ESTÉTICO DE STOCK AL APROBAR */}
+      {modalErrorStock.visible && modalErrorStock.orden && (
+        <div className="fixed inset-0 z-[1600] bg-slate-950/70 backdrop-blur-md flex items-center justify-center p-4 animate-in fade-in duration-200">
+          <div className="bg-white dark:bg-slate-900 border border-amber-200 dark:border-amber-900/40 rounded-3xl max-w-md w-full p-6 shadow-2xl relative flex flex-col items-center text-center animate-in zoom-in-95 duration-200">
+            {/* Botón cerrar esquina */}
+            <button
+              onClick={() => setModalErrorStock({ visible: false, orden: null, mensaje: "" })}
+              className="absolute top-4 right-4 p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+            >
+              <X size={18} />
+            </button>
+
+            {/* Ícono llamativo */}
+            <div className="w-16 h-16 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-amber-600 dark:text-amber-400 flex items-center justify-center mb-4 shadow-inner">
+              <AlertCircle size={36} className="animate-pulse" />
+            </div>
+
+            {/* Título */}
+            <h3 className="text-lg font-black text-slate-900 dark:text-white mb-2">
+              Existencias Insuficientes
+            </h3>
+
+            {/* Explicación amigable */}
+            <div className="bg-amber-50 dark:bg-amber-950/30 border border-amber-200/60 dark:border-amber-900/40 rounded-2xl p-4 text-xs sm:text-sm text-slate-700 dark:text-slate-300 mb-5 text-left leading-relaxed w-full">
+              <p className="font-semibold text-amber-900 dark:text-amber-300 mb-1">
+                ¿Por qué no se puede aprobar esta orden?
+              </p>
+              <p className="text-slate-600 dark:text-slate-300">
+                {modalErrorStock.mensaje || "Uno o varios productos de la orden ya no cuentan con stock suficiente en el inventario para completar la venta."}
+              </p>
+            </div>
+
+            <p className="text-xs text-slate-500 dark:text-slate-400 mb-6">
+              Puedes <strong>editar la orden</strong> para modificar cantidades / sustituir artículos, o ir a <strong>Inventario</strong> para reabastecer existencias.
+            </p>
+
+            {/* Acciones */}
+            <div className="flex flex-col sm:flex-row gap-2.5 w-full">
+              <button
+                type="button"
+                onClick={() => {
+                  const ord = modalErrorStock.orden;
+                  setModalErrorStock({ visible: false, orden: null, mensaje: "" });
+                  if (ord) abrirModalEdicion(ord);
+                }}
+                className="flex-1 py-3 px-4 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white font-bold text-xs sm:text-sm rounded-2xl shadow-lg shadow-emerald-600/20 flex items-center justify-center gap-2 transition-all cursor-pointer"
+              >
+                <Edit2 size={16} />
+                <span>Editar Orden</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setModalErrorStock({ visible: false, orden: null, mensaje: "" });
+                  router.push("/dashboard/inventario");
+                }}
+                className="flex-1 py-3 px-4 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 font-bold text-xs sm:text-sm rounded-2xl flex items-center justify-center gap-2 transition-colors cursor-pointer"
+              >
+                <Package size={16} />
+                <span>Ir al Inventario</span>
+              </button>
+            </div>
           </div>
         </div>
       )}
