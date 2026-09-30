@@ -2,7 +2,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { collection, getDocs, query, where, updateDoc, doc, setDoc, deleteDoc, Timestamp } from "firebase/firestore";
-import { db } from "../../../firebase";
+import { db, auth } from "../../../firebase";
 import { useAuth } from "@/hooks/AuthContext";
 import toast from "react-hot-toast";
 import { customConfirm } from "@/utils/customConfirm";
@@ -42,7 +42,7 @@ export default function MasterPage() {
   useEffect(() => {
     // PROTECCIÓN ULTRA ESTRICTA: Solo el email de login real johanescobar1@gmail.com (nunca un cajero ni un negocio con correo secundario)
     const emailLogin = auth.currentUser?.email?.toLowerCase().trim();
-    const esMasterValido = (emailLogin === 'johanescobar1@gmail.com' || datosSesion?.email?.toLowerCase().trim() === 'johanescobar1@gmail.com') && 
+    const esMasterValido = (emailLogin === 'johanescobar1@gmail.com' || datosSesion?.datosUsuarioOriginales?.email?.toLowerCase().trim() === 'johanescobar1@gmail.com') && 
       datosSesion?.rol !== 'cajero' && 
       (datosSesion?.tipoUsuario === 'principal' || datosSesion?.tipoUsuario === undefined);
 

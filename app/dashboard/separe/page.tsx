@@ -85,66 +85,74 @@ function SepareContenido() {
     toast.success(`Vendedor "${nombreLimpio}" seleccionado`);
   };
 
-  // Cargar colaboradores registrados en Firebase y locales
+  // Cargar colaboradores registrados en Firebase y API
   useEffect(() => {
-    if (!cuentaPrincipalId) return;
-
     const cargarVendedores = async () => {
       try {
-        const nombres: string[] = [];
+        let listaFinal: string[] = [];
 
-        // 1. Obtener el nombre del Administrador / Dueño del negocio desde su documento
+        // 1. Intentar consultar vía API segura (soporta admin, colaboradores y terminal multivendedor)
         try {
-          const snapAdminDoc = await getDoc(doc(db, "usuarios", cuentaPrincipalId));
-          if (snapAdminDoc.exists()) {
-            const dataAdmin = snapAdminDoc.data();
-            const nomAdmin = dataAdmin.nombreUsuario || dataAdmin.nombreNegocio || "Administrador";
-            if (nomAdmin && !nomAdmin.toLowerCase().includes('multivendedor') && !nomAdmin.toLowerCase().includes('caja mostrador') && !nombres.includes(nomAdmin)) {
-              nombres.push(nomAdmin);
+          const user = auth.currentUser;
+          if (user) {
+            const token = await user.getIdToken();
+            const res = await fetch('/api/vendedores/listar', {
+              headers: { Authorization: `Bearer ${token}` }
+            });
+            if (res.ok) {
+              const data = await res.json();
+              if (Array.isArray(data.vendedores) && data.vendedores.length > 0) {
+                listaFinal = data.vendedores;
+              }
             }
           }
-        } catch (e) {}
-
-        // 2. Si el usuario actual es un usuario regular (no terminal), incluirlo
-        const esUsuarioTerminal = datosSesion?.esCajaMostrador || datosSesion?.esTerminalMultivendedor || (nombreUsuario && (nombreUsuario.toLowerCase().includes('multivendedor') || nombreUsuario.toLowerCase().includes('caja mostrador')));
-        if (nombreUsuario && !esUsuarioTerminal && !nombres.includes(nombreUsuario)) {
-          nombres.push(nombreUsuario);
+        } catch (apiErr) {
+          console.warn("Fallo fetch api/vendedores/listar en separe, usando fallback Firestore:", apiErr);
         }
 
-        // 3. Consultar colaboradores creados en Perfil (adminId == cuentaPrincipalId)
-        try {
-          const qAdmin = query(collection(db, "usuarios"), where("adminId", "==", cuentaPrincipalId));
-          const snapAdmin = await getDocs(qAdmin);
-          snapAdmin.forEach(d => {
-            const u = d.data();
-            if (u.activo === false || u.esCajaMostrador === true || u.esTerminalMultivendedor === true) return;
-            const nom = u.nombreUsuario || u.nombre || u.nombreColaborador;
-            if (nom && !nom.toLowerCase().includes('multivendedor') && !nom.toLowerCase().includes('caja mostrador') && !nombres.includes(nom)) {
-              nombres.push(nom);
-            }
-          });
-        } catch (e) {}
+        // 2. Fallback a Firestore si la API no retornó vendedores
+        if (listaFinal.length === 0 && cuentaPrincipalId) {
+          const nombres: string[] = [];
 
-        // 4. Consultar usuarios donde cuentaPrincipalId == cuentaPrincipalId
-        try {
-          const qUsers = query(collection(db, "usuarios"), where("cuentaPrincipalId", "==", cuentaPrincipalId));
-          const snapU = await getDocs(qUsers);
-          snapU.forEach(d => {
-            const u = d.data();
-            if (u.activo === false || u.esCajaMostrador === true || u.esTerminalMultivendedor === true) return;
-            const nom = u.nombreUsuario || u.nombre || u.nombreColaborador;
-            if (nom && !nom.toLowerCase().includes('multivendedor') && !nom.toLowerCase().includes('caja mostrador') && !nombres.includes(nom)) {
-              nombres.push(nom);
+          try {
+            const snapAdminDoc = await getDoc(doc(db, "usuarios", cuentaPrincipalId));
+            if (snapAdminDoc.exists()) {
+              const dataAdmin = snapAdminDoc.data();
+              const nomAdmin = dataAdmin.nombreUsuario || dataAdmin.nombreNegocio || "Administrador";
+              if (nomAdmin && !nomAdmin.toLowerCase().includes('multivendedor') && !nomAdmin.toLowerCase().includes('caja mostrador') && !nombres.includes(nomAdmin)) {
+                nombres.push(nomAdmin);
+              }
             }
-          });
-        } catch (e) {}
+          } catch (e) {}
 
-        const listaFinal = nombres.length > 0 ? nombres : [nombreUsuario || "Vendedor"];
-        setListaVendedores(listaFinal);
+          const esUsuarioTerminal = datosSesion?.esCajaMostrador || datosSesion?.esTerminalMultivendedor || (nombreUsuario && (nombreUsuario.toLowerCase().includes('multivendedor') || nombreUsuario.toLowerCase().includes('caja mostrador')));
+          if (nombreUsuario && !esUsuarioTerminal && !nombres.includes(nombreUsuario)) {
+            nombres.push(nombreUsuario);
+          }
+
+          try {
+            const qAdmin = query(collection(db, "usuarios"), where("adminId", "==", cuentaPrincipalId));
+            const snapAdmin = await getDocs(qAdmin);
+            snapAdmin.forEach(d => {
+              const u = d.data();
+              if (u.activo === false || u.esCajaMostrador === true || u.esTerminalMultivendedor === true) return;
+              const nom = u.nombreUsuario || u.nombre || u.nombreColaborador;
+              if (nom && !nom.toLowerCase().includes('multivendedor') && !nom.toLowerCase().includes('caja mostrador') && !nombres.includes(nom)) {
+                nombres.push(nom);
+              }
+            });
+          } catch (e) {}
+
+          listaFinal = nombres;
+        }
+
+        const listaDefinitiva = listaFinal.length > 0 ? listaFinal : [nombreUsuario || "Vendedor"];
+        setListaVendedores(listaDefinitiva);
 
         // Si es la Terminal Multivendedor / Caja Mostrador y el vendedor activo actual es 'Caja Mostrador' o 'Multivendedor', cambiarlo al primer vendedor real
-        if (esUsuarioTerminal && listaFinal.length > 0 && (!vendedorActivo || vendedorActivo.toLowerCase().includes("caja mostrador") || vendedorActivo.toLowerCase().includes("multivendedor"))) {
-          setVendedorActivo(listaFinal[0]);
+        const esUsuarioTerminal = datosSesion?.esCajaMostrador || datosSesion?.esTerminalMultivendedor || (nombreUsuario && (nombreUsuario.toLowerCase().includes('multivendedor') || nombreUsuario.toLowerCase().includes('caja mostrador')));
+        if (esUsuarioTerminal && listaDefinitiva.length > 0 && (!vendedorActivo || vendedorActivo.toLowerCase().includes("caja mostrador") || vendedorActivo.toLowerCase().includes("multivendedor"))) {
+          setVendedorActivo(listaDefinitiva[0]);
         }
       } catch (e) {
         console.error("Error al cargar vendedores:", e);
@@ -152,7 +160,7 @@ function SepareContenido() {
     };
 
     cargarVendedores();
-  }, [cuentaPrincipalId, nombreUsuario]);
+  }, [cuentaPrincipalId, nombreUsuario, datosSesion?.esCajaMostrador, datosSesion?.esTerminalMultivendedor]);
 
   const scrollArticulosRef = useRef<HTMLDivElement | null>(null);
 
@@ -236,6 +244,7 @@ function SepareContenido() {
   const [filas, setFilas] = useState<FilaProductoSepare[]>([
     { id: "1", descripcion: "", valor: "", cantidad: 1, fotoUrl: null, esDeInventario: false }
   ]);
+  const [pasoMovil, setPasoMovil] = useState<'articulos' | 'cobro'>('articulos');
   const [modoVisual, setModoVisual] = useState(false);
   const [categoriaVisualActiva, setCategoriaVisualActiva] = useState("Todas");
   const [busquedaVisual, setBusquedaVisual] = useState("");
@@ -2102,13 +2111,48 @@ Estamos atentos para cualquier consulta.
         </button>
       </div>
 
-      {/* CONTENEDOR PRINCIPAL: ESTRUCTURA 2 COLUMNAS SIN SCROLL GENERAL */}
-      <div className="flex flex-col lg:flex-row flex-1 min-h-0 relative overflow-y-auto lg:overflow-hidden pb-40 lg:pb-0">
+      {/* BARRA DE PASOS EN MÓVIL (< 1024px) */}
+      <div className="lg:hidden flex items-center bg-slate-100 dark:bg-slate-900/90 p-1.5 border-b border-slate-200 dark:border-slate-800 gap-1.5 shrink-0 z-20">
+        <button
+          type="button"
+          onClick={() => setPasoMovil('articulos')}
+          className={`flex-1 py-2 px-3 rounded-xl text-xs font-black flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+            pasoMovil === 'articulos'
+              ? 'bg-violet-600 text-white shadow-sm'
+              : 'text-slate-500 hover:text-slate-700 dark:text-slate-400'
+          }`}
+        >
+          <Package size={14} />
+          <span>1. Artículos ({filas.filter(f => f.descripcion.trim() || parseFloat(f.valor) > 0).length})</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => {
+            const filasValidas = filas.filter(f => f.descripcion.trim() || parseFloat(f.valor) > 0);
+            if (filasValidas.length === 0) {
+              toast.error("Agrega al menos un artículo para continuar.");
+              return;
+            }
+            setPasoMovil('cobro');
+          }}
+          className={`flex-1 py-2 px-3 rounded-xl text-xs font-black flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+            pasoMovil === 'cobro'
+              ? 'bg-violet-600 text-white shadow-sm'
+              : 'text-slate-500 hover:text-slate-700 dark:text-slate-400'
+          }`}
+        >
+          <Bookmark size={14} />
+          <span>2. Cliente y Abono {totalSepare > 0 ? `($${totalSepare.toLocaleString('es-CO')})` : ''}</span>
+        </button>
+      </div>
+
+      {/* CONTENEDOR PRINCIPAL: ESTRUCTURA 2 COLUMNAS */}
+      <div className={`flex flex-col lg:flex-row flex-1 min-h-0 relative ${pasoMovil === 'cobro' ? 'overflow-y-auto lg:overflow-hidden pb-32 lg:pb-0' : 'overflow-y-auto lg:overflow-hidden pb-36 lg:pb-0'}`}>
         
         {/* COLUMNA IZQUIERDA: ARTÍCULOS A SEPARAR */}
-        {modoVisual ? renderModoVisualGrid() : (
-        <div className="flex-1 flex flex-col relative bg-slate-50/50 dark:bg-[#020617]/50 lg:min-h-0 lg:overflow-hidden shrink-0">
-          
+        <div className={`flex-1 flex flex-col relative bg-slate-50/50 dark:bg-[#020617]/50 lg:min-h-0 lg:overflow-hidden shrink-0 ${pasoMovil === 'cobro' ? 'hidden lg:flex' : 'flex'}`}>
+          {modoVisual ? renderModoVisualGrid() : (
           <div ref={scrollArticulosRef} className="p-3 sm:p-5 lg:p-6 xl:p-8 space-y-3 sm:space-y-4 lg:flex-1 lg:overflow-y-auto min-h-0">
             <div className="max-w-4xl mx-auto space-y-3 sm:space-y-4">
               <h4 className="font-bold text-slate-400 uppercase text-[10px] md:text-xs tracking-wider">
@@ -2424,12 +2468,30 @@ Estamos atentos para cualquier consulta.
               </div>
             </div>
           </div>
+          )}
         </div>
-        )}
 
         {/* PANEL DERECHO: CLIENTE + FECHA LÍMITE + ABONO INICIAL + RESUMEN FIJO */}
-        <div className="w-full lg:w-[380px] xl:w-[410px] bg-slate-50 dark:bg-[#020617] lg:border-l border-slate-200 dark:border-slate-800 flex flex-col z-20 shrink-0 lg:min-h-0 lg:overflow-hidden">
+        <div className={`w-full lg:w-[380px] xl:w-[410px] bg-slate-50 dark:bg-[#020617] lg:border-l border-slate-200 dark:border-slate-800 flex flex-col z-20 shrink-0 lg:min-h-0 lg:overflow-hidden ${pasoMovil === 'articulos' ? 'hidden lg:flex' : 'flex'}`}>
           
+          {/* Cabecera Móvil en Paso 2 (< 1024px) */}
+          <div className="lg:hidden flex items-center justify-between p-3 pb-1 max-w-xl mx-auto w-full shrink-0">
+            <button
+              type="button"
+              onClick={() => setPasoMovil('articulos')}
+              className="flex items-center gap-1.5 text-xs font-black text-slate-700 dark:text-slate-200 hover:text-violet-600 bg-white dark:bg-slate-800 px-3 py-1.5 rounded-xl transition-all cursor-pointer shadow-2xs active:scale-95 border border-slate-200 dark:border-slate-700"
+            >
+              <ArrowLeft size={14} />
+              <span>Modificar artículos</span>
+            </button>
+            <div className="text-right">
+              <span className="text-[9.5px] text-slate-400 uppercase font-black block">Separe</span>
+              <span className="text-xs font-black text-violet-600 dark:text-violet-400">
+                {filas.filter(f => f.descripcion.trim() || parseFloat(f.valor) > 0).length} artículos
+              </span>
+            </div>
+          </div>
+
           {/* SECCIÓN INTERNA SCROLLABLE: CLIENTE + FECHA LÍMITE + ABONO INICIAL */}
           <div className="p-3 pb-36 sm:pb-32 lg:pb-3.5 lg:p-3.5 space-y-2 flex-1 min-h-0 lg:overflow-y-auto">
             {modoVisual && renderModoVisualCart()}
@@ -2549,7 +2611,7 @@ Estamos atentos para cualquier consulta.
               )}
             </div>
 
-            {/* 2. FECHA LÍMITE DE PAGO & NOTAS (INTEGRADAS EN PANEL DERECHO) */}
+            {/* 2. FECHA LÍMITE DE PAGO & NOTAS */}
             <div className="bg-white dark:bg-[#0f172a] rounded-2xl p-3 border border-slate-100 dark:border-slate-800 shadow-sm space-y-2">
               <div className="flex justify-between items-center">
                 <label className="text-[10px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400 flex items-center gap-1.5">
@@ -2697,9 +2759,8 @@ Estamos atentos para cualquier consulta.
 
           </div>
 
-          {/* FOOTER FIJO EN LA BASE DEL PANEL DERECHO: RESUMEN DE SALDOS + BOTÓN REGISTRAR */}
+          {/* FOOTER FIJO EN LA BASE DEL PANEL DERECHO (DESKTOP >= 1024px) */}
           <div className="hidden lg:flex flex-col bg-slate-900 dark:bg-black text-white p-3.5 shrink-0 border-t border-slate-800 z-30 space-y-2">
-            
             {/* Resumen de totales */}
             <div className="space-y-1 text-xs border-b border-slate-800 pb-2">
               <div className="flex justify-between text-slate-400">
@@ -2747,53 +2808,56 @@ Estamos atentos para cualquier consulta.
 
       </div>
 
-      {/* BARRA INFERIOR DOCKED EN TABLETS VERTICALES (768px - 1023px) - EVITA ESPACIOS VACÍOS Y ANCLA AL BORDE INFERIOR */}
-      <div className="hidden md:flex lg:hidden bg-slate-900 dark:bg-black text-white px-5 sm:px-6 py-3.5 shrink-0 border-t border-slate-800 z-30 items-center justify-between gap-4">
-        <div className="flex items-center gap-3 sm:gap-4 min-w-0">
-          <div className="flex flex-col">
-            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Total Separe</span>
-            <span className="text-2xl sm:text-3xl font-black text-violet-400 leading-none">${totalSepare.toLocaleString('es-CO')}</span>
+      {/* BARRA FLOTANTE MÓVIL / TABLET (< 1024px) - EN PASO ARTÍCULOS */}
+      {pasoMovil === 'articulos' && (
+        <div className="lg:hidden fixed bottom-[72px] sm:bottom-[76px] md:bottom-[80px] left-3 right-3 sm:left-4 sm:right-4 max-w-lg mx-auto bg-white/95 dark:bg-[#0f172a]/95 backdrop-blur-xl border border-slate-200/90 dark:border-slate-800/90 p-2.5 sm:p-3 rounded-2xl sm:rounded-3xl shadow-2xl z-[95] flex items-center justify-between gap-3 animate-in slide-in-from-bottom-2 duration-200">
+          <div className="flex flex-col min-w-0 shrink pl-1">
+            <span className="text-[9px] font-black uppercase text-slate-400 tracking-wider">Total Separe</span>
+            <span className="text-lg sm:text-2xl font-black text-violet-600 dark:text-violet-400 whitespace-nowrap overflow-visible leading-none min-w-0">${totalSepare.toLocaleString('es-CO')}</span>
           </div>
-          {clienteSeleccionado && (
-            <span className="text-xs font-bold text-slate-300 bg-slate-800 px-2.5 py-1 rounded-lg truncate max-w-[180px]">
-              {clienteSeleccionado.nombre}
-            </span>
-          )}
+          <button
+            type="button"
+            onClick={() => {
+              const filasValidas = filas.filter(f => f.descripcion.trim() || parseFloat(f.valor) > 0);
+              if (filasValidas.length === 0) {
+                toast.error("Agrega al menos un artículo para continuar.");
+                return;
+              }
+              setPasoMovil('cobro');
+            }}
+            disabled={totalSepare <= 0}
+            className={`flex-1 ${
+              totalSepare > 0
+                ? 'bg-violet-600 hover:bg-violet-700 active:scale-95'
+                : 'bg-slate-300 dark:bg-slate-800 text-slate-500 opacity-60 cursor-not-allowed'
+            } text-white font-black py-3 sm:py-3.5 px-4 rounded-xl sm:rounded-2xl shadow-lg flex items-center justify-center gap-2 text-sm sm:text-base transition-transform cursor-pointer`}
+          >
+            <span>{totalSepare > 0 ? 'Siguiente: Cliente y Abono ➔' : 'Sin artículos'}</span>
+          </button>
         </div>
+      )}
 
-        <button
-          onClick={guardarSepare}
-          disabled={guardando || !clienteSeleccionado || totalSepare <= 0}
-          className={`min-w-[190px] sm:min-w-[240px] bg-violet-600 hover:bg-violet-700 ${
-            guardando || !clienteSeleccionado || totalSepare <= 0
-              ? 'opacity-50 cursor-not-allowed'
-              : 'active:scale-95 cursor-pointer'
-          } text-white font-black text-base py-3 px-5 rounded-xl shadow-lg flex justify-center items-center gap-2 transition-all`}
-        >
-          <span>{guardando ? "Procesando..." : (puedeVentaDirecta ? "Registrar Plan Separe" : "Enviar Orden de Separe")}</span>
-          <CheckCircle2 size={19} />
-        </button>
-      </div>
-
-      {/* BARRA FLOTANTE MÓVIL (SOLO PARA CELULARES PEQUEÑOS < 768px) */}
-      <div className="md:hidden fixed bottom-floating-bar left-3 right-3 sm:left-4 sm:right-4 max-w-lg mx-auto bg-white/95 dark:bg-[#0f172a]/95 backdrop-blur-xl border border-slate-200/90 dark:border-slate-800/90 p-2.5 rounded-2xl shadow-xl z-40 flex items-center justify-between gap-3">
-        <div className="flex flex-col min-w-0 shrink pl-1">
-          <span className="text-[9px] font-black uppercase text-slate-400 tracking-wider">Total Separe</span>
-          <span className="text-base sm:text-lg font-black text-violet-600 dark:text-violet-400 whitespace-nowrap overflow-visible leading-none min-w-0">${totalSepare.toLocaleString('es-CO')}</span>
+      {/* BARRA FLOTANTE MÓVIL / TABLET (< 1024px) - EN PASO COBRO */}
+      {pasoMovil === 'cobro' && (
+        <div className="lg:hidden fixed bottom-[72px] sm:bottom-[76px] md:bottom-[80px] left-3 right-3 sm:left-4 sm:right-4 max-w-lg mx-auto bg-white/95 dark:bg-[#0f172a]/95 backdrop-blur-xl border border-slate-200/90 dark:border-slate-800/90 p-2.5 sm:p-3 rounded-2xl sm:rounded-3xl shadow-2xl z-[95] flex items-center justify-between gap-3 animate-in slide-in-from-bottom-2 duration-200">
+          <div className="flex flex-col min-w-0 shrink pl-1">
+            <span className="text-[9px] font-black uppercase text-slate-400 tracking-wider">Pendiente</span>
+            <span className="text-base sm:text-xl font-black text-amber-500 whitespace-nowrap overflow-visible leading-none min-w-0">${saldoPendiente.toLocaleString('es-CO')}</span>
+          </div>
+          <button
+            onClick={guardarSepare}
+            disabled={guardando || !clienteSeleccionado || totalSepare <= 0}
+            className={`flex-1 font-black text-xs sm:text-sm py-3 px-4 rounded-xl shadow-md flex justify-center items-center gap-1.5 transition-all whitespace-nowrap ${
+              guardando || !clienteSeleccionado || totalSepare <= 0
+                ? 'bg-slate-200 text-slate-400 dark:bg-slate-800 dark:text-slate-600 cursor-not-allowed'
+                : 'bg-violet-600 hover:bg-violet-700 text-white active:scale-95 cursor-pointer'
+            }`}
+          >
+            <span>{guardando ? "Procesando..." : (puedeVentaDirecta ? "Registrar Separe" : "Enviar Orden")}</span>
+            <CheckCircle2 size={16} />
+          </button>
         </div>
-        <button
-          onClick={guardarSepare}
-          disabled={guardando || !clienteSeleccionado || totalSepare <= 0}
-          className={`flex-1 font-black text-xs sm:text-sm py-2.5 sm:py-3 px-3 rounded-xl shadow-md flex justify-center items-center gap-1.5 transition-all whitespace-nowrap ${
-            guardando || !clienteSeleccionado || totalSepare <= 0
-              ? 'bg-slate-200 text-slate-400 dark:bg-slate-800 dark:text-slate-600 cursor-not-allowed'
-              : 'bg-violet-600 hover:bg-violet-700 text-white active:scale-95'
-          }`}
-        >
-          <span>{guardando ? "Procesando..." : (puedeVentaDirecta ? "Registrar Separe" : "Enviar Orden")}</span>
-          <CheckCircle2 size={16} />
-        </button>
-      </div>
+      )}
 
       {/* MODAL DE CÁMARA EN VIVO */}
       {modalCamaraEnVivo && (

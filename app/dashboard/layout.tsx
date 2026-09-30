@@ -3,7 +3,7 @@ import { useState, useEffect } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { Home, BarChart3, Clock, Settings, LogOut, ChevronLeft, ChevronRight, Package, Receipt, Bookmark, Users } from 'lucide-react';
 import { collection, query, where, onSnapshot } from "firebase/firestore";
-import { db } from "../../firebase";
+import { db, auth as firebaseAuth } from "../../firebase";
 import { useAuth } from "@/hooks/AuthContext";
 import BottomNav from "../../components/BottomNav";
 import ScrollIndicator from "../../components/ScrollIndicator";
@@ -12,7 +12,7 @@ import GlobalAnnouncements from "@/components/GlobalAnnouncements";
 import LogoFiabono, { IsotipoFiabono } from "@/components/LogoFiabono";
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
-  const auth = useAuth();
+  const authContext = useAuth();
   const router = useRouter();
   const pathname = usePathname();
   const [fijadoExpandido, setFijadoExpandido] = useState(false);
@@ -22,8 +22,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const [ordenesPendientesCount, setOrdenesPendientesCount] = useState(0);
   const [separesActivosCount, setSeparesActivosCount] = useState(0);
 
-  const datosSesion = auth?.datosSesion;
-  const cerrarSesion = auth?.cerrarSesion || (() => {});
+  const datosSesion = authContext?.datosSesion;
+  const cerrarSesion = authContext?.cerrarSesion || (() => {});
   const cuentaPrincipalId = datosSesion?.cuentaPrincipalId;
   const esAdmin = datosSesion?.tipoUsuario === 'principal' || datosSesion?.esAdmin === true || (datosSesion?.rol !== 'cajero');
   const puedeAbonar = esAdmin || (datosSesion?.permisos?.abonar === true);
@@ -33,7 +33,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const puedeVerCartera = esAdmin || (datosSesion?.puedeVerCartera === true) || (datosSesion?.permisos?.verCartera === true);
   const puedeVerReportes = esAdmin || (datosSesion?.puedeVerReportes === true) || (datosSesion?.permisos?.verReportes === true);
   const esMaster = Boolean(
-    (auth?.usuarioFirebase?.email?.toLowerCase().trim() === 'johanescobar1@gmail.com' || datosSesion?.email?.toLowerCase().trim() === 'johanescobar1@gmail.com') && 
+    (firebaseAuth.currentUser?.email?.toLowerCase().trim() === 'johanescobar1@gmail.com' || datosSesion?.datosUsuarioOriginales?.email?.toLowerCase().trim() === 'johanescobar1@gmail.com') && 
     datosSesion?.rol !== 'cajero' && 
     (datosSesion?.tipoUsuario === 'principal' || datosSesion?.tipoUsuario === undefined)
   );
@@ -135,7 +135,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const nombreNegocio = datosSesion?.nombreNegocio || "Mi Negocio";
   const rutaActiva = (ruta: string) => pathname === ruta;
 
-  if (auth?.cargando) {
+  if (authContext?.cargando) {
     return (
       <div className="flex h-[100dvh] w-screen items-center justify-center bg-slate-100 dark:bg-slate-950 font-sans">
         <div className="flex flex-col items-center gap-3">

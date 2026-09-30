@@ -992,72 +992,106 @@ export default function PerfilPage() {
             </div>
           </div>
 
-          {/* CAMBIO DE CONTRASEÑA PROPIA PARA COLABORADOR */}
-          <div className="bg-white dark:bg-[#0f172a] p-6 sm:p-8 rounded-[2rem] shadow-sm border border-slate-100 dark:border-slate-800/60 mt-6 text-left">
-            <h3 className="font-black text-lg text-slate-800 dark:text-slate-100 mb-2 border-b border-slate-100 dark:border-slate-800/60 pb-4 flex items-center gap-2">
-              <Lock size={20} className="text-blue-500" /> Cambiar mi Contraseña
-            </h3>
-            <p className="text-xs text-slate-500 dark:text-slate-400 mb-4 leading-relaxed">
-              Puedes actualizar tu contraseña en cualquier momento para mantener la seguridad de tus accesos.
-            </p>
-            <div className="flex flex-col gap-3">
-              <div>
-                <label className="block text-xs font-bold text-slate-600 dark:text-slate-300 mb-1">Nueva Contraseña</label>
-                <div className="relative">
-                  <input 
-                    type={verPassColabPropia ? "text" : "password"}
-                    placeholder="Mínimo 6 caracteres"
-                    value={passColabPropia.nueva}
-                    onChange={e => setPassColabPropia(p => ({ ...p, nueva: e.target.value, error: "" }))}
-                    className="w-full p-3.5 pr-11 bg-slate-50 dark:bg-[#020617] border border-slate-200 dark:border-slate-800 rounded-xl outline-none focus:border-blue-500 text-sm font-bold text-slate-900 dark:text-white placeholder-slate-400"
-                  />
-                  <button 
-                    type="button" 
-                    onClick={() => setVerPassColabPropia(!verPassColabPropia)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors p-1"
+          {/* CAMBIO DE CONTRASEÑA PROPIA PARA COLABORADOR / SEGURIDAD TERMINAL */}
+          {(() => {
+            const esUsuarioMultivendedor = 
+              datosSesion?.esCajaMostrador === true ||
+              (datosSesion?.nombreUsuario && (
+                datosSesion.nombreUsuario.toLowerCase().includes('terminal') ||
+                datosSesion.nombreUsuario.toLowerCase().includes('multivendedor') ||
+                datosSesion.nombreUsuario.toLowerCase().includes('mostrador')
+              )) ||
+              (usuarioAuth?.email && (
+                usuarioAuth.email.includes('caja') ||
+                usuarioAuth.email.includes('multivendedor')
+              ));
+
+            if (esUsuarioMultivendedor) {
+              return (
+                <div className="bg-white dark:bg-[#0f172a] p-6 sm:p-8 rounded-[2rem] shadow-sm border border-slate-100 dark:border-slate-800/60 mt-6 text-left">
+                  <div className="bg-amber-50/60 dark:bg-amber-950/20 p-5 rounded-2xl border border-amber-200/70 dark:border-amber-900/40 flex flex-col sm:flex-row items-center gap-4 text-center sm:text-left">
+                    <div className="w-12 h-12 rounded-2xl bg-amber-500/10 text-amber-600 dark:text-amber-400 flex items-center justify-center border border-amber-500/20 shadow-inner shrink-0">
+                      <Store size={24} />
+                    </div>
+                    <div>
+                      <h4 className="font-black text-slate-900 dark:text-white text-base mb-0.5">Terminal Multivendedor</h4>
+                      <p className="text-slate-600 dark:text-slate-300 font-medium text-xs sm:text-sm leading-relaxed">
+                        Esta terminal es compartida por los vendedores del mostrador. Por seguridad, la contraseña y permisos solo pueden ser modificados por el <strong>Administrador</strong> desde su sección de <em>Colaboradores</em>.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              );
+            }
+
+            return (
+              <div className="bg-white dark:bg-[#0f172a] p-6 sm:p-8 rounded-[2rem] shadow-sm border border-slate-100 dark:border-slate-800/60 mt-6 text-left">
+                <h3 className="font-black text-lg text-slate-800 dark:text-slate-100 mb-2 border-b border-slate-100 dark:border-slate-800/60 pb-4 flex items-center gap-2">
+                  <Lock size={20} className="text-blue-500" /> Cambiar mi Contraseña
+                </h3>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mb-4 leading-relaxed">
+                  Puedes actualizar tu contraseña en cualquier momento para mantener la seguridad de tus accesos.
+                </p>
+                <div className="flex flex-col gap-3">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-600 dark:text-slate-300 mb-1">Nueva Contraseña</label>
+                    <div className="relative">
+                      <input 
+                        type={verPassColabPropia ? "text" : "password"}
+                        placeholder="Mínimo 6 caracteres"
+                        value={passColabPropia.nueva}
+                        onChange={e => setPassColabPropia(p => ({ ...p, nueva: e.target.value, error: "" }))}
+                        className="w-full p-3.5 pr-11 bg-slate-50 dark:bg-[#020617] border border-slate-200 dark:border-slate-800 rounded-xl outline-none focus:border-blue-500 text-sm font-bold text-slate-900 dark:text-white placeholder-slate-400"
+                      />
+                      <button 
+                        type="button" 
+                        onClick={() => setVerPassColabPropia(!verPassColabPropia)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors p-1"
+                      >
+                        {verPassColabPropia ? <EyeOff size={18} /> : <Eye size={18} />}
+                      </button>
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-slate-600 dark:text-slate-300 mb-1">Confirmar Nueva Contraseña</label>
+                    <div className="relative">
+                      <input 
+                        type={verConfirmColabPropia ? "text" : "password"}
+                        placeholder="Repite tu nueva contraseña"
+                        value={passColabPropia.confirmar}
+                        onChange={e => setPassColabPropia(p => ({ ...p, confirmar: e.target.value, error: "" }))}
+                        className="w-full p-3.5 pr-11 bg-slate-50 dark:bg-[#020617] border border-slate-200 dark:border-slate-800 rounded-xl outline-none focus:border-blue-500 text-sm font-bold text-slate-900 dark:text-white placeholder-slate-400"
+                      />
+                      <button 
+                        type="button" 
+                        onClick={() => setVerConfirmColabPropia(!verConfirmColabPropia)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors p-1"
+                      >
+                        {verConfirmColabPropia ? <EyeOff size={18} /> : <Eye size={18} />}
+                      </button>
+                    </div>
+                  </div>
+                  {passColabPropia.error && (
+                    <p className="text-rose-500 text-xs font-bold bg-rose-50 dark:bg-rose-500/10 p-2.5 rounded-lg border border-rose-200 dark:border-rose-500/20">{passColabPropia.error}</p>
+                  )}
+                  <button
+                    type="button"
+                    onClick={cambiarPasswordColaboradorPropia}
+                    disabled={guardandoPassColab}
+                    className="mt-1 w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3.5 rounded-xl transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 text-sm shadow-sm active:scale-98"
                   >
-                    {verPassColabPropia ? <EyeOff size={18} /> : <Eye size={18} />}
+                    {guardandoPassColab ? (
+                      <span className="inline-block w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
+                    ) : (
+                      <>
+                        <CheckCircle2 size={18} /> Guardar Nueva Contraseña
+                      </>
+                    )}
                   </button>
                 </div>
               </div>
-              <div>
-                <label className="block text-xs font-bold text-slate-600 dark:text-slate-300 mb-1">Confirmar Nueva Contraseña</label>
-                <div className="relative">
-                  <input 
-                    type={verConfirmColabPropia ? "text" : "password"}
-                    placeholder="Repite tu nueva contraseña"
-                    value={passColabPropia.confirmar}
-                    onChange={e => setPassColabPropia(p => ({ ...p, confirmar: e.target.value, error: "" }))}
-                    className="w-full p-3.5 pr-11 bg-slate-50 dark:bg-[#020617] border border-slate-200 dark:border-slate-800 rounded-xl outline-none focus:border-blue-500 text-sm font-bold text-slate-900 dark:text-white placeholder-slate-400"
-                  />
-                  <button 
-                    type="button" 
-                    onClick={() => setVerConfirmColabPropia(!verConfirmColabPropia)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors p-1"
-                  >
-                    {verConfirmColabPropia ? <EyeOff size={18} /> : <Eye size={18} />}
-                  </button>
-                </div>
-              </div>
-              {passColabPropia.error && (
-                <p className="text-rose-500 text-xs font-bold bg-rose-50 dark:bg-rose-500/10 p-2.5 rounded-lg border border-rose-200 dark:border-rose-500/20">{passColabPropia.error}</p>
-              )}
-              <button
-                type="button"
-                onClick={cambiarPasswordColaboradorPropia}
-                disabled={guardandoPassColab}
-                className="mt-1 w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3.5 rounded-xl transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 text-sm shadow-sm active:scale-98"
-              >
-                {guardandoPassColab ? (
-                  <span className="inline-block w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
-                ) : (
-                  <>
-                    <CheckCircle2 size={18} /> Guardar Nueva Contraseña
-                  </>
-                )}
-              </button>
-            </div>
-          </div>
+            );
+          })()}
 
           <button onClick={() => signOut(auth)} className="w-full bg-rose-50 dark:bg-rose-500/10 text-rose-600 dark:text-rose-400 font-bold py-5 sm:py-6 rounded-[2rem] border border-rose-200 dark:border-rose-500/20 hover:bg-rose-100 dark:hover:bg-rose-500/30 transition-colors mb-24 sm:mb-6 flex justify-center items-center gap-2 text-lg mt-8">
             <LogOut size={24} className="shrink-0" /> Cerrar Sesión
@@ -2405,7 +2439,7 @@ export default function PerfilPage() {
             
             {(() => {
               const esCuentaGoogle = usuarioAuth?.providerData?.some(p => p.providerId === 'google.com');
-              const esUsuarioMultivendedor = datosSesion?.esCajaMostrador || datosSesion?.esTerminalMultivendedor || datosSesion?.usuarioAcceso?.includes('multivendedor') || datosSesion?.nombreUsuario?.toLowerCase().includes('multivendedor');
+              const esUsuarioMultivendedor = datosSesion?.esCajaMostrador || datosSesion?.esTerminalMultivendedor || (datosSesion as any)?.usuarioAcceso?.includes('multivendedor') || datosSesion?.nombreUsuario?.toLowerCase().includes('multivendedor') || datosSesion?.nombreUsuario?.toLowerCase().includes('caja mostrador');
 
               if (esUsuarioMultivendedor) {
                 return (
