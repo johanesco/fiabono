@@ -1152,21 +1152,44 @@ Muchas gracias por tu compra. Estamos atentos para cualquier consulta.
       // Ejecución Unificada en una sola Transacción Atómica del servidor
       const token = await auth.currentUser?.getIdToken();
       if (!token) throw new Error('Sesión inválida.');
-      const respuestaAprobacion = await fetch('/api/ordenes/aprobar', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({
-          ordenId: orden.id,
-          descontarStockItems,
-          movimientoPrincipal,
-          movimientoFiadoSecundario,
-          payloadSepare,
-          movimientoAbonoSepare,
-          ajusteCliente
-        })
-      });
-      const resAtomo = await respuestaAprobacion.json();
-      if (!respuestaAprobacion.ok) throw new Error(resAtomo.error || 'No se pudo aprobar la orden.');
+      
+      let respuestaAprobacion: Response | null = null;
+      let resAtomo: any = null;
+      let intentos = 0;
+      let maxIntentos = 3;
+
+      while (intentos < maxIntentos) {
+        respuestaAprobacion = await fetch('/api/ordenes/aprobar', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+          body: JSON.stringify({
+            ordenId: orden.id,
+            descontarStockItems,
+            movimientoPrincipal,
+            movimientoFiadoSecundario,
+            payloadSepare,
+            movimientoAbonoSepare,
+            ajusteCliente
+          })
+        });
+        resAtomo = await respuestaAprobacion.json();
+        
+        if (respuestaAprobacion.ok || respuestaAprobacion.status === 409 || respuestaAprobacion.status === 400 || respuestaAprobacion.status === 403 || respuestaAprobacion.status === 404) {
+          break;
+        }
+        
+        intentos++;
+        if (intentos < maxIntentos) await new Promise(r => setTimeout(r, 1000));
+      }
+      
+      // Si la orden ya fue procesada (doble click, etc.), avisar al admin que ya estaba aprobada
+      if (respuestaAprobacion?.status === 409 && resAtomo?.error?.includes('ya fue procesada')) {
+        toast.success('Esta orden ya había sido aprobada anteriormente.', { icon: 'ℹ️', duration: 4000 });
+        setProcesandoId(null);
+        return;
+      }
+      
+      if (!respuestaAprobacion?.ok) throw new Error(resAtomo?.error || 'No se pudo aprobar la orden.');
 
       idTransaccionGenerada = resAtomo.idTransaccionGenerada;
       saldoClienteResultante = resAtomo.nuevoSaldoCliente;

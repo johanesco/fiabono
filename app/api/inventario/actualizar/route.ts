@@ -41,6 +41,9 @@ export async function POST(request: Request) {
         inventariable,
         fechaActualizacion: new Date()
       };
+      if (body.imagen !== undefined) {
+        cambios.imagen = body.imagen;
+      }
 
       if (modificarPrecios) {
         const precioVenta = Number(body.precioVenta);

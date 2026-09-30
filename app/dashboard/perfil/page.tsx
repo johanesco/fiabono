@@ -168,6 +168,7 @@ export default function PerfilPage() {
     ingresoInventario: false,
     modificarPrecios: false,
     aplicarDescuentos: false,
+    ventaLibre: false,
     enviarWhatsApp: true
   });
   const [guardandoPermisosCaja, setGuardandoPermisosCaja] = useState(false);
@@ -824,7 +825,7 @@ export default function PerfilPage() {
           icono: 'exito' 
         });
       }
-      setFormColaborador({ nombre:"", usuarioAcceso:"", password:"", confirmPassword: "", permisos: { verCelulares: false, verDirectorio: false, verCartera: false, verReportes: false, ventaDirecta: false, abonar: false, editarInventario: false, ingresoInventario: false, terminalMultivendedor: false, modificarPrecios: false, aplicarDescuentos: false, planSepare: false, hacerDevoluciones: false, enviarWhatsApp: false } });
+      setFormColaborador({ nombre:"", usuarioAcceso:"", password:"", confirmPassword: "", permisos: { verCelulares: false, verDirectorio: false, verCartera: false, verReportes: false, ventaDirecta: false, abonar: false, editarInventario: false, ingresoInventario: false, terminalMultivendedor: false, modificarPrecios: false, aplicarDescuentos: false, planSepare: false, hacerDevoluciones: false, ventaLibre: false, enviarWhatsApp: false } });
       setModoCrearColaborador(false); setColaboradorEnEdicion(null);
       cargarListaColaboradores(adminId!);
     } catch (error: any) {
@@ -1679,6 +1680,24 @@ export default function PerfilPage() {
                           {formColaborador.permisos.ventaDirecta 
                             ? "Cobro autónomo: Factura y finaliza ventas o fiados de una vez." 
                             : "Modo Toma-Pedidos: Solo envía órdenes pendientes para tu aprobación y cobro."}
+                        </span>
+                      </div>
+                    </label>
+
+                    {/* Venta Libre */}
+                    <label className="flex items-start gap-3 text-sm font-medium text-slate-600 dark:text-slate-300 cursor-pointer">
+                      <input 
+                        type="checkbox" 
+                        className="w-5 h-5 mt-0.5 accent-blue-600 shrink-0 cursor-pointer" 
+                        checked={formColaborador.permisos.ventaLibre || false} 
+                        onChange={e => setFormColaborador({...formColaborador, permisos: {...formColaborador.permisos, ventaLibre: e.target.checked}})}
+                      /> 
+                      <div>
+                        <span className="font-bold text-slate-800 dark:text-slate-200 block">
+                          Cobros manuales (Venta Libre)
+                        </span>
+                        <span className="text-xs text-slate-400 block mt-0.5">
+                          Permite cobrar artículos o servicios que no están registrados en el inventario.
                         </span>
                       </div>
                     </label>
@@ -3132,6 +3151,24 @@ export default function PerfilPage() {
                     />
                   </label>
                 </div>
+
+                {/* Venta Libre */}
+                <label className="flex items-start gap-3 p-2.5 rounded-xl hover:bg-white dark:hover:bg-[#0f172a] cursor-pointer transition-colors">
+                  <input 
+                    type="checkbox" 
+                    className="w-5 h-5 mt-0.5 accent-indigo-600 shrink-0 cursor-pointer" 
+                    checked={permisosCajaEdicion.ventaLibre || false} 
+                    onChange={e => setPermisosCajaEdicion(p => ({ ...p, ventaLibre: e.target.checked }))}
+                  />
+                  <div>
+                    <span className="font-bold text-slate-800 dark:text-slate-200 block text-xs sm:text-sm">
+                      Cobros manuales (Venta Libre)
+                    </span>
+                    <span className="text-xs text-slate-400 block mt-0.5">
+                      Permite cobrar artículos o servicios que no están registrados en el inventario.
+                    </span>
+                  </div>
+                </label>
 
                 {/* Registrar Abonos */}
                 <label className="flex items-start gap-3 p-2.5 rounded-xl hover:bg-white dark:hover:bg-[#0f172a] cursor-pointer transition-colors">

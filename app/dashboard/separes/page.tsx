@@ -39,14 +39,15 @@ function SeparesContenido() {
   const puedeVentaDirecta = esAdmin || (datosSesion?.puedeVentaDirecta === true);
   const puedeAbonar = esAdmin || (datosSesion?.permisos?.abonar === true);
   const puedeEnviarWhatsApp = datosSesion?.puedeEnviarWhatsApp ?? true;
+  const tienePermisoSepare = esAdmin || (datosSesion?.permisos?.planSepare === true);
 
-  // Protección de acceso: si es colaborador sin permisos de dinero/abonos, redirigir a inicio
+  // Protección de acceso
   useEffect(() => {
-    if (datosSesion && !esAdmin && !puedeAbonar) {
+    if (datosSesion && !esAdmin && !puedeAbonar && !tienePermisoSepare) {
       toast.error("No tienes permisos para administrar Planes Separe.");
       router.replace('/dashboard/inicio');
     }
-  }, [datosSesion, esAdmin, puedeAbonar, router]);
+  }, [datosSesion, esAdmin, puedeAbonar, tienePermisoSepare, router]);
 
   const [separes, setSepares] = useState<any[]>([]);
   const [cargando, setCargando] = useState(true);

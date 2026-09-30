@@ -160,6 +160,15 @@ export default function InventarioPage() {
   const [stock, setStock] = useState("");
   const [precioVenta, setPrecioVenta] = useState("");
   const [costoCompra, setCostoCompra] = useState("");
+  
+  // Estados para Fotos del Producto
+  const [imagenUrl, setImagenUrl] = useState<string | null>(null);
+  const [modalCamaraEnVivo, setModalCamaraEnVivo] = useState(false);
+  const [mediaStream, setMediaStream] = useState<MediaStream | null>(null);
+  const [flashEfecto, setFlashEfecto] = useState(false);
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [fotoLightbox, setFotoLightbox] = useState<string | null>(null);
   const [tipoProducto, setTipoProducto] = useState<'producto' | 'servicio'>('producto');
   const [categoria, setCategoria] = useState('');
   const [inventariable, setInventariable] = useState(true);

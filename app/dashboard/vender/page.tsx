@@ -3,7 +3,7 @@ import { useState, useEffect, Suspense, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { collection, addDoc, getDocs, query, doc, updateDoc, where, increment, writeBatch } from "firebase/firestore";
 import { auth, db } from "../../../firebase";
-import { Search, ShoppingCart, CheckCircle2, ChevronRight, X, AlertCircle, UserCog, Plus, Minus, ArrowLeft, MessageCircle, Banknote, Package, QrCode, Volume2, Printer, Smartphone, CreditCard, Zap, Receipt, ChevronDown, ChevronUp, Tag, Percent, Pause, FolderOpen, User, Trash2, Store, Wallet } from 'lucide-react';
+import { Search, ShoppingCart, CheckCircle2, ChevronRight, X, AlertCircle, UserCog, Plus, Minus, ArrowLeft, MessageCircle, Banknote, Package, QrCode, Volume2, Printer, Smartphone, CreditCard, Zap, Receipt, ChevronDown, ChevronUp, Tag, Percent, Pause, FolderOpen, User, Trash2, Store, Wallet, LayoutGrid, List } from 'lucide-react';
 import { useAuth } from "@/hooks/AuthContext";
 import toast from "react-hot-toast";
 import { notificar } from "@/utils/notificaciones";
@@ -35,6 +35,8 @@ function VenderContenido() {
   const puedeModificarPrecios = esAdmin || (datosSesion?.permisos?.modificarPrecios === true);
   const puedeAplicarDescuentos = esAdmin || (datosSesion?.permisos?.aplicarDescuentos === true);
   const puedeEnviarWhatsApp = datosSesion?.puedeEnviarWhatsApp ?? true;
+  const puedeVentaLibre = esAdmin || (datosSesion?.permisos?.ventaLibre === true);
+  const puedePlanSepare = esAdmin || (datosSesion?.permisos?.planSepare === true);
 
   const [vendedorActivo, setVendedorActivo] = useState(nombreUsuario || "Vendedor");
   const [listaVendedores, setListaVendedores] = useState<string[]>([]);
@@ -88,6 +90,24 @@ function VenderContenido() {
   const [tipoDescuento, setTipoDescuento] = useState<'porcentaje' | 'fijo'>('porcentaje');
   const [valorDescuento, setValorDescuento] = useState<string>('');
 
+  const [modalCobroManual, setModalCobroManual] = useState(false);
+  const [cobroManualNombre, setCobroManualNombre] = useState("");
+  const [cobroManualValor, setCobroManualValor] = useState("");
+
+  const [modoVisual, setModoVisual] = useState(false);
+  const [categoriaVisualActiva, setCategoriaVisualActiva] = useState("Todas");
+  const [busquedaVisual, setBusquedaVisual] = useState("");
+
+  useEffect(() => {
+    const guardado = localStorage.getItem('vender_modo_visual');
+    if (guardado) setModoVisual(guardado === 'true');
+  }, []);
+
+  const toggleModoVisual = () => {
+    const nuevo = !modoVisual;
+    setModoVisual(nuevo);
+    localStorage.setItem('vender_modo_visual', nuevo.toString());
+  };
   const [clienteTransaccion, setClienteTransaccion] = useState<any | null>(null);
   const [busquedaRegistro, setBusquedaRegistro] = useState("");
   const [mostrarResultadosBuscador, setMostrarResultadosBuscador] = useState(false);
@@ -157,6 +177,15 @@ function VenderContenido() {
         sessionStorage.removeItem('fiabono_origen_despacho');
       }
 
+      let clientePrecargado: any = null;
+      const clienteStr = sessionStorage.getItem('fiabono_cliente_precargado');
+      if (clienteStr) {
+        try {
+          clientePrecargado = JSON.parse(clienteStr);
+        } catch(e){}
+        sessionStorage.removeItem('fiabono_cliente_precargado');
+      }
+
       const key = getStorageKey(vendedorActivo);
       const dataGuardada = localStorage.getItem(key);
       let listaPestanas: PestanaVenta[] = [];
@@ -190,7 +219,8 @@ function VenderContenido() {
       if (itemsPrecargados && itemsPrecargados.length > 0) {
         const pestanaInicial: PestanaVenta = {
           ...listaPestanas[0],
-          filas: itemsPrecargados
+          filas: itemsPrecargados,
+          cliente: clientePrecargado || listaPestanas[0].cliente
         };
         const actualizadas = [pestanaInicial, ...listaPestanas.slice(1)];
         setPestanas(actualizadas);
@@ -951,6 +981,15 @@ function VenderContenido() {
     if (filasValidas.length === 0) return toast.error("Ingresa al menos un artículo con valor.");
     if (!cuentaPrincipalId) return;
 
+    // Validar permisos de venta libre
+    if (!puedeVentaLibre) {
+      const filaNoPermitida = filasValidas.find(f => !inventario.some(p => p.nombre.toLowerCase().trim() === f.descripcion.toLowerCase().trim()));
+      if (filaNoPermitida) {
+        toast.error(`No tienes permisos para venta libre (artículo no registrado: "${filaNoPermitida.descripcion}").`);
+        return;
+      }
+    }
+
     // Validar stock antes de enviar orden
     for (const fila of filasValidas) {
       const descTrim = fila.descripcion.toLowerCase().trim();
@@ -1068,6 +1107,17 @@ function VenderContenido() {
 
     try {
       const filasValidas = filasRegistro.filter(f => parseFloat(f.valor) > 0);
+      
+      // Validar permisos de venta libre
+      if (!puedeVentaLibre) {
+        const filaNoPermitida = filasValidas.find(f => !inventario.some(p => p.nombre.toLowerCase().trim() === f.descripcion.toLowerCase().trim()));
+        if (filaNoPermitida) {
+          toast.error(`No tienes permisos para venta libre (artículo no registrado: "${filaNoPermitida.descripcion}").`);
+          setGuardandoVenta(false);
+          isSubmittingVentaRef.current = false;
+          return;
+        }
+      }
       
       for (const fila of filasValidas) {
         const descTrim = fila.descripcion.toLowerCase().trim();
@@ -1448,12 +1498,340 @@ Estamos atentos para cualquier consulta.
     (c.celular || "").toString().includes(busquedaRegistro)
   );
 
+  const agregarProductoVisual = (producto: any) => {
+    // Verificar stock primero (optimista)
+    const esInventariable = producto.tipoProducto !== 'servicio' && producto.inventariable !== false;
+    const cantidadEnCarrito = filasRegistro.reduce((acc, f) => {
+      if (f.descripcion.trim().toLowerCase() === producto.nombre.toLowerCase()) {
+        return acc + f.cantidad;
+      }
+      return acc;
+    }, 0);
+
+    if (esInventariable && (cantidadEnCarrito + 1) > (producto.stock || 0)) {
+      toast.error(`⚠️ Agotado. Solo tienes ${producto.stock || 0} de "${producto.nombre}".`, { position: 'bottom-center', icon: '🚫' });
+      return;
+    }
+
+    setFilasRegistro(prev => {
+      const nuevas = [...prev];
+      const indexExistente = nuevas.findIndex(f => f.descripcion.trim().toLowerCase() === producto.nombre.toLowerCase());
+      
+      if (indexExistente >= 0) {
+        nuevas[indexExistente] = { ...nuevas[indexExistente], cantidad: nuevas[indexExistente].cantidad + 1 };
+        return nuevas;
+      }
+
+      const indexVacia = nuevas.findIndex(f => f.descripcion.trim() === '' && (f.valor.trim() === '' || f.valor === '0'));
+      if (indexVacia >= 0) {
+        nuevas[indexVacia] = { descripcion: producto.nombre, valor: producto.precioVenta.toString(), cantidad: 1 };
+        return nuevas;
+      }
+
+      nuevas.push({ descripcion: producto.nombre, valor: producto.precioVenta.toString(), cantidad: 1 });
+      return nuevas;
+    });
+  };
+
+  const cambiarCantidadVisual = (index: number, delta: number) => {
+    const fila = filasRegistro[index];
+    const prodInv = inventario.find(p => p.nombre.toLowerCase() === fila.descripcion.trim().toLowerCase());
+    
+    if (delta > 0 && prodInv) {
+      const esInventariable = prodInv.tipoProducto !== 'servicio' && prodInv.inventariable !== false;
+      const cantidadEnOtrasFilas = filasRegistro.reduce((acc, f, i) => {
+        if (i !== index && f.descripcion.trim().toLowerCase() === prodInv.nombre.toLowerCase()) {
+          return acc + f.cantidad;
+        }
+        return acc;
+      }, 0);
+
+      const stockTotalPermitido = (prodInv.stock || 0) - cantidadEnOtrasFilas;
+      if (esInventariable && (fila.cantidad + delta) > stockTotalPermitido) {
+         toast.error(`⚠️ Agotado. Solo tienes ${prodInv.stock || 0} de "${prodInv.nombre}".`, { position: 'bottom-center', icon: '🚫' });
+         return;
+      }
+    }
+
+    setFilasRegistro(prev => {
+      const nuevas = [...prev];
+      nuevas[index] = { ...nuevas[index], cantidad: nuevas[index].cantidad + delta };
+      if (nuevas[index].cantidad <= 0) {
+        nuevas.splice(index, 1);
+      }
+      if (nuevas.length === 0) {
+        nuevas.push({ descripcion: "", valor: "", cantidad: 1 });
+      }
+      return nuevas;
+    });
+  };
+
+  const renderModoVisualGrid = () => {
+    const categoriasInventario = ["Todas", ...Array.from(new Set(inventario.map(p => p.categoria || "General"))).sort()];
+    
+    // 1. Filtrar por categoría y búsqueda
+    let productosFiltrados = inventario.filter(p => {
+      const cumpleCategoria = categoriaVisualActiva === "Todas" || (p.categoria || "General") === categoriaVisualActiva;
+      const cumpleBusqueda = busquedaVisual === "" || p.nombre.toLowerCase().includes(busquedaVisual.toLowerCase());
+      return cumpleCategoria && cumpleBusqueda;
+    });
+
+    // 2. Orden Inteligente: Los que ya están en el carrito van primero
+    productosFiltrados.sort((a, b) => {
+      const indexA = filasRegistro.findIndex(f => f.descripcion.trim().toLowerCase() === (a.nombre || "").toLowerCase());
+      const indexB = filasRegistro.findIndex(f => f.descripcion.trim().toLowerCase() === (b.nombre || "").toLowerCase());
+      const cantA = indexA >= 0 ? filasRegistro[indexA].cantidad : 0;
+      const cantB = indexB >= 0 ? filasRegistro[indexB].cantidad : 0;
+      
+      if (cantA > 0 && cantB === 0) return -1;
+      if (cantB > 0 && cantA === 0) return 1;
+      return a.nombre.localeCompare(b.nombre);
+    });
+
+    return (
+      <div className="flex-1 flex flex-col min-h-0 bg-slate-50 dark:bg-[#020617]">
+        {/* Barra de Categorías y Buscador */}
+        <div className="flex flex-col border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-[#0f172a] shrink-0">
+          <div className="flex items-center px-3 py-2 gap-2">
+            <div className="relative flex-1">
+              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+              <input 
+                type="text" 
+                placeholder="Buscar producto..." 
+                value={busquedaVisual}
+                onChange={(e) => setBusquedaVisual(e.target.value)}
+                className="w-full bg-slate-100 dark:bg-[#020617] border-none outline-none py-1.5 pl-8 pr-3 text-xs font-bold rounded-lg text-slate-700 dark:text-slate-200 placeholder:font-normal"
+              />
+              {busquedaVisual && (
+                <button onClick={() => setBusquedaVisual('')} className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
+                  <X size={12} />
+                </button>
+              )}
+            </div>
+          </div>
+          <div className="flex items-center gap-2 px-3 pb-2 overflow-x-auto no-scrollbar">
+            {categoriasInventario.map(cat => (
+              <button
+                key={cat as string}
+                onClick={() => setCategoriaVisualActiva(cat as string)}
+                className={`px-3 py-1.5 rounded-full text-xs font-bold whitespace-nowrap transition-colors cursor-pointer ${
+                  categoriaVisualActiva === cat 
+                    ? 'bg-emerald-600 text-white shadow-md' 
+                    : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'
+                }`}
+              >
+                {cat as string}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Cuadrícula de Productos */}
+        <div className="flex-1 overflow-y-auto p-3 sm:p-4 grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 xl:grid-cols-6 gap-3 content-start pb-24 lg:pb-4">
+          {productosFiltrados.map(prod => {
+            const indexCarrito = filasRegistro.findIndex(f => f.descripcion.trim().toLowerCase() === (prod.nombre || "").toLowerCase());
+            const cantidadCarrito = indexCarrito >= 0 ? filasRegistro[indexCarrito].cantidad : 0;
+
+            return (
+              <div 
+                key={prod.id} 
+                className={`flex flex-col bg-white dark:bg-[#0f172a] border ${cantidadCarrito > 0 ? 'border-emerald-500 ring-2 ring-emerald-500/20 shadow-md' : 'border-slate-200 dark:border-slate-800'} rounded-2xl overflow-hidden hover:border-emerald-400 hover:shadow-lg transition-all transform duration-150 relative group`}
+              >
+                {cantidadCarrito > 0 && (
+                  <div className="absolute top-1.5 left-1.5 bg-emerald-500 text-white w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-black z-10 shadow-sm animate-in zoom-in duration-200">
+                    {cantidadCarrito}
+                  </div>
+                )}
+                <div 
+                  className="w-full bg-slate-100 dark:bg-slate-900 flex items-center justify-center relative overflow-hidden cursor-pointer shrink-0"
+                  style={{ aspectRatio: '1/1' }}
+                  onClick={(e) => {
+                    const el = e.currentTarget.parentElement;
+                    if(el) { el.classList.add('scale-90'); setTimeout(() => el.classList.remove('scale-90'), 150); }
+                    agregarProductoVisual(prod);
+                  }}
+                >
+                  {prod.imagen ? (
+                    <img src={prod.imagen} alt={prod.nombre} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
+                  ) : (
+                    <span className="text-3xl font-black text-slate-300 dark:text-slate-700 tracking-tighter">
+                      {prod.nombre ? prod.nombre.substring(0, 2).toUpperCase() : '??'}
+                    </span>
+                  )}
+                  {/* Badge de Precio Flotante (Abajo Derecha) */}
+                  <div className="absolute bottom-1 right-1 flex flex-col gap-1 items-end">
+                    <div className="bg-white/95 dark:bg-black/90 backdrop-blur-sm px-1.5 py-0.5 rounded-md shadow-sm border border-slate-200/50 dark:border-slate-700/50 z-10">
+                      <span className="text-[11px] font-black text-slate-900 dark:text-white">${Number(prod.precioVenta || 0).toLocaleString('es-CO')}</span>
+                    </div>
+                  </div>
+                </div>
+                <div className="p-2 flex-1 flex flex-col justify-between">
+                  <div>
+                    <span className="text-[10px] sm:text-xs font-bold text-slate-700 dark:text-slate-200 leading-tight line-clamp-2">{prod.nombre}</span>
+                    {prod.tipoProducto !== 'servicio' && prod.inventariable !== false && (
+                      <span className={`text-[9px] font-bold block mt-0.5 ${Number(prod.stock || 0) <= 0 ? 'text-rose-500' : Number(prod.stock || 0) <= 5 ? 'text-amber-500' : 'text-slate-400'}`}>
+                        {prod.stock || 0} en stock
+                      </span>
+                    )}
+                  </div>
+                  
+                  {/* Controles de Cantidad */}
+                  <div className="flex items-center justify-end gap-1 mt-1">
+                    {cantidadCarrito > 0 && (
+                      <button 
+                        onClick={(e) => { e.stopPropagation(); cambiarCantidadVisual(indexCarrito, -1); }}
+                        className="w-7 h-7 bg-rose-100 dark:bg-rose-900/40 text-rose-600 rounded-full flex items-center justify-center shrink-0 transition-colors active:bg-rose-500 active:text-white cursor-pointer"
+                      >
+                        <Minus size={14} />
+                      </button>
+                    )}
+                    <button 
+                      onClick={(e) => {
+                        const el = e.currentTarget.parentElement?.parentElement;
+                        if(el) { el.classList.add('scale-90'); setTimeout(() => el.classList.remove('scale-90'), 150); }
+                        agregarProductoVisual(prod);
+                      }}
+                      className="w-7 h-7 bg-emerald-100 dark:bg-emerald-900/40 text-emerald-600 rounded-full flex items-center justify-center shrink-0 transition-colors active:bg-emerald-500 active:text-white cursor-pointer"
+                    >
+                      <Plus size={14} />
+                    </button>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+          {productosFiltrados.length === 0 && (
+            <div className="col-span-full py-10 text-center text-slate-400 text-sm font-bold">
+              No se encontraron productos.
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  };
+
+  const renderModoVisualCart = () => {
+    const itemsValidos = filasRegistro.filter(f => f.descripcion.trim() || parseFloat(f.valor) > 0);
+    const sinPermisoVentaLibre = !puedeVentaLibre;
+
+    return (
+      <div className="flex flex-col gap-3 mb-4 pb-4 border-b border-slate-200 dark:border-slate-800">
+        <div className="flex items-center justify-between">
+          <h4 className="font-black text-slate-800 dark:text-slate-200 text-sm">Resumen de Venta</h4>
+          <span className="bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-400 px-2 py-0.5 rounded-full text-[10px] font-black">
+            {itemsValidos.length} items
+          </span>
+        </div>
+
+        <div className="flex flex-col gap-2 max-h-[30vh] overflow-y-auto pr-1 no-scrollbar">
+          {itemsValidos.length === 0 ? (
+            <div className="py-6 text-center border-2 border-dashed border-slate-200 dark:border-slate-800 rounded-2xl flex flex-col items-center gap-2">
+              <ShoppingCart size={24} className="text-slate-300 dark:text-slate-600" />
+              <span className="text-xs font-bold text-slate-400">Toca un producto para agregarlo</span>
+            </div>
+          ) : (
+            filasRegistro.map((fila, index) => {
+              if (!fila.descripcion.trim() && !fila.valor.trim()) return null;
+              const prodInv = inventario.find(p => p.nombre.toLowerCase() === fila.descripcion.trim().toLowerCase());
+              const bloqueado = !puedeModificarPrecios && prodInv;
+
+              return (
+                <div key={index} className="flex items-center bg-slate-50 dark:bg-slate-900/50 p-1.5 rounded-lg border border-slate-200 dark:border-slate-800/80 gap-2">
+                  <div className="flex items-center bg-white dark:bg-[#020617] rounded-md border border-slate-200 dark:border-slate-700 shrink-0">
+                    <button onClick={() => cambiarCantidadVisual(index, -1)} className="px-1.5 py-0.5 text-slate-500 hover:text-slate-800 cursor-pointer active:bg-slate-100 rounded-l-md"><Minus size={10} /></button>
+                    <span className="text-[10px] font-black w-4 text-center text-slate-900 dark:text-white">{fila.cantidad}</span>
+                    <button onClick={() => cambiarCantidadVisual(index, 1)} className="px-1.5 py-0.5 text-emerald-600 hover:text-emerald-700 cursor-pointer active:bg-emerald-50 rounded-r-md"><Plus size={10} /></button>
+                  </div>
+
+                  <span className="text-[10px] font-bold text-slate-700 dark:text-slate-200 leading-tight flex-1 truncate" title={fila.descripcion}>
+                    {fila.descripcion}
+                  </span>
+
+                  <div className="flex items-center gap-1 shrink-0">
+                    <span className="text-[9px] text-slate-400 font-bold">$</span>
+                    <input 
+                      type="text" 
+                      inputMode="decimal" pattern="[0-9]*"
+                      value={formatearMonedaInput(fila.valor)}
+                      onChange={(e) => actualizarFila(index, 'valor', e.target.value)}
+                      disabled={bloqueado}
+                      className={`w-14 sm:w-16 bg-transparent border-b ${bloqueado ? 'border-transparent text-slate-500' : 'border-slate-300 dark:border-slate-600 text-slate-900 dark:text-white focus:border-emerald-500'} outline-none text-right text-[10px] font-black`}
+                    />
+                  </div>
+
+                  <button 
+                    type="button"
+                    onClick={() => eliminarFila(index)}
+                    className="text-rose-400 hover:text-rose-600 shrink-0 cursor-pointer ml-1"
+                  >
+                    <X size={12} />
+                  </button>
+                </div>
+              );
+            })
+          )}
+        </div>
+
+        {/* Botón Cobro Manual */}
+        {!sinPermisoVentaLibre && (
+          <button
+            type="button"
+            onClick={() => {
+              setModalCobroManual(true);
+            }}
+            className="w-full mt-1 border border-dashed border-emerald-400 dark:border-emerald-600/50 bg-emerald-50/50 dark:bg-emerald-950/20 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-100 dark:hover:bg-emerald-900/40 rounded-xl py-2 text-xs font-black flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+          >
+            <Plus size={14} /> + Artículo Libre
+          </button>
+        )}
+      </div>
+    );
+  };
+
+  const trasladarCarrito = (destino: 'fiar' | 'separe') => {
+    const itemsValidos = filasRegistro.filter(f => f.descripcion.trim() || parseFloat(f.valor) > 0);
+    if (itemsValidos.length === 0) {
+      toast.error("El carrito está vacío");
+      return;
+    }
+    sessionStorage.setItem('fiabono_productos_precargados', JSON.stringify(itemsValidos));
+    if (clienteTransaccion) {
+      sessionStorage.setItem('fiabono_cliente_precargado', JSON.stringify(clienteTransaccion));
+    }
+    setFilasRegistro([{ descripcion: '', valor: '', cantidad: 1 }]);
+    setClienteTransaccion(null);
+    setPagoCliente('');
+    router.push(`/dashboard/${destino}`);
+  };
+
   const renderFormularioCobro = ({ esModal = false }: { esModal?: boolean }) => {
     const pagadoRaw = pagoCliente.replace(/\D/g, '');
     const pagadoNum = pagadoRaw === "" ? 0 : parseFloat(pagadoRaw);
 
     return (
       <div className="flex flex-col gap-1.5 sm:gap-2 w-full justify-between">
+        {/* BOTONES DE TRANSFERENCIA DE CARRITO */}
+        {totalFilasRegistro > 0 && (
+          <div className="flex gap-2 w-full mb-0.5">
+            <button 
+              type="button"
+              onClick={() => trasladarCarrito('fiar')} 
+              className="flex-1 py-1.5 text-[9px] sm:text-[10px] font-black rounded-lg border border-rose-300 dark:border-rose-800 text-rose-700 dark:text-rose-400 bg-rose-50 dark:bg-rose-950/30 hover:bg-rose-100 dark:hover:bg-rose-900/50 flex items-center justify-center gap-1 transition-colors cursor-pointer"
+            >
+              🔄 Mover a Fiar
+            </button>
+            {puedePlanSepare && (
+              <button 
+                type="button"
+                onClick={() => trasladarCarrito('separe')} 
+                className="flex-1 py-1.5 text-[9px] sm:text-[10px] font-black rounded-lg border border-purple-300 dark:border-purple-800 text-purple-700 dark:text-purple-400 bg-purple-50 dark:bg-purple-950/30 hover:bg-purple-100 dark:hover:bg-purple-900/50 flex items-center justify-center gap-1 transition-colors cursor-pointer"
+              >
+                🔄 Mover a Separe
+              </button>
+            )}
+          </div>
+        )}
+
         {/* 1. RECUADRO CLIENTE: COMPACTO CON SALDO A FAVOR INTEGRADO */}
         <div className={`flex flex-col p-2 rounded-xl transition-all duration-200 ${
           clienteTransaccion 
@@ -1931,7 +2309,7 @@ Estamos atentos para cualquier consulta.
           </button>
           <h2 className="text-base sm:text-xl font-black uppercase tracking-wide flex items-center gap-2 truncate">
             <ShoppingCart size={20} className="shrink-0" /> 
-            <span className="truncate">Vender</span>
+            <span className="hidden sm:inline truncate">Vender</span>
           </h2>
         </div>
 
@@ -1966,7 +2344,7 @@ Estamos atentos para cualquier consulta.
               <ChevronDown size={11} className="text-white/80 pointer-events-none -ml-2 shrink-0" />
             </div>
           ) : (
-            <div className="flex items-center bg-white/20 dark:!bg-white/20 backdrop-blur-md rounded-xl px-2.5 py-1.5 border border-white/30 text-white text-xs font-bold gap-1.5 shadow-sm">
+            <div className="hidden sm:flex items-center bg-white/20 dark:!bg-white/20 backdrop-blur-md rounded-xl px-2.5 py-1.5 border border-white/30 text-white text-xs font-bold gap-1.5 shadow-sm">
               <User size={13} className="text-white/90" />
               <span className="truncate max-w-[110px] sm:max-w-none">{vendedorActivo}</span>
             </div>
@@ -1979,7 +2357,17 @@ Estamos atentos para cualquier consulta.
             title="Escanear Código QR"
           >
             <QrCode size={15} className="shrink-0" /> 
-            <span>Escanear QR</span>
+            <span>Escanear</span>
+          </button>
+
+          {/* Toggle Modo Visual */}
+          <button 
+            onClick={toggleModoVisual} 
+            className="bg-emerald-800 text-emerald-100 border border-emerald-500/30 hover:bg-emerald-700 px-2.5 sm:px-3 py-1.5 sm:py-2 rounded-xl font-black text-xs sm:text-sm flex items-center gap-1.5 shadow-md transition-transform active:scale-95 cursor-pointer shrink-0"
+            title={modoVisual ? "Cambiar a lista clásica" : "Cambiar a cuadrícula con fotos"}
+          >
+            {modoVisual ? <List size={15} className="shrink-0" /> : <LayoutGrid size={15} className="shrink-0" />} 
+            <span className="hidden sm:inline">{modoVisual ? "Rápido" : "Visual"}</span>
           </button>
         </div>
       </div>
@@ -2085,7 +2473,7 @@ Estamos atentos para cualquier consulta.
         
         {/* SECCIÓN ARTÍCULOS O CONCEPTOS: Visible en desktop y cuando pasoMovil === 'articulos' en móvil */}
         <div className={`flex-1 flex flex-col bg-slate-50/60 dark:bg-[#020617]/50 lg:min-h-0 lg:overflow-hidden shrink-0 ${pasoMovil === 'cobro' ? 'hidden lg:flex' : 'flex'}`}>
-          
+          {modoVisual ? renderModoVisualGrid() : (
           <div ref={scrollArticulosRef} className="p-3 sm:p-5 lg:p-6 xl:p-8 space-y-3 sm:space-y-4 lg:flex-1 lg:overflow-y-auto min-h-0">
             <div className="max-w-4xl mx-auto space-y-3 sm:space-y-4">
               <h4 className="font-bold text-slate-400 uppercase text-[10px] md:text-xs tracking-wider">Artículos o Conceptos</h4>
@@ -2147,8 +2535,13 @@ Estamos atentos para cualquier consulta.
                           }
                         }}
                         placeholder="Escribe nombre o SKU..." 
-                        className="w-full px-3 py-1.5 h-[38px] sm:h-[40px] md:h-[42px] bg-slate-50 dark:bg-[#020617] border border-slate-200 dark:border-slate-800 rounded-xl outline-none font-bold text-xs sm:text-sm md:text-base min-w-0 shadow-xs focus:border-emerald-500 transition-colors text-slate-900 dark:!text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 placeholder:text-xs sm:placeholder:text-sm placeholder:font-normal"
+                        className={`w-full px-3 py-1.5 h-[38px] sm:h-[40px] md:h-[42px] bg-slate-50 dark:bg-[#020617] border rounded-xl outline-none font-bold text-xs sm:text-sm md:text-base min-w-0 shadow-xs transition-colors text-slate-900 dark:!text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 placeholder:text-xs sm:placeholder:text-sm placeholder:font-normal ${!puedeVentaLibre && fila.descripcion.trim().length > 0 && !inventario.find(p => p.nombre.toLowerCase().trim() === fila.descripcion.toLowerCase().trim()) ? 'border-rose-500 focus:border-rose-500 bg-rose-50/50 dark:bg-rose-950/20 text-rose-700 dark:!text-rose-300' : 'border-slate-200 dark:border-slate-800 focus:border-emerald-500'}`}
                       />
+                      {!puedeVentaLibre && fila.descripcion.trim().length > 0 && !inventario.find(p => p.nombre.toLowerCase().trim() === fila.descripcion.toLowerCase().trim()) && (
+                        <div className="absolute top-1/2 -translate-y-1/2 right-2 text-[10px] font-black text-rose-600 bg-rose-100 dark:bg-rose-950/80 px-2 py-0.5 rounded-md shadow-sm border border-rose-200 dark:border-rose-800 z-10 animate-in fade-in zoom-in-95 pointer-events-none">
+                           Solo Inventario
+                        </div>
+                      )}
 
                       {busquedaProductoIndex === index && fila.descripcion.trim().length > 0 && productosFiltradosInventario.length > 0 && (
                         <div className="absolute top-full left-0 right-0 mt-1.5 bg-white dark:bg-[#0f172a] border border-slate-200/80 dark:border-slate-800 rounded-2xl shadow-2xl z-50 overflow-hidden max-h-60 overflow-y-auto divide-y divide-slate-100 dark:divide-slate-800/60 backdrop-blur-md">
@@ -2379,6 +2772,7 @@ Estamos atentos para cualquier consulta.
             </div>
           </div>
         </div>
+        )}
       </div>
 
         {/* VISTA DE COBRO DIRECTA EN MÓVIL (< 1024px) - VISTA COMPLETA SIN SCROLL */}
@@ -2402,6 +2796,7 @@ Estamos atentos para cualquier consulta.
             </div>
 
             <div className="max-w-xl mx-auto w-full flex-1 flex flex-col justify-between min-h-0">
+              {modoVisual && renderModoVisualCart()}
               {renderFormularioCobro({ esModal: true })}
             </div>
           </div>
@@ -2411,6 +2806,7 @@ Estamos atentos para cualquier consulta.
         <div className="hidden lg:flex w-full lg:w-[350px] xl:w-[370px] bg-white dark:bg-[#0f172a] lg:border-l border-slate-200 dark:border-slate-800 flex-col shrink-0 lg:min-h-0 lg:overflow-hidden">
           {/* Formulario derecho desktop */}
           <div className="p-2.5 xl:p-3 flex flex-col gap-1.5 lg:flex-1 lg:overflow-y-auto no-scrollbar max-w-4xl lg:max-w-none mx-auto w-full justify-between">
+            {modoVisual && renderModoVisualCart()}
             {renderFormularioCobro({ esModal: false })}
           </div>
 
@@ -2792,6 +3188,71 @@ Estamos atentos para cualquier consulta.
               <button onClick={() => setModalNuevoCliente(false)} className="bg-slate-100 dark:bg-[#020617] hover:bg-slate-200 dark:hover:bg-[#1e293b] text-slate-700 dark:text-slate-300 font-bold py-4 rounded-2xl text-lg">Cancelar</button>
               <button onClick={guardarClienteNuevo} disabled={guardandoCliente} className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-4 rounded-2xl shadow-lg flex justify-center items-center gap-2 text-lg">Guardar <CheckCircle2 size={20}/></button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL COBRO MANUAL / ARTÍCULO LIBRE */}
+      {modalCobroManual && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[900] flex items-center justify-center p-4 animate-in fade-in">
+          <div className="bg-white dark:bg-[#0f172a] rounded-[2rem] w-full max-w-sm p-6 shadow-2xl border border-slate-100 dark:border-slate-800">
+            <div className="flex justify-between items-center mb-6">
+              <h3 className="font-black text-xl text-slate-800 dark:text-white flex items-center gap-2"><Plus size={20} className="text-emerald-500"/> Artículo Libre</h3>
+              <button onClick={() => setModalCobroManual(false)} className="text-slate-400 hover:text-slate-600 bg-slate-100 dark:bg-slate-800 p-2 rounded-full cursor-pointer"><X size={18}/></button>
+            </div>
+            
+            <div className="space-y-4 mb-6">
+              <div>
+                <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-1.5">Descripción</label>
+                <input 
+                  type="text" 
+                  value={cobroManualNombre} 
+                  onChange={(e) => setCobroManualNombre(e.target.value)} 
+                  placeholder="Ej. Servicio de entrega" 
+                  className="w-full p-3.5 bg-slate-50 dark:bg-[#020617] border border-slate-200 dark:border-slate-700 rounded-xl outline-none focus:border-emerald-500 font-bold text-sm text-slate-900 dark:text-white" 
+                />
+              </div>
+              <div>
+                <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-1.5">Valor Total</label>
+                <div className="relative">
+                  <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 font-black">$</span>
+                  <input 
+                    type="text" 
+                    inputMode="decimal" pattern="[0-9]*"
+                    value={formatearMonedaInput(cobroManualValor)} 
+                    onChange={(e) => setCobroManualValor(e.target.value)} 
+                    placeholder="0" 
+                    className="w-full p-3.5 pl-8 bg-slate-50 dark:bg-[#020617] border border-slate-200 dark:border-slate-700 rounded-xl outline-none focus:border-emerald-500 font-black text-lg text-slate-900 dark:text-white" 
+                  />
+                </div>
+              </div>
+            </div>
+
+            <button 
+              onClick={() => {
+                if (!cobroManualNombre.trim()) return toast.error("Ingresa una descripción.");
+                if (!cobroManualValor.trim() || Number(cobroManualValor.replace(/\D/g, '')) <= 0) return toast.error("Ingresa un valor válido.");
+                
+                setFilasRegistro(prev => {
+                  const nuevas = [...prev];
+                  const indexVacia = nuevas.findIndex(f => f.descripcion.trim() === '' && (f.valor.trim() === '' || f.valor === '0'));
+                  if (indexVacia >= 0) {
+                    nuevas[indexVacia] = { descripcion: cobroManualNombre, valor: Number(cobroManualValor.replace(/\D/g, '')).toString(), cantidad: 1 };
+                  } else {
+                    nuevas.push({ descripcion: cobroManualNombre, valor: Number(cobroManualValor.replace(/\D/g, '')).toString(), cantidad: 1 });
+                  }
+                  return nuevas;
+                });
+                
+                setCobroManualNombre("");
+                setCobroManualValor("");
+                setModalCobroManual(false);
+                toast.success("Artículo agregado al cobro.");
+              }} 
+              className="w-full bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white font-black py-4 rounded-xl shadow-lg flex justify-center items-center gap-2 transition-all cursor-pointer"
+            >
+              Agregar a la cuenta <CheckCircle2 size={18}/>
+            </button>
           </div>
         </div>
       )}

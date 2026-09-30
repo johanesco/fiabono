@@ -3,7 +3,7 @@ import { useState, useEffect, Suspense, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { collection, addDoc, getDocs, query, doc, updateDoc, where, increment, writeBatch } from "firebase/firestore";
 import { auth, db } from "../../../firebase";
-import { Search, ShoppingBag, CheckCircle2, ChevronRight, X, AlertCircle, UserCog, Plus, Minus, ArrowLeft, MessageCircle, Package, QrCode, Volume2, Printer, ChevronDown, ChevronUp, Tag, Receipt, Pause, FolderOpen, User, Trash2 } from 'lucide-react';
+import { Search, ShoppingBag, CheckCircle2, ChevronRight, X, AlertCircle, UserCog, Plus, Minus, ArrowLeft, MessageCircle, Package, QrCode, Volume2, Printer, ChevronDown, ChevronUp, Tag, Receipt, Pause, FolderOpen, User, Trash2, LayoutGrid, List, ShoppingCart } from 'lucide-react';
 import { useAuth } from "@/hooks/AuthContext";
 import toast from "react-hot-toast";
 import { notificar } from "@/utils/notificaciones";
@@ -34,6 +34,7 @@ function FiarContenido() {
     const puedeModificarPrecios = esAdmin || (datosSesion?.permisos?.modificarPrecios === true);
     const puedeAplicarDescuentos = esAdmin || (datosSesion?.permisos?.aplicarDescuentos === true);
     const puedeEnviarWhatsApp = datosSesion?.puedeEnviarWhatsApp ?? true;
+    const puedeVentaLibre = esAdmin || (datosSesion?.permisos?.ventaLibre === true);
 
     const [vendedorActivo, setVendedorActivo] = useState(nombreUsuario || "Vendedor");
     const [listaVendedores, setListaVendedores] = useState<string[]>([]);
@@ -79,6 +80,21 @@ function FiarContenido() {
     const [busquedaRegistro, setBusquedaRegistro] = useState("");
     const [mostrarResultadosBuscador, setMostrarResultadosBuscador] = useState(false);
     const [busquedaProductoIndex, setBusquedaProductoIndex] = useState<number | null>(null);
+
+    const [modoVisual, setModoVisual] = useState(false);
+    const [categoriaVisualActiva, setCategoriaVisualActiva] = useState("Todas");
+    const [busquedaVisual, setBusquedaVisual] = useState("");
+
+    useEffect(() => {
+        const guardado = localStorage.getItem('fiar_modo_visual');
+        if (guardado) setModoVisual(guardado === 'true');
+    }, []);
+
+    const toggleModoVisual = () => {
+        const nuevo = !modoVisual;
+        setModoVisual(nuevo);
+        localStorage.setItem('fiar_modo_visual', nuevo.toString());
+    };
 
     const [modalFaltaCliente, setModalFaltaCliente] = useState(false);
     const [modalNuevoCliente, setModalNuevoCliente] = useState(false);
@@ -135,6 +151,15 @@ function FiarContenido() {
                 sessionStorage.removeItem('fiabono_origen_despacho');
             }
 
+            let clientePrecargado: any = null;
+            const clienteStr = sessionStorage.getItem('fiabono_cliente_precargado');
+            if (clienteStr) {
+                try {
+                    clientePrecargado = JSON.parse(clienteStr);
+                } catch(e){}
+                sessionStorage.removeItem('fiabono_cliente_precargado');
+            }
+
             const key = getStorageKey(vendedorActivo);
             const dataGuardada = localStorage.getItem(key);
             let listaPestanas: PestanaFiado[] = [];
@@ -164,7 +189,8 @@ function FiarContenido() {
             if (itemsPrecargados && itemsPrecargados.length > 0) {
                 const pestanaInicial: PestanaFiado = {
                     ...listaPestanas[0],
-                    filas: itemsPrecargados
+                    filas: itemsPrecargados,
+                    cliente: clientePrecargado || listaPestanas[0].cliente
                 };
                 const actualizadas = [pestanaInicial, ...listaPestanas.slice(1)];
                 setPestanas(actualizadas);
@@ -728,6 +754,297 @@ function FiarContenido() {
         });
     };
 
+    const agregarProductoVisual = (producto: any) => {
+        // Verificar stock primero (optimista)
+        const esInventariable = producto.tipoProducto !== 'servicio' && producto.inventariable !== false;
+        const cantidadEnCarrito = filasRegistro.reduce((acc, f) => {
+          if (f.descripcion.trim().toLowerCase() === producto.nombre.toLowerCase()) {
+            return acc + f.cantidad;
+          }
+          return acc;
+        }, 0);
+
+        if (esInventariable && (cantidadEnCarrito + 1) > (producto.stock || 0)) {
+          toast.error(`⚠️ Agotado. Solo tienes ${producto.stock || 0} de "${producto.nombre}".`, { position: 'bottom-center', icon: '🚫' });
+          return;
+        }
+
+        setFilasRegistro(prev => {
+          const nuevas = [...prev];
+          const indexExistente = nuevas.findIndex(f => f.descripcion.trim().toLowerCase() === producto.nombre.toLowerCase());
+      
+          if (indexExistente >= 0) {
+            nuevas[indexExistente] = { ...nuevas[indexExistente], cantidad: nuevas[indexExistente].cantidad + 1 };
+            return nuevas;
+          }
+
+          const indexVacia = nuevas.findIndex(f => f.descripcion.trim() === '' && (f.valor.trim() === '' || f.valor === '0'));
+          if (indexVacia >= 0) {
+            nuevas[indexVacia] = { descripcion: producto.nombre, valor: producto.precioVenta.toString(), cantidad: 1 };
+            return nuevas;
+          }
+
+          nuevas.push({ descripcion: producto.nombre, valor: producto.precioVenta.toString(), cantidad: 1 });
+          return nuevas;
+        });
+      };
+
+      const cambiarCantidadVisual = (index: number, delta: number) => {
+        const fila = filasRegistro[index];
+        const prodInv = inventario.find(p => p.nombre.toLowerCase() === fila.descripcion.trim().toLowerCase());
+    
+        if (delta > 0 && prodInv) {
+          const esInventariable = prodInv.tipoProducto !== 'servicio' && prodInv.inventariable !== false;
+          const cantidadEnOtrasFilas = filasRegistro.reduce((acc, f, i) => {
+            if (i !== index && f.descripcion.trim().toLowerCase() === prodInv.nombre.toLowerCase()) {
+              return acc + f.cantidad;
+            }
+            return acc;
+          }, 0);
+
+          const stockTotalPermitido = (prodInv.stock || 0) - cantidadEnOtrasFilas;
+          if (esInventariable && (fila.cantidad + delta) > stockTotalPermitido) {
+             toast.error(`⚠️ Agotado. Solo tienes ${prodInv.stock || 0} de "${prodInv.nombre}".`, { position: 'bottom-center', icon: '🚫' });
+             return;
+          }
+        }
+
+        setFilasRegistro(prev => {
+          const nuevas = [...prev];
+          nuevas[index] = { ...nuevas[index], cantidad: nuevas[index].cantidad + delta };
+          if (nuevas[index].cantidad <= 0) {
+            nuevas.splice(index, 1);
+          }
+          if (nuevas.length === 0) {
+            nuevas.push({ descripcion: "", valor: "", cantidad: 1 });
+          }
+          return nuevas;
+        });
+      };
+
+      const renderModoVisualGrid = () => {
+        const categoriasInventario = ["Todas", ...Array.from(new Set(inventario.map(p => p.categoria || "General"))).sort()];
+    
+        // 1. Filtrar por categoría y búsqueda
+        let productosFiltrados = inventario.filter(p => {
+          const cumpleCategoria = categoriaVisualActiva === "Todas" || (p.categoria || "General") === categoriaVisualActiva;
+          const cumpleBusqueda = busquedaVisual === "" || p.nombre.toLowerCase().includes(busquedaVisual.toLowerCase());
+          return cumpleCategoria && cumpleBusqueda;
+        });
+
+        // 2. Orden Inteligente: Los que ya están en el carrito van primero
+        productosFiltrados.sort((a, b) => {
+          const indexA = filasRegistro.findIndex(f => f.descripcion.trim().toLowerCase() === (a.nombre || "").toLowerCase());
+          const indexB = filasRegistro.findIndex(f => f.descripcion.trim().toLowerCase() === (b.nombre || "").toLowerCase());
+          const cantA = indexA >= 0 ? filasRegistro[indexA].cantidad : 0;
+          const cantB = indexB >= 0 ? filasRegistro[indexB].cantidad : 0;
+      
+          if (cantA > 0 && cantB === 0) return -1;
+          if (cantB > 0 && cantA === 0) return 1;
+          return a.nombre.localeCompare(b.nombre);
+        });
+
+        return (
+          <div className="flex-1 flex flex-col min-h-0 bg-slate-50 dark:bg-[#020617]">
+            {/* Barra de Categorías y Buscador */}
+            <div className="flex flex-col border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-[#0f172a] shrink-0">
+              <div className="flex items-center px-3 py-2 gap-2">
+                <div className="relative flex-1">
+                  <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                  <input 
+                    type="text" 
+                    placeholder="Buscar producto..." 
+                    value={busquedaVisual}
+                    onChange={(e) => setBusquedaVisual(e.target.value)}
+                    className="w-full bg-slate-100 dark:bg-[#020617] border-none outline-none py-1.5 pl-8 pr-3 text-xs font-bold rounded-lg text-slate-700 dark:text-slate-200 placeholder:font-normal"
+                  />
+                  {busquedaVisual && (
+                    <button onClick={() => setBusquedaVisual('')} className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
+                      <X size={12} />
+                    </button>
+                  )}
+                </div>
+              </div>
+              <div className="flex items-center gap-2 px-3 pb-2 overflow-x-auto no-scrollbar">
+                {categoriasInventario.map(cat => (
+                  <button
+                    key={cat as string}
+                    onClick={() => setCategoriaVisualActiva(cat as string)}
+                    className={`px-3 py-1.5 rounded-full text-xs font-bold whitespace-nowrap transition-colors cursor-pointer ${
+                      categoriaVisualActiva === cat 
+                        ? 'bg-rose-500 text-white shadow-md' 
+                        : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'
+                    }`}
+                  >
+                    {cat as string}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Cuadrícula de Productos */}
+            <div className="flex-1 overflow-y-auto p-3 sm:p-4 grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 xl:grid-cols-6 gap-3 content-start pb-24 lg:pb-4">
+              {productosFiltrados.map(prod => {
+                const indexCarrito = filasRegistro.findIndex(f => f.descripcion.trim().toLowerCase() === (prod.nombre || "").toLowerCase());
+                const cantidadCarrito = indexCarrito >= 0 ? filasRegistro[indexCarrito].cantidad : 0;
+
+                return (
+                  <div 
+                    key={prod.id} 
+                    className={`flex flex-col bg-white dark:bg-[#0f172a] border ${cantidadCarrito > 0 ? 'border-rose-500 ring-2 ring-rose-500/20 shadow-md' : 'border-slate-200 dark:border-slate-800'} rounded-2xl overflow-hidden hover:border-rose-400 hover:shadow-lg transition-all transform duration-150 relative group`}
+                  >
+                    {cantidadCarrito > 0 && (
+                      <div className="absolute top-1.5 left-1.5 bg-rose-500 text-white w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-black z-10 shadow-sm animate-in zoom-in duration-200">
+                        {cantidadCarrito}
+                      </div>
+                    )}
+                    <div 
+                      className="w-full bg-slate-100 dark:bg-slate-900 flex items-center justify-center relative overflow-hidden cursor-pointer shrink-0"
+                      style={{ aspectRatio: '1/1' }}
+                      onClick={(e) => {
+                        const el = e.currentTarget.parentElement;
+                        if(el) { el.classList.add('scale-90'); setTimeout(() => el.classList.remove('scale-90'), 150); }
+                        agregarProductoVisual(prod);
+                      }}
+                    >
+                      {prod.imagen ? (
+                        <img src={prod.imagen} alt={prod.nombre} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
+                      ) : (
+                        <span className="text-3xl font-black text-slate-300 dark:text-slate-700 tracking-tighter">
+                          {prod.nombre ? prod.nombre.substring(0, 2).toUpperCase() : '??'}
+                        </span>
+                      )}
+                      {/* Badge de Precio Flotante (Abajo Derecha) */}
+                      <div className="absolute bottom-1 right-1 flex flex-col gap-1 items-end">
+                        <div className="bg-white/95 dark:bg-black/90 backdrop-blur-sm px-1.5 py-0.5 rounded-md shadow-sm border border-slate-200/50 dark:border-slate-700/50 z-10">
+                          <span className="text-[11px] font-black text-slate-900 dark:text-white">${Number(prod.precioVenta || 0).toLocaleString('es-CO')}</span>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="p-2 flex-1 flex flex-col justify-between">
+                      <div>
+                        <span className="text-[10px] sm:text-xs font-bold text-slate-700 dark:text-slate-200 leading-tight line-clamp-2">{prod.nombre}</span>
+                        {prod.tipoProducto !== 'servicio' && prod.inventariable !== false && (
+                          <span className={`text-[9px] font-bold block mt-0.5 ${Number(prod.stock || 0) <= 0 ? 'text-rose-500' : Number(prod.stock || 0) <= 5 ? 'text-amber-500' : 'text-slate-400'}`}>
+                            {prod.stock || 0} en stock
+                          </span>
+                        )}
+                      </div>
+                  
+                      {/* Controles de Cantidad */}
+                      <div className="flex items-center justify-end gap-1 mt-1">
+                        {cantidadCarrito > 0 && (
+                          <button 
+                            onClick={(e) => { e.stopPropagation(); cambiarCantidadVisual(indexCarrito, -1); }}
+                            className="w-7 h-7 bg-slate-100 dark:bg-slate-800 text-slate-600 rounded-full flex items-center justify-center shrink-0 transition-colors active:bg-slate-300 active:text-slate-900 cursor-pointer"
+                          >
+                            <Minus size={14} />
+                          </button>
+                        )}
+                        <button 
+                          onClick={(e) => {
+                            const el = e.currentTarget.parentElement?.parentElement;
+                            if(el) { el.classList.add('scale-90'); setTimeout(() => el.classList.remove('scale-90'), 150); }
+                            agregarProductoVisual(prod);
+                          }}
+                          className="w-7 h-7 bg-rose-100 dark:bg-rose-900/40 text-rose-600 rounded-full flex items-center justify-center shrink-0 transition-colors active:bg-rose-500 active:text-white cursor-pointer"
+                        >
+                          <Plus size={14} />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+              {productosFiltrados.length === 0 && (
+                <div className="col-span-full py-10 text-center text-slate-400 text-sm font-bold">
+                  No se encontraron productos.
+                </div>
+              )}
+            </div>
+          </div>
+        );
+      };
+
+      const renderModoVisualCart = () => {
+        const itemsValidos = filasRegistro.filter(f => f.descripcion.trim() || parseFloat(f.valor) > 0);
+        const sinPermisoVentaLibre = !puedeVentaLibre;
+
+        return (
+          <div className="flex flex-col gap-3 mb-4 pb-4 border-b border-slate-200 dark:border-slate-800">
+            <div className="flex items-center justify-between">
+              <h4 className="font-black text-slate-800 dark:text-slate-200 text-sm">Resumen de Venta</h4>
+              <span className="bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-400 px-2 py-0.5 rounded-full text-[10px] font-black">
+                {itemsValidos.length} items
+              </span>
+            </div>
+
+            <div className="flex flex-col gap-2 max-h-[30vh] overflow-y-auto pr-1 no-scrollbar">
+              {itemsValidos.length === 0 ? (
+                <div className="py-6 text-center border-2 border-dashed border-slate-200 dark:border-slate-800 rounded-2xl flex flex-col items-center gap-2">
+                  <ShoppingCart size={24} className="text-slate-300 dark:text-slate-600" />
+                  <span className="text-xs font-bold text-slate-400">Toca un producto para agregarlo</span>
+                </div>
+              ) : (
+                filasRegistro.map((fila, index) => {
+                  if (!fila.descripcion.trim() && !fila.valor.trim()) return null;
+                  const prodInv = inventario.find(p => p.nombre.toLowerCase() === fila.descripcion.trim().toLowerCase());
+                  const bloqueado = !puedeModificarPrecios && prodInv;
+
+                  return (
+                    <div key={index} className="flex items-center bg-slate-50 dark:bg-slate-900/50 p-1.5 rounded-lg border border-slate-200 dark:border-slate-800/80 gap-2">
+                      <div className="flex items-center bg-white dark:bg-[#020617] rounded-md border border-slate-200 dark:border-slate-700 shrink-0">
+                        <button onClick={() => cambiarCantidadVisual(index, -1)} className="px-1.5 py-0.5 text-slate-500 hover:text-slate-800 cursor-pointer active:bg-slate-100 rounded-l-md"><Minus size={10} /></button>
+                        <span className="text-[10px] font-black w-4 text-center text-slate-900 dark:text-white">{fila.cantidad}</span>
+                        <button onClick={() => cambiarCantidadVisual(index, 1)} className="px-1.5 py-0.5 text-emerald-600 hover:text-emerald-700 cursor-pointer active:bg-emerald-50 rounded-r-md"><Plus size={10} /></button>
+                      </div>
+
+                      <span className="text-[10px] font-bold text-slate-700 dark:text-slate-200 leading-tight flex-1 truncate" title={fila.descripcion}>
+                        {fila.descripcion}
+                      </span>
+
+                      <div className="flex items-center gap-1 shrink-0">
+                        <span className="text-[9px] text-slate-400 font-bold">$</span>
+                        <input 
+                          type="text" 
+                          inputMode="decimal" pattern="[0-9]*"
+                          value={formatearMonedaInput(fila.valor)}
+                          onChange={(e) => actualizarFila(index, 'valor', e.target.value)}
+                          disabled={bloqueado}
+                          className={`w-14 sm:w-16 bg-transparent border-b ${bloqueado ? 'border-transparent text-slate-500' : 'border-slate-300 dark:border-slate-600 text-slate-900 dark:text-white focus:border-emerald-500'} outline-none text-right text-[10px] font-black`}
+                        />
+                      </div>
+
+                      <button 
+                        type="button"
+                        onClick={() => eliminarFila(index)}
+                        className="text-rose-400 hover:text-rose-600 shrink-0 cursor-pointer ml-1"
+                      >
+                        <X size={12} />
+                      </button>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+
+            {/* Botón Cobro Manual */}
+            {!sinPermisoVentaLibre && (
+              <button
+                type="button"
+                onClick={() => {
+                  agregarFila();
+                }}
+                className="w-full mt-1 border border-dashed border-emerald-400 dark:border-emerald-600/50 bg-emerald-50/50 dark:bg-emerald-950/20 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-100 dark:hover:bg-emerald-900/40 rounded-xl py-2 text-xs font-black flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+              >
+                <Plus size={14} /> + Artículo Libre
+              </button>
+            )}
+          </div>
+        );
+      };
+
+  
     // Ordenamiento inteligente de sugerencias de inventario (Prioridad: Inicia con > Palabra inicia con > Contiene)
     const ordenarProductosSugeridos = (lista: any[], queryText: string) => {
         const q = queryText.trim().toLowerCase();
@@ -933,13 +1250,22 @@ function FiarContenido() {
     };
 
     const procesarRegistro = () => {
+        const filasValidas = filasRegistro.filter(f => parseFloat(f.valor) > 0);
+        if (filasValidas.length === 0) return toast.error("Ingresa al menos un monto válido en los artículos.");
+
+        // Validar permisos de venta libre
+        if (!puedeVentaLibre) {
+            const filaNoPermitida = filasValidas.find(f => !inventario.some(p => p.nombre.toLowerCase().trim() === f.descripcion.toLowerCase().trim()));
+            if (filaNoPermitida) {
+                toast.error(`No tienes permisos para venta libre (artículo no registrado: "${filaNoPermitida.descripcion}").`);
+                return;
+            }
+        }
+
         if (!puedeVentaDirecta) {
             enviarOrden();
             return;
         }
-
-        const filasValidas = filasRegistro.filter(f => parseFloat(f.valor) > 0);
-        if (filasValidas.length === 0) return toast.error("Ingresa al menos un monto válido en los artículos.");
 
         for (const fila of filasValidas) {
             const item = inventario.find(p => p.nombre.toLowerCase() === fila.descripcion.toLowerCase());
@@ -1267,6 +1593,17 @@ Estamos atentos para cualquier consulta.
                         </div>
                     )}
 
+                    {/* Toggle Modo Visual */}
+                    <button 
+                        type="button" 
+                        onClick={toggleModoVisual} 
+                        className="flex items-center gap-1.5 px-3 py-1.5 bg-white/20 hover:bg-white/30 dark:!bg-white/20 dark:hover:!bg-white/30 text-white rounded-xl font-bold text-xs transition-colors cursor-pointer border border-white/30"
+                        title={modoVisual ? "Cambiar a lista clásica" : "Cambiar a cuadrícula con fotos"}
+                    >
+                        {modoVisual ? <List size={15} className="shrink-0" /> : <LayoutGrid size={15} className="shrink-0" />} 
+                        <span className="hidden sm:inline">{modoVisual ? "Rápido" : "Visual"}</span>
+                    </button>
+
                     {/* Escanear QR */}
                     <button
                         onClick={abrirEscanner}
@@ -1339,6 +1676,7 @@ Estamos atentos para cualquier consulta.
                 >
                     
                     {/* COLUMNA IZQUIERDA: ARTÍCULOS O CONCEPTOS */}
+                    {modoVisual ? renderModoVisualGrid() : (
                     <div className="flex-1 flex flex-col bg-slate-50/60 dark:bg-[#020617]/50 lg:min-h-0 lg:overflow-hidden shrink-0">
                         
                         <div ref={scrollArticulosRef} className="p-3 sm:p-4 md:p-5 lg:p-6 xl:p-8 space-y-3 sm:space-y-4 lg:flex-1 lg:overflow-y-auto min-h-0">
@@ -1630,13 +1968,51 @@ Estamos atentos para cualquier consulta.
                                 <div ref={finalListaRef} className="h-2"></div>
                             </div>
                         </div>
+                        </div>
                     </div>
-                </div>
+                    )}
 
                 {/* COLUMNA DERECHA / SECCIÓN INFERIOR: CLIENTE + TOTAL */}
                 <div className="w-full lg:w-[360px] xl:w-[380px] bg-white dark:bg-[#0f172a] lg:border-l border-slate-200 dark:border-slate-800 flex flex-col shrink-0 lg:min-h-0 lg:overflow-hidden">
 
                     <div className="p-3 pb-36 sm:p-5 sm:pb-32 lg:p-3.5 flex flex-col gap-3 lg:flex-1 lg:overflow-y-auto max-w-4xl lg:max-w-none mx-auto w-full">
+
+                        {modoVisual && renderModoVisualCart()}
+
+                        {/* BOTONES DE TRANSFERENCIA DE CARRITO */}
+                        {(() => {
+                            const itemsValidos = filasRegistro.filter(f => f.descripcion.trim() || parseFloat(f.valor) > 0);
+                            if (itemsValidos.length === 0) return null;
+
+                            const manejarTraslado = (destino: 'vender' | 'separe') => {
+                                sessionStorage.setItem('fiabono_productos_precargados', JSON.stringify(itemsValidos));
+                                if (clienteTransaccion) {
+                                    sessionStorage.setItem('fiabono_cliente_precargado', JSON.stringify(clienteTransaccion));
+                                }
+                                setFilasRegistro([{ descripcion: '', valor: '', cantidad: 1 }]);
+                                setClienteTransaccion(null);
+                                router.push(`/dashboard/${destino}`);
+                            };
+
+                            return (
+                                <div className="flex gap-2 w-full mb-0.5">
+                                    <button 
+                                        type="button"
+                                        onClick={() => manejarTraslado('vender')} 
+                                        className="flex-1 py-1.5 text-[9px] sm:text-[10px] font-black rounded-lg border border-emerald-300 dark:border-emerald-800 text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/30 hover:bg-emerald-100 dark:hover:bg-emerald-900/50 flex items-center justify-center gap-1 transition-colors cursor-pointer"
+                                    >
+                                        🔄 Mover a Vender
+                                    </button>
+                                    <button 
+                                        type="button"
+                                        onClick={() => manejarTraslado('separe')} 
+                                        className="flex-1 py-1.5 text-[9px] sm:text-[10px] font-black rounded-lg border border-purple-300 dark:border-purple-800 text-purple-700 dark:text-purple-400 bg-purple-50 dark:bg-purple-950/30 hover:bg-purple-100 dark:hover:bg-purple-900/50 flex items-center justify-center gap-1 transition-colors cursor-pointer"
+                                    >
+                                        🔄 Mover a Separe
+                                    </button>
+                                </div>
+                            );
+                        })()}
 
                         {/* CLIENTE (OBLIGATORIO) */}
                         <div className={`flex flex-col bg-slate-50 dark:bg-[#020617] p-2.5 rounded-xl border transition-colors ${!clienteTransaccion ? 'border-rose-300 dark:border-rose-800/80 bg-rose-50/20' : 'border-slate-200 dark:border-slate-800/80'}`}>

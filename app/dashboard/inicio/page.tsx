@@ -27,6 +27,7 @@ export default function InicioPage() {
   const puedeVerDirectorio = datosSesion?.rol !== 'cajero' || datosSesion?.permisos?.verDirectorio === true;
   const puedeAbonar: boolean = datosSesion?.puedeAbonar ?? true;
   const moduloSepareActivo: boolean = datosSesion?.moduloSepareActivo !== false;
+  const puedePlanSepare = (datosSesion?.tipoUsuario === 'principal' || datosSesion?.permisos?.planSepare === true) && moduloSepareActivo;
   const puedeSepare: boolean = datosSesion?.esPro === true && datosSesion?.puedeSepare !== false && moduloSepareActivo;
   const puedeEnviarWhatsApp = datosSesion?.puedeEnviarWhatsApp ?? true;
 
@@ -461,7 +462,7 @@ Quedamos pendientes para revisar detalles o responder cualquier duda.
                 ruta: '/dashboard/abonar',
                 gradiente: 'from-blue-500 to-blue-700 dark:from-blue-600 dark:to-blue-800 hover:from-blue-600 hover:to-blue-700 border-blue-400/30 dark:border-blue-500/20'
               }] : []),
-              ...(moduloSepareActivo ? [{
+              ...(puedePlanSepare ? [{
                 id: 'separe',
                 nombre: 'SEPARE',
                 icono: Bookmark,

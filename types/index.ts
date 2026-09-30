@@ -15,6 +15,7 @@ export interface PermisosColaborador {
   planSepare?: boolean;   // Permite registrar y gestionar planes de separe (pago en abonos)
   enviarWhatsApp?: boolean; // Permite enviar comprobantes por WhatsApp a clientes desde este dispositivo
   hacerDevoluciones?: boolean; // Permite realizar devoluciones de mercancía
+  ventaLibre?: boolean;    // Permite agregar productos fuera del inventario (cobros manuales) en la venta
 }
 
 // -------------------------------------------------------
@@ -246,6 +247,7 @@ export interface DatosSesionContext {
   puedeVerReportes?: boolean;
   esTerminalMultivendedor: boolean;
   puedeSepare: boolean;
+  puedeVentaLibre: boolean;
   tipoUsuario: 'principal' | 'colaborador';
   esGratis: boolean;
   esComercio: boolean;

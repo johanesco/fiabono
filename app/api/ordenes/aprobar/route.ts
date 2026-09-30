@@ -1,20 +1,70 @@
 import { NextResponse } from 'next/server';
 import { getAdminAuth, getAdminDb } from '@/lib/firebase-admin';
 
+function parseMonto(valor: any): number {
+  if (typeof valor === 'number' && Number.isFinite(valor)) return Math.round(valor);
+  const n = Number(String(valor ?? '').replace(/\D/g, ''));
+  return Number.isFinite(n) ? n : NaN;
+}
+
 function calcularTotalOrden(orden: any) {
   const items = Array.isArray(orden.items) ? orden.items : [];
   if (!items.length) throw new Error('TOTAL_INVALIDO');
   const subtotal = items.reduce((total: number, item: any) => {
     const cantidad = Number(item.cantidad || 1);
-    const valor = Number(String(item.valor ?? '').replace(/\D/g, ''));
+    const valor = parseMonto(item.valor);
     if (!Number.isInteger(cantidad) || cantidad <= 0 || !Number.isFinite(valor) || valor < 0) throw new Error('TOTAL_INVALIDO');
     return total + valor * cantidad;
   }, 0);
   const descuento = Number(orden.montoDescuento || 0);
   if (!Number.isFinite(descuento) || descuento < 0 || descuento > subtotal) throw new Error('TOTAL_INVALIDO');
   const total = subtotal - descuento;
-  if (!Number.isFinite(total) || total <= 0 || Math.abs(total - Number(orden.total)) > 0.01) throw new Error('TOTAL_INVALIDO');
+  const totalDeclarado = parseMonto(orden.total);
+  if (!Number.isFinite(total) || total <= 0) throw new Error('TOTAL_INVALIDO');
+  if (Number.isFinite(totalDeclarado) && Math.abs(total - totalDeclarado) > 1) throw new Error('TOTAL_INVALIDO');
   return total;
+}
+
+function aFecha(valor: any): Date {
+  if (valor instanceof Date && !isNaN(valor.getTime())) return valor;
+  if (valor?.toDate) return valor.toDate();
+  if (typeof valor?.seconds === 'number') return new Date(valor.seconds * 1000);
+  if (typeof valor?._seconds === 'number') return new Date(valor._seconds * 1000);
+  if (typeof valor === 'string' || typeof valor === 'number') {
+    const d = new Date(valor);
+    if (!isNaN(d.getTime())) return d;
+  }
+  return new Date();
+}
+
+function sanitizarNumero(valor: any, fallback = 0) {
+  const n = typeof valor === 'number' ? valor : Number(valor);
+  return Number.isFinite(n) ? n : fallback;
+}
+
+function sanitizarMovimiento(movimiento: any, orden: any, usuarioId: string) {
+  if (!movimiento || typeof movimiento !== 'object') return null;
+  const clienteId = movimiento.clienteId || orden.clienteId || 'mostrador';
+  const detalles = Array.isArray(movimiento.detalles)
+    ? movimiento.detalles.map((item: any) => ({
+        descripcion: item?.descripcion || 'Artículo',
+        cantidad: sanitizarNumero(item?.cantidad, 1),
+        valor: sanitizarNumero(item?.valor),
+        valorUnitario: sanitizarNumero(item?.valorUnitario)
+      }))
+    : undefined;
+
+  return {
+    ...movimiento,
+    usuarioId,
+    clienteId,
+    clienteNombre: movimiento.clienteNombre || orden.clienteNombre || (clienteId === 'mostrador' ? 'Mostrador' : 'Cliente'),
+    clienteCelular: movimiento.clienteCelular || orden.clienteCelular || '',
+    fecha: aFecha(movimiento.fecha),
+    monto: sanitizarNumero(movimiento.monto),
+    esPublico: true,
+    ...(detalles ? { detalles } : {})
+  };
 }
 
 export async function POST(request: Request) {
@@ -40,11 +90,14 @@ export async function POST(request: Request) {
 
       const orden = ordenSnap.data() as any;
       if (orden.usuarioId !== decodedToken.uid) throw new Error('ORDEN_NO_AUTORIZADA');
+      if (orden.estado === 'aprobado') {
+        return { idTransaccionGenerada: orden.idTransaccion || '', yaProcesada: true };
+      }
       if (orden.estado !== 'pendiente') throw new Error('ORDEN_NO_PENDIENTE');
       const totalOrden = calcularTotalOrden(orden);
       const pagoOrden = typeof orden.pagoCliente === 'number'
         ? orden.pagoCliente
-        : Number(String(orden.pagoCliente || 0).replace(/\D/g, ''));
+        : parseMonto(orden.pagoCliente || 0);
       if (!Number.isFinite(pagoOrden) || pagoOrden < 0 || pagoOrden > totalOrden) throw new Error('PAGO_INVALIDO');
 
       const itemsStock = Array.isArray(body.descontarStockItems) ? body.descontarStockItems : [];
@@ -92,25 +145,31 @@ export async function POST(request: Request) {
 
       let idTransaccionGenerada = '';
       const payloadSepare = body.payloadSepare;
-      const movimientoAbonoSepare = body.movimientoAbonoSepare;
-      const movimientoPrincipal = body.movimientoPrincipal;
-      const movimientoFiadoSecundario = body.movimientoFiadoSecundario;
+      const movimientoAbonoSepare = sanitizarMovimiento(body.movimientoAbonoSepare, orden, decodedToken.uid);
+      const movimientoPrincipal = sanitizarMovimiento(body.movimientoPrincipal, orden, decodedToken.uid);
+      const movimientoFiadoSecundario = sanitizarMovimiento(body.movimientoFiadoSecundario, orden, decodedToken.uid);
 
       if (payloadSepare) {
         const separeRef = adminDb.collection('separes').doc();
         idTransaccionGenerada = separeRef.id;
-        transaction.create(separeRef, { ...payloadSepare, usuarioId: decodedToken.uid });
+        transaction.create(separeRef, {
+          ...payloadSepare,
+          usuarioId: decodedToken.uid,
+          esPublico: true,
+          fechaCreacion: aFecha(payloadSepare.fechaCreacion || orden.fecha),
+          fechaLimite: payloadSepare.fechaLimite ? aFecha(payloadSepare.fechaLimite) : null
+        });
         if (movimientoAbonoSepare) {
           const movimientoRef = adminDb.collection('movimientos').doc();
-          transaction.create(movimientoRef, { ...movimientoAbonoSepare, usuarioId: decodedToken.uid, idSepareOrigen: separeRef.id });
+          transaction.create(movimientoRef, { ...movimientoAbonoSepare, idSepareOrigen: separeRef.id });
         }
       } else if (movimientoPrincipal) {
         const movimientoRef = adminDb.collection('movimientos').doc();
         idTransaccionGenerada = movimientoRef.id;
-        transaction.create(movimientoRef, { ...movimientoPrincipal, usuarioId: decodedToken.uid });
+        transaction.create(movimientoRef, movimientoPrincipal);
         if (movimientoFiadoSecundario) {
           const fiadoRef = adminDb.collection('movimientos').doc();
-          transaction.create(fiadoRef, { ...movimientoFiadoSecundario, usuarioId: decodedToken.uid });
+          transaction.create(fiadoRef, movimientoFiadoSecundario);
         }
       } else {
         throw new Error('MOVIMIENTO_REQUERIDO');

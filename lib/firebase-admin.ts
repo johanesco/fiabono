@@ -4,10 +4,12 @@
 import { initializeApp, getApps, cert, App } from 'firebase-admin/app';
 import { getFirestore, Firestore } from 'firebase-admin/firestore';
 import { getAuth, Auth } from 'firebase-admin/auth';
+import { getStorage, Storage } from 'firebase-admin/storage';
 
 let adminApp: App | undefined;
 let adminDb: Firestore | undefined;
 let adminAuth: Auth | undefined;
+let adminStorage: Storage | undefined;
 
 export function getAdminApp(): App {
   if (!adminApp) {
@@ -28,6 +30,7 @@ export function getAdminApp(): App {
           clientEmail,
           privateKey: rawKey.replace(/\\n/g, '\n'),
         }),
+        storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET || `${projectId}.appspot.com`,
       });
     }
   }
@@ -47,4 +50,11 @@ export function getAdminAuth(): Auth {
     adminAuth = getAuth(getAdminApp());
   }
   return adminAuth;
+}
+
+export function getAdminStorage(): Storage {
+  if (!adminStorage) {
+    adminStorage = getStorage(getAdminApp());
+  }
+  return adminStorage;
 }

@@ -222,6 +222,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
           esAdmin,
           puedeVentaDirecta: esAdmin || permisos?.ventaDirecta === true,
           puedeAbonar: esAdmin || permisos?.abonar === true,
+          puedeVentaLibre: esAdmin || permisos?.ventaLibre === true,
           puedeEditarInventario: esAdmin || permisos?.editarInventario === true,
           puedeModificarPrecios: esAdmin || permisos?.modificarPrecios === true,
           puedeAplicarDescuentos: esAdmin || permisos?.aplicarDescuentos === true,
