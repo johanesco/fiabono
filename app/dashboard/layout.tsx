@@ -61,9 +61,11 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     }
   };
 
+  const puedeVentaDirecta = datosSesion?.puedeVentaDirecta !== false;
+
   // Listener para contar órdenes pendientes en tiempo real
   useEffect(() => {
-    if (!cuentaPrincipalId || !esAdmin) {
+    if (!cuentaPrincipalId || (!esAdmin && puedeVentaDirecta)) {
       setOrdenesPendientesCount(0);
       return;
     }
@@ -81,7 +83,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       const nuevoConteo = snapshot.size;
       setOrdenesPendientesCount(nuevoConteo);
 
-      if (!esCargaInicial && nuevoConteo > conteoPrevio) {
+      if (esAdmin && !esCargaInicial && nuevoConteo > conteoPrevio) {
         reproducirSonidoOrden();
       }
 
@@ -92,7 +94,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     });
 
     return () => unsub();
-  }, [cuentaPrincipalId, esAdmin]);
+  }, [cuentaPrincipalId, esAdmin, puedeVentaDirecta]);
 
   // Listener para contar separes activos en tiempo real
   useEffect(() => {

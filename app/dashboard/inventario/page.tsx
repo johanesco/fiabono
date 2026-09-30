@@ -5903,8 +5903,8 @@ export default function InventarioPage() {
       )}
 
       {/* MODAL DE CÁMARA EN VIVO */}
-      {modalCamaraEnVivo && (
-        <div className="fixed inset-0 bg-black/90 backdrop-blur-md flex items-center justify-center p-4 z-[200] animate-in fade-in duration-200">
+      {modalCamaraEnVivo && mounted && createPortal(
+        <div className="fixed inset-0 bg-black/90 backdrop-blur-md flex items-center justify-center p-4 z-[99999] animate-in fade-in duration-200">
           <div className="bg-slate-900 border border-slate-800 rounded-3xl overflow-hidden w-full max-w-lg shadow-2xl flex flex-col">
             <div className="p-3.5 bg-slate-950/80 flex items-center justify-between border-b border-slate-800 text-white">
               <div className="flex items-center gap-2">
@@ -5941,7 +5941,8 @@ export default function InventarioPage() {
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* MODAL UPSELL DE SUSCRIPCIÓN PARA EXCEL, QR O LÍMITES */}

@@ -95,8 +95,9 @@ export default function BottomNav({
   const puedeVerCartera = esAdmin || Boolean(datosSesion?.puedeVerCartera || datosSesion?.permisos?.verCartera);
   const esCajero = datosSesion?.rol === 'cajero';
   
-  // Colaborador ve la pestaña de órdenes solo si es admin o si tiene órdenes/directa
-  const mostrarPestanaOrdenes = esAdmin || ordenesPendientesCount > 0;
+  const puedeVentaDirecta = datosSesion?.puedeVentaDirecta !== false;
+  // Colaborador ve la pestaña de órdenes si es admin, si no tiene venta directa (trabaja por órdenes), o si hay órdenes pendientes
+  const mostrarPestanaOrdenes = esAdmin || !puedeVentaDirecta || ordenesPendientesCount > 0;
 
   // Saber si alguna ruta del menú está activa
   const esRutaMenuActiva = 

@@ -1008,10 +1008,10 @@ function VenderContenido() {
 
     const pagadoRaw = pagoCliente.replace(/\D/g, '');
     const pagadoNum = pagadoRaw === "" 
-      ? totalFilasRegistro 
+      ? totalNetoACobrar 
       : parseFloat(pagadoRaw);
 
-    const esFiadoCompleto = pagadoRaw !== "" && pagadoNum === 0;
+    const esFiadoCompleto = pagadoRaw !== "" && pagadoNum === 0 && montoSaldoFavorAplicado === 0;
 
     if (isSubmittingVentaRef.current) return;
     isSubmittingVentaRef.current = true;
@@ -1033,6 +1033,9 @@ function VenderContenido() {
         descuentoValor: mostrarDescuento && montoDescuentoTotal > 0 ? Number(valorDescuento.replace(/\D/g, '')) : null,
         montoDescuento: montoDescuentoTotal,
         total: totalFilasRegistro,
+        usarSaldoFavor: (usarSaldoFavor && montoSaldoFavorAplicado > 0),
+        montoSaldoFavorAplicado: (usarSaldoFavor && montoSaldoFavorAplicado > 0) ? montoSaldoFavorAplicado : 0,
+        totalNetoACobrar: totalNetoACobrar,
         metodoPago: esFiadoCompleto ? 'fiado' : metodoPago,
         subMetodoPago: (esFiadoCompleto || metodoPago === 'efectivo') ? null : (subMetodoPago || null),
         referenciaPago: (esFiadoCompleto || metodoPago === 'efectivo') ? null : (referenciaPago.trim() || null),

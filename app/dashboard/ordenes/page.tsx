@@ -1013,6 +1013,10 @@ Muchas gracias por tu compra. Estamos atentos para cualquier consulta.
       let movimientoFiadoSecundario: any = undefined;
       let ajusteCliente: { clienteId: string; cambioDeuda: number } | undefined = undefined;
 
+      const saldoFavorAplicado = (orden as any).montoSaldoFavorAplicado || 0;
+      const montoCubiertoTotal = (pagoNum || 0) + saldoFavorAplicado;
+      const saldoFiar = Math.max(0, orden.total - montoCubiertoTotal);
+
       if ((orden as any).tipo === 'separe') {
         const payloadExistente = (orden as any).payloadSepare || {};
         payloadSepare = {
@@ -1072,7 +1076,7 @@ Muchas gracias por tu compra. Estamos atentos para cualquier consulta.
           };
         }
 
-      } else if (orden.tipo === 'fiado' || pagoNum === 0) {
+      } else if (orden.tipo === 'fiado' || (pagoNum === 0 && saldoFavorAplicado === 0)) {
         // 1. Fiado Total
         movimientoPrincipal = {
           clienteId: orden.clienteId!,
@@ -1092,15 +1096,14 @@ Muchas gracias por tu compra. Estamos atentos para cualquier consulta.
           clienteId: orden.clienteId!,
           cambioDeuda: orden.total
         };
-      } else if (pagoNum > 0 && pagoNum < orden.total) {
+      } else if (saldoFiar > 0) {
         // 2. Venta y Fiado Mixto
-        const saldoFiar = orden.total - pagoNum;
         movimientoPrincipal = {
           clienteId: orden.clienteId || 'mostrador',
           usuarioId: cuentaPrincipalId,
           tipo: 'venta',
-          monto: pagoNum,
-          descripcion: descripcionUnificada + ` (Pago inicial orden mixta de ${orden.nombreColaborador})`,
+          monto: montoCubiertoTotal,
+          descripcion: descripcionUnificada + ` (Pago inicial orden mixta de ${orden.nombreColaborador})` + (saldoFavorAplicado > 0 ? ` [Saldo a favor: -$${saldoFavorAplicado.toLocaleString('es-CO')}]` : ''),
           detalles: detallesParaComprobante,
           fecha: new Date(),
           registradoPor: orden.nombreColaborador,
@@ -1117,14 +1120,14 @@ Muchas gracias por tu compra. Estamos atentos para cualquier consulta.
             usuarioId: cuentaPrincipalId,
             tipo: 'fiado',
             monto: saldoFiar,
-            descripcion: `Saldo pendiente orden #${orden.id.substring(0, 5)} (Total: $${orden.total.toLocaleString('es-CO')}, Pagado: $${pagoNum.toLocaleString('es-CO')})`,
+            descripcion: `Saldo pendiente orden #${orden.id.substring(0, 5)} (Total: $${orden.total.toLocaleString('es-CO')}, Pagado: $${pagoNum.toLocaleString('es-CO')}${saldoFavorAplicado > 0 ? `, Saldo favor: $${saldoFavorAplicado.toLocaleString('es-CO')}` : ''})`,
             fecha: new Date(),
             registradoPor: orden.nombreColaborador,
             metodoPago: 'fiado'
           };
           ajusteCliente = {
             clienteId: orden.clienteId,
-            cambioDeuda: saldoFiar
+            cambioDeuda: saldoFavorAplicado + saldoFiar
           };
         }
       } else {
@@ -1134,7 +1137,7 @@ Muchas gracias por tu compra. Estamos atentos para cualquier consulta.
           usuarioId: cuentaPrincipalId,
           tipo: 'venta',
           monto: orden.total,
-          descripcion: descripcionUnificada + ` (Aprobada de ${orden.nombreColaborador})` + (orden.montoDescuento > 0 ? ` [Dto: -$${orden.montoDescuento.toLocaleString('es-CO')}]` : ''),
+          descripcion: descripcionUnificada + ` (Aprobada de ${orden.nombreColaborador})` + (saldoFavorAplicado > 0 ? ` [Saldo a favor: -$${saldoFavorAplicado.toLocaleString('es-CO')}]` : '') + (orden.montoDescuento > 0 ? ` [Dto: -$${orden.montoDescuento.toLocaleString('es-CO')}]` : ''),
           detalles: detallesParaComprobante,
           fecha: new Date(),
           registradoPor: orden.nombreColaborador,
@@ -1147,6 +1150,13 @@ Muchas gracias por tu compra. Estamos atentos para cualquier consulta.
           descuentoValor: orden.descuentoValor ?? undefined,
           montoDescuento: orden.montoDescuento > 0 ? orden.montoDescuento : undefined
         };
+
+        if (saldoFavorAplicado > 0 && orden.clienteId && orden.clienteId !== 'mostrador') {
+          ajusteCliente = {
+            clienteId: orden.clienteId,
+            cambioDeuda: saldoFavorAplicado
+          };
+        }
       }
 
       // Ejecución Unificada en una sola Transacción Atómica del servidor
