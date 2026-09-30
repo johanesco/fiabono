@@ -766,7 +766,7 @@ function FiarContenido() {
         }, 0);
 
         if (esInventariable && (cantidadEnCarrito + 1) > (producto.stock || 0)) {
-          toast.error(`⚠️ Agotado. Solo tienes ${producto.stock || 0} de "${producto.nombre}".`, { position: 'bottom-center', icon: '🚫' });
+          toast.error(`⚠️ Agotado. Solo tienes ${producto.stock || 0} de "${producto.nombre}".`, { duration: 1000, position: 'bottom-center', icon: '🚫' });
           return;
         }
 
@@ -805,7 +805,7 @@ function FiarContenido() {
 
           const stockTotalPermitido = (prodInv.stock || 0) - cantidadEnOtrasFilas;
           if (esInventariable && (fila.cantidad + delta) > stockTotalPermitido) {
-             toast.error(`⚠️ Agotado. Solo tienes ${prodInv.stock || 0} de "${prodInv.nombre}".`, { position: 'bottom-center', icon: '🚫' });
+             toast.error(`⚠️ Agotado. Solo tienes ${prodInv.stock || 0} de "${prodInv.nombre}".`, { duration: 1000, position: 'bottom-center', icon: '🚫' });
              return;
           }
         }
@@ -1743,7 +1743,7 @@ Estamos atentos para cualquier consulta.
                                                                  const stockDisp = (p.stock || 0) - cantEnOtras;
 
                                                                  if (p.tipoProducto !== 'servicio' && p.inventariable !== false && stockDisp <= 0) {
-                                                                     toast.error("Sin stock disponible de " + p.nombre);
+                                                                     toast.error("Sin stock disponible de " + p.nombre, { duration: 1000 });
                                                                      return;
                                                                  }
 
@@ -1779,7 +1779,7 @@ Estamos atentos para cualquier consulta.
                                                                     key={p.id}
                                                                     onClick={() => {
                                                                         if (estaAgotado) {
-                                                                            toast.error(`⚠️ "${p.nombre}" no tiene existencias disponibles.`, { position: 'bottom-center', icon: '🚫' });
+                                                                            toast.error(`⚠️ "${p.nombre}" no tiene existencias disponibles.`, { duration: 1000, position: 'bottom-center', icon: '🚫' });
                                                                             return;
                                                                         }
                                                                         const nuevas = [...filasRegistro];

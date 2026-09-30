@@ -50,6 +50,7 @@ import {
   Crown,
   Lock,
   ListCheck,
+  Camera,
   Minus
 } from 'lucide-react';
 import { useAuth } from "@/hooks/AuthContext";
