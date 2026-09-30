@@ -1150,6 +1150,94 @@ function SepareContenido() {
             })
           )}
         </div>
+
+        {/* Botones Cobro Manual y Descuento */}
+        <div className="flex gap-1.5">
+          {puedeVentaLibre && (
+            <button
+              type="button"
+              onClick={agregarFila}
+              className="flex-1 border border-dashed border-violet-400 dark:border-violet-600/50 bg-violet-50/50 dark:bg-violet-950/20 text-violet-700 dark:text-violet-400 hover:bg-violet-100 dark:hover:bg-violet-900/40 rounded-xl py-2 text-xs font-black flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+            >
+              <Plus size={13} /> Libre
+            </button>
+          )}
+          {puedeAplicarDescuentos && !mostrarModalDescuento && (
+            <button
+              type="button"
+              onClick={() => {
+                setMostrarModalDescuento(true);
+                if (!descuentoTipo) setDescuentoTipo('porcentaje');
+                setDescuentoValor('');
+              }}
+              className="flex-1 border border-dashed border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-900/40 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800/60 rounded-xl py-2 text-xs font-black flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+            >
+              <Tag size={13} /> Descuento
+            </button>
+          )}
+        </div>
+
+        {/* Tarjeta de Descuento en Modo Visual Cart */}
+        {mostrarModalDescuento && puedeAplicarDescuentos && (
+          <div className="bg-slate-50 dark:bg-[#020617] p-2.5 rounded-2xl border border-violet-300 dark:border-violet-800/80 flex flex-col gap-2 animate-in fade-in slide-in-from-top-1 duration-150 shadow-sm mt-1">
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] font-black text-violet-600 dark:text-violet-400 uppercase tracking-wider flex items-center gap-1">
+                <Tag size={12} /> Descuento:
+              </span>
+              <button
+                type="button"
+                onClick={() => {
+                  setMostrarModalDescuento(false);
+                  setDescuentoTipo(null);
+                  setDescuentoValor('');
+                }}
+                className="text-[11px] font-bold text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/30 px-2 py-0.5 rounded-lg flex items-center gap-0.5 transition-colors cursor-pointer"
+              >
+                <X size={12} /> Quitar
+              </button>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="flex items-center bg-white dark:bg-slate-800 p-0.5 rounded-lg border border-slate-200 dark:border-slate-700 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => { setDescuentoTipo('porcentaje'); setDescuentoValor(''); }}
+                  className={`px-2 py-0.5 rounded text-[10px] font-black transition-all ${descuentoTipo === 'porcentaje' ? 'bg-violet-600 text-white shadow-sm' : 'text-slate-500'}`}
+                >
+                  %
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setDescuentoTipo('fijo'); setDescuentoValor(''); }}
+                  className={`px-2 py-0.5 rounded text-[10px] font-black transition-all ${descuentoTipo === 'fijo' ? 'bg-violet-600 text-white shadow-sm' : 'text-slate-500'}`}
+                >
+                  $
+                </button>
+              </div>
+
+              <input
+                type="text"
+                inputMode="decimal" pattern="[0-9]*"
+                value={descuentoTipo === 'porcentaje' ? descuentoValor : (descuentoValor ? parseInt(descuentoValor.replace(/\D/g, '') || '0', 10).toLocaleString('es-CO') : '')}
+                onChange={(e) => {
+                  const raw = e.target.value.replace(/\D/g, '');
+                  if (descuentoTipo === 'porcentaje') {
+                    setDescuentoValor(raw ? String(Math.min(100, Number(raw))) : '');
+                  } else {
+                    setDescuentoValor(raw);
+                  }
+                }}
+                placeholder={descuentoTipo === 'porcentaje' ? "Ej: 10%" : "Ej: 5.000"}
+                className="flex-1 px-2.5 py-1 text-xs font-black bg-white dark:bg-[#020617] border border-slate-200 dark:border-slate-700 rounded-lg outline-none focus:border-violet-500 text-slate-900 dark:text-white"
+              />
+
+              {montoDescuento > 0 && (
+                <span className="text-[11px] font-bold text-violet-600 dark:text-violet-400 shrink-0">
+                  -${montoDescuento.toLocaleString('es-CO')}
+                </span>
+              )}
+            </div>
+          </div>
+        )}
       </div>
     );
   };
@@ -2987,80 +3075,6 @@ Estamos atentos para cualquier consulta.
             >
               Cerrar Vista Previa
             </button>
-          </div>
-        </div>
-      )}
-
-      {/* MODAL DESCUENTO COMERCIAL */}
-      {mostrarModalDescuento && (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 z-[210] animate-in zoom-in-95 duration-150">
-          <div className="bg-white dark:bg-[#0f172a] p-5 rounded-3xl w-full max-w-sm shadow-2xl border border-slate-100 dark:border-slate-800 space-y-3.5">
-            <div className="flex justify-between items-center">
-              <h3 className="text-sm font-black text-slate-900 dark:text-white flex items-center gap-1.5">
-                <Percent size={16} className="text-emerald-600" /> Aplicar Descuento
-              </h3>
-              <button
-                onClick={() => setMostrarModalDescuento(false)}
-                className="text-slate-400 hover:text-slate-600 p-1"
-              >
-                <X size={16} />
-              </button>
-            </div>
-
-            <div className="grid grid-cols-2 gap-2">
-              <button
-                type="button"
-                onClick={() => setDescuentoTipo('porcentaje')}
-                className={`py-2 rounded-xl text-xs font-bold border transition-colors ${
-                  descuentoTipo === 'porcentaje' ? 'bg-emerald-600 text-white border-emerald-700' : 'bg-slate-50 dark:bg-slate-900 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700'
-                }`}
-              >
-                Porcentaje (%)
-              </button>
-              <button
-                type="button"
-                onClick={() => setDescuentoTipo('fijo')}
-                className={`py-2 rounded-xl text-xs font-bold border transition-colors ${
-                  descuentoTipo === 'fijo' ? 'bg-emerald-600 text-white border-emerald-700' : 'bg-slate-50 dark:bg-slate-900 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700'
-                }`}
-              >
-                Valor Fijo ($)
-              </button>
-            </div>
-
-            <div className="relative">
-              <span className="absolute left-3 top-1/2 -translate-y-1/2 font-black text-sm text-emerald-600">
-                {descuentoTipo === 'porcentaje' ? '%' : '$'}
-              </span>
-              <input
-                type="text"
-                inputMode="decimal" pattern="[0-9]*"
-                value={descuentoValor ? parseInt(descuentoValor.replace(/\D/g, '') || '0', 10).toLocaleString('es-CO') : ''}
-                onChange={(e) => setDescuentoValor(e.target.value.replace(/\D/g, ''))}
-                placeholder={descuentoTipo === 'porcentaje' ? "Ej: 10 (para 10%)" : "Ej: 20.000"}
-                className="w-full pl-8 pr-3 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl font-black text-sm text-slate-900 dark:text-white outline-none focus:border-emerald-500"
-              />
-            </div>
-
-            <div className="flex gap-2 pt-1">
-              <button
-                type="button"
-                onClick={() => { setDescuentoTipo(null); setDescuentoValor(""); setMostrarModalDescuento(false); }}
-                className="flex-1 py-2 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-xl font-bold text-xs"
-              >
-                Quitar
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  if (!descuentoTipo) setDescuentoTipo('porcentaje');
-                  setMostrarModalDescuento(false);
-                }}
-                className="flex-1 py-2 bg-emerald-600 text-white rounded-xl font-bold text-xs shadow-md"
-              >
-                Guardar
-              </button>
-            </div>
           </div>
         </div>
       )}

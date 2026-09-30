@@ -319,7 +319,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
       {/* CONTENEDOR PRINCIPAL */}
       {(() => {
-        const esRutaPOS = pathname?.includes('/dashboard/vender') || pathname?.includes('/dashboard/fiar') || pathname?.includes('/dashboard/separe');
+        const esRutaPOS = pathname === '/dashboard/vender' || pathname === '/dashboard/fiar' || pathname === '/dashboard/separe';
         return (
           <main className={`flex-1 flex flex-col h-full relative p-0 md:p-3 lg:p-6 ${esRutaPOS ? 'pb-0' : 'pb-16 md:pb-24 lg:pb-0'} overflow-hidden`}>
             <GlobalExpirationWarning />

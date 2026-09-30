@@ -1850,6 +1850,64 @@ Estamos atentos para cualquier consulta.
             </button>
           )}
         </div>
+
+        {/* Tarjeta de Descuento en Modo Visual Cart */}
+        {mostrarDescuento && puedeAplicarDescuentos && (
+          <div className="bg-slate-50 dark:bg-[#020617] p-2.5 rounded-2xl border border-emerald-300 dark:border-emerald-800/80 flex flex-col gap-2 animate-in fade-in slide-in-from-top-1 duration-150 shadow-sm mt-1">
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] font-black text-emerald-600 dark:text-emerald-400 uppercase tracking-wider flex items-center gap-1">
+                <Tag size={12} /> Descuento:
+              </span>
+              <button
+                type="button"
+                onClick={() => { setMostrarDescuento(false); setValorDescuento(''); }}
+                className="text-[11px] font-bold text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/30 px-2 py-0.5 rounded-lg flex items-center gap-0.5 transition-colors cursor-pointer"
+              >
+                <X size={12} /> Quitar
+              </button>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="flex items-center bg-white dark:bg-slate-800 p-0.5 rounded-lg border border-slate-200 dark:border-slate-700 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => { setTipoDescuento('porcentaje'); setValorDescuento(''); }}
+                  className={`px-2 py-0.5 rounded text-[10px] font-black transition-all ${tipoDescuento === 'porcentaje' ? 'bg-emerald-600 text-white shadow-sm' : 'text-slate-500'}`}
+                >
+                  %
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setTipoDescuento('fijo'); setValorDescuento(''); }}
+                  className={`px-2 py-0.5 rounded text-[10px] font-black transition-all ${tipoDescuento === 'fijo' ? 'bg-emerald-600 text-white shadow-sm' : 'text-slate-500'}`}
+                >
+                  $
+                </button>
+              </div>
+
+              <input
+                type="text"
+                inputMode="decimal" pattern="[0-9]*"
+                value={tipoDescuento === 'porcentaje' ? valorDescuento : (valorDescuento ? parseInt(valorDescuento.replace(/\D/g, '') || '0', 10).toLocaleString('es-CO') : '')}
+                onChange={(e) => {
+                  const raw = e.target.value.replace(/\D/g, '');
+                  if (tipoDescuento === 'porcentaje') {
+                    setValorDescuento(raw ? String(Math.min(100, Number(raw))) : '');
+                  } else {
+                    setValorDescuento(raw);
+                  }
+                }}
+                placeholder={tipoDescuento === 'porcentaje' ? "Ej: 10%" : "Ej: 5.000"}
+                className="flex-1 px-2.5 py-1 text-xs font-black bg-white dark:bg-[#020617] border border-slate-200 dark:border-slate-700 rounded-lg outline-none focus:border-emerald-500 text-slate-900 dark:text-white"
+              />
+
+              {montoDescuentoTotal > 0 && (
+                <span className="text-[11px] font-bold text-emerald-600 dark:text-emerald-400 shrink-0">
+                  -${montoDescuentoTotal.toLocaleString('es-CO')}
+                </span>
+              )}
+            </div>
+          </div>
+        )}
       </div>
     );
   };

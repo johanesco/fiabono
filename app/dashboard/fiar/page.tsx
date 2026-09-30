@@ -1077,17 +1077,86 @@ function FiarContenido() {
               )}
             </div>
 
-            {/* Botón Cobro Manual */}
-            {!sinPermisoVentaLibre && (
-              <button
-                type="button"
-                onClick={() => {
-                  agregarFila();
-                }}
-                className="w-full mt-1 border border-dashed border-emerald-400 dark:border-emerald-600/50 bg-emerald-50/50 dark:bg-emerald-950/20 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-100 dark:hover:bg-emerald-900/40 rounded-xl py-2 text-xs font-black flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
-              >
-                <Plus size={14} /> + Artículo Libre
-              </button>
+            {/* Botones Artículo Libre y Descuento */}
+            <div className="flex gap-1.5 mt-1">
+              {!sinPermisoVentaLibre && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    agregarFila();
+                  }}
+                  className="flex-1 border border-dashed border-rose-400 dark:border-rose-600/50 bg-rose-50/50 dark:bg-rose-950/20 text-rose-700 dark:text-rose-400 hover:bg-rose-100 dark:hover:bg-rose-900/40 rounded-xl py-2 text-xs font-black flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+                >
+                  <Plus size={13} /> Libre
+                </button>
+              )}
+              {puedeAplicarDescuentos && !mostrarDescuento && (
+                <button
+                  type="button"
+                  onClick={() => { setMostrarDescuento(true); setValorDescuento(''); }}
+                  className="flex-1 border border-dashed border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-900/40 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800/60 rounded-xl py-2 text-xs font-black flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+                >
+                  <Tag size={13} /> Descuento
+                </button>
+              )}
+            </div>
+
+            {/* Tarjeta de Descuento en Modo Visual Cart */}
+            {mostrarDescuento && puedeAplicarDescuentos && (
+              <div className="bg-slate-50 dark:bg-[#020617] p-2.5 rounded-2xl border border-rose-300 dark:border-rose-800/80 flex flex-col gap-2 animate-in fade-in slide-in-from-top-1 duration-150 shadow-sm mt-1">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-black text-rose-600 dark:text-rose-400 uppercase tracking-wider flex items-center gap-1">
+                    <Tag size={12} /> Descuento:
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => { setMostrarDescuento(false); setValorDescuento(''); }}
+                    className="text-[11px] font-bold text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/30 px-2 py-0.5 rounded-lg flex items-center gap-0.5 transition-colors cursor-pointer"
+                  >
+                    <X size={12} /> Quitar
+                  </button>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="flex items-center bg-white dark:bg-slate-800 p-0.5 rounded-lg border border-slate-200 dark:border-slate-700 shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => { setTipoDescuento('porcentaje'); setValorDescuento(''); }}
+                      className={`px-2 py-0.5 rounded text-[10px] font-black transition-all ${tipoDescuento === 'porcentaje' ? 'bg-rose-600 text-white shadow-sm' : 'text-slate-500'}`}
+                    >
+                      %
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => { setTipoDescuento('fijo'); setValorDescuento(''); }}
+                      className={`px-2 py-0.5 rounded text-[10px] font-black transition-all ${tipoDescuento === 'fijo' ? 'bg-rose-600 text-white shadow-sm' : 'text-slate-500'}`}
+                    >
+                      $
+                    </button>
+                  </div>
+
+                  <input
+                    type="text"
+                    inputMode="decimal" pattern="[0-9]*"
+                    value={tipoDescuento === 'porcentaje' ? valorDescuento : (valorDescuento ? parseInt(valorDescuento.replace(/\D/g, '') || '0', 10).toLocaleString('es-CO') : '')}
+                    onChange={(e) => {
+                      const raw = e.target.value.replace(/\D/g, '');
+                      if (tipoDescuento === 'porcentaje') {
+                        setValorDescuento(raw ? String(Math.min(100, Number(raw))) : '');
+                      } else {
+                        setValorDescuento(raw);
+                      }
+                    }}
+                    placeholder={tipoDescuento === 'porcentaje' ? "Ej: 10%" : "Ej: 5.000"}
+                    className="flex-1 px-2.5 py-1 text-xs font-black bg-white dark:bg-[#020617] border border-slate-200 dark:border-slate-700 rounded-lg outline-none focus:border-rose-500 text-slate-900 dark:text-white"
+                  />
+
+                  {montoDescuentoTotal > 0 && (
+                    <span className="text-[11px] font-bold text-rose-600 dark:text-rose-400 shrink-0">
+                      -${montoDescuentoTotal.toLocaleString('es-CO')}
+                    </span>
+                  )}
+                </div>
+              </div>
             )}
           </div>
         );
