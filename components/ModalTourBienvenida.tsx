@@ -31,21 +31,30 @@ export default function ModalTourBienvenida({
   onGuardarCategorias
 }: Props) {
   const [paso, setPaso] = useState(1);
-  const [rubroSeleccionadoId, setRubroSeleccionadoId] = useState<string>("moda_ropa");
+  const [rubrosSeleccionadosIds, setRubrosSeleccionadosIds] = useState<string[]>(["moda_ropa"]);
   const [guardandoRubro, setGuardandoRubro] = useState(false);
   const router = useRouter();
 
-  const rubroActual: RubroNegocio = 
-    RUBROS_NEGOCIOS.find(r => r.id === rubroSeleccionadoId) || RUBROS_NEGOCIOS[0];
+  const rubrosActuales: RubroNegocio[] = 
+    RUBROS_NEGOCIOS.filter(r => rubrosSeleccionadosIds.includes(r.id));
+  const categoriasCombinadas: string[] = 
+    Array.from(new Set(rubrosActuales.flatMap(r => r.categorias)));
 
   useEffect(() => {
     if (isOpen) {
       setPaso(1);
-      // Cargar si ya había un rubro guardado
       try {
-        const guardado = localStorage.getItem('fiabono_rubro_negocio');
-        if (guardado && RUBROS_NEGOCIOS.some(r => r.id === guardado)) {
-          setRubroSeleccionadoId(guardado);
+        const guardado = localStorage.getItem('fiabono_rubros_negocio');
+        if (guardado) {
+          const parsed = JSON.parse(guardado);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            setRubrosSeleccionadosIds(parsed);
+            return;
+          }
+        }
+        const guardadoSimple = localStorage.getItem('fiabono_rubro_negocio');
+        if (guardadoSimple && RUBROS_NEGOCIOS.some(r => r.id === guardadoSimple)) {
+          setRubrosSeleccionadosIds([guardadoSimple]);
         }
       } catch (e) {}
     }
@@ -53,24 +62,40 @@ export default function ModalTourBienvenida({
 
   if (!isOpen) return null;
 
-  const guardarConfiguracionRubro = async (rubro: RubroNegocio) => {
+  const alternarRubro = (id: string) => {
+    setRubrosSeleccionadosIds(prev => {
+      if (prev.includes(id)) {
+        if (prev.length === 1) {
+          toast.error("Selecciona al menos un tipo de negocio.");
+          return prev;
+        }
+        return prev.filter(item => item !== id);
+      } else {
+        return [...prev, id];
+      }
+    });
+  };
+
+  const guardarConfiguracionRubros = async () => {
     try {
       if (typeof window !== 'undefined') {
-        localStorage.setItem('fiabono_rubro_negocio', rubro.id);
-        localStorage.setItem(`fiabono_categorias_${cuentaPrincipalId || 'local'}`, JSON.stringify(rubro.categorias));
+        localStorage.setItem('fiabono_rubro_negocio', rubrosSeleccionadosIds[0] || 'moda_ropa');
+        localStorage.setItem('fiabono_rubros_negocio', JSON.stringify(rubrosSeleccionadosIds));
+        localStorage.setItem(`fiabono_categorias_${cuentaPrincipalId || 'local'}`, JSON.stringify(categoriasCombinadas));
       }
 
       if (cuentaPrincipalId) {
         setGuardandoRubro(true);
         await updateDoc(doc(db, "usuarios", cuentaPrincipalId), {
-          rubroNegocio: rubro.id,
-          categoriasPersonalizadas: rubro.categorias,
+          rubroNegocio: rubrosSeleccionadosIds[0] || 'moda_ropa',
+          rubrosNegocio: rubrosSeleccionadosIds,
+          categoriasPersonalizadas: categoriasCombinadas,
           fechaConfiguracionRubro: new Date()
         });
       }
 
       if (onGuardarCategorias) {
-        onGuardarCategorias(rubro.id, rubro.categorias);
+        onGuardarCategorias(rubrosSeleccionadosIds[0] || 'moda_ropa', categoriasCombinadas);
       }
     } catch (e) {
       console.warn("No se pudo guardar rubro en Firestore (se mantiene local):", e);
@@ -83,7 +108,7 @@ export default function ModalTourBienvenida({
 
   const irSiguiente = async () => {
     if (paso === 1) {
-      await guardarConfiguracionRubro(rubroActual);
+      await guardarConfiguracionRubros();
     }
     if (paso < totalPasos) {
       setPaso(paso + 1);
@@ -101,7 +126,7 @@ export default function ModalTourBienvenida({
   const cerrarTour = async () => {
     try {
       if (paso === 1) {
-        await guardarConfiguracionRubro(rubroActual);
+        await guardarConfiguracionRubros();
       }
       if (typeof window !== 'undefined') {
         localStorage.setItem('fiabono_tour_completado', 'true');
@@ -112,7 +137,7 @@ export default function ModalTourBienvenida({
 
   const finalizarTour = async () => {
     try {
-      await guardarConfiguracionRubro(rubroActual);
+      await guardarConfiguracionRubros();
       if (typeof window !== 'undefined') {
         localStorage.setItem('fiabono_tour_completado', 'true');
       }
@@ -137,11 +162,11 @@ export default function ModalTourBienvenida({
 
         {/* CONTENIDO SEGÚN EL PASO */}
         <div>
-          {/* PASO 1: SELECTOR DE RUBRO Y CATEGORÍAS */}
+          {/* PASO 1: MULTI-SELECTOR DE RUBROS Y CATEGORÍAS */}
           {paso === 1 && (
             <div className="animate-in fade-in duration-200">
-              <div className="text-center pt-1 mb-5">
-                <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-[11px] font-black uppercase tracking-wider border border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-900 mb-2.5 shadow-xs">
+              <div className="text-center pt-1 mb-4">
+                <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-[11px] font-black uppercase tracking-wider border border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-900 mb-2 shadow-xs">
                   <span className="px-2 py-0.5 rounded-full text-white text-[9px] font-black bg-gradient-to-r from-blue-600 to-indigo-600">
                     Paso 1 de {totalPasos}
                   </span>
@@ -150,41 +175,43 @@ export default function ModalTourBienvenida({
                   </span>
                 </div>
 
-                <h2 className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-white tracking-tight leading-tight mb-1.5">
-                  ¿Cuál es el tipo de tu negocio? 🛍️
+                <h2 className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-white tracking-tight leading-tight mb-1">
+                  ¿Qué vendes en tu negocio? 🛍️
                 </h2>
 
                 <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 max-w-lg mx-auto">
-                  Selecciona una opción para preparar las categorías iniciales de tu catálogo.
+                  Selecciona <strong className="text-blue-600 dark:text-blue-400 font-bold">uno o varios rubros</strong> para preparar tus categorías iniciales:
                 </p>
               </div>
 
-              {/* Cuadrícula de Rubros */}
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-2.5 mb-4">
+              {/* Cuadrícula de Rubros Multiseleccionables */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-2.5 mb-3.5">
                 {RUBROS_NEGOCIOS.map((rubro) => {
-                  const estaSeleccionado = rubro.id === rubroSeleccionadoId;
+                  const estaSeleccionado = rubrosSeleccionadosIds.includes(rubro.id);
                   return (
                     <button
                       key={rubro.id}
                       type="button"
-                      onClick={() => setRubroSeleccionadoId(rubro.id)}
-                      className={`p-3 rounded-2xl border text-left transition-all relative flex flex-col justify-between cursor-pointer active:scale-95 ${
+                      onClick={() => alternarRubro(rubro.id)}
+                      className={`p-2.5 sm:p-3 rounded-2xl border text-left transition-all relative flex flex-col justify-between cursor-pointer active:scale-95 ${
                         estaSeleccionado
                           ? 'border-blue-500 ring-2 ring-blue-500/20 bg-blue-50/70 dark:bg-blue-950/40 shadow-sm'
-                          : 'border-slate-200 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-900/50 hover:border-slate-300 dark:hover:border-slate-700'
+                          : 'border-slate-200 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-900/50 hover:border-slate-300 dark:hover:border-slate-700 opacity-80 hover:opacity-100'
                       }`}
                     >
-                      {estaSeleccionado && (
-                        <span className="absolute top-2 right-2 w-4 h-4 bg-blue-600 text-white rounded-full flex items-center justify-center text-[9px]">
+                      {estaSeleccionado ? (
+                        <span className="absolute top-2 right-2 w-4 h-4 bg-blue-600 text-white rounded-full flex items-center justify-center text-[9px] shadow-xs">
                           <Check size={10} strokeWidth={3} />
                         </span>
+                      ) : (
+                        <span className="absolute top-2 right-2 w-4 h-4 border border-slate-300 dark:border-slate-700 rounded-full" />
                       )}
-                      <span className="text-2xl mb-1 block">{rubro.icono}</span>
+                      <span className="text-xl sm:text-2xl mb-1 block">{rubro.icono}</span>
                       <div>
                         <h4 className={`text-xs font-black leading-tight ${estaSeleccionado ? 'text-blue-700 dark:text-blue-300' : 'text-slate-900 dark:text-white'}`}>
                           {rubro.nombre}
                         </h4>
-                        <p className="text-[10px] text-slate-400 dark:text-slate-500 line-clamp-1 mt-0.5">
+                        <p className="text-[9.5px] text-slate-400 dark:text-slate-500 line-clamp-1 mt-0.5">
                           {rubro.descripcion}
                         </p>
                       </div>
@@ -193,20 +220,20 @@ export default function ModalTourBienvenida({
                 })}
               </div>
 
-              {/* Vista Previa de Categorías */}
-              <div className="p-3.5 sm:p-4 rounded-2xl bg-slate-50 dark:bg-[#020617] border border-slate-200/80 dark:border-slate-800/80 mb-3 space-y-2">
+              {/* Vista Previa de Categorías Combinadas */}
+              <div className="p-3 sm:p-3.5 rounded-2xl bg-slate-50 dark:bg-[#020617] border border-slate-200/80 dark:border-slate-800/80 mb-2.5 space-y-2">
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-black text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
                     <Tag size={13} className="text-blue-600 dark:text-blue-400" />
-                    Categorías que crearemos para ti ({rubroActual.nombre}):
+                    Categorías que crearemos ({rubrosSeleccionadosIds.length} rubro{rubrosSeleccionadosIds.length > 1 ? 's' : ''}):
                   </span>
                   <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300">
-                    {rubroActual.categorias.length} sugeridas
+                    {categoriasCombinadas.length} sugeridas
                   </span>
                 </div>
 
-                <div className="flex flex-wrap gap-1.5 pt-1">
-                  {rubroActual.categorias.map((cat, idx) => (
+                <div className="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto no-scrollbar pt-0.5">
+                  {categoriasCombinadas.map((cat, idx) => (
                     <span 
                       key={idx}
                       className="px-2.5 py-1 rounded-xl text-xs font-bold bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 shadow-2xs animate-in zoom-in-95 duration-150"
@@ -241,11 +268,11 @@ export default function ModalTourBienvenida({
                 </div>
 
                 <h2 className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-white tracking-tight leading-tight mb-2">
-                  ¡Bienvenido a Fiabono, {nombreUsuario || 'Comerciante'}! 🎉
+                  ¡Bienvenido a Fiabono, ${nombreUsuario || 'Comerciante'}! 🎉
                 </h2>
 
                 <p className="text-sm font-semibold text-blue-600 dark:text-blue-400 mb-1">
-                  Tu negocio "{nombreNegocio || 'Mi Comercio'}" ya está listo en el sistema.
+                  Tu negocio "${nombreNegocio || 'Mi Comercio'}" ya está listo en el sistema.
                 </p>
 
                 <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 max-w-md mx-auto leading-relaxed">
@@ -444,7 +471,7 @@ export default function ModalTourBienvenida({
         {/* PIE: STEPPER Y BOTONES */}
         <div className="pt-2">
           {/* Stepper Dots */}
-          <div className="flex items-center justify-center gap-2 mb-4">
+          <div className="flex items-center justify-center gap-2 mb-3.5">
             {Array.from({ length: totalPasos }).map((_, idx) => {
               const numPaso = idx + 1;
               return (
@@ -500,7 +527,7 @@ export default function ModalTourBienvenida({
           </div>
 
           {/* Botón Saltear */}
-          <div className="text-center pt-2.5">
+          <div className="text-center pt-2">
             <button
               type="button"
               onClick={cerrarTour}

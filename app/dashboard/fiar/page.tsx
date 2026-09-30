@@ -1020,19 +1020,19 @@ function FiarContenido() {
         const sinPermisoVentaLibre = !puedeVentaLibre;
 
         return (
-          <div className="flex flex-col gap-3 mb-4 pb-4 border-b border-slate-200 dark:border-slate-800">
+          <div className="flex flex-col gap-2 mb-2.5 pb-2.5 border-b border-slate-200 dark:border-slate-800">
             <div className="flex items-center justify-between">
-              <h4 className="font-black text-slate-800 dark:text-slate-200 text-sm">Resumen de Venta</h4>
-              <span className="bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-400 px-2 py-0.5 rounded-full text-[10px] font-black">
+              <h4 className="font-black text-slate-800 dark:text-slate-200 text-xs sm:text-sm">Resumen de Fiado</h4>
+              <span className="bg-rose-100 text-rose-800 dark:bg-rose-900/40 dark:text-rose-400 px-2 py-0.5 rounded-full text-[10px] font-black">
                 {itemsValidos.length} items
               </span>
             </div>
 
-            <div className="flex flex-col gap-2 max-h-[30vh] overflow-y-auto pr-1 no-scrollbar">
+            <div className="flex flex-col gap-1.5 max-h-[38vh] sm:max-h-[42vh] overflow-y-auto pr-1 no-scrollbar">
               {itemsValidos.length === 0 ? (
-                <div className="py-6 text-center border-2 border-dashed border-slate-200 dark:border-slate-800 rounded-2xl flex flex-col items-center gap-2">
-                  <ShoppingCart size={24} className="text-slate-300 dark:text-slate-600" />
-                  <span className="text-xs font-bold text-slate-400">Toca un producto para agregarlo</span>
+                <div className="py-4 text-center border-2 border-dashed border-slate-200 dark:border-slate-800 rounded-xl flex flex-col items-center gap-1.5">
+                  <ShoppingCart size={20} className="text-slate-300 dark:text-slate-600" />
+                  <span className="text-[11px] font-bold text-slate-400">Toca un producto para agregarlo</span>
                 </div>
               ) : (
                 filasRegistro.map((fila, index) => {
@@ -1041,18 +1041,18 @@ function FiarContenido() {
                   const bloqueado = !puedeModificarPrecios && prodInv;
 
                   return (
-                    <div key={index} className="flex items-center bg-slate-50 dark:bg-slate-900/50 p-1.5 rounded-lg border border-slate-200 dark:border-slate-800/80 gap-2">
+                    <div key={index} className="flex items-center bg-slate-50 dark:bg-slate-900/50 p-1 rounded-lg border border-slate-200/80 dark:border-slate-800/80 gap-1.5">
                       <div className="flex items-center bg-white dark:bg-[#020617] rounded-md border border-slate-200 dark:border-slate-700 shrink-0">
-                        <button onClick={() => cambiarCantidadVisual(index, -1)} className="px-1.5 py-0.5 text-slate-500 hover:text-slate-800 cursor-pointer active:bg-slate-100 rounded-l-md"><Minus size={10} /></button>
+                        <button onClick={() => cambiarCantidadVisual(index, -1)} className="px-1.5 py-0.5 text-slate-500 hover:text-slate-800 cursor-pointer active:bg-slate-100 rounded-l-md"><Minus size={9} /></button>
                         <span className="text-[10px] font-black w-4 text-center text-slate-900 dark:text-white">{fila.cantidad}</span>
-                        <button onClick={() => cambiarCantidadVisual(index, 1)} className="px-1.5 py-0.5 text-emerald-600 hover:text-emerald-700 cursor-pointer active:bg-emerald-50 rounded-r-md"><Plus size={10} /></button>
+                        <button onClick={() => cambiarCantidadVisual(index, 1)} className="px-1.5 py-0.5 text-rose-600 hover:text-rose-700 cursor-pointer active:bg-rose-50 rounded-r-md"><Plus size={9} /></button>
                       </div>
 
                       <span className="text-[10px] font-bold text-slate-700 dark:text-slate-200 leading-tight flex-1 truncate" title={fila.descripcion}>
                         {fila.descripcion}
                       </span>
 
-                      <div className="flex items-center gap-1 shrink-0">
+                      <div className="flex items-center gap-0.5 shrink-0">
                         <span className="text-[9px] text-slate-400 font-bold">$</span>
                         <input 
                           type="text" 
@@ -1060,16 +1060,16 @@ function FiarContenido() {
                           value={formatearMonedaInput(fila.valor)}
                           onChange={(e) => actualizarFila(index, 'valor', e.target.value)}
                           disabled={bloqueado}
-                          className={`w-14 sm:w-16 bg-transparent border-b ${bloqueado ? 'border-transparent text-slate-500' : 'border-slate-300 dark:border-slate-600 text-slate-900 dark:text-white focus:border-emerald-500'} outline-none text-right text-[10px] font-black`}
+                          className={`w-14 sm:w-16 bg-transparent border-b ${bloqueado ? 'border-transparent text-slate-500' : 'border-slate-300 dark:border-slate-600 text-slate-900 dark:text-white focus:border-rose-500'} outline-none text-right text-[10px] font-black`}
                         />
                       </div>
 
                       <button 
                         type="button"
                         onClick={() => eliminarFila(index)}
-                        className="text-rose-400 hover:text-rose-600 shrink-0 cursor-pointer ml-1"
+                        className="text-rose-400 hover:text-rose-600 shrink-0 cursor-pointer p-0.5"
                       >
-                        <X size={12} />
+                        <X size={11} />
                       </button>
                     </div>
                   );
@@ -1078,45 +1078,45 @@ function FiarContenido() {
             </div>
 
             {/* Botones Artículo Libre y Descuento */}
-            <div className="flex gap-1.5 mt-1">
+            <div className="flex gap-1.5 mt-0.5">
               {!sinPermisoVentaLibre && (
                 <button
                   type="button"
                   onClick={() => {
                     agregarFila();
                   }}
-                  className="flex-1 border border-dashed border-rose-400 dark:border-rose-600/50 bg-rose-50/50 dark:bg-rose-950/20 text-rose-700 dark:text-rose-400 hover:bg-rose-100 dark:hover:bg-rose-900/40 rounded-xl py-2 text-xs font-black flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+                  className="flex-1 border border-dashed border-rose-400 dark:border-rose-600/50 bg-rose-50/50 dark:bg-rose-950/20 text-rose-700 dark:text-rose-400 hover:bg-rose-100 dark:hover:bg-rose-900/40 rounded-xl py-1.5 text-xs font-black flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
                 >
-                  <Plus size={13} /> Libre
+                  <Plus size={12} /> Libre
                 </button>
               )}
               {puedeAplicarDescuentos && !mostrarDescuento && (
                 <button
                   type="button"
                   onClick={() => { setMostrarDescuento(true); setValorDescuento(''); }}
-                  className="flex-1 border border-dashed border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-900/40 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800/60 rounded-xl py-2 text-xs font-black flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+                  className="flex-1 border border-dashed border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-900/40 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800/60 rounded-xl py-1.5 text-xs font-black flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
                 >
-                  <Tag size={13} /> Descuento
+                  <Tag size={12} /> Descuento
                 </button>
               )}
             </div>
 
             {/* Tarjeta de Descuento en Modo Visual Cart */}
             {mostrarDescuento && puedeAplicarDescuentos && (
-              <div className="bg-slate-50 dark:bg-[#020617] p-2.5 rounded-2xl border border-rose-300 dark:border-rose-800/80 flex flex-col gap-2 animate-in fade-in slide-in-from-top-1 duration-150 shadow-sm mt-1">
+              <div className="bg-slate-50 dark:bg-[#020617] p-2 rounded-2xl border border-rose-300 dark:border-rose-800/80 flex flex-col gap-1.5 animate-in fade-in slide-in-from-top-1 duration-150 shadow-sm mt-0.5">
                 <div className="flex items-center justify-between">
                   <span className="text-[10px] font-black text-rose-600 dark:text-rose-400 uppercase tracking-wider flex items-center gap-1">
-                    <Tag size={12} /> Descuento:
+                    <Tag size={11} /> Descuento:
                   </span>
                   <button
                     type="button"
                     onClick={() => { setMostrarDescuento(false); setValorDescuento(''); }}
-                    className="text-[11px] font-bold text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/30 px-2 py-0.5 rounded-lg flex items-center gap-0.5 transition-colors cursor-pointer"
+                    className="text-[10px] font-bold text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/30 px-1.5 py-0.5 rounded-lg flex items-center gap-0.5 transition-colors cursor-pointer"
                   >
-                    <X size={12} /> Quitar
+                    <X size={11} /> Quitar
                   </button>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-1.5">
                   <div className="flex items-center bg-white dark:bg-slate-800 p-0.5 rounded-lg border border-slate-200 dark:border-slate-700 shrink-0">
                     <button
                       type="button"
@@ -1147,15 +1147,35 @@ function FiarContenido() {
                       }
                     }}
                     placeholder={tipoDescuento === 'porcentaje' ? "Ej: 10%" : "Ej: 5.000"}
-                    className="flex-1 px-2.5 py-1 text-xs font-black bg-white dark:bg-[#020617] border border-slate-200 dark:border-slate-700 rounded-lg outline-none focus:border-rose-500 text-slate-900 dark:text-white"
+                    className="flex-1 px-2 py-1 text-xs font-black bg-white dark:bg-[#020617] border border-slate-200 dark:border-slate-700 rounded-lg outline-none focus:border-rose-500 text-slate-900 dark:text-white"
                   />
 
                   {montoDescuentoTotal > 0 && (
-                    <span className="text-[11px] font-bold text-rose-600 dark:text-rose-400 shrink-0">
+                    <span className="text-[10.5px] font-bold text-rose-600 dark:text-rose-400 shrink-0">
                       -${montoDescuentoTotal.toLocaleString('es-CO')}
                     </span>
                   )}
                 </div>
+
+                {/* Opciones Rápidas de Porcentaje */}
+                {tipoDescuento === 'porcentaje' && (
+                  <div className="flex items-center gap-1 pt-0.5">
+                    {[5, 10, 15, 20].map(pct => (
+                      <button
+                        key={pct}
+                        type="button"
+                        onClick={() => setValorDescuento(String(pct))}
+                        className={`flex-1 py-1 rounded-lg text-[10px] font-black border transition-all cursor-pointer ${
+                          valorDescuento === String(pct)
+                            ? 'bg-rose-600 text-white border-rose-700 shadow-xs'
+                            : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-rose-50 dark:hover:bg-rose-950/40'
+                        }`}
+                      >
+                        {pct}%
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
             )}
           </div>
