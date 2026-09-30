@@ -164,80 +164,47 @@ export default function LandingPage() {
 
       try {
         const credencial = await createUserWithEmailAndPassword(auth, loginEmail, authForm.password);
-        
-        let planFinal = codigoAplicado ? codigoAplicado.planOtorgado : planSeleccionadoRegistro;
-        let diasOtorgados = codigoAplicado ? codigoAplicado.diasOtorgados : (planFinal !== 'gratis' ? 14 : null);
-        let fechaVence: Date | null = null;
-        if (diasOtorgados) {
-          const d = new Date();
-          d.setDate(d.getDate() + diasOtorgados);
-          fechaVence = d;
-        }
+        const idToken = await credencial.user.getIdToken(true);
 
-        // Generar identificador único garantizado para el negocio (slugNegocio)
-        const slugBase = generarSlugNegocio(authForm.negocio.trim());
-        let slugAsignado = slugBase;
-        let contador = 1;
-        let slugDisponible = false;
-
-        while (!slugDisponible && contador <= 50) {
-          try {
-            const qSlug = query(collection(db, "usuarios"), where("slugNegocio", "==", slugAsignado), limit(1));
-            const snapSlug = await getDocs(qSlug);
-            if (snapSlug.empty) {
-              slugDisponible = true;
-            } else {
-              slugAsignado = `${slugBase}${contador}`;
-              contador++;
-            }
-          } catch {
-            // En caso de restricción de lectura previa, usar sufijo aleatorio
-            slugAsignado = `${slugBase}${Math.floor(100 + Math.random() * 900)}`;
-            slugDisponible = true;
-          }
-        }
-
-        await setDoc(doc(db, "usuarios", credencial.user.uid), { 
-          nombreUsuario: authForm.nombreUsuario.trim(),
-          nombreNegocio: authForm.negocio.trim(), 
-          slugNegocio: slugAsignado,
-          email: loginEmail, 
-          telefonoNegocio: "",
-          rol: "admin",
-          plan: planFinal,
-          planVence: fechaVence,
-          cicloPlan: cicloFacturacion,
-          terminosAceptados: true,
-          fechaAceptacionTerminos: new Date(),
-          fechaRegistro: new Date(),
-          ...(codigoAplicado ? { codigoPromocionalUsado: codigoAplicado.codigo } : {})
+        const resp = await fetch('/api/auth/completar-onboarding', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${idToken}`
+          },
+          body: JSON.stringify({
+            nombreUsuario: authForm.nombreUsuario.trim(),
+            nombreNegocio: authForm.negocio.trim(),
+            tipoNegocio: "Moda y Ropa",
+            moduloSepare: true,
+            plan: codigoAplicado ? codigoAplicado.planOtorgado : planSeleccionadoRegistro,
+            cicloPlan: cicloFacturacion,
+            codigoPromocional: codigoAplicado ? codigoAplicado.codigo : undefined
+          })
         });
 
-        if (codigoAplicado && codigoAplicado.unSoloUso) {
-          try {
-            await updateDoc(doc(db, "codigos_promocionales", codigoAplicado.codigo), {
-              activo: false,
-              usadoPor: credencial.user.uid,
-              fechaUso: new Date()
-            });
-          } catch (e) {
-            console.error("Error al desactivar código promocional:", e);
-          }
+        const data = await resp.json();
+        if (!resp.ok || !data.ok) {
+          throw new Error(data.error || "Ocurrió un error al crear tu negocio.");
         }
+
         if (typeof window !== 'undefined') {
+          sessionStorage.removeItem('fiabono_registro_temp');
           localStorage.setItem('fiabono_mostrar_tour', 'true');
         }
         cerrarModal();
+        window.location.href = "/dashboard/inicio";
       } catch (error: any) { 
         if (error.code === 'auth/email-already-in-use') setAuthErrores(p => ({...p, email: "Este correo ya está registrado."}));
         else if (error.code === 'auth/invalid-email') setAuthErrores(p => ({...p, email: "El formato del correo no es válido."}));
-        else setAuthErrores(p => ({...p, general: "Ocurrió un error. Intenta de nuevo."}));
+        else setAuthErrores(p => ({...p, general: error.message || "Ocurrió un error. Intenta de nuevo."}));
       }
     } else {
       if (!loginEmail || !authForm.password) { setAuthErrores(p => ({...p, general: "Llena todos los campos"})); return; }
       try {
         await signInWithEmailAndPassword(auth, loginEmail, authForm.password);
         cerrarModal();
+        window.location.href = "/dashboard/inicio";
       } catch (error: any) {
         if (error.code === 'auth/invalid-credential' || error.code === 'auth/wrong-password' || error.code === 'auth/user-not-found') {
           setAuthErrores(p => ({...p, general: "El correo o la contraseña son incorrectos."}));
@@ -320,8 +287,11 @@ export default function LandingPage() {
 
     const procesarSiEsNecesario = (user: typeof auth.currentUser) => {
       if (!cancelado && user && user.uid !== uidProcesado) {
-        uidProcesado = user.uid;
-        procesarUsuarioGoogle(user);
+        const esGoogle = user.providerData?.some(p => p.providerId === 'google.com');
+        if (esGoogle) {
+          uidProcesado = user.uid;
+          procesarUsuarioGoogle(user);
+        }
       }
     };
 
@@ -329,7 +299,9 @@ export default function LandingPage() {
       try {
         await setPersistence(auth, browserLocalPersistence);
         const resultado = await getRedirectResult(auth);
-        procesarSiEsNecesario(resultado?.user || auth.currentUser);
+        if (resultado?.user) {
+          procesarSiEsNecesario(resultado.user);
+        }
       } catch (error: any) {
         if (cancelado) return;
         console.error("Error al recuperar autenticación de Google:", error);
