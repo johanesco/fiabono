@@ -42,6 +42,7 @@ export default function LandingPage() {
   const [googleUserPendiente, setGoogleUserPendiente] = useState<{ uid: string; email: string; nombre: string; foto?: string } | null>(null);
   const [modalGoogleOnboarding, setModalGoogleOnboarding] = useState(false);
   const [pasoGoogleOnboarding, setPasoGoogleOnboarding] = useState<1 | 2>(1);
+  const [editandoNombreNegocio, setEditandoNombreNegocio] = useState(false);
   const [formGoogleOnboarding, setFormGoogleOnboarding] = useState({
     nombreUsuario: "",
     nombreNegocio: "",
@@ -2471,44 +2472,83 @@ export default function LandingPage() {
               {/* ===================== PASO 1: DATOS DEL COMERCIO ===================== */}
               {pasoGoogleOnboarding === 1 && (
                 <div className="space-y-4 animate-in fade-in duration-200">
-                  {/* Nombre de la persona */}
-                  <div>
-                    <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1.5">
-                      Tu Nombre Completo
-                    </label>
-                    <input 
-                      type="text" 
-                      required
-                      placeholder="Ej. Johan Escobar" 
-                      value={formGoogleOnboarding.nombreUsuario} 
-                      onChange={e => {
-                        setFormGoogleOnboarding({...formGoogleOnboarding, nombreUsuario: e.target.value});
-                        setErrorGoogleOnboarding("");
-                      }} 
-                      className="w-full p-3.5 bg-slate-50 dark:bg-[#020617] border border-slate-200 dark:border-slate-800 rounded-2xl outline-none focus:border-blue-500 dark:text-white font-bold text-sm transition-all focus:ring-2 focus:ring-blue-500/20" 
-                    />
-                  </div>
-
-                  {/* Nombre del Negocio */}
-                  <div>
-                    <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1.5">
-                      Nombre de tu Negocio / Tienda <span className="text-rose-500">*</span>
-                    </label>
-                    <div className="relative">
-                      <Store size={18} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"/>
-                      <input 
-                        type="text" 
-                        required
-                        placeholder="Ej. Minimarket Central, Boutique Glamour..." 
-                        value={formGoogleOnboarding.nombreNegocio} 
-                        onChange={e => {
-                          setFormGoogleOnboarding({...formGoogleOnboarding, nombreNegocio: e.target.value});
-                          setErrorGoogleOnboarding("");
-                        }} 
-                        className="w-full pl-10 pr-4 py-3.5 bg-slate-50 dark:bg-[#020617] border border-slate-200 dark:border-slate-800 rounded-2xl outline-none focus:border-blue-500 dark:text-white font-bold text-sm transition-all focus:ring-2 focus:ring-blue-500/20" 
-                      />
+                  {/* Si ya fueron completados previamente, mostramos tarjeta limpia y compacta */}
+                  {formGoogleOnboarding.nombreNegocio.trim() && !editandoNombreNegocio ? (
+                    <div className="bg-slate-50 dark:bg-slate-900/60 p-3.5 rounded-2xl border border-slate-200 dark:border-slate-800 flex items-center justify-between gap-3 animate-in fade-in">
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div className="w-10 h-10 rounded-xl bg-blue-100 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400 flex items-center justify-center shrink-0">
+                          <Store size={20} />
+                        </div>
+                        <div className="min-w-0">
+                          <div className="text-sm font-black text-slate-900 dark:text-white truncate">
+                            {formGoogleOnboarding.nombreNegocio}
+                          </div>
+                          <div className="text-xs text-slate-500 dark:text-slate-400 truncate">
+                            {formGoogleOnboarding.nombreUsuario || 'Comerciante'}
+                          </div>
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setEditandoNombreNegocio(true)}
+                        className="text-xs font-bold text-blue-600 dark:text-blue-400 hover:underline shrink-0 cursor-pointer px-2.5 py-1 rounded-lg hover:bg-blue-50 dark:hover:bg-blue-950/30 transition-colors"
+                      >
+                        Cambiar
+                      </button>
                     </div>
-                  </div>
+                  ) : (
+                    <div className="space-y-3.5 animate-in fade-in">
+                      {/* Nombre de la persona */}
+                      <div>
+                        <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1.5">
+                          Tu Nombre Completo
+                        </label>
+                        <input 
+                          type="text" 
+                          required
+                          placeholder="Ej. Johan Escobar" 
+                          value={formGoogleOnboarding.nombreUsuario} 
+                          onChange={e => {
+                            setFormGoogleOnboarding({...formGoogleOnboarding, nombreUsuario: e.target.value});
+                            setErrorGoogleOnboarding("");
+                          }} 
+                          className="w-full p-3.5 bg-slate-50 dark:bg-[#020617] border border-slate-200 dark:border-slate-800 rounded-2xl outline-none focus:border-blue-500 dark:text-white font-bold text-sm transition-all focus:ring-2 focus:ring-blue-500/20" 
+                        />
+                      </div>
+
+                      {/* Nombre del Negocio */}
+                      <div>
+                        <div className="flex items-center justify-between mb-1.5">
+                          <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                            Nombre de tu Negocio / Tienda <span className="text-rose-500">*</span>
+                          </label>
+                          {formGoogleOnboarding.nombreNegocio.trim() && (
+                            <button
+                              type="button"
+                              onClick={() => setEditandoNombreNegocio(false)}
+                              className="text-[11px] font-bold text-blue-600 dark:text-blue-400 hover:underline cursor-pointer"
+                            >
+                              Listo ✓
+                            </button>
+                          )}
+                        </div>
+                        <div className="relative">
+                          <Store size={18} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"/>
+                          <input 
+                            type="text" 
+                            required
+                            placeholder="Ej. Minimarket Central, Boutique Glamour..." 
+                            value={formGoogleOnboarding.nombreNegocio} 
+                            onChange={e => {
+                              setFormGoogleOnboarding({...formGoogleOnboarding, nombreNegocio: e.target.value});
+                              setErrorGoogleOnboarding("");
+                            }} 
+                            className="w-full pl-10 pr-4 py-3.5 bg-slate-50 dark:bg-[#020617] border border-slate-200 dark:border-slate-800 rounded-2xl outline-none focus:border-blue-500 dark:text-white font-bold text-sm transition-all focus:ring-2 focus:ring-blue-500/20" 
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  )}
 
                   {/* Tipo / Categoría del Negocio */}
                   <div>
