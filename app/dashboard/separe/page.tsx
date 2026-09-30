@@ -9,7 +9,7 @@ import {
   Tag, AlertCircle, Printer, Image as ImageIcon, Banknote, 
   Smartphone, CreditCard, Zap, Trash2, UserCog, RotateCcw, 
   Upload, Package, Store, Check, FileText, Percent, Eye,
-  QrCode, Receipt, Crown, LayoutGrid, List, ShoppingCart
+  QrCode, Receipt, Crown, LayoutGrid, List, ShoppingCart, ChevronDown
 } from 'lucide-react';
 import toast from "react-hot-toast";
 import { useAuth } from "@/hooks/AuthContext";
@@ -2018,29 +2018,30 @@ Estamos atentos para cualquier consulta.
             </h2>
           </div>
         </div>
-        <p className="text-[10px] sm:text-xs text-violet-200 font-medium hidden sm:block">Aparta artículos con abono inicial y cuotas flexibles</p>
 
-        <div className="flex items-center gap-2 shrink-0">
+        <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
           {/* Selector de Vendedor Responsable (Visible si es Terminal Multivendedor o Admin) */}
           {esTerminalMultivendedor ? (
-            <div className="flex items-center bg-white/15 backdrop-blur-sm rounded-xl px-2.5 py-1.5 border border-white/20">
-              <User size={14} className="text-white/80 mr-1.5 shrink-0" />
+            <div className="flex items-center bg-white/20 hover:bg-white/30 dark:!bg-white/20 dark:hover:!bg-white/30 backdrop-blur-md rounded-xl px-2.5 py-1 sm:py-1.5 border border-white/30 max-w-[120px] sm:max-w-none min-w-0 transition-all shadow-sm">
+              <User size={13} className="text-white/90 mr-1 shrink-0" />
               <select
                 value={vendedorActivo}
                 onChange={(e) => setVendedorActivo(e.target.value)}
-                className="bg-transparent text-white font-bold text-xs outline-none cursor-pointer pr-1"
+                style={{ backgroundColor: 'transparent', WebkitAppearance: 'none', MozAppearance: 'none' }}
+                className="!bg-transparent text-white font-bold text-xs outline-none cursor-pointer appearance-none pr-3 truncate w-full border-none focus:ring-0"
               >
                 {listaVendedores.map((v) => (
-                  <option key={v} value={v} className="bg-slate-900 text-white">
+                  <option key={v} value={v} className="bg-purple-950 text-white dark:bg-slate-900">
                     {v}
                   </option>
                 ))}
               </select>
+              <ChevronDown size={11} className="text-white/80 pointer-events-none -ml-2 shrink-0" />
             </div>
           ) : (
-            <div className="hidden sm:flex items-center bg-white/15 backdrop-blur-sm rounded-xl px-2.5 py-1.5 border border-white/20 text-white text-xs font-bold gap-1.5">
-              <User size={13} className="text-white/80" />
-              <span>{vendedorActivo}</span>
+            <div className="hidden sm:flex items-center bg-white/20 dark:!bg-white/20 backdrop-blur-md rounded-xl px-2.5 py-1.5 border border-white/30 text-white text-xs font-bold gap-1.5 shadow-sm">
+              <User size={13} className="text-white/90" />
+              <span className="truncate max-w-[110px] sm:max-w-none">{vendedorActivo}</span>
             </div>
           )}
 
@@ -2069,10 +2070,12 @@ Estamos atentos para cualquier consulta.
           {puedeGestionarSepares && (
             <button
               onClick={() => router.push('/dashboard/separes')}
-              className="text-xs font-bold bg-white/15 hover:bg-white/25 px-2.5 sm:px-3 py-1.5 rounded-xl transition-colors flex items-center gap-1 cursor-pointer border border-white/10"
+              className="text-xs font-bold bg-white/15 hover:bg-white/25 px-2 sm:px-3 py-1.5 sm:py-2 rounded-xl transition-colors flex items-center gap-1 cursor-pointer border border-white/10 shrink-0"
+              title="Ver listado de separes"
             >
-              <span>Ver Separes</span>
-              <ChevronRight size={14} />
+              <span className="hidden sm:inline">Ver Separes</span>
+              <span className="sm:hidden">Separes</span>
+              <ChevronRight size={14} className="shrink-0" />
             </button>
           )}
         </div>
