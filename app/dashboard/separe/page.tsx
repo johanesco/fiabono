@@ -2003,7 +2003,7 @@ Estamos atentos para cualquier consulta.
 
       {/* ENCABEZADO VIOLETA ESPEJO EXACTO A FIAR / VENDER */}
       <div className="bg-gradient-to-r from-violet-600 via-purple-700 to-indigo-800 p-3.5 sm:p-4 text-white flex justify-between items-center shrink-0 z-30 shadow-sm gap-2">
-        <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
+        <div className="flex items-center gap-2.5 sm:gap-3 shrink-0">
           <button
             onClick={() => router.push('/dashboard/inicio')}
             className="bg-white/20 hover:bg-white/30 p-2 sm:p-2.5 rounded-full transition-colors backdrop-blur-sm cursor-pointer active:scale-95 shrink-0"
@@ -2011,9 +2011,9 @@ Estamos atentos para cualquier consulta.
           >
             <ArrowLeft size={18} className="sm:w-5 sm:h-5" />
           </button>
-          <div className="flex items-center gap-2 min-w-0">
+          <div className="flex items-center gap-2 whitespace-nowrap">
             <Bookmark size={20} className="shrink-0 text-violet-200" />
-            <h2 className="text-base sm:text-xl font-black uppercase tracking-wide hidden sm:inline truncate">
+            <h2 className="text-base sm:text-xl font-black uppercase tracking-wide hidden sm:inline whitespace-nowrap">
               Plan Separe
             </h2>
           </div>

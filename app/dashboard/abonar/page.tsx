@@ -475,12 +475,12 @@ Estamos atentos para cualquier consulta.
       {/* HEADER SUPERIOR */}
       {/* CABECERA */}
       <div className="bg-blue-600 dark:bg-blue-800 p-3.5 sm:p-4 text-white flex justify-between items-center shrink-0 z-30 shadow-sm gap-2">
-        <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
+        <div className="flex items-center gap-2.5 sm:gap-3 shrink-0">
           <button onClick={() => router.push('/dashboard/inicio')} className="bg-white/20 hover:bg-white/30 p-2 sm:p-2.5 rounded-full transition-colors backdrop-blur-sm cursor-pointer active:scale-95 shrink-0">
             <ArrowLeft size={18} className="sm:w-5 sm:h-5" />
           </button>
-          <h2 className="text-base sm:text-xl font-black uppercase tracking-wide flex items-center gap-2 truncate">
-            <Banknote size={20} className="shrink-0"/> <span className="truncate">Registrar Abono</span>
+          <h2 className="text-base sm:text-xl font-black uppercase tracking-wide flex items-center gap-2 whitespace-nowrap">
+            <Banknote size={20} className="shrink-0"/> <span className="whitespace-nowrap">Registrar Abono</span>
           </h2>
         </div>
       </div>

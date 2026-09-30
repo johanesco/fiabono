@@ -2361,7 +2361,7 @@ Estamos atentos para cualquier consulta.
       
       {/* CABECERA */}
       <div className="bg-emerald-600 dark:bg-emerald-700 p-3.5 sm:p-4 text-white flex justify-between items-center shrink-0 z-30 shadow-sm gap-2">
-        <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
+        <div className="flex items-center gap-2.5 sm:gap-3 shrink-0">
           <button 
             type="button"
             onClick={() => {
@@ -2373,9 +2373,9 @@ Estamos atentos para cualquier consulta.
           >
             <ArrowLeft size={18} className="sm:w-5 sm:h-5" />
           </button>
-          <h2 className="text-base sm:text-xl font-black uppercase tracking-wide flex items-center gap-2 truncate">
+          <h2 className="text-base sm:text-xl font-black uppercase tracking-wide flex items-center gap-2 whitespace-nowrap">
             <ShoppingCart size={20} className="shrink-0" /> 
-            <span className="hidden sm:inline truncate">Vender</span>
+            <span className="hidden sm:inline">Vender</span>
           </h2>
         </div>
 
