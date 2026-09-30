@@ -1593,7 +1593,7 @@ Estamos atentos para cualquier consulta.
                     </button>
                     <h2 className="text-base sm:text-xl font-black uppercase tracking-wide flex items-center gap-2 truncate">
                         <ShoppingBag size={20} className="shrink-0" /> 
-                        <span className="truncate">Fiar</span>
+                        <span className="hidden sm:inline truncate">Fiar</span>
                     </h2>
                 </div>
 
@@ -1618,7 +1618,7 @@ Estamos atentos para cualquier consulta.
                             <ChevronDown size={11} className="text-white/80 pointer-events-none -ml-2 shrink-0" />
                         </div>
                     ) : (
-                        <div className="flex items-center bg-white/20 dark:!bg-white/20 backdrop-blur-md rounded-xl px-2.5 py-1.5 border border-white/30 text-white text-xs font-bold gap-1.5 shadow-sm">
+                        <div className="hidden sm:flex items-center bg-white/20 dark:!bg-white/20 backdrop-blur-md rounded-xl px-2.5 py-1.5 border border-white/30 text-white text-xs font-bold gap-1.5 shadow-sm">
                             <User size={13} className="text-white/90" />
                             <span className="truncate max-w-[110px] sm:max-w-none">{vendedorActivo}</span>
                         </div>

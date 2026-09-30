@@ -1996,7 +1996,7 @@ Estamos atentos para cualquier consulta.
           </button>
           <div className="flex items-center gap-2 min-w-0">
             <Bookmark size={20} className="shrink-0 text-violet-200" />
-            <h2 className="text-base sm:text-xl font-black uppercase tracking-wide truncate">
+            <h2 className="text-base sm:text-xl font-black uppercase tracking-wide hidden sm:inline truncate">
               Plan Separe
             </h2>
           </div>
