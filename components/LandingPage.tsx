@@ -164,63 +164,61 @@ export default function LandingPage() {
 
       try {
         const credencial = await createUserWithEmailAndPassword(auth, loginEmail, authForm.password);
-        const idToken = await credencial.user.getIdToken(true);
 
-        const resp = await fetch('/api/auth/completar-onboarding', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${idToken}`
-          },
-          body: JSON.stringify({
-            nombreUsuario: authForm.nombreUsuario.trim(),
-            nombreNegocio: authForm.negocio.trim(),
-            tipoNegocio: "Moda y Ropa",
-            moduloSepare: true,
-            plan: codigoAplicado ? codigoAplicado.planOtorgado : planSeleccionadoRegistro,
-            cicloPlan: cicloFacturacion,
-            codigoPromocional: codigoAplicado ? codigoAplicado.codigo : undefined
-          })
+        const nombreSugerido = authForm.nombreUsuario.trim();
+        const negocioSugerido = authForm.negocio.trim();
+
+        setGoogleUserPendiente({
+          uid: credencial.user.uid,
+          email: loginEmail,
+          nombre: nombreSugerido
         });
 
-        const data = await resp.json();
-        if (!resp.ok || !data.ok) {
-          throw new Error(data.error || "Ocurrió un error al crear tu negocio.");
-        }
+        setFormGoogleOnboarding({
+          nombreUsuario: nombreSugerido,
+          nombreNegocio: negocioSugerido,
+          tipoNegocio: "Moda y Ropa",
+          telefonoNegocio: "",
+          moduloSepare: true,
+          plan: codigoAplicado ? codigoAplicado.planOtorgado : planSeleccionadoRegistro
+        });
 
-        if (typeof window !== 'undefined') {
-          sessionStorage.removeItem('fiabono_registro_temp');
-          localStorage.setItem('fiabono_mostrar_tour', 'true');
-        }
+        setAceptaTerminosGoogle(true);
+        setPasoGoogleOnboarding(1);
+        setErrorGoogleOnboarding("");
         cerrarModal();
-        window.location.href = "/dashboard/inicio";
+        setModalGoogleOnboarding(true);
       } catch (error: any) { 
         if (error.code === 'auth/email-already-in-use') {
           try {
             const loginCred = await signInWithEmailAndPassword(auth, loginEmail, authForm.password);
-            const idToken = await loginCred.user.getIdToken(true);
-            const resp = await fetch('/api/auth/completar-onboarding', {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${idToken}`
-              },
-              body: JSON.stringify({
-                nombreUsuario: authForm.nombreUsuario.trim(),
-                nombreNegocio: authForm.negocio.trim(),
+            const userDocSnap = await getDocFromServer(doc(db, "usuarios", loginCred.user.uid));
+            if (!userDocSnap.exists()) {
+              const nombreSugerido = authForm.nombreUsuario.trim() || loginCred.user.displayName || "";
+              const negocioSugerido = authForm.negocio.trim() || "";
+
+              setGoogleUserPendiente({
+                uid: loginCred.user.uid,
+                email: loginEmail,
+                nombre: nombreSugerido
+              });
+
+              setFormGoogleOnboarding({
+                nombreUsuario: nombreSugerido,
+                nombreNegocio: negocioSugerido,
                 tipoNegocio: "Moda y Ropa",
+                telefonoNegocio: "",
                 moduloSepare: true,
-                plan: codigoAplicado ? codigoAplicado.planOtorgado : planSeleccionadoRegistro,
-                cicloPlan: cicloFacturacion,
-                codigoPromocional: codigoAplicado ? codigoAplicado.codigo : undefined
-              })
-            });
-            const data = await resp.json();
-            if (resp.ok && data.ok) {
-              if (typeof window !== 'undefined') {
-                sessionStorage.removeItem('fiabono_registro_temp');
-                localStorage.setItem('fiabono_mostrar_tour', 'true');
-              }
+                plan: codigoAplicado ? codigoAplicado.planOtorgado : planSeleccionadoRegistro
+              });
+
+              setAceptaTerminosGoogle(true);
+              setPasoGoogleOnboarding(1);
+              setErrorGoogleOnboarding("");
+              cerrarModal();
+              setModalGoogleOnboarding(true);
+              return;
+            } else {
               cerrarModal();
               window.location.href = "/dashboard/inicio";
               return;
@@ -423,7 +421,7 @@ export default function LandingPage() {
     setGuardandoGoogleOnboarding(true);
     try {
       if (!auth.currentUser) {
-        throw new Error("No hay una sesión activa de Google. Por favor intenta iniciar sesión de nuevo.");
+        throw new Error("No hay una sesión activa. Por favor intenta iniciar sesión de nuevo.");
       }
 
       const idToken = await auth.currentUser.getIdToken(true);
@@ -499,7 +497,7 @@ export default function LandingPage() {
   const horasAhorradasMes = Math.round(horasCuentas * 4);
 
   return (
-    <div className="min-h-screen w-full max-w-[100vw] pb-24 md:pb-0 bg-slate-50 dark:bg-[#020617] text-slate-900 dark:text-slate-100 font-sans transition-colors duration-500 overflow-x-hidden selection:bg-blue-600 selection:text-white">
+    <div className="min-h-screen w-full pb-24 md:pb-0 bg-slate-50 dark:bg-[#020617] text-slate-900 dark:text-slate-100 font-sans transition-colors duration-500 overflow-x-clip selection:bg-blue-600 selection:text-white">
       
       {/* 1. TOP ANNOUNCEMENT BANNER */}
       <div className="bg-gradient-to-r from-emerald-600 via-teal-600 to-slate-900 text-white text-[11px] sm:text-xs font-black py-2 px-4 text-center flex items-center justify-center gap-2">
@@ -2458,7 +2456,7 @@ export default function LandingPage() {
               <X size={20}/>
             </button>
 
-            {/* Cabecera con identidad Google y Stepper */}
+            {/* Cabecera con identidad y Stepper */}
             <div className="text-center mb-6 pt-1">
               <div className="relative inline-block mb-3">
                 {googleUserPendiente.foto ? (
@@ -2469,17 +2467,19 @@ export default function LandingPage() {
                   />
                 ) : (
                   <div className="w-16 h-16 rounded-full bg-gradient-to-br from-blue-600 to-indigo-700 text-white font-black text-2xl flex items-center justify-center shadow-lg shadow-blue-500/30 mx-auto ring-4 ring-blue-500/20">
-                    {googleUserPendiente.nombre ? googleUserPendiente.nombre.charAt(0).toUpperCase() : 'G'}
+                    {googleUserPendiente.nombre ? googleUserPendiente.nombre.charAt(0).toUpperCase() : <Store size={26}/>}
                   </div>
                 )}
-                <div className="absolute -bottom-1 -right-1 bg-white dark:bg-slate-900 rounded-full p-1 shadow-md border border-slate-200 dark:border-slate-700">
-                  <svg className="w-4 h-4" viewBox="0 0 24 24">
-                    <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
-                    <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
-                    <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"/>
-                    <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"/>
-                  </svg>
-                </div>
+                {googleUserPendiente.foto && (
+                  <div className="absolute -bottom-1 -right-1 bg-white dark:bg-slate-900 rounded-full p-1 shadow-md border border-slate-200 dark:border-slate-700">
+                    <svg className="w-4 h-4" viewBox="0 0 24 24">
+                      <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+                      <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+                      <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"/>
+                      <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"/>
+                    </svg>
+                  </div>
+                )}
               </div>
 
               <div className="flex items-center justify-center gap-2 mb-2">
