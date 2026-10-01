@@ -41,12 +41,14 @@ export default function LandingPage() {
   // Estados para Onboarding Elegante de Google
   const [googleUserPendiente, setGoogleUserPendiente] = useState<{ uid: string; email: string; nombre: string; foto?: string } | null>(null);
   const [modalGoogleOnboarding, setModalGoogleOnboarding] = useState(false);
-  const [pasoGoogleOnboarding, setPasoGoogleOnboarding] = useState<1 | 2>(1);
+  const [pasoGoogleOnboarding, setPasoGoogleOnboarding] = useState<1 | 2 | 3>(1);
   const [editandoNombreNegocio, setEditandoNombreNegocio] = useState(false);
+  const [mensajeCargaOnboarding, setMensajeCargaOnboarding] = useState("Iniciando creación de tu tienda...");
+  const [progresoCargaOnboarding, setProgresoCargaOnboarding] = useState(20);
   const [formGoogleOnboarding, setFormGoogleOnboarding] = useState({
     nombreUsuario: "",
     nombreNegocio: "",
-    tipoNegocio: "",
+    tipoNegocio: "Moda y Ropa",
     telefonoNegocio: "",
     moduloSepare: true,
     plan: 'comercio' as 'gratis' | 'comercio' | 'pro'
@@ -413,12 +415,30 @@ export default function LandingPage() {
       return;
     }
 
-    if (!aceptaTerminosGoogle) {
+    if (!aceptaTerminos && !aceptaTerminosGoogle) {
       setErrorGoogleOnboarding("Debes aceptar los Términos del Servicio y la Política de Privacidad para crear tu tienda.");
       return;
     }
 
     setGuardandoGoogleOnboarding(true);
+    setMensajeCargaOnboarding("Validando credenciales seguras...");
+    setProgresoCargaOnboarding(25);
+
+    const timer1 = setTimeout(() => {
+      setMensajeCargaOnboarding("Generando identificador único para tu tienda...");
+      setProgresoCargaOnboarding(55);
+    }, 450);
+
+    const timer2 = setTimeout(() => {
+      setMensajeCargaOnboarding("Activando tus 14 días de prueba gratis...");
+      setProgresoCargaOnboarding(80);
+    }, 950);
+
+    const timer3 = setTimeout(() => {
+      setMensajeCargaOnboarding("¡Todo listo! Entrando a tu panel de control...");
+      setProgresoCargaOnboarding(98);
+    }, 1500);
+
     try {
       if (!auth.currentUser) {
         throw new Error("No hay una sesión activa. Por favor intenta iniciar sesión de nuevo.");
@@ -435,7 +455,7 @@ export default function LandingPage() {
         body: JSON.stringify({
           nombreUsuario: formGoogleOnboarding.nombreUsuario.trim() || (googleUserPendiente.nombre || "Comerciante"),
           nombreNegocio: formGoogleOnboarding.nombreNegocio.trim(),
-          tipoNegocio: formGoogleOnboarding.tipoNegocio,
+          tipoNegocio: formGoogleOnboarding.tipoNegocio || "Moda y Ropa",
           moduloSepare: formGoogleOnboarding.moduloSepare,
           telefonoNegocio: formGoogleOnboarding.telefonoNegocio.trim(),
           plan: formGoogleOnboarding.plan,
@@ -449,6 +469,9 @@ export default function LandingPage() {
         throw new Error(data.error || "Ocurrió un error al crear tu negocio.");
       }
 
+      setProgresoCargaOnboarding(100);
+      setMensajeCargaOnboarding("¡Tienda creada con éxito! Cargando...");
+
       setModalGoogleOnboarding(false);
       setGoogleUserPendiente(null);
       // Marcamos para que el dashboard de inicio le muestre el tour de bienvenida al llegar
@@ -459,9 +482,15 @@ export default function LandingPage() {
       // Redirigir de inmediato al dashboard
       window.location.href = "/dashboard/inicio";
     } catch (err: any) {
-      console.error("Error guardando negocio Google:", err);
+      clearTimeout(timer1);
+      clearTimeout(timer2);
+      clearTimeout(timer3);
+      console.error("Error guardando negocio:", err);
       setErrorGoogleOnboarding(err.message || "Ocurrió un error al crear tu negocio. Intenta nuevamente.");
     } finally {
+      clearTimeout(timer1);
+      clearTimeout(timer2);
+      clearTimeout(timer3);
       setGuardandoGoogleOnboarding(false);
     }
   };
@@ -2489,458 +2518,590 @@ export default function LandingPage() {
               </div>
 
               <h3 className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-white mb-1">
-                {pasoGoogleOnboarding === 1 ? 'Configura tu Negocio 🏪' : 'Elige tu Plan de Inicio 🚀'}
+                {pasoGoogleOnboarding === 1 && 'Identidad de tu Negocio 🏪'}
+                {pasoGoogleOnboarding === 2 && 'Modelo & Herramientas ⚙️'}
+                {pasoGoogleOnboarding === 3 && 'Elige tu Plan de Inicio 🚀'}
               </h3>
               <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 max-w-md mx-auto">
-                {pasoGoogleOnboarding === 1 
-                  ? 'Personaliza los datos de tu tienda para que tus comprobantes y reportes queden listos.'
-                  : 'Prueba todas las funciones avanzadas por 14 días sin costo ni tarjeta de crédito.'}
+                {pasoGoogleOnboarding === 1 && 'Personaliza el nombre y WhatsApp para tus comprobantes y recibos.'}
+                {pasoGoogleOnboarding === 2 && 'Indícanos tu categoría para activar las funciones ideales para tu tienda.'}
+                {pasoGoogleOnboarding === 3 && 'Prueba todas las funciones avanzadas por 14 días sin costo ni tarjeta.'}
               </p>
 
-              {/* Indicador visual de 2 Pasos */}
-              <div className="flex items-center justify-center gap-2 mt-4">
-                <button
-                  type="button"
-                  onClick={() => setPasoGoogleOnboarding(1)}
-                  className={`h-2 rounded-full transition-all cursor-pointer ${pasoGoogleOnboarding === 1 ? 'w-10 bg-blue-600' : 'w-4 bg-slate-200 dark:bg-slate-700'}`}
-                  title="Paso 1: Datos del Negocio"
-                />
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (formGoogleOnboarding.nombreNegocio.trim() && formGoogleOnboarding.telefonoNegocio.trim()) {
-                      setPasoGoogleOnboarding(2);
-                      setErrorGoogleOnboarding("");
-                    } else {
-                      setErrorGoogleOnboarding("Por favor completa el nombre del negocio y tu WhatsApp antes de continuar.");
-                    }
-                  }}
-                  className={`h-2 rounded-full transition-all cursor-pointer ${pasoGoogleOnboarding === 2 ? 'w-10 bg-blue-600' : 'w-4 bg-slate-200 dark:bg-slate-700'}`}
-                  title="Paso 2: Selección de Plan"
-                />
-              </div>
+              {/* Indicador visual de 3 Pasos */}
+              {!guardandoGoogleOnboarding && (
+                <div className="flex items-center justify-center gap-2 mt-4">
+                  <button
+                    type="button"
+                    onClick={() => setPasoGoogleOnboarding(1)}
+                    className={`h-2 rounded-full transition-all cursor-pointer ${pasoGoogleOnboarding === 1 ? 'w-10 bg-blue-600' : 'w-3.5 bg-slate-200 dark:bg-slate-700'}`}
+                    title="Paso 1: Identidad"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (formGoogleOnboarding.nombreNegocio.trim() && formGoogleOnboarding.telefonoNegocio.trim()) {
+                        setPasoGoogleOnboarding(2);
+                        setErrorGoogleOnboarding("");
+                      } else {
+                        setErrorGoogleOnboarding("Por favor completa el nombre de tu negocio y tu WhatsApp antes de continuar.");
+                      }
+                    }}
+                    className={`h-2 rounded-full transition-all cursor-pointer ${pasoGoogleOnboarding === 2 ? 'w-10 bg-blue-600' : 'w-3.5 bg-slate-200 dark:bg-slate-700'}`}
+                    title="Paso 2: Modelo & Separe"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (formGoogleOnboarding.nombreNegocio.trim() && formGoogleOnboarding.telefonoNegocio.trim()) {
+                        setPasoGoogleOnboarding(3);
+                        setErrorGoogleOnboarding("");
+                      } else {
+                        setErrorGoogleOnboarding("Por favor completa el nombre de tu negocio y tu WhatsApp antes de continuar.");
+                      }
+                    }}
+                    className={`h-2 rounded-full transition-all cursor-pointer ${pasoGoogleOnboarding === 3 ? 'w-10 bg-blue-600' : 'w-3.5 bg-slate-200 dark:bg-slate-700'}`}
+                    title="Paso 3: Plan y Confirmación"
+                  />
+                </div>
+              )}
             </div>
 
-            {errorGoogleOnboarding && (
+            {errorGoogleOnboarding && !guardandoGoogleOnboarding && (
               <div className="bg-rose-50 dark:bg-rose-500/10 text-rose-600 dark:text-rose-400 p-3.5 rounded-2xl text-xs font-bold text-center border border-rose-200 dark:border-rose-500/20 mb-4 flex items-center justify-center gap-2 animate-in fade-in">
                 <AlertCircle size={15}/> {errorGoogleOnboarding}
               </div>
             )}
 
-            <form onSubmit={completarOnboardingGoogle} className="space-y-4">
-              {/* ===================== PASO 1: DATOS DEL COMERCIO ===================== */}
-              {pasoGoogleOnboarding === 1 && (
-                <div className="space-y-4 animate-in fade-in duration-200">
-                  {/* Si ya fueron completados previamente, mostramos tarjeta limpia y compacta */}
-                  {formGoogleOnboarding.nombreNegocio.trim() && !editandoNombreNegocio ? (
-                    <div className="bg-slate-50 dark:bg-slate-900/60 p-3.5 rounded-2xl border border-slate-200 dark:border-slate-800 flex items-center justify-between gap-3 animate-in fade-in">
-                      <div className="flex items-center gap-3 min-w-0">
-                        <div className="w-10 h-10 rounded-xl bg-blue-100 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400 flex items-center justify-center shrink-0">
-                          <Store size={20} />
-                        </div>
-                        <div className="min-w-0">
-                          <div className="text-sm font-black text-slate-900 dark:text-white truncate">
-                            {formGoogleOnboarding.nombreNegocio}
-                          </div>
-                          <div className="text-xs text-slate-500 dark:text-slate-400 truncate">
-                            {formGoogleOnboarding.nombreUsuario || 'Comerciante'}
-                          </div>
-                        </div>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => setEditandoNombreNegocio(true)}
-                        className="text-xs font-bold text-blue-600 dark:text-blue-400 hover:underline shrink-0 cursor-pointer px-2.5 py-1 rounded-lg hover:bg-blue-50 dark:hover:bg-blue-950/30 transition-colors"
-                      >
-                        Cambiar
-                      </button>
-                    </div>
-                  ) : (
-                    <div className="space-y-3.5 animate-in fade-in">
-                      {/* Nombre de la persona */}
-                      <div>
-                        <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1.5">
-                          Tu Nombre Completo
-                        </label>
-                        <input 
-                          type="text" 
-                          required
-                          placeholder="Ej. Johan Escobar" 
-                          value={formGoogleOnboarding.nombreUsuario} 
-                          onChange={e => {
-                            setFormGoogleOnboarding({...formGoogleOnboarding, nombreUsuario: e.target.value});
-                            setErrorGoogleOnboarding("");
-                          }} 
-                          className="w-full p-3.5 bg-slate-50 dark:bg-[#020617] border border-slate-200 dark:border-slate-800 rounded-2xl outline-none focus:border-blue-500 dark:text-white font-bold text-sm transition-all focus:ring-2 focus:ring-blue-500/20" 
-                        />
-                      </div>
+            {/* PANTALLA DE CARGA MODERNA MULTI-ETAPA (Cuando se está creando el negocio) */}
+            {guardandoGoogleOnboarding ? (
+              <div className="py-8 px-2 text-center space-y-6 animate-in fade-in zoom-in-95 duration-300">
+                <div className="relative mx-auto w-20 h-20 flex items-center justify-center">
+                  <div className="absolute inset-0 rounded-3xl bg-blue-500/20 animate-ping opacity-75" />
+                  <div className="relative w-20 h-20 rounded-3xl bg-gradient-to-tr from-blue-600 via-indigo-600 to-purple-600 text-white flex items-center justify-center shadow-xl shadow-blue-500/30">
+                    <Store size={36} className="animate-pulse" />
+                  </div>
+                </div>
 
-                      {/* Nombre del Negocio */}
-                      <div>
-                        <div className="flex items-center justify-between mb-1.5">
-                          <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                            Nombre de tu Negocio / Tienda <span className="text-rose-500">*</span>
-                          </label>
-                          {formGoogleOnboarding.nombreNegocio.trim() && (
-                            <button
-                              type="button"
-                              onClick={() => setEditandoNombreNegocio(false)}
-                              className="text-[11px] font-bold text-blue-600 dark:text-blue-400 hover:underline cursor-pointer"
-                            >
-                              Listo ✓
-                            </button>
-                          )}
+                <div className="space-y-2">
+                  <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400 text-xs font-black tracking-wide border border-blue-200 dark:border-blue-900/50">
+                    <span className="w-2 h-2 rounded-full bg-blue-600 animate-ping" />
+                    Configurando Fiabono
+                  </div>
+                  <h4 className="text-xl font-black text-slate-900 dark:text-white transition-all duration-300">
+                    {mensajeCargaOnboarding}
+                  </h4>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                    Alistando tu base de datos protegida, catálogo y enlace único...
+                  </p>
+                </div>
+
+                {/* Barra de Progreso Dinámica */}
+                <div className="space-y-2 max-w-sm mx-auto">
+                  <div className="w-full bg-slate-100 dark:bg-slate-800 rounded-full h-3 overflow-hidden p-0.5 border border-slate-200/50 dark:border-slate-700/50">
+                    <div 
+                      className="bg-gradient-to-r from-blue-600 via-indigo-500 to-purple-600 h-full rounded-full transition-all duration-500 ease-out shadow-sm"
+                      style={{ width: `${progresoCargaOnboarding}%` }}
+                    />
+                  </div>
+                  <div className="flex justify-between items-center text-[11px] font-bold text-slate-400 px-1">
+                    <span>Avance</span>
+                    <span className="text-blue-600 dark:text-blue-400">{progresoCargaOnboarding}%</span>
+                  </div>
+                </div>
+
+                {/* Micro-etapas visuales */}
+                <div className="grid grid-cols-3 gap-2 max-w-sm mx-auto pt-2">
+                  <div className={`p-2.5 rounded-2xl border text-center transition-all ${
+                    progresoCargaOnboarding >= 25 
+                      ? 'bg-blue-50 dark:bg-blue-950/30 border-blue-200 dark:border-blue-800 text-blue-600 dark:text-blue-400 font-bold'
+                      : 'border-slate-100 dark:border-slate-800 text-slate-400'
+                  }`}>
+                    <div className="text-[10px] font-black uppercase">1. Negocio</div>
+                    <div className="text-[11px]">{progresoCargaOnboarding >= 25 ? '✓ Listo' : '...'}</div>
+                  </div>
+                  <div className={`p-2.5 rounded-2xl border text-center transition-all ${
+                    progresoCargaOnboarding >= 55 
+                      ? 'bg-indigo-50 dark:bg-indigo-950/30 border-indigo-200 dark:border-indigo-800 text-indigo-600 dark:text-indigo-400 font-bold'
+                      : 'border-slate-100 dark:border-slate-800 text-slate-400'
+                  }`}>
+                    <div className="text-[10px] font-black uppercase">2. Slug Único</div>
+                    <div className="text-[11px]">{progresoCargaOnboarding >= 55 ? '✓ Asignado' : '...'}</div>
+                  </div>
+                  <div className={`p-2.5 rounded-2xl border text-center transition-all ${
+                    progresoCargaOnboarding >= 80 
+                      ? 'bg-emerald-50 dark:bg-emerald-950/30 border-emerald-200 dark:border-emerald-800 text-emerald-600 dark:text-emerald-400 font-bold'
+                      : 'border-slate-100 dark:border-slate-800 text-slate-400'
+                  }`}>
+                    <div className="text-[10px] font-black uppercase">3. 14 Días</div>
+                    <div className="text-[11px]">{progresoCargaOnboarding >= 80 ? '✓ Activado' : '...'}</div>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <form onSubmit={completarOnboardingGoogle} className="space-y-4">
+                {/* ===================== PASO 1: IDENTIDAD DEL COMERCIO ===================== */}
+                {pasoGoogleOnboarding === 1 && (
+                  <div className="space-y-4 animate-in fade-in duration-200">
+                    {/* Si ya fueron completados previamente, mostramos tarjeta limpia y compacta */}
+                    {formGoogleOnboarding.nombreNegocio.trim() && !editandoNombreNegocio ? (
+                      <div className="bg-slate-50 dark:bg-slate-900/60 p-3.5 rounded-2xl border border-slate-200 dark:border-slate-800 flex items-center justify-between gap-3 animate-in fade-in">
+                        <div className="flex items-center gap-3 min-w-0">
+                          <div className="w-10 h-10 rounded-xl bg-blue-100 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400 flex items-center justify-center shrink-0">
+                            <Store size={20} />
+                          </div>
+                          <div className="min-w-0">
+                            <div className="text-sm font-black text-slate-900 dark:text-white truncate">
+                              {formGoogleOnboarding.nombreNegocio}
+                            </div>
+                            <div className="text-xs text-slate-500 dark:text-slate-400 truncate">
+                              {formGoogleOnboarding.nombreUsuario || 'Comerciante'}
+                            </div>
+                          </div>
                         </div>
-                        <div className="relative">
-                          <Store size={18} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"/>
+                        <button
+                          type="button"
+                          onClick={() => setEditandoNombreNegocio(true)}
+                          className="text-xs font-bold text-blue-600 dark:text-blue-400 hover:underline shrink-0 cursor-pointer px-2.5 py-1 rounded-lg hover:bg-blue-50 dark:hover:bg-blue-950/30 transition-colors active:scale-95"
+                        >
+                          Cambiar
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="space-y-3.5 animate-in fade-in">
+                        {/* Nombre de la persona */}
+                        <div>
+                          <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1.5">
+                            Tu Nombre Completo
+                          </label>
                           <input 
                             type="text" 
                             required
-                            placeholder="Ej. Minimarket Central, Boutique Glamour..." 
-                            value={formGoogleOnboarding.nombreNegocio} 
+                            placeholder="Ej. Johan Escobar" 
+                            value={formGoogleOnboarding.nombreUsuario} 
                             onChange={e => {
-                              setFormGoogleOnboarding({...formGoogleOnboarding, nombreNegocio: e.target.value});
+                              setFormGoogleOnboarding({...formGoogleOnboarding, nombreUsuario: e.target.value});
                               setErrorGoogleOnboarding("");
                             }} 
-                            className="w-full pl-10 pr-4 py-3.5 bg-slate-50 dark:bg-[#020617] border border-slate-200 dark:border-slate-800 rounded-2xl outline-none focus:border-blue-500 dark:text-white font-bold text-sm transition-all focus:ring-2 focus:ring-blue-500/20" 
+                            className="w-full p-3.5 bg-slate-50 dark:bg-[#020617] border border-slate-200 dark:border-slate-800 rounded-2xl outline-none focus:border-blue-500 dark:text-white font-bold text-sm transition-all focus:ring-2 focus:ring-blue-500/20" 
                           />
                         </div>
+
+                        {/* Nombre del Negocio */}
+                        <div>
+                          <div className="flex items-center justify-between mb-1.5">
+                            <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                              Nombre de tu Negocio / Tienda <span className="text-rose-500">*</span>
+                            </label>
+                            {formGoogleOnboarding.nombreNegocio.trim() && (
+                              <button
+                                type="button"
+                                onClick={() => setEditandoNombreNegocio(false)}
+                                className="text-[11px] font-bold text-blue-600 dark:text-blue-400 hover:underline cursor-pointer active:scale-95"
+                              >
+                                Listo ✓
+                              </button>
+                            )}
+                          </div>
+                          <div className="relative">
+                            <Store size={18} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"/>
+                            <input 
+                              type="text" 
+                              required
+                              placeholder="Ej. Minimarket Central, Boutique Glamour..." 
+                              value={formGoogleOnboarding.nombreNegocio} 
+                              onChange={e => {
+                                setFormGoogleOnboarding({...formGoogleOnboarding, nombreNegocio: e.target.value});
+                                setErrorGoogleOnboarding("");
+                              }} 
+                              className="w-full pl-10 pr-4 py-3.5 bg-slate-50 dark:bg-[#020617] border border-slate-200 dark:border-slate-800 rounded-2xl outline-none focus:border-blue-500 dark:text-white font-bold text-sm transition-all focus:ring-2 focus:ring-blue-500/20" 
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Teléfono / WhatsApp OBLIGATORIO */}
+                    <div>
+                      <div className="flex items-center justify-between mb-1.5">
+                        <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                          WhatsApp del Negocio <span className="text-rose-500">* (Obligatorio)</span>
+                        </label>
+                        <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
+                          <MessageCircle size={12}/> Envío de comprobantes
+                        </span>
+                      </div>
+                      <div className="relative">
+                        <Phone size={18} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"/>
+                        <input 
+                          type="tel" 
+                          required
+                          placeholder="Ej. 312 345 6789 ó +57 312 345 6789" 
+                          value={formGoogleOnboarding.telefonoNegocio} 
+                          onChange={e => {
+                            setFormGoogleOnboarding({...formGoogleOnboarding, telefonoNegocio: e.target.value});
+                            setErrorGoogleOnboarding("");
+                          }} 
+                          className="w-full pl-10 pr-4 py-3.5 bg-slate-50 dark:bg-[#020617] border border-slate-200 dark:border-slate-800 rounded-2xl outline-none focus:border-blue-500 dark:text-white font-bold text-sm transition-all focus:ring-2 focus:ring-blue-500/20" 
+                        />
+                      </div>
+                      <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-1">
+                        Tus clientes recibirán sus recibos de abonos y ventas a través de este número.
+                      </p>
+                    </div>
+
+                    {/* Botón Siguiente a Paso 2 */}
+                    <button 
+                      type="button" 
+                      onClick={() => {
+                        if (!formGoogleOnboarding.nombreNegocio.trim()) {
+                          setErrorGoogleOnboarding("Por favor ingresa el nombre de tu negocio.");
+                          return;
+                        }
+                        if (!formGoogleOnboarding.telefonoNegocio.trim()) {
+                          setErrorGoogleOnboarding("El número de WhatsApp es obligatorio para activar el envío de comprobantes.");
+                          return;
+                        }
+                        setErrorGoogleOnboarding("");
+                        setPasoGoogleOnboarding(2);
+                      }}
+                      className="w-full flex items-center justify-center gap-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-black text-sm py-4 rounded-2xl shadow-lg shadow-blue-600/25 transition-all transform active:scale-95 cursor-pointer mt-3 select-none"
+                    >
+                      <span>Continuar a Modelo & Separe</span>
+                      <ArrowRight size={18}/>
+                    </button>
+                  </div>
+                )}
+
+                {/* ===================== PASO 2: MODELO DE NEGOCIO & SEPARE ===================== */}
+                {pasoGoogleOnboarding === 2 && (
+                  <div className="space-y-4 animate-in fade-in duration-200">
+                    {/* Tipo / Categoría del Negocio */}
+                    <div>
+                      <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1.5">
+                        Tipo de Negocio
+                      </label>
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                        {[
+                          { id: "Moda y Ropa", icon: Shirt, label: "Moda / Ropa", usaSepare: true },
+                          { id: "Tienda y Minimarket", icon: ShoppingBag, label: "Tienda / Mini", usaSepare: false },
+                          { id: "Belleza y Cosméticos", icon: Sparkles, label: "Belleza", usaSepare: true },
+                          { id: "Otro Comercio", icon: Briefcase, label: "Otro Comercio", usaSepare: false },
+                        ].map(t => {
+                          const Icono = t.icon;
+                          const activo = formGoogleOnboarding.tipoNegocio === t.id;
+                          return (
+                            <button
+                              key={t.id}
+                              type="button"
+                              onClick={() => setFormGoogleOnboarding({
+                                ...formGoogleOnboarding, 
+                                tipoNegocio: t.id,
+                                moduloSepare: t.usaSepare
+                              })}
+                              className={`p-3 rounded-2xl border text-center transition-all cursor-pointer flex flex-col items-center gap-1.5 active:scale-95 select-none ${
+                                activo 
+                                  ? 'border-blue-600 bg-blue-50/80 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 font-bold shadow-sm ring-2 ring-blue-500/20' 
+                                  : 'border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50 text-slate-600 dark:text-slate-400 hover:border-slate-300'
+                              }`}
+                            >
+                              <Icono size={18} className={activo ? 'text-blue-600 dark:text-blue-400' : 'text-slate-400'}/>
+                              <span className="text-[11px] leading-tight font-bold">{t.label}</span>
+                            </button>
+                          );
+                        })}
                       </div>
                     </div>
-                  )}
 
-                  {/* Tipo / Categoría del Negocio */}
-                  <div>
-                    <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1.5">
-                      Tipo de Negocio
-                    </label>
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                      {[
-                        { id: "Moda y Ropa", icon: Shirt, label: "Moda / Ropa", usaSepare: true },
-                        { id: "Tienda y Minimarket", icon: ShoppingBag, label: "Tienda / Mini", usaSepare: false },
-                        { id: "Belleza y Cosméticos", icon: Sparkles, label: "Belleza", usaSepare: true },
-                        { id: "Otro Comercio", icon: Briefcase, label: "Otro Comercio", usaSepare: false },
-                      ].map(t => {
-                        const Icono = t.icon;
-                        const activo = formGoogleOnboarding.tipoNegocio === t.id;
-                        return (
-                          <button
-                            key={t.id}
-                            type="button"
-                            onClick={() => setFormGoogleOnboarding({
-                              ...formGoogleOnboarding, 
-                              tipoNegocio: t.id,
-                              moduloSepare: t.usaSepare
-                            })}
-                            className={`p-2.5 rounded-2xl border text-center transition-all cursor-pointer flex flex-col items-center gap-1 ${
-                              activo 
-                                ? 'border-blue-600 bg-blue-50/80 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 font-bold shadow-sm' 
-                                : 'border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50 text-slate-600 dark:text-slate-400 hover:border-slate-300'
-                            }`}
-                          >
-                            <Icono size={16} className={activo ? 'text-blue-600 dark:text-blue-400' : 'text-slate-400'}/>
-                            <span className="text-[11px] leading-tight">{t.label}</span>
-                          </button>
-                        );
-                      })}
+                    {/* Pregunta Explícita de Plan Separe */}
+                    <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-[#020617] border border-slate-200/80 dark:border-slate-800/90 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[11px] font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+                          <Bookmark size={14} className="text-violet-600 dark:text-violet-400"/>
+                          ¿Deseas activar el Plan Separe?
+                        </span>
+                        <span className={`text-[10px] font-black px-2 py-0.5 rounded-full ${
+                          formGoogleOnboarding.moduloSepare 
+                            ? 'bg-violet-100 text-violet-700 dark:bg-violet-950/50 dark:text-violet-300' 
+                            : 'bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400'
+                        }`}>
+                          {formGoogleOnboarding.moduloSepare ? 'Activo' : 'Desactivado'}
+                        </span>
+                      </div>
+                      <div className="grid grid-cols-2 gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setFormGoogleOnboarding({...formGoogleOnboarding, moduloSepare: true})}
+                          className={`py-3 px-3 rounded-xl border text-xs font-bold transition-all cursor-pointer text-center active:scale-95 select-none ${
+                            formGoogleOnboarding.moduloSepare
+                              ? 'border-violet-600 bg-violet-50 dark:bg-violet-950/40 text-violet-700 dark:text-violet-300 shadow-sm ring-2 ring-violet-500/20'
+                              : 'border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-500 hover:border-slate-300'
+                          }`}
+                        >
+                          ✓ Sí, apartar con abonos
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setFormGoogleOnboarding({...formGoogleOnboarding, moduloSepare: false})}
+                          className={`py-3 px-3 rounded-xl border text-xs font-bold transition-all cursor-pointer text-center active:scale-95 select-none ${
+                            !formGoogleOnboarding.moduloSepare
+                              ? 'border-blue-600 bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 shadow-sm ring-2 ring-blue-500/20'
+                              : 'border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-500 hover:border-slate-300'
+                          }`}
+                        >
+                          ✕ No, solo ventas de contado
+                        </button>
+                      </div>
+                      <p className="text-[10px] text-slate-400 dark:text-slate-500">
+                        Te permite apartar mercancía a clientes con anticipos y control de fechas límite. Puedes cambiarlo luego en tu Perfil.
+                      </p>
                     </div>
-                  </div>
 
-                  {/* Pregunta Explícita de Plan Separe */}
-                  <div className="p-3 rounded-2xl bg-slate-50 dark:bg-[#020617] border border-slate-200/80 dark:border-slate-800/90">
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="text-[11px] font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
-                        <Bookmark size={14} className="text-violet-600 dark:text-violet-400"/>
-                        ¿Deseas activar el Plan Separe?
-                      </span>
-                      <span className="text-[10px] text-slate-400">
-                        {formGoogleOnboarding.moduloSepare ? 'Activo en Inicio' : 'Oculto en Inicio'}
-                      </span>
-                    </div>
-                    <div className="grid grid-cols-2 gap-2">
+                    {/* Botones de Navegación */}
+                    <div className="flex items-center gap-2 pt-2">
                       <button
                         type="button"
-                        onClick={() => setFormGoogleOnboarding({...formGoogleOnboarding, moduloSepare: true})}
-                        className={`py-2 px-3 rounded-xl border text-xs font-bold transition-all cursor-pointer text-center ${
-                          formGoogleOnboarding.moduloSepare
-                            ? 'border-violet-600 bg-violet-50 dark:bg-violet-950/40 text-violet-700 dark:text-violet-300 shadow-xs'
-                            : 'border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-500 hover:border-slate-300'
-                        }`}
-                      >
-                        ✓ Sí, apartar con abonos
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setFormGoogleOnboarding({...formGoogleOnboarding, moduloSepare: false})}
-                        className={`py-2 px-3 rounded-xl border text-xs font-bold transition-all cursor-pointer text-center ${
-                          !formGoogleOnboarding.moduloSepare
-                            ? 'border-blue-600 bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 shadow-xs'
-                            : 'border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-500 hover:border-slate-300'
-                        }`}
-                      >
-                        ✕ No, solo ventas y fiados
-                      </button>
-                    </div>
-                    <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-1.5">
-                      Podrás cambiar esto en cualquier momento desde tu Perfil.
-                    </p>
-                  </div>
-
-                  {/* Teléfono / WhatsApp OBLIGATORIO */}
-                  <div>
-                    <div className="flex items-center justify-between mb-1.5">
-                      <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                        WhatsApp del Negocio <span className="text-rose-500">* (Obligatorio)</span>
-                      </label>
-                      <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
-                        <MessageCircle size={12}/> Para envío de comprobantes
-                      </span>
-                    </div>
-                    <div className="relative">
-                      <Phone size={18} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"/>
-                      <input 
-                        type="tel" 
-                        required
-                        placeholder="Ej. 312 345 6789 ó +57 312 345 6789" 
-                        value={formGoogleOnboarding.telefonoNegocio} 
-                        onChange={e => {
-                          setFormGoogleOnboarding({...formGoogleOnboarding, telefonoNegocio: e.target.value});
+                        onClick={() => {
                           setErrorGoogleOnboarding("");
-                        }} 
-                        className="w-full pl-10 pr-4 py-3.5 bg-slate-50 dark:bg-[#020617] border border-slate-200 dark:border-slate-800 rounded-2xl outline-none focus:border-blue-500 dark:text-white font-bold text-sm transition-all focus:ring-2 focus:ring-blue-500/20" 
-                      />
+                          setPasoGoogleOnboarding(1);
+                        }}
+                        className="px-4 py-4 rounded-2xl border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-300 font-bold text-sm hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors cursor-pointer active:scale-95 select-none"
+                      >
+                        Atrás
+                      </button>
+                      <button 
+                        type="button" 
+                        onClick={() => {
+                          if (!formGoogleOnboarding.tipoNegocio) {
+                            setErrorGoogleOnboarding("Por favor selecciona un tipo de negocio.");
+                            return;
+                          }
+                          setErrorGoogleOnboarding("");
+                          setPasoGoogleOnboarding(3);
+                        }}
+                        className="flex-1 flex items-center justify-center gap-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-black text-sm py-4 rounded-2xl shadow-lg shadow-blue-600/25 transition-all transform active:scale-95 cursor-pointer select-none"
+                      >
+                        <span>Continuar a Elección de Plan</span>
+                        <ArrowRight size={18}/>
+                      </button>
                     </div>
-                    <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-1">
-                      Tus clientes recibirán sus recibos de abonos y ventas a través de este canal.
-                    </p>
                   </div>
+                )}
 
-                  {/* Botón Siguiente */}
-                  <button 
-                    type="button" 
-                    onClick={() => {
-                      if (!formGoogleOnboarding.nombreNegocio.trim()) {
-                        setErrorGoogleOnboarding("Por favor ingresa el nombre de tu negocio.");
-                        return;
-                      }
-                      if (!formGoogleOnboarding.tipoNegocio) {
-                        setErrorGoogleOnboarding("Por favor selecciona el tipo de negocio.");
-                        return;
-                      }
-                      if (!formGoogleOnboarding.telefonoNegocio.trim()) {
-                        setErrorGoogleOnboarding("El número de WhatsApp es obligatorio para activar el envío de comprobantes y recordatorios.");
-                        return;
-                      }
-                      setErrorGoogleOnboarding("");
-                      setPasoGoogleOnboarding(2);
-                    }}
-                    className="w-full flex items-center justify-center gap-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-black text-sm py-4 rounded-2xl shadow-lg shadow-blue-600/25 transition-all transform active:scale-95 cursor-pointer mt-3"
+                {/* ===================== PASO 3: SELECCIÓN DE PLAN & CONFIRMACIÓN ===================== */}
+                {pasoGoogleOnboarding === 3 && (
+                  <div className="space-y-4 animate-in fade-in duration-200">
+                    {/* Resumen Compacto del Negocio */}
+                    <div className="bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 p-3.5 rounded-2xl flex items-center justify-between gap-3">
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div className="w-10 h-10 rounded-xl bg-blue-100 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400 flex items-center justify-center shrink-0">
+                          <Store size={20}/>
+                        </div>
+                        <div className="min-w-0">
+                          <div className="text-xs font-black text-slate-900 dark:text-white truncate">
+                            {formGoogleOnboarding.nombreNegocio}
+                          </div>
+                          <div className="text-[11px] text-slate-500 dark:text-slate-400 truncate">
+                            {formGoogleOnboarding.tipoNegocio} • WA: {formGoogleOnboarding.telefonoNegocio} • Separe: {formGoogleOnboarding.moduloSepare ? "Sí" : "No"}
+                          </div>
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setPasoGoogleOnboarding(1)}
+                        className="text-xs font-bold text-blue-600 dark:text-blue-400 hover:underline shrink-0 cursor-pointer active:scale-95"
+                      >
+                        Editar
+                      </button>
+                    </div>
+
+                    <div className="flex items-center justify-between">
+                      <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                        Selecciona tu Plan de Inicio
+                      </label>
+                    </div>
+
+                    {/* Canjear Código Promocional */}
+                    <div className="p-3 bg-blue-50/60 dark:bg-blue-950/30 rounded-2xl border border-blue-200/80 dark:border-blue-900/40 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[11px] font-bold text-blue-900 dark:text-blue-200 flex items-center gap-1.5">
+                          <Tag size={13} className="text-blue-600 dark:text-blue-400"/>
+                          ¿Tienes un código de suscripción o descuento?
+                        </span>
+                        {codigoAplicado && (
+                          <span className="text-[10px] font-black text-emerald-600 dark:text-emerald-400 bg-emerald-100 dark:bg-emerald-500/20 px-2 py-0.5 rounded-md">
+                            {codigoAplicado.codigo} ✓
+                          </span>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="text"
+                          placeholder="Ej. PRO2026"
+                          value={codigoInput}
+                          onChange={e => {
+                            setCodigoInput(e.target.value);
+                            setErrorCodigo("");
+                            setExitoCodigo("");
+                          }}
+                          className="p-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-xs font-black uppercase outline-none focus:border-blue-500 dark:text-white flex-1"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => validarCodigo(undefined, googleUserPendiente.email)}
+                          disabled={validandoCodigo || !codigoInput.trim()}
+                          className="bg-blue-600 hover:bg-blue-700 text-white text-xs font-black py-2.5 px-3.5 rounded-xl disabled:opacity-50 cursor-pointer shrink-0 active:scale-95 transition-all"
+                        >
+                          {validandoCodigo ? "..." : "Aplicar"}
+                        </button>
+                      </div>
+                      {errorCodigo && <p className="text-rose-500 text-[11px] font-bold flex items-center gap-1"><AlertCircle size={12}/>{errorCodigo}</p>}
+                      {exitoCodigo && <p className="text-emerald-600 dark:text-emerald-400 text-[11px] font-bold flex items-center gap-1"><CheckCircle2 size={12}/>{exitoCodigo}</p>}
+                    </div>
+
+                    {/* Tarjetas de Selección de Plan */}
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                      {/* Plan Comercio */}
+                      <button
+                        type="button"
+                        onClick={() => setFormGoogleOnboarding({...formGoogleOnboarding, plan: 'comercio'})}
+                        className={`p-3.5 rounded-2xl border-2 text-left transition-all cursor-pointer relative flex flex-col justify-between active:scale-95 select-none ${
+                          formGoogleOnboarding.plan === 'comercio'
+                            ? 'border-blue-600 bg-blue-50/70 dark:bg-blue-950/40 text-blue-900 dark:text-blue-100 shadow-md ring-2 ring-blue-500/20'
+                            : 'border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400 hover:border-slate-300'
+                        }`}
+                      >
+                        <div>
+                          <span className="text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full bg-blue-600 text-white inline-block mb-1.5">
+                            14 Días Gratis
+                          </span>
+                          <div className="font-black text-sm text-slate-900 dark:text-white">Plan Comercio</div>
+                          <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">
+                            Comprobantes WhatsApp, ventas y 1 caja.
+                          </div>
+                        </div>
+                        <div className="text-[10px] font-bold text-blue-600 dark:text-blue-400 mt-3 flex items-center gap-1">
+                          <Check size={12}/> Recomendado
+                        </div>
+                      </button>
+
+                      {/* Plan PRO */}
+                      <button
+                        type="button"
+                        onClick={() => setFormGoogleOnboarding({...formGoogleOnboarding, plan: 'pro'})}
+                        className={`p-3.5 rounded-2xl border-2 text-left transition-all cursor-pointer relative flex flex-col justify-between active:scale-95 select-none ${
+                          formGoogleOnboarding.plan === 'pro'
+                            ? 'border-purple-600 bg-purple-50/70 dark:bg-purple-950/40 text-purple-900 dark:text-purple-100 shadow-md ring-2 ring-purple-500/20'
+                            : 'border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400 hover:border-slate-300'
+                        }`}
+                      >
+                        <div>
+                          <span className="text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full bg-purple-600 text-white inline-block mb-1.5">
+                            14 Días Gratis
+                          </span>
+                          <div className="font-black text-sm text-slate-900 dark:text-white">Plan PRO</div>
+                          <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">
+                            Plan Separe con fotos, hasta 4 cajeros y reportes top.
+                          </div>
+                        </div>
+                        <div className="text-[10px] font-bold text-purple-600 dark:text-purple-400 mt-3 flex items-center gap-1">
+                          <Crown size={12}/> Más Completo
+                        </div>
+                      </button>
+
+                      {/* Plan Gratuito */}
+                      <button
+                        type="button"
+                        onClick={() => setFormGoogleOnboarding({...formGoogleOnboarding, plan: 'gratis'})}
+                        className={`p-3.5 rounded-2xl border-2 text-left transition-all cursor-pointer relative flex flex-col justify-between active:scale-95 select-none ${
+                          formGoogleOnboarding.plan === 'gratis'
+                            ? 'border-slate-700 bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-white shadow-md'
+                            : 'border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400 hover:border-slate-300'
+                        }`}
+                      >
+                        <div>
+                          <span className="text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 inline-block mb-1.5">
+                            Sin costo
+                          </span>
+                          <div className="font-black text-sm text-slate-900 dark:text-white">Plan Básico</div>
+                          <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">
+                            Registro de cuentas y fiados esenciales.
+                          </div>
+                        </div>
+                        <div className="text-[10px] font-bold text-slate-500 mt-3">
+                          Siempre gratis
+                        </div>
+                      </button>
+                    </div>
+
+                    {/* Términos y Condiciones: Sin redundancias */}
+                    {aceptaTerminos ? (
+                      <div className="flex items-center gap-2.5 p-3 rounded-2xl bg-emerald-50/80 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-800/40 text-emerald-800 dark:text-emerald-300 text-xs font-bold text-left animate-in fade-in">
+                        <CheckCircle2 size={16} className="text-emerald-600 dark:text-emerald-400 shrink-0" />
+                        <span>Términos del Servicio y Política de Privacidad ya aceptados.</span>
+                      </div>
+                    ) : (
+                      <div className="flex items-start gap-2.5 p-3 rounded-2xl bg-blue-50/60 dark:bg-blue-950/20 border border-blue-200/80 dark:border-blue-900/40 text-left animate-in fade-in">
+                        <input
+                          type="checkbox"
+                          id="acepta_terminos_google_check"
+                          checked={aceptaTerminosGoogle}
+                          onChange={e => {
+                            setAceptaTerminosGoogle(e.target.checked);
+                            if (errorGoogleOnboarding) setErrorGoogleOnboarding("");
+                          }}
+                          className="mt-0.5 w-4 h-4 rounded text-blue-600 focus:ring-blue-500 border-slate-300 dark:border-slate-700 cursor-pointer shrink-0 accent-blue-600"
+                        />
+                        <label htmlFor="acepta_terminos_google_check" className="text-[11px] text-slate-600 dark:text-slate-400 leading-snug cursor-pointer font-medium select-none">
+                          Declaro que he leído y acepto los{" "}
+                          <a href="/terminos" target="_blank" className="text-blue-600 dark:text-blue-400 font-black underline">
+                            Términos del Servicio
+                          </a>{" "}
+                          y la{" "}
+                          <a href="/privacidad" target="_blank" className="text-blue-600 dark:text-blue-400 font-black underline">
+                            Política de Privacidad
+                          </a>{" "}
+                          (Ley 1581 de Habeas Data).
+                        </label>
+                      </div>
+                    )}
+
+                    {/* Botones de Acción Final */}
+                    <div className="flex items-center gap-2 pt-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setErrorGoogleOnboarding("");
+                          setPasoGoogleOnboarding(2);
+                        }}
+                        className="px-4 py-4 rounded-2xl border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-300 font-bold text-sm hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors cursor-pointer active:scale-95 select-none"
+                      >
+                        Atrás
+                      </button>
+
+                      <button 
+                        type="submit" 
+                        disabled={guardandoGoogleOnboarding || (!aceptaTerminos && !aceptaTerminosGoogle)}
+                        className="flex-1 flex items-center justify-center gap-2 bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 hover:opacity-95 text-white font-black text-sm py-4 rounded-2xl shadow-xl shadow-blue-600/30 transition-all transform active:scale-95 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed select-none"
+                      >
+                        <PartyPopper size={18}/>
+                        <span>Crear mi Negocio y Comenzar</span>
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                <div className="text-center pt-2">
+                  <button
+                    type="button"
+                    onClick={cancelarGoogleOnboarding}
+                    className="text-xs font-bold text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors cursor-pointer active:scale-95 select-none"
                   >
-                    <span>Continuar al siguiente paso</span>
-                    <ArrowRight size={18}/>
+                    Cancelar e iniciar con otra cuenta
                   </button>
                 </div>
-              )}
-
-              {/* ===================== PASO 2: SELECCIÓN DE PLAN ===================== */}
-              {pasoGoogleOnboarding === 2 && (
-                <div className="space-y-4 animate-in fade-in duration-200">
-                  <div className="bg-blue-50/70 dark:bg-blue-950/30 border border-blue-200/60 dark:border-blue-900/40 p-3.5 rounded-2xl flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-xl bg-blue-600 text-white flex items-center justify-center shrink-0">
-                      <Sparkles size={20}/>
-                    </div>
-                    <div>
-                      <div className="text-xs font-black text-blue-950 dark:text-blue-200">
-                        {formGoogleOnboarding.nombreNegocio}
-                      </div>
-                      <div className="text-[11px] text-blue-700 dark:text-blue-300">
-                        {formGoogleOnboarding.tipoNegocio} • WhatsApp: {formGoogleOnboarding.telefonoNegocio}
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center justify-between">
-                    <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                      Selecciona tu Plan de Inicio
-                    </label>
-                  </div>
-
-                  {/* Canjear Código en Google Onboarding */}
-                  <div className="p-3.5 bg-blue-50/60 dark:bg-blue-950/30 rounded-2xl border border-blue-200/80 dark:border-blue-900/40 space-y-2">
-                    <div className="flex items-center justify-between">
-                      <span className="text-[11px] font-bold text-blue-900 dark:text-blue-200 flex items-center gap-1.5">
-                        <Tag size={13} className="text-blue-600 dark:text-blue-400"/>
-                        ¿Tienes un código de suscripción o descuento?
-                      </span>
-                      {codigoAplicado && (
-                        <span className="text-[10px] font-black text-emerald-600 dark:text-emerald-400 bg-emerald-100 dark:bg-emerald-500/20 px-2 py-0.5 rounded-md">
-                          {codigoAplicado.codigo} ✓
-                        </span>
-                      )}
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <input
-                        type="text"
-                        placeholder="Ej. PRO2026"
-                        value={codigoInput}
-                        onChange={e => {
-                          setCodigoInput(e.target.value);
-                          setErrorCodigo("");
-                          setExitoCodigo("");
-                        }}
-                        className="p-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-xs font-black uppercase outline-none focus:border-blue-500 dark:text-white flex-1"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => validarCodigo(undefined, googleUserPendiente.email)}
-                        disabled={validandoCodigo || !codigoInput.trim()}
-                        className="bg-blue-600 hover:bg-blue-700 text-white text-xs font-black py-2.5 px-3.5 rounded-xl disabled:opacity-50 cursor-pointer shrink-0"
-                      >
-                        {validandoCodigo ? "..." : "Aplicar"}
-                      </button>
-                    </div>
-                    {errorCodigo && <p className="text-rose-500 text-[11px] font-bold flex items-center gap-1"><AlertCircle size={12}/>{errorCodigo}</p>}
-                    {exitoCodigo && <p className="text-emerald-600 dark:text-emerald-400 text-[11px] font-bold flex items-center gap-1"><CheckCircle2 size={12}/>{exitoCodigo}</p>}
-                  </div>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                    {/* Plan Comercio */}
-                    <button
-                      type="button"
-                      onClick={() => setFormGoogleOnboarding({...formGoogleOnboarding, plan: 'comercio'})}
-                      className={`p-3.5 rounded-2xl border-2 text-left transition-all cursor-pointer relative flex flex-col justify-between ${
-                        formGoogleOnboarding.plan === 'comercio'
-                          ? 'border-blue-600 bg-blue-50/70 dark:bg-blue-950/40 text-blue-900 dark:text-blue-100 shadow-md ring-2 ring-blue-500/20'
-                          : 'border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400 hover:border-slate-300'
-                      }`}
-                    >
-                      <div>
-                        <span className="text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full bg-blue-600 text-white inline-block mb-1.5">
-                          14 Días Gratis
-                        </span>
-                        <div className="font-black text-sm text-slate-900 dark:text-white">Plan Comercio</div>
-                        <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">
-                          Comprobantes WhatsApp, ventas y 1 caja.
-                        </div>
-                      </div>
-                      <div className="text-[10px] font-bold text-blue-600 dark:text-blue-400 mt-3 flex items-center gap-1">
-                        <Check size={12}/> Recomendado
-                      </div>
-                    </button>
-
-                    {/* Plan PRO */}
-                    <button
-                      type="button"
-                      onClick={() => setFormGoogleOnboarding({...formGoogleOnboarding, plan: 'pro'})}
-                      className={`p-3.5 rounded-2xl border-2 text-left transition-all cursor-pointer relative flex flex-col justify-between ${
-                        formGoogleOnboarding.plan === 'pro'
-                          ? 'border-purple-600 bg-purple-50/70 dark:bg-purple-950/40 text-purple-900 dark:text-purple-100 shadow-md ring-2 ring-purple-500/20'
-                          : 'border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400 hover:border-slate-300'
-                      }`}
-                    >
-                      <div>
-                        <span className="text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full bg-purple-600 text-white inline-block mb-1.5">
-                          14 Días Gratis
-                        </span>
-                        <div className="font-black text-sm text-slate-900 dark:text-white">Plan PRO</div>
-                        <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">
-                          Plan Separe con fotos, hasta 4 cajeros y reportes top.
-                        </div>
-                      </div>
-                      <div className="text-[10px] font-bold text-purple-600 dark:text-purple-400 mt-3 flex items-center gap-1">
-                        <Crown size={12}/> Más Completo
-                      </div>
-                    </button>
-
-                    {/* Plan Gratuito */}
-                    <button
-                      type="button"
-                      onClick={() => setFormGoogleOnboarding({...formGoogleOnboarding, plan: 'gratis'})}
-                      className={`p-3.5 rounded-2xl border-2 text-left transition-all cursor-pointer relative flex flex-col justify-between ${
-                        formGoogleOnboarding.plan === 'gratis'
-                          ? 'border-slate-700 bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-white shadow-md'
-                          : 'border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400 hover:border-slate-300'
-                      }`}
-                    >
-                      <div>
-                        <span className="text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 inline-block mb-1.5">
-                          Sin costo
-                        </span>
-                        <div className="font-black text-sm text-slate-900 dark:text-white">Plan Básico</div>
-                        <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">
-                          Registro de cuentas y fiados esenciales.
-                        </div>
-                      </div>
-                      <div className="text-[10px] font-bold text-slate-500 mt-3">
-                        Siempre gratis
-                      </div>
-                    </button>
-                  </div>
-
-                  <div className="flex items-start gap-2.5 p-3 rounded-2xl bg-blue-50/60 dark:bg-blue-950/20 border border-blue-200/80 dark:border-blue-900/40 text-left">
-                    <input
-                      type="checkbox"
-                      id="acepta_terminos_google_check"
-                      checked={aceptaTerminosGoogle}
-                      onChange={e => {
-                        setAceptaTerminosGoogle(e.target.checked);
-                        if (errorGoogleOnboarding) setErrorGoogleOnboarding("");
-                      }}
-                      className="mt-0.5 w-4 h-4 rounded text-blue-600 focus:ring-blue-500 border-slate-300 dark:border-slate-700 cursor-pointer shrink-0 accent-blue-600"
-                    />
-                    <label htmlFor="acepta_terminos_google_check" className="text-[11px] text-slate-600 dark:text-slate-400 leading-snug cursor-pointer font-medium">
-                      Declaro que he leído y acepto los{" "}
-                      <a href="/terminos" target="_blank" className="text-blue-600 dark:text-blue-400 font-black underline">
-                        Términos del Servicio
-                      </a>{" "}
-                      y la{" "}
-                      <a href="/privacidad" target="_blank" className="text-blue-600 dark:text-blue-400 font-black underline">
-                        Política de Privacidad
-                      </a>{" "}
-                      (Ley 1581 de Habeas Data).
-                    </label>
-                  </div>
-
-                  <div className="flex items-center gap-2 pt-2">
-                    <button
-                      type="button"
-                      onClick={() => setPasoGoogleOnboarding(1)}
-                      className="px-4 py-4 rounded-2xl border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-300 font-bold text-sm hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors cursor-pointer"
-                    >
-                      Atrás
-                    </button>
-
-                    <button 
-                      type="submit" 
-                      disabled={guardandoGoogleOnboarding || !aceptaTerminosGoogle}
-                      className="flex-1 flex items-center justify-center gap-2 bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 hover:opacity-95 text-white font-black text-sm py-4 rounded-2xl shadow-xl shadow-blue-600/30 transition-all transform active:scale-95 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      {guardandoGoogleOnboarding ? (
-                        <>
-                          <div className="w-5 h-5 border-2 border-white/40 border-t-white rounded-full animate-spin" />
-                          <span>Creando tu tienda...</span>
-                        </>
-                      ) : (
-                        <>
-                          <PartyPopper size={18}/>
-                          <span>Crear mi Negocio y Comenzar</span>
-                        </>
-                      )}
-                    </button>
-                  </div>
-                </div>
-              )}
-
-              <div className="text-center pt-2">
-                <button
-                  type="button"
-                  onClick={cancelarGoogleOnboarding}
-                  className="text-xs font-bold text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors cursor-pointer"
-                >
-                  Cancelar e iniciar con otra cuenta
-                </button>
-              </div>
-            </form>
+              </form>
+            )}
           </div>
         </div>
       )}
