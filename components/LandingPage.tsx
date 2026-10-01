@@ -195,7 +195,39 @@ export default function LandingPage() {
         cerrarModal();
         window.location.href = "/dashboard/inicio";
       } catch (error: any) { 
-        if (error.code === 'auth/email-already-in-use') setAuthErrores(p => ({...p, email: "Este correo ya está registrado."}));
+        if (error.code === 'auth/email-already-in-use') {
+          try {
+            const loginCred = await signInWithEmailAndPassword(auth, loginEmail, authForm.password);
+            const idToken = await loginCred.user.getIdToken(true);
+            const resp = await fetch('/api/auth/completar-onboarding', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${idToken}`
+              },
+              body: JSON.stringify({
+                nombreUsuario: authForm.nombreUsuario.trim(),
+                nombreNegocio: authForm.negocio.trim(),
+                tipoNegocio: "Moda y Ropa",
+                moduloSepare: true,
+                plan: codigoAplicado ? codigoAplicado.planOtorgado : planSeleccionadoRegistro,
+                cicloPlan: cicloFacturacion,
+                codigoPromocional: codigoAplicado ? codigoAplicado.codigo : undefined
+              })
+            });
+            const data = await resp.json();
+            if (resp.ok && data.ok) {
+              if (typeof window !== 'undefined') {
+                sessionStorage.removeItem('fiabono_registro_temp');
+                localStorage.setItem('fiabono_mostrar_tour', 'true');
+              }
+              cerrarModal();
+              window.location.href = "/dashboard/inicio";
+              return;
+            }
+          } catch (recovErr) {}
+          setAuthErrores(p => ({...p, email: "Este correo ya está registrado. Si ya es tu cuenta, inicia sesión."}));
+        }
         else if (error.code === 'auth/invalid-email') setAuthErrores(p => ({...p, email: "El formato del correo no es válido."}));
         else setAuthErrores(p => ({...p, general: error.message || "Ocurrió un error. Intenta de nuevo."}));
       }
