@@ -28,10 +28,13 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Solo el administrador del negocio puede activar periodos de prueba.' }, { status: 403 });
     }
 
-    // Verificar si ya consumió la prueba gratuita
-    if (userData.pruebaGratisUsada === true) {
+    const planActual = (userData.plan || 'gratis').toLowerCase();
+    const esGratis = planActual === 'gratis' || planActual === 'basico';
+
+    // Verificar si ya consumió la prueba gratuita o ya tiene un plan activo
+    if (userData.pruebaGratisUsada === true || !esGratis) {
       return NextResponse.json({
-        error: 'Tu negocio ya utilizó previamente el periodo de prueba gratuito de 14 días. Puedes contactarnos por WhatsApp para activar tu plan.'
+        error: 'Tu negocio ya utilizó previamente su periodo de prueba gratuito o cuenta con un plan activo. Puedes contactarnos por WhatsApp para activar o renovar tu suscripción.'
       }, { status: 400 });
     }
 

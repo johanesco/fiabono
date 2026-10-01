@@ -34,6 +34,7 @@ export async function POST(request: Request) {
     let planFinal = planSolicitado;
     let diasOtorgados: number | null = planFinal !== 'gratis' ? 14 : null;
     let promoData: any = null;
+    let esCuponValido = false;
 
     if (codigoPromocional) {
       try {
@@ -41,9 +42,15 @@ export async function POST(request: Request) {
         if (promoSnap.exists) {
           const promo = promoSnap.data() as any;
           if (promo.activo !== false) {
-            planFinal = promo.planOtorgado || planSolicitado;
-            diasOtorgados = promo.diasOtorgados || 14;
-            promoData = promo;
+            // Verificar restricción de correo
+            const emailAutorizado = !promo.emailObjetivo || promo.emailObjetivo.trim() === '' || promo.emailObjetivo.trim().toLowerCase() === email.trim().toLowerCase();
+            if (emailAutorizado) {
+              planFinal = promo.planOtorgado || 'pro';
+              const dias = typeof promo.diasOtorgados === 'number' ? promo.diasOtorgados : (promo.descuento === '1mes' ? 30 : 30);
+              diasOtorgados = dias;
+              promoData = promo;
+              esCuponValido = true;
+            }
           }
         }
       } catch (e) {
@@ -92,14 +99,14 @@ export async function POST(request: Request) {
       planVence: fechaVence,
       cicloPlan,
       creadoCon: decodedToken.firebase?.sign_in_provider === 'google.com' ? 'google' : 'email',
-      pruebaGratisUsada: planFinal !== 'gratis',
+      pruebaGratisUsada: esCuponValido ? false : (planFinal !== 'gratis'),
       terminosAceptados: true,
       fechaAceptacionTerminos: new Date(),
       fechaRegistro: new Date(),
-      ...(codigoPromocional ? { codigoPromocionalUsado: codigoPromocional } : {})
+      ...(esCuponValido ? { codigoPromocionalUsado: codigoPromocional } : {})
     }, { merge: true });
 
-    if (promoData && promoData.unSoloUso) {
+    if (promoData && promoData.unSoloUso !== false) {
       try {
         await adminDb.collection('codigos_promocionales').doc(codigoPromocional).update({
           activo: false,

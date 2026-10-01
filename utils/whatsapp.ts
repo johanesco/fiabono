@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Utilidad unificada para envio de mensajes a WhatsApp en Fiabono
  * 
  * 1. Elimina todos los emojis y caracteres especiales no compatibles que se corrompen en Windows/Web.
@@ -47,4 +47,66 @@ export function abrirEnlaceWhatsApp(celular: string, texto: string) {
     // En PC / Computador: abrir en pestana nueva para WhatsApp Web
     window.open(url, '_blank', 'noopener,noreferrer');
   }
+}
+
+export const NUMERO_WHATSAPP_FIABONO = "573128018444";
+
+export interface ParametrosContactoFiabono {
+  nombreUsuario?: string;
+  nombreNegocio?: string;
+  correoNegocio?: string;
+  plan?: string;
+  tiempoTexto?: string;
+  tipoAccion?: 'activar' | 'renovar' | 'mejorar' | 'soporte' | 'duda';
+  motivoPersonalizado?: string;
+}
+
+export function generarMensajeFiabono({
+  nombreUsuario,
+  nombreNegocio,
+  correoNegocio,
+  plan,
+  tiempoTexto,
+  tipoAccion = 'activar',
+  motivoPersonalizado
+}: ParametrosContactoFiabono): string {
+  const nombreLimpio = nombreUsuario?.trim() || '';
+  const negocioLimpio = nombreNegocio?.trim() || '';
+  const correoLimpio = correoNegocio?.trim() || '';
+
+  // Saludo con identificacion clara del usuario y de su negocio
+  let presentacion = 'Hola equipo Fiabono';
+  if (nombreLimpio && negocioLimpio) {
+    presentacion += `, mi nombre es *${nombreLimpio}* del negocio *${negocioLimpio}*`;
+  } else if (nombreLimpio) {
+    presentacion += `, mi nombre es *${nombreLimpio}*`;
+  } else if (negocioLimpio) {
+    presentacion += `, les escribo del negocio *${negocioLimpio}*`;
+  }
+
+  let cuerpo = '';
+  if (motivoPersonalizado) {
+    cuerpo = motivoPersonalizado;
+  } else if (plan) {
+    const verbo = tipoAccion === 'mejorar'
+      ? 'mejorar mi cuenta al'
+      : tipoAccion === 'renovar'
+      ? 'renovar mi suscripcion al'
+      : 'activar mi suscripcion al';
+    cuerpo = `Quiero ${verbo} *${plan}*${tiempoTexto ? ` por *${tiempoTexto}*` : ''}.`;
+  } else {
+    cuerpo = 'Tengo una consulta sobre mi cuenta.';
+  }
+
+  let mensaje = `${presentacion}. ${cuerpo}`;
+  if (correoLimpio) {
+    mensaje += `\n\nMi correo registrado es: ${correoLimpio}`;
+  }
+
+  return mensaje;
+}
+
+export function contactarFiabonoWhatsApp(parametros: ParametrosContactoFiabono) {
+  const mensaje = generarMensajeFiabono(parametros);
+  abrirEnlaceWhatsApp(NUMERO_WHATSAPP_FIABONO, mensaje);
 }

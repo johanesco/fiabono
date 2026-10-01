@@ -1,11 +1,12 @@
 "use client";
 import { useState, useEffect } from "react";
-import { X, Sparkles, ShieldCheck, Ticket, CheckCircle2, Store, Crown, MessageCircle, Lock } from "lucide-react";
+import { X, Sparkles, ShieldCheck, Ticket, CheckCircle2, Store, Crown, MessageCircle, Lock, AlertTriangle } from "lucide-react";
 import toast from "react-hot-toast";
 import { customConfirm } from "@/utils/customConfirm";
 import { doc, updateDoc, collection, getDocs, query, where } from "firebase/firestore";
 import { auth, db } from "../firebase";
 import { useAuth } from "@/hooks/AuthContext";
+import { contactarFiabonoWhatsApp } from "@/utils/whatsapp";
 
 interface ModalSuscripcionProps {
   isOpen: boolean;
@@ -24,7 +25,9 @@ export default function ModalSuscripcion({ isOpen, onClose, cuentaPrincipalId, p
   const [error, setError] = useState<string | null>(null);
   const { datosSesion } = useAuth();
 
-  const puedeActivarPruebaGratis = !datosSesion?.pruebaGratisUsada && datosSesion?.esGratis;
+  const esGratis = datosSesion?.esGratis || datosSesion?.planActual === 'gratis' || datosSesion?.planActual === 'basico';
+  const pruebaGratisUsada = datosSesion?.pruebaGratisUsada === true;
+  const puedeActivarPruebaGratis = !pruebaGratisUsada && Boolean(esGratis);
 
   const activarPruebaGratisDirecta = async (tipo: 'comercio' | 'pro') => {
     setActivandoPrueba(true);
@@ -53,7 +56,7 @@ export default function ModalSuscripcion({ isOpen, onClose, cuentaPrincipalId, p
         throw new Error(data.error || "No se pudo activar la prueba.");
       }
 
-      toast.success(`🎉 ¡Prueba de 14 días de ${tipo === 'pro' ? 'Plan PRO Almacén' : 'Plan Comercio'} activada con éxito!`, { duration: 6000 });
+      toast.success(`¡Prueba de 14 días de ${tipo === 'pro' ? 'Plan PRO Almacén' : 'Plan Comercio'} activada con éxito!`, { duration: 6000 });
       handleClose();
       window.location.reload();
     } catch (err: any) {
@@ -91,7 +94,7 @@ export default function ModalSuscripcion({ isOpen, onClose, cuentaPrincipalId, p
       await updateDoc(doc(db, "usuarios", cuentaPrincipalId), {
         proximoPlan: null
       });
-      toast.success("Renovación reactivada con éxito. Tu plan se mantendrá normalmente 🙌");
+      toast.success("Renovación reactivada con éxito. Tu plan se mantendrá normalmente.");
       handleClose();
       window.location.reload();
     } catch (e) {
@@ -113,7 +116,7 @@ export default function ModalSuscripcion({ isOpen, onClose, cuentaPrincipalId, p
           proximoPlan: 'gratis'
         });
 
-        toast.success(`Cancelación programada con éxito. Disfrutarás de tu plan actual durante los ${diasRestantes} días restantes 🙌`, { duration: 6000 });
+        toast.success(`Cancelación programada con éxito. Disfrutarás de tu plan actual durante los ${diasRestantes} días restantes.`, { duration: 6000 });
         handleClose();
         window.location.reload();
         return;
@@ -140,9 +143,9 @@ export default function ModalSuscripcion({ isOpen, onClose, cuentaPrincipalId, p
       await Promise.all(desactivaciones);
 
       if (datosSesion?.esPro) {
-        toast("Tus Planes Separe previos se conservan en Modo Liquidación para abonar y entregar.", { icon: "🔒", duration: 7000 });
+        toast("Tus Planes Separe previos se conservan en Modo Liquidación para abonar y entregar.", { duration: 7000 });
       }
-      toast.success("Has cambiado al Plan Gratuito con éxito. Todos tus datos se conservan intactos 🙌");
+      toast.success("Has cambiado al Plan Gratuito con éxito. Todos tus datos se conservan intactos.");
       handleClose();
       window.location.reload();
     } catch (e) {
@@ -159,9 +162,24 @@ export default function ModalSuscripcion({ isOpen, onClose, cuentaPrincipalId, p
     if (ciclo === 'trimestral') tiempoTexto = '3 Meses';
     if (ciclo === 'anual') tiempoTexto = '1 Año';
 
-    const texto = `Hola equipo Fiabono 👋 Quiero activar mi suscripción al *${nombrePlan}* por *${tiempoTexto}*. Mi correo de cuenta es: ${datosSesion?.correoNegocio || '____@____.com'}`;
-    const url = `https://wa.me/573128018444?text=${encodeURIComponent(texto)}`;
-    window.open(url, '_blank');
+    const nombreUsuario = datosSesion?.nombreUsuario?.trim() || auth.currentUser?.displayName?.trim() || '';
+    const nombreNegocio = datosSesion?.nombreNegocio?.trim() || '';
+    const correo = datosSesion?.correoNegocio?.trim() || auth.currentUser?.email?.trim() || '';
+
+    const tipoAccion = datosSesion?.esComercio && tipo === 'pro'
+      ? 'mejorar'
+      : (datosSesion?.esPro || (datosSesion?.esComercio && tipo === 'comercio'))
+      ? 'renovar'
+      : 'activar';
+
+    contactarFiabonoWhatsApp({
+      nombreUsuario,
+      nombreNegocio,
+      correoNegocio: correo,
+      plan: nombrePlan,
+      tiempoTexto,
+      tipoAccion,
+    });
   };
 
   const manejarAplicarBono = async (e: React.FormEvent) => {
@@ -203,11 +221,10 @@ export default function ModalSuscripcion({ isOpen, onClose, cuentaPrincipalId, p
       const nombrePlanLabel = data.plan === 'pro' ? 'Plan PRO Almacén' : 'Plan Comercio';
       if (datosSesion?.esPro && data.plan !== 'pro') {
         toast("Has pasado a Plan Comercio. Tus Planes Separe previos se conservan activos en Modo Liquidación para que puedas abonar y entregarlos.", {
-          icon: "🔒",
           duration: 7000
         });
       }
-      toast.success(`¡Felicidades! Tu ${nombrePlanLabel} ha sido activado por ${data.dias} días 🚀`, { duration: 5000 });
+      toast.success(`¡Felicitaciones! Tu ${nombrePlanLabel} ha sido activado por ${data.dias} días.`, { duration: 5000 });
       handleClose();
       window.location.reload();
     } catch (error) {
@@ -268,7 +285,15 @@ export default function ModalSuscripcion({ isOpen, onClose, cuentaPrincipalId, p
                   <p className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white">
                     Próximamente
                   </p>
-                  <span className="text-[11px] font-bold text-emerald-600 dark:text-emerald-400">14 días de prueba gratis</span>
+                  {puedeActivarPruebaGratis ? (
+                    <span className="text-[11px] font-bold text-emerald-600 dark:text-emerald-400">14 días de prueba gratis</span>
+                  ) : datosSesion?.planActual === 'comercio' ? (
+                    <span className="text-[11px] font-bold text-blue-600 dark:text-blue-400">Tu Plan Actual {datosSesion?.diasRestantesPlan !== null ? `(${datosSesion?.diasRestantesPlan}d)` : ''}</span>
+                  ) : datosSesion?.planActual === 'pro' ? (
+                    <span className="text-[11px] font-bold text-slate-400">Plan Básico</span>
+                  ) : (
+                    <span className="text-[11px] font-bold text-blue-600 dark:text-blue-400">Suscripción Oficial</span>
+                  )}
                 </div>
                 <ul className="mt-3 space-y-1 text-xs text-slate-600 dark:text-slate-300">
                   <li className="flex items-center gap-1.5"><CheckCircle2 size={12} className="text-emerald-500 shrink-0" /> Clientes e Inv. ILIMITADOS</li>
@@ -300,7 +325,15 @@ export default function ModalSuscripcion({ isOpen, onClose, cuentaPrincipalId, p
                   <p className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white">
                     Próximamente
                   </p>
-                  <span className="text-[11px] font-bold text-purple-600 dark:text-purple-400">14 días de prueba gratis</span>
+                  {puedeActivarPruebaGratis ? (
+                    <span className="text-[11px] font-bold text-purple-600 dark:text-purple-400">14 días de prueba gratis</span>
+                  ) : datosSesion?.planActual === 'pro' ? (
+                    <span className="text-[11px] font-bold text-purple-600 dark:text-purple-400">Tu Plan Actual {datosSesion?.diasRestantesPlan !== null ? `(${datosSesion?.diasRestantesPlan}d)` : ''}</span>
+                  ) : datosSesion?.planActual === 'comercio' ? (
+                    <span className="text-[11px] font-bold text-purple-600 dark:text-purple-400">Mejorar a PRO</span>
+                  ) : (
+                    <span className="text-[11px] font-bold text-purple-600 dark:text-purple-400">Suscripción Oficial</span>
+                  )}
                 </div>
                 <ul className="mt-3 space-y-1 text-xs text-slate-600 dark:text-slate-300">
                   <li className="flex items-center gap-1.5"><CheckCircle2 size={12} className="text-purple-500 shrink-0" /> Módulo PLAN SEPARE Completo</li>
@@ -341,7 +374,7 @@ export default function ModalSuscripcion({ isOpen, onClose, cuentaPrincipalId, p
                 {/* Nota informativa de prueba gratis */}
                 <div className="flex items-center justify-center gap-2 text-center text-[11px] font-bold text-emerald-600 dark:text-emerald-400">
                   <CheckCircle2 size={13} />
-                  <span>Sin tarjeta de crédito • Acceso inmediato a todas las herramientas</span>
+                  <span>Sin tarjeta de crédito • Acceso inmediato por 14 días</span>
                 </div>
 
                 {/* Opción secundaria WhatsApp para coordinar pago anticipado */}
@@ -355,7 +388,46 @@ export default function ModalSuscripcion({ isOpen, onClose, cuentaPrincipalId, p
               </>
             ) : (
               <>
-                {/* BOTÓN PRINCIPAL CUANDO YA USÓ LA PRUEBA: WhatsApp para coordinar el pago */}
+                {/* Banner informativo según la situación del negocio */}
+                {esGratis && pruebaGratisUsada && (
+                  <div className="bg-slate-50 dark:bg-[#020617] border border-slate-200 dark:border-slate-800 rounded-2xl p-4 text-left space-y-1">
+                    <div className="flex items-center gap-2 text-slate-800 dark:text-slate-200 font-bold text-xs">
+                      <ShieldCheck size={16} className="text-blue-600 shrink-0" />
+                      <span>Periodo de prueba completado</span>
+                    </div>
+                    <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-relaxed">
+                      Tu negocio ya disfrutó previamente de los 14 días de prueba gratis. Para reactivar clientes e inventario ilimitados, colaboradores y funciones avanzadas, adquiere tu suscripción oficial por WhatsApp o canjea un código promocional.
+                    </p>
+                  </div>
+                )}
+
+                {datosSesion?.esComercio && (
+                  <div className="bg-blue-50/50 dark:bg-blue-950/20 border border-blue-200/60 dark:border-blue-900/40 rounded-2xl p-4 text-left space-y-1">
+                    <div className="flex items-center gap-2 text-blue-900 dark:text-blue-300 font-bold text-xs">
+                      <Store size={16} className="text-blue-600 shrink-0" />
+                      <span>Plan Comercio Activo {datosSesion?.diasRestantesPlan !== null ? `(${datosSesion?.diasRestantesPlan} días restantes)` : ''}</span>
+                    </div>
+                    <p className="text-[11px] text-slate-600 dark:text-slate-400 leading-relaxed">
+                      {planSeleccionado === 'pro'
+                        ? 'Pasa a PRO Almacén para desbloquear el módulo de Plan Separe, etiquetas QR adhesivas y hasta 4 colaboradores.'
+                        : 'Puedes renovar o extender tu suscripción actual de Comercio directamente por WhatsApp.'}
+                    </p>
+                  </div>
+                )}
+
+                {datosSesion?.esPro && (
+                  <div className="bg-purple-50/50 dark:bg-purple-950/20 border border-purple-200/60 dark:border-purple-900/40 rounded-2xl p-4 text-left space-y-1">
+                    <div className="flex items-center gap-2 text-purple-900 dark:text-purple-300 font-bold text-xs">
+                      <Crown size={16} className="text-purple-600 shrink-0" />
+                      <span>Plan PRO Almacén Activo {datosSesion?.diasRestantesPlan !== null ? `(${datosSesion?.diasRestantesPlan} días restantes)` : ''}</span>
+                    </div>
+                    <p className="text-[11px] text-slate-600 dark:text-slate-400 leading-relaxed">
+                      Cuentas con todas las funciones profesionales activas. Puedes renovar tu suscripción anticipadamente por WhatsApp.
+                    </p>
+                  </div>
+                )}
+
+                {/* BOTÓN PRINCIPAL: WhatsApp para coordinar el pago / suscripción */}
                 <button
                   type="button"
                   onClick={() => abrirSoportePagoWhatsApp(planSeleccionado)}
@@ -367,7 +439,11 @@ export default function ModalSuscripcion({ isOpen, onClose, cuentaPrincipalId, p
                 >
                   <span className="flex items-center justify-center gap-2">
                     <MessageCircle size={18} />
-                    Renovar / Adquirir {planSeleccionado === 'pro' ? 'PRO Almacén' : 'Comercio'} por WhatsApp
+                    {datosSesion?.esComercio && planSeleccionado === 'pro'
+                      ? 'Mejorar a PRO Almacén por WhatsApp'
+                      : datosSesion?.esPro || (datosSesion?.esComercio && planSeleccionado === 'comercio')
+                      ? `Renovar ${planSeleccionado === 'pro' ? 'PRO Almacén' : 'Comercio'} por WhatsApp`
+                      : `Adquirir ${planSeleccionado === 'pro' ? 'PRO Almacén' : 'Comercio'} por WhatsApp`}
                   </span>
                 </button>
 
@@ -375,7 +451,7 @@ export default function ModalSuscripcion({ isOpen, onClose, cuentaPrincipalId, p
                 <div className="flex items-start gap-2 bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-800 rounded-xl p-3">
                   <Lock size={14} className="text-slate-400 mt-0.5 shrink-0" />
                   <p className="text-[11px] text-slate-500 dark:text-slate-400 font-medium leading-relaxed">
-                    Escríbenos por WhatsApp, te enviamos los datos de pago (PSE / Nequi / Transferencia) y en minutos activamos tu plan manualmente. Sin tarjeta de crédito requerida.
+                    Escríbenos por WhatsApp, te enviamos los medios de pago (Bancolombia, Nequi o Llave) y en minutos activamos tu cuenta. Sin tarjeta de crédito requerida.
                   </p>
                 </div>
               </>
@@ -424,9 +500,10 @@ export default function ModalSuscripcion({ isOpen, onClose, cuentaPrincipalId, p
               <div className="pt-1">
                 {datosSesion?.proximoPlan === 'gratis' ? (
                   <div className="bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/60 rounded-xl p-3 text-center space-y-2">
-                    <p className="text-xs text-amber-800 dark:text-amber-300 font-bold">
-                      ⚠️ Tienes una cancelación programada. Tu plan actual se mantendrá activo durante tus {datosSesion?.diasRestantesPlan ?? 0} días restantes y luego pasará a Gratuito.
-                    </p>
+                    <div className="flex items-center justify-center gap-1.5 text-xs text-amber-800 dark:text-amber-300 font-bold">
+                      <AlertTriangle size={15} className="shrink-0 text-amber-600" />
+                      <span>Tienes una cancelación programada. Tu plan actual se mantendrá activo durante tus {datosSesion?.diasRestantesPlan ?? 0} días restantes y luego pasará a Gratuito.</span>
+                    </div>
                     <button
                       type="button"
                       disabled={cargando}

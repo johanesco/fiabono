@@ -1167,7 +1167,7 @@ export default function PerfilPage() {
                     <span>Plan Gratuito</span>
                   </div>
                   <button onClick={() => setModalSuscripcionOpen(true)} className="inline-flex items-center gap-2 px-5 py-2 rounded-full bg-blue-600 hover:bg-blue-700 text-white font-black text-xs uppercase tracking-widest shadow-md hover:scale-105 transition-transform cursor-pointer">
-                    <Sparkles size={14} className="shrink-0"/> Mejorar mi Plan
+                    <Sparkles size={14} className="shrink-0"/> {!datosSesion?.pruebaGratisUsada ? 'Probar 14 Días Gratis' : 'Mejorar mi Plan'}
                   </button>
                 </div>
               )}

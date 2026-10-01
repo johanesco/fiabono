@@ -1,6 +1,6 @@
 "use client";
 import React, { useState, useRef, useEffect } from "react";
-import { signInWithEmailAndPassword, createUserWithEmailAndPassword, signInWithPopup, signInWithRedirect, getRedirectResult, onAuthStateChanged, browserLocalPersistence, setPersistence, GoogleAuthProvider, signOut } from "firebase/auth";
+import { signInWithEmailAndPassword, createUserWithEmailAndPassword, signInWithPopup, signInWithRedirect, getRedirectResult, onAuthStateChanged, browserLocalPersistence, setPersistence, GoogleAuthProvider, signOut, sendPasswordResetEmail } from "firebase/auth";
 import { doc, getDoc, getDocFromServer, setDoc, updateDoc, collection, query, where, getDocs, limit } from "firebase/firestore";
 import { auth, db } from "../firebase";
 import { generarSlugNegocio } from "@/utils/slug";
@@ -13,12 +13,16 @@ import {
   Receipt, ShoppingBag, BarChart3, Clock, TrendingUp,
   Flame, BadgePercent, Check, ArrowUpRight, Calculator,
   Sparkle, Shield, PartyPopper, Briefcase, Building2, Phone, Bookmark, Menu,
-  Tag, Gift, Banknote, CreditCard, ShoppingCart, User, Mail
+  Tag, Gift, Banknote, CreditCard, ShoppingCart, User, Mail, KeyRound, Send
 } from 'lucide-react';
 import LogoFiabono, { IsotipoFiabono } from "@/components/LogoFiabono";
 
 export default function LandingPage() {
-  const [modalLandingInfo, setModalLandingInfo] = useState<{ visible: boolean, tipo: 'login' | 'registro' | null }>({ visible: false, tipo: null });
+  const [modalLandingInfo, setModalLandingInfo] = useState<{ visible: boolean, tipo: 'login' | 'registro' | 'recuperar' | null }>({ visible: false, tipo: null });
+  const [correoRecuperacion, setCorreoRecuperacion] = useState("");
+  const [enviandoRecuperacion, setEnviandoRecuperacion] = useState(false);
+  const [recuperacionExitosa, setRecuperacionExitosa] = useState(false);
+  const [errorRecuperacion, setErrorRecuperacion] = useState("");
   const [authForm, setAuthForm] = useState({ email: "", password: "", confirmPassword: "", nombreUsuario: "", negocio: "" });
   const authFormRef = useRef(authForm);
   useEffect(() => {
@@ -38,19 +42,19 @@ export default function LandingPage() {
   // Menú móvil abierto/cerrado
   const [menuMovilAbierto, setMenuMovilAbierto] = useState(false);
 
-  // Estados para Onboarding Elegante de Google
+  // Estados para Onboarding Elegante de Google / Correo
   const [googleUserPendiente, setGoogleUserPendiente] = useState<{ uid: string; email: string; nombre: string; foto?: string } | null>(null);
   const [modalGoogleOnboarding, setModalGoogleOnboarding] = useState(false);
   const [pasoGoogleOnboarding, setPasoGoogleOnboarding] = useState<1 | 2 | 3>(1);
-  const [editandoNombreNegocio, setEditandoNombreNegocio] = useState(false);
+  const [origenRegistro, setOrigenRegistro] = useState<'email' | 'google' | null>(null);
   const [mensajeCargaOnboarding, setMensajeCargaOnboarding] = useState("Iniciando creación de tu tienda...");
   const [progresoCargaOnboarding, setProgresoCargaOnboarding] = useState(20);
   const [formGoogleOnboarding, setFormGoogleOnboarding] = useState({
     nombreUsuario: "",
     nombreNegocio: "",
-    tipoNegocio: "Moda y Ropa",
+    tipoNegocio: "",
     telefonoNegocio: "",
-    moduloSepare: true,
+    moduloSepare: null as boolean | null,
     plan: 'comercio' as 'gratis' | 'comercio' | 'pro'
   });
   const [guardandoGoogleOnboarding, setGuardandoGoogleOnboarding] = useState(false);
@@ -73,6 +77,18 @@ export default function LandingPage() {
   const toggleFaq = (index: number) => {
     setFaqAbierto(faqAbierto === index ? null : index);
   };
+
+  // Auto-apertura de modal si viene con ?login=1 o ?recuperar=1
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get('login') === '1') {
+        setModalLandingInfo({ visible: true, tipo: 'login' });
+      } else if (params.get('recuperar') === '1') {
+        setModalLandingInfo({ visible: true, tipo: 'recuperar' });
+      }
+    }
+  }, []);
 
   // Modal para Términos y Privacidad
   const [modalLegal, setModalLegal] = useState<{ visible: boolean; titulo: string; tipo: 'terminos' | 'privacidad' | null }>({ visible: false, titulo: "", tipo: null });
@@ -101,50 +117,39 @@ export default function LandingPage() {
 
     setValidandoCodigo(true);
     try {
-      const snap = await getDoc(doc(db, "codigos_promocionales", cod));
-      if (!snap.exists()) {
-        setErrorCodigo("El código ingresado no existe o no es válido.");
-        setCodigoAplicado(null);
-        return;
-      }
-
-      const data = snap.data();
-      if (!data.activo) {
-        setErrorCodigo("Este código ya fue utilizado o no se encuentra activo.");
-        setCodigoAplicado(null);
-        return;
-      }
-
       const emailCheck = emailParaValidar || authForm.email || (googleUserPendiente?.email ?? "");
-      if (data.emailObjetivo && data.emailObjetivo.trim() !== "") {
-        if (!emailCheck || data.emailObjetivo.trim().toLowerCase() !== emailCheck.trim().toLowerCase()) {
-          setErrorCodigo(`Este código es exclusivo para la cuenta ${data.emailObjetivo}`);
-          setCodigoAplicado(null);
-          return;
-        }
+      const resp = await fetch('/api/validar-cupon', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ codigo: cod, email: emailCheck })
+      });
+      const data = await resp.json();
+
+      if (!resp.ok || !data.ok) {
+        setErrorCodigo(data.error || "El código ingresado no es válido.");
+        setCodigoAplicado(null);
+        return;
       }
 
-      const planOtorgado: 'gratis' | 'comercio' | 'pro' = data.planOtorgado || 'pro';
-      const diasOtorgados = typeof data.diasOtorgados === 'number' ? data.diasOtorgados : 30;
-      const unSoloUso = data.unSoloUso !== false;
-
+      setCodigoInput(data.codigo || cod);
       setCodigoAplicado({
-        codigo: cod,
-        planOtorgado,
-        diasOtorgados,
-        unSoloUso
+        codigo: data.codigo,
+        planOtorgado: data.planOtorgado,
+        diasOtorgados: data.diasOtorgados,
+        unSoloUso: data.unSoloUso
       });
-      setPlanSeleccionadoRegistro(planOtorgado);
-      setFormGoogleOnboarding(prev => ({ ...prev, plan: planOtorgado }));
-      setExitoCodigo(`¡Código activado! Te otorga Plan ${planOtorgado.toUpperCase()} por ${diasOtorgados} días.`);
+      setPlanSeleccionadoRegistro(data.planOtorgado);
+      setFormGoogleOnboarding(prev => ({ ...prev, plan: data.planOtorgado }));
+      setExitoCodigo(`¡Código activado! Te otorga Plan ${data.planOtorgado.toUpperCase()} por ${data.diasOtorgados} días.`);
     } catch (err) {
       console.error("Error al validar código promocional:", err);
-      setErrorCodigo("Error al verificar el código. Intenta de nuevo.");
+      setErrorCodigo("Error de conexión al verificar el código. Intenta de nuevo.");
       setCodigoAplicado(null);
     } finally {
       setValidandoCodigo(false);
     }
   };
+
 
   const manejarAuth = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -157,38 +162,39 @@ export default function LandingPage() {
     }
 
     if (modalLandingInfo.tipo === 'registro') {
-      if (!authForm.nombreUsuario.trim()) { setAuthErrores(p => ({...p, general: "Tu nombre es obligatorio"})); hayError = true; }
-      if (!authForm.negocio.trim()) { setAuthErrores(p => ({...p, general: "El nombre del negocio es obligatorio"})); hayError = true; }
+      if (!loginEmail || !loginEmail.includes('@')) { setAuthErrores(p => ({...p, email: "Ingresa un correo electrónico válido"})); hayError = true; }
       if (authForm.password.length < 6) { setAuthErrores(p => ({...p, password: "Mínimo 6 caracteres"})); hayError = true; }
       if (authForm.password !== authForm.confirmPassword) { setAuthErrores(p => ({...p, confirmPassword: "Las contraseñas no coinciden"})); hayError = true; }
       if (!aceptaTerminos) { setAuthErrores(p => ({...p, general: "Debes aceptar los Términos del Servicio y la Política de Privacidad para crear tu cuenta."})); hayError = true; }
       if (hayError) return;
 
       try {
+        await setPersistence(auth, browserLocalPersistence);
         const credencial = await createUserWithEmailAndPassword(auth, loginEmail, authForm.password);
-
-        const nombreSugerido = authForm.nombreUsuario.trim();
-        const negocioSugerido = authForm.negocio.trim();
 
         setGoogleUserPendiente({
           uid: credencial.user.uid,
           email: loginEmail,
-          nombre: nombreSugerido
+          nombre: ""
         });
 
         setFormGoogleOnboarding({
-          nombreUsuario: nombreSugerido,
-          nombreNegocio: negocioSugerido,
-          tipoNegocio: "Moda y Ropa",
+          nombreUsuario: "",
+          nombreNegocio: "",
+          tipoNegocio: "",
           telefonoNegocio: "",
-          moduloSepare: true,
-          plan: codigoAplicado ? codigoAplicado.planOtorgado : planSeleccionadoRegistro
+          moduloSepare: null,
+          plan: planSeleccionadoRegistro || 'comercio'
         });
 
+        setOrigenRegistro('email');
+        setAceptaTerminos(true);
         setAceptaTerminosGoogle(true);
         setPasoGoogleOnboarding(1);
         setErrorGoogleOnboarding("");
-        cerrarModal();
+        setModalLandingInfo({ visible: false, tipo: null });
+        setMostrarPassword(false);
+        setMostrarConfirmPassword(false);
         setModalGoogleOnboarding(true);
       } catch (error: any) { 
         if (error.code === 'auth/email-already-in-use') {
@@ -196,32 +202,33 @@ export default function LandingPage() {
             const loginCred = await signInWithEmailAndPassword(auth, loginEmail, authForm.password);
             const userDocSnap = await getDocFromServer(doc(db, "usuarios", loginCred.user.uid));
             if (!userDocSnap.exists()) {
-              const nombreSugerido = authForm.nombreUsuario.trim() || loginCred.user.displayName || "";
-              const negocioSugerido = authForm.negocio.trim() || "";
-
               setGoogleUserPendiente({
                 uid: loginCred.user.uid,
                 email: loginEmail,
-                nombre: nombreSugerido
+                nombre: loginCred.user.displayName || ""
               });
 
               setFormGoogleOnboarding({
-                nombreUsuario: nombreSugerido,
-                nombreNegocio: negocioSugerido,
-                tipoNegocio: "Moda y Ropa",
+                nombreUsuario: loginCred.user.displayName || "",
+                nombreNegocio: "",
+                tipoNegocio: "",
                 telefonoNegocio: "",
-                moduloSepare: true,
-                plan: codigoAplicado ? codigoAplicado.planOtorgado : planSeleccionadoRegistro
+                moduloSepare: null,
+                plan: planSeleccionadoRegistro || 'comercio'
               });
 
+              setOrigenRegistro('email');
+              setAceptaTerminos(true);
               setAceptaTerminosGoogle(true);
               setPasoGoogleOnboarding(1);
               setErrorGoogleOnboarding("");
-              cerrarModal();
+              setModalLandingInfo({ visible: false, tipo: null });
+              setMostrarPassword(false);
+              setMostrarConfirmPassword(false);
               setModalGoogleOnboarding(true);
               return;
             } else {
-              cerrarModal();
+              setModalLandingInfo({ visible: false, tipo: null });
               window.location.href = "/dashboard/inicio";
               return;
             }
@@ -229,7 +236,6 @@ export default function LandingPage() {
           setAuthErrores(p => ({...p, email: "Este correo ya está registrado. Si ya es tu cuenta, inicia sesión."}));
         }
         else if (error.code === 'auth/invalid-email') setAuthErrores(p => ({...p, email: "El formato del correo no es válido."}));
-        else setAuthErrores(p => ({...p, general: error.message || "Ocurrió un error. Intenta de nuevo."}));
       }
     } else {
       if (!loginEmail || !authForm.password) { setAuthErrores(p => ({...p, general: "Llena todos los campos"})); return; }
@@ -289,6 +295,10 @@ export default function LandingPage() {
       const nombreSugerido = nombreGuardado || user.displayName || "";
       const negocioSugerido = negocioGuardado || "";
 
+      setOrigenRegistro('google');
+      setAceptaTerminos(false);
+      setAceptaTerminosGoogle(false);
+
       setGoogleUserPendiente({
         uid: user.uid,
         email: user.email || "",
@@ -301,12 +311,12 @@ export default function LandingPage() {
         nombreNegocio: negocioSugerido,
         tipoNegocio: "",
         telefonoNegocio: "",
-        moduloSepare: true,
+        moduloSepare: null,
         plan: codigoAplicado ? codigoAplicado.planOtorgado : (planSeleccionadoRegistro || 'comercio')
       });
       setPasoGoogleOnboarding(1);
       setErrorGoogleOnboarding("");
-      cerrarModal();
+      setModalLandingInfo({ visible: false, tipo: null });
       setModalGoogleOnboarding(true);
     } else {
       cerrarModal();
@@ -415,8 +425,14 @@ export default function LandingPage() {
       return;
     }
 
-    if (!aceptaTerminos && !aceptaTerminosGoogle) {
+    if (origenRegistro === 'google' && !aceptaTerminosGoogle) {
       setErrorGoogleOnboarding("Debes aceptar los Términos del Servicio y la Política de Privacidad para crear tu tienda.");
+      return;
+    }
+
+    if (codigoInput.trim() && !codigoAplicado) {
+      setErrorGoogleOnboarding("");
+      await validarCodigo(codigoInput.trim(), googleUserPendiente?.email);
       return;
     }
 
@@ -430,7 +446,13 @@ export default function LandingPage() {
     }, 450);
 
     const timer2 = setTimeout(() => {
-      setMensajeCargaOnboarding("Activando tus 14 días de prueba gratis...");
+      if (codigoAplicado) {
+        setMensajeCargaOnboarding(`Activando tus ${codigoAplicado.diasOtorgados} días de Plan ${codigoAplicado.planOtorgado.toUpperCase()} con tu cupón...`);
+      } else if (formGoogleOnboarding.plan === 'gratis') {
+        setMensajeCargaOnboarding("Configurando tu Plan Básico sin costo...");
+      } else {
+        setMensajeCargaOnboarding("Activando tus 14 días de prueba gratis...");
+      }
       setProgresoCargaOnboarding(80);
     }, 950);
 
@@ -440,11 +462,40 @@ export default function LandingPage() {
     }, 1500);
 
     try {
-      if (!auth.currentUser) {
+      let user = auth.currentUser;
+      if (!user && typeof (auth as any).authStateReady === 'function') {
+        await (auth as any).authStateReady();
+        user = auth.currentUser;
+      }
+      if (!user && googleUserPendiente?.uid) {
+        user = await new Promise<typeof auth.currentUser>((resolve) => {
+          const timeout = setTimeout(() => resolve(auth.currentUser), 2500);
+          const unsub = onAuthStateChanged(auth, (u) => {
+            if (u) {
+              clearTimeout(timeout);
+              unsub();
+              resolve(u);
+            }
+          });
+        });
+      }
+
+      // Fallback seguro: si la sesión local se perdió pero tenemos las credenciales en memoria, re-iniciar sesión
+      if (!user && googleUserPendiente?.email && authFormRef.current?.password) {
+        try {
+          await setPersistence(auth, browserLocalPersistence);
+          const reAuthCred = await signInWithEmailAndPassword(auth, googleUserPendiente.email, authFormRef.current.password);
+          user = reAuthCred.user;
+        } catch (reAuthErr) {
+          console.warn("Intento de re-autenticación automática:", reAuthErr);
+        }
+      }
+
+      if (!user) {
         throw new Error("No hay una sesión activa. Por favor intenta iniciar sesión de nuevo.");
       }
 
-      const idToken = await auth.currentUser.getIdToken(true);
+      const idToken = await user.getIdToken(true);
 
       const resp = await fetch('/api/auth/completar-onboarding', {
         method: 'POST',
@@ -453,7 +504,7 @@ export default function LandingPage() {
           'Authorization': `Bearer ${idToken}`
         },
         body: JSON.stringify({
-          nombreUsuario: formGoogleOnboarding.nombreUsuario.trim() || (googleUserPendiente.nombre || "Comerciante"),
+          nombreUsuario: formGoogleOnboarding.nombreUsuario.trim() || (googleUserPendiente?.nombre || "Comerciante"),
           nombreNegocio: formGoogleOnboarding.nombreNegocio.trim(),
           tipoNegocio: formGoogleOnboarding.tipoNegocio || "Moda y Ropa",
           moduloSepare: formGoogleOnboarding.moduloSepare,
@@ -495,6 +546,36 @@ export default function LandingPage() {
     }
   };
 
+  const limpiarTodoElEstadoRegistro = () => {
+    setAuthForm({ email: "", password: "", confirmPassword: "", nombreUsuario: "", negocio: "" });
+    setAuthErrores({ email: "", password: "", confirmPassword: "", general: "" });
+    setFormGoogleOnboarding({
+      nombreUsuario: "",
+      nombreNegocio: "",
+      tipoNegocio: "",
+      telefonoNegocio: "",
+      moduloSepare: null,
+      plan: 'comercio'
+    });
+    setGoogleUserPendiente(null);
+    setPasoGoogleOnboarding(1);
+    setOrigenRegistro(null);
+    setAceptaTerminos(false);
+    setAceptaTerminosGoogle(false);
+    setErrorGoogleOnboarding("");
+    setCodigoAplicado(null);
+    setCodigoInput("");
+    setErrorCodigo("");
+    setExitoCodigo("");
+    if (typeof window !== 'undefined') {
+      try {
+        sessionStorage.removeItem('fiabono_registro_temp');
+        localStorage.removeItem('fiabono_rubro_negocio');
+        localStorage.removeItem('fiabono_rubros_negocio');
+      } catch (e) {}
+    }
+  };
+
   const cancelarGoogleOnboarding = async () => {
     try {
       await signOut(auth);
@@ -502,22 +583,68 @@ export default function LandingPage() {
       console.error(err);
     }
     setModalGoogleOnboarding(false);
-    setGoogleUserPendiente(null);
-    setErrorGoogleOnboarding("");
+    limpiarTodoElEstadoRegistro();
   };
 
   const cerrarModal = () => {
     setModalLandingInfo({ visible: false, tipo: null });
     setMostrarPassword(false);
     setMostrarConfirmPassword(false);
-    setAceptaTerminos(false);
-    setAceptaTerminosGoogle(false);
+    setCorreoRecuperacion("");
+    setErrorRecuperacion("");
+    setRecuperacionExitosa(false);
+    limpiarTodoElEstadoRegistro();
+  };
+
+  const manejarRecuperarPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const emailLimpio = correoRecuperacion.trim().toLowerCase();
+    if (!emailLimpio) {
+      setErrorRecuperacion("Por favor escribe tu correo electrónico.");
+      return;
+    }
+    if (!emailLimpio.includes('@')) {
+      setErrorRecuperacion("Los colaboradores y cajeros deben solicitar su nueva contraseña directamente al administrador del negocio.");
+      return;
+    }
+
+    setEnviandoRecuperacion(true);
+    setErrorRecuperacion("");
+    try {
+      try {
+        const actionCodeSettings = {
+          url: typeof window !== 'undefined' ? `${window.location.origin}/restablecer-clave` : 'https://fiabono.com/restablecer-clave',
+          handleCodeInApp: true,
+        };
+        await sendPasswordResetEmail(auth, emailLimpio, actionCodeSettings);
+      } catch (actionErr: any) {
+        if (actionErr.code === 'auth/unauthorized-continue-uri') {
+          await sendPasswordResetEmail(auth, emailLimpio);
+        } else {
+          throw actionErr;
+        }
+      }
+      setRecuperacionExitosa(true);
+    } catch (err: any) {
+      console.error("Error al enviar email de recuperacion:", err);
+      if (err.code === 'auth/user-not-found') {
+        setErrorRecuperacion("No encontramos ninguna cuenta registrada con este correo.");
+      } else if (err.code === 'auth/invalid-email') {
+        setErrorRecuperacion("El formato del correo electrónico no es válido.");
+      } else if (err.code === 'auth/too-many-requests') {
+        setErrorRecuperacion("Demasiados intentos. Espera unos minutos antes de volver a intentar.");
+      } else {
+        setErrorRecuperacion("Ocurrió un error al enviar el enlace. Verifica tus datos o intenta más tarde.");
+      }
+    } finally {
+      setEnviandoRecuperacion(false);
+    }
   };
 
   const abrirRegistroConPlan = (plan: 'gratis' | 'comercio' | 'pro') => {
+    limpiarTodoElEstadoRegistro();
     setPlanSeleccionadoRegistro(plan);
-    setAceptaTerminos(false);
-    setAceptaTerminosGoogle(false);
+    setFormGoogleOnboarding(prev => ({ ...prev, plan }));
     setModalLandingInfo({ visible: true, tipo: 'registro' });
   };
 
@@ -2142,13 +2269,15 @@ export default function LandingPage() {
             
             <div className="text-center mb-6 pt-2">
               <div className="w-16 h-16 bg-blue-600 rounded-2xl flex items-center justify-center shadow-lg shadow-blue-600/30 mx-auto mb-4 text-white">
-                {modalLandingInfo.tipo === 'login' ? <Lock size={28} /> : <Sparkles size={28} />}
+                {modalLandingInfo.tipo === 'recuperar' ? <KeyRound size={28} /> : modalLandingInfo.tipo === 'login' ? <Lock size={28} /> : <Sparkles size={28} />}
               </div>
               <h3 className="text-2xl font-black text-slate-900 dark:text-white mb-1">
-                {modalLandingInfo.tipo === 'login' ? 'Bienvenido a Fiabono' : 'Crea tu Cuenta'}
+                {modalLandingInfo.tipo === 'recuperar' ? 'Recuperar Contraseña' : modalLandingInfo.tipo === 'login' ? 'Bienvenido a Fiabono' : 'Crea tu Cuenta'}
               </h3>
               <p className="text-xs font-medium text-slate-500 dark:text-slate-400">
-                {modalLandingInfo.tipo === 'login' 
+                {modalLandingInfo.tipo === 'recuperar'
+                  ? 'Te enviaremos un enlace oficial seguro para crear una nueva clave'
+                  : modalLandingInfo.tipo === 'login' 
                   ? 'Ingresa tus credenciales de administrador o colaborador' 
                   : (planSeleccionadoRegistro === 'pro' 
                     ? 'Activando Plan PRO Almacén (14 días de prueba)' 
@@ -2158,310 +2287,262 @@ export default function LandingPage() {
               </p>
             </div>
 
-            {authErrores.general && (
-              <div className="bg-rose-50 dark:bg-rose-500/10 text-rose-600 dark:text-rose-400 p-3.5 rounded-xl text-xs font-bold text-center border border-rose-200 dark:border-rose-500/20 mb-4">
-                {authErrores.general}
-              </div>
-            )}
+            {modalLandingInfo.tipo === 'recuperar' ? (
+              <div className="space-y-4">
+                {recuperacionExitosa ? (
+                  <div className="text-center py-2 space-y-4 animate-in fade-in duration-200">
+                    <div className="w-14 h-14 bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 rounded-2xl flex items-center justify-center mx-auto border border-emerald-200 dark:border-emerald-500/20">
+                      <CheckCircle2 size={32} />
+                    </div>
+                    <div>
+                      <h4 className="text-lg font-black text-slate-900 dark:text-white mb-1">¡Enlace enviado con éxito!</h4>
+                      <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed max-w-sm mx-auto">
+                        Hemos enviado un correo a <strong className="text-slate-800 dark:text-slate-200 font-bold">{correoRecuperacion}</strong> con un enlace seguro para crear tu nueva contraseña. Revisa tu bandeja de entrada o la carpeta de spam.
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setRecuperacionExitosa(false);
+                        setModalLandingInfo({ visible: true, tipo: 'login' });
+                      }}
+                      className="w-full bg-blue-600 hover:bg-blue-700 text-white font-black py-3.5 rounded-xl transition cursor-pointer text-xs shadow-md shadow-blue-600/20 active:scale-98"
+                    >
+                      Volver a Iniciar Sesión
+                    </button>
+                  </div>
+                ) : (
+                  <form onSubmit={manejarRecuperarPassword} className="flex flex-col gap-3.5 animate-in fade-in duration-200">
+                    {errorRecuperacion && (
+                      <div className="bg-rose-50 dark:bg-rose-500/10 text-rose-600 dark:text-rose-400 p-3 rounded-xl text-xs font-bold text-center border border-rose-200 dark:border-rose-500/20">
+                        {errorRecuperacion}
+                      </div>
+                    )}
 
-            {/* BOTÓN CONTINUAR CON GOOGLE (1 CLIC) */}
-            <button
-              type="button"
-              onClick={iniciarConGoogle}
-              disabled={cargandoGoogle}
-              className="w-full flex items-center justify-center gap-3 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700/80 border-2 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-100 font-black py-3.5 px-4 rounded-2xl shadow-xs transition-all active:scale-98 disabled:opacity-50 cursor-pointer mb-3"
-            >
-              {cargandoGoogle ? (
-                <div className="w-5 h-5 border-2 border-slate-400 border-t-blue-600 rounded-full animate-spin" />
-              ) : (
-                <svg className="w-5 h-5 shrink-0" viewBox="0 0 24 24">
-                  <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
-                  <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
-                  <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"/>
-                  <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"/>
-                </svg>
-              )}
-              <span className="text-xs sm:text-sm">
-                {modalLandingInfo.tipo === 'login' ? 'Iniciar sesión con Google' : 'Continuar con Google'}
-              </span>
-            </button>
+                    <div>
+                      <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1">
+                        Correo Electrónico Registrado
+                      </label>
+                      <input
+                        type="email"
+                        required
+                        placeholder="tunegocio@correo.com"
+                        value={correoRecuperacion}
+                        onChange={e => {
+                          setCorreoRecuperacion(e.target.value);
+                          setErrorRecuperacion("");
+                        }}
+                        className="w-full p-3.5 bg-slate-50 dark:bg-[#020617] border border-slate-200 dark:border-slate-800 rounded-xl outline-none focus:border-blue-500 dark:text-white font-bold text-sm"
+                      />
+                    </div>
 
-            {/* DIVISOR */}
-            <div className="flex items-center gap-3 my-2 mb-4">
-              <div className="flex-1 h-px bg-slate-200 dark:bg-slate-800" />
-              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider shrink-0">
-                o con correo / usuario
-              </span>
-              <div className="flex-1 h-px bg-slate-200 dark:bg-slate-800" />
-            </div>
+                    <div className="p-3 rounded-xl bg-slate-50 dark:bg-[#020617] border border-slate-200 dark:border-slate-800 text-[11px] text-slate-500 dark:text-slate-400 leading-relaxed">
+                      Recibirás un enlace oficial generado por Fiabono. Al hacer clic, podrás definir tu nueva clave e ingresar de inmediato.
+                    </div>
 
-            <form onSubmit={manejarAuth} className="flex flex-col gap-3.5">
-              {modalLandingInfo.tipo === 'registro' && ( 
-                <>
-                  {/* SELECTOR DE PLAN DE PRUEBA / INICIO */}
-                  <div className="space-y-1.5 mb-1">
-                    <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                      Selecciona tu Plan de Inicio
-                    </label>
-                    <div className="grid grid-cols-3 gap-2">
-                      {/* GRATIS */}
+                    <button
+                      type="submit"
+                      disabled={enviandoRecuperacion}
+                      className="w-full bg-blue-600 hover:bg-blue-700 text-white font-black py-3.5 rounded-xl transition cursor-pointer text-xs disabled:opacity-50 flex items-center justify-center gap-2 shadow-lg shadow-blue-600/20 active:scale-98"
+                    >
+                      {enviandoRecuperacion ? (
+                        <div className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />
+                      ) : (
+                        <Send size={15} />
+                      )}
+                      <span>{enviandoRecuperacion ? "Enviando enlace..." : "Enviar enlace de recuperación"}</span>
+                    </button>
+
+                    <div className="text-center pt-2">
                       <button
                         type="button"
                         onClick={() => {
-                          setPlanSeleccionadoRegistro('gratis');
-                          setFormGoogleOnboarding(p => ({ ...p, plan: 'gratis' }));
+                          setErrorRecuperacion("");
+                          setModalLandingInfo({ visible: true, tipo: 'login' });
                         }}
-                        className={`p-2.5 rounded-xl border-2 text-left transition-all cursor-pointer flex flex-col justify-between ${
-                          planSeleccionadoRegistro === 'gratis'
-                            ? 'border-emerald-500 bg-emerald-50/70 dark:bg-emerald-950/40 shadow-xs ring-1 ring-emerald-500/20'
-                            : 'border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/40 hover:border-slate-300'
-                        }`}
+                        className="text-xs font-bold text-slate-500 hover:text-blue-600 dark:hover:text-blue-400 transition-colors cursor-pointer"
                       >
-                        <div>
-                          <span className="text-[9px] font-black uppercase text-emerald-600 dark:text-emerald-400">Gratis</span>
-                          <p className="text-xs font-black text-slate-900 dark:text-white leading-tight mt-0.5">Básico</p>
-                        </div>
-                        <p className="text-[10px] text-slate-500 dark:text-slate-400 font-medium mt-1">Sin límite de tiempo</p>
-                      </button>
-
-                      {/* COMERCIO */}
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setPlanSeleccionadoRegistro('comercio');
-                          setFormGoogleOnboarding(p => ({ ...p, plan: 'comercio' }));
-                        }}
-                        className={`p-2.5 rounded-xl border-2 text-left transition-all cursor-pointer flex flex-col justify-between relative ${
-                          planSeleccionadoRegistro === 'comercio'
-                            ? 'border-blue-500 bg-blue-50/70 dark:bg-blue-950/40 shadow-xs ring-1 ring-blue-500/20'
-                            : 'border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/40 hover:border-slate-300'
-                        }`}
-                      >
-                        <div>
-                          <span className="text-[9px] font-black uppercase px-1.5 py-0.5 rounded bg-blue-600 text-white">14d Gratis</span>
-                          <p className="text-xs font-black text-slate-900 dark:text-white leading-tight mt-1">Comercio</p>
-                        </div>
-                        <p className="text-[10px] text-slate-500 dark:text-slate-400 font-medium mt-1">1 Colaborador</p>
-                      </button>
-
-                      {/* PRO */}
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setPlanSeleccionadoRegistro('pro');
-                          setFormGoogleOnboarding(p => ({ ...p, plan: 'pro' }));
-                        }}
-                        className={`p-2.5 rounded-xl border-2 text-left transition-all cursor-pointer flex flex-col justify-between relative ${
-                          planSeleccionadoRegistro === 'pro'
-                            ? 'border-purple-500 bg-purple-50/70 dark:bg-purple-950/40 shadow-xs ring-1 ring-purple-500/20'
-                            : 'border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/40 hover:border-slate-300'
-                        }`}
-                      >
-                        <div>
-                          <span className="text-[9px] font-black uppercase px-1.5 py-0.5 rounded bg-purple-600 text-white flex items-center gap-0.5 w-fit">
-                            <Crown size={9} className="text-amber-300 fill-current"/> 14d Gratis
-                          </span>
-                          <p className="text-xs font-black text-slate-900 dark:text-white leading-tight mt-1">PRO Total</p>
-                        </div>
-                        <p className="text-[10px] text-purple-600 dark:text-purple-400 font-bold mt-1">Separe + QR</p>
+                        Volver al inicio de sesión
                       </button>
                     </div>
-                  </div>
-
-                  <div>
-                    <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1">Tu Nombre</label>
-                    <input 
-                      type="text" 
-                      placeholder="Ej. Juan Pérez" 
-                      value={authForm.nombreUsuario} 
-                      onChange={e => {
-                        const val = e.target.value;
-                        setAuthForm(p => {
-                          const n = {...p, nombreUsuario: val};
-                          try { sessionStorage.setItem('fiabono_registro_temp', JSON.stringify({ nombreUsuario: val, negocio: p.negocio })); } catch(err){}
-                          return n;
-                        });
-                        setAuthErrores(p => ({...p, general: ""}));
-                      }} 
-                      className="w-full p-3.5 bg-slate-50 dark:bg-[#020617] border border-slate-200 dark:border-slate-800 rounded-xl outline-none focus:border-blue-500 dark:text-white font-bold text-sm" 
-                    /> 
-                  </div>
-                  <div>
-                    <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1">Nombre de tu Negocio</label>
-                    <input 
-                      type="text" 
-                      placeholder="Ej. Tienda Los Álamos" 
-                      value={authForm.negocio} 
-                      onChange={e => {
-                        const val = e.target.value;
-                        setAuthForm(p => {
-                          const n = {...p, negocio: val};
-                          try { sessionStorage.setItem('fiabono_registro_temp', JSON.stringify({ nombreUsuario: p.nombreUsuario, negocio: val })); } catch(err){}
-                          return n;
-                        });
-                        setAuthErrores(p => ({...p, general: ""}));
-                      }} 
-                      className="w-full p-3.5 bg-slate-50 dark:bg-[#020617] border border-slate-200 dark:border-slate-800 rounded-xl outline-none focus:border-blue-500 dark:text-white font-bold text-sm" 
-                    /> 
-                  </div>
-                </>
-              )}
-              
-              <div>
-                <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1">
-                  {modalLandingInfo.tipo === 'login' ? "Correo o Usuario Colaborador" : "Correo Electrónico"}
-                </label>
-                <input 
-                  type="text" 
-                  placeholder={modalLandingInfo.tipo === 'login' ? "tunegocio@correo.com o carlos-lascamellas" : "tunegocio@correo.com"} 
-                  value={authForm.email} 
-                  onChange={e => {setAuthForm({...authForm, email: e.target.value}); setAuthErrores({...authErrores, email: ""})}} 
-                  className={`w-full p-3.5 bg-slate-50 dark:bg-[#020617] border ${authErrores.email ? 'border-rose-500' : 'border-slate-200 dark:border-slate-800'} rounded-xl outline-none focus:border-blue-500 dark:text-white font-bold text-sm`} 
-                />
-                {authErrores.email && <p className="text-rose-500 text-xs font-bold mt-1 ml-1 flex items-center gap-1"><AlertCircle size={12}/>{authErrores.email}</p>}
+                  </form>
+                )}
               </div>
+            ) : (
+              <>
+                {authErrores.general && (
+                  <div className="bg-rose-50 dark:bg-rose-500/10 text-rose-600 dark:text-rose-400 p-3.5 rounded-xl text-xs font-bold text-center border border-rose-200 dark:border-rose-500/20 mb-4">
+                    {authErrores.general}
+                  </div>
+                )}
 
-              <div>
-                <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1">Contraseña</label>
-                <div className="relative">
-                  <input 
-                    type={mostrarPassword ? "text" : "password"} 
-                    placeholder="••••••••" 
-                    value={authForm.password} 
-                    onChange={e => {setAuthForm({...authForm, password: e.target.value}); setAuthErrores({...authErrores, password: ""})}} 
-                    className={`w-full p-3.5 pr-10 bg-slate-50 dark:bg-[#020617] border ${authErrores.password ? 'border-rose-500' : 'border-slate-200 dark:border-slate-800'} rounded-xl outline-none focus:border-blue-500 dark:text-white font-bold text-sm`} 
-                  />
+                {/* BOTÓN CONTINUAR CON GOOGLE (1 CLIC) */}
+                <button
+                  type="button"
+                  onClick={iniciarConGoogle}
+                  disabled={cargandoGoogle}
+                  className="w-full flex items-center justify-center gap-3 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700/80 border-2 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-100 font-black py-3.5 px-4 rounded-2xl shadow-xs transition-all active:scale-98 disabled:opacity-50 cursor-pointer mb-3"
+                >
+                  {cargandoGoogle ? (
+                    <div className="w-5 h-5 border-2 border-slate-400 border-t-blue-600 rounded-full animate-spin" />
+                  ) : (
+                    <svg className="w-5 h-5 shrink-0" viewBox="0 0 24 24">
+                      <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+                      <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+                      <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"/>
+                      <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"/>
+                    </svg>
+                  )}
+                  <span className="text-xs sm:text-sm">
+                    {modalLandingInfo.tipo === 'login' ? 'Iniciar sesión con Google' : 'Continuar con Google'}
+                  </span>
+                </button>
+
+                {/* DIVISOR */}
+                <div className="flex items-center gap-3 my-2 mb-4">
+                  <div className="flex-1 h-px bg-slate-200 dark:bg-slate-800" />
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider shrink-0">
+                    o con correo / usuario
+                  </span>
+                  <div className="flex-1 h-px bg-slate-200 dark:bg-slate-800" />
+                </div>
+
+                <form onSubmit={manejarAuth} className="flex flex-col gap-3.5">
+                  <div>
+                    <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1">
+                      {modalLandingInfo.tipo === 'login' ? "Correo o Usuario Colaborador" : "Correo Electrónico"}
+                    </label>
+                    <input 
+                      type="text" 
+                      placeholder={modalLandingInfo.tipo === 'login' ? "tunegocio@correo.com o carlos-lascamellas" : "tunegocio@correo.com"} 
+                      value={authForm.email} 
+                      onChange={e => {setAuthForm({...authForm, email: e.target.value}); setAuthErrores({...authErrores, email: ""})}} 
+                      className={`w-full p-3.5 bg-slate-50 dark:bg-[#020617] border ${authErrores.email ? 'border-rose-500' : 'border-slate-200 dark:border-slate-800'} rounded-xl outline-none focus:border-blue-500 dark:text-white font-bold text-sm`} 
+                    />
+                    {authErrores.email && <p className="text-rose-500 text-xs font-bold mt-1 ml-1 flex items-center gap-1"><AlertCircle size={12}/>{authErrores.email}</p>}
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1">Contraseña</label>
+                    <div className="relative">
+                      <input 
+                        type={mostrarPassword ? "text" : "password"} 
+                        placeholder="••••••••" 
+                        value={authForm.password} 
+                        onChange={e => {setAuthForm({...authForm, password: e.target.value}); setAuthErrores({...authErrores, password: ""})}} 
+                        className={`w-full p-3.5 pr-10 bg-slate-50 dark:bg-[#020617] border ${authErrores.password ? 'border-rose-500' : 'border-slate-200 dark:border-slate-800'} rounded-xl outline-none focus:border-blue-500 dark:text-white font-bold text-sm`} 
+                      />
+                      <button 
+                        type="button" 
+                        onClick={() => setMostrarPassword(!mostrarPassword)} 
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-blue-600 focus:outline-none cursor-pointer"
+                      >
+                        {mostrarPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                      </button>
+                    </div>
+                    {authErrores.password && <p className="text-rose-500 text-xs font-bold mt-1 ml-1 flex items-center gap-1"><AlertCircle size={12}/>{authErrores.password}</p>}
+                  </div>
+
+                  {modalLandingInfo.tipo === 'login' && (
+                    <div className="flex justify-end -mt-1">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setCorreoRecuperacion(authForm.email?.includes('@') ? authForm.email.trim() : '');
+                          setErrorRecuperacion("");
+                          setRecuperacionExitosa(false);
+                          setModalLandingInfo({ visible: true, tipo: 'recuperar' });
+                        }}
+                        className="text-xs font-bold text-slate-500 hover:text-blue-600 dark:hover:text-blue-400 transition-colors cursor-pointer"
+                      >
+                        ¿Olvidaste tu contraseña?
+                      </button>
+                    </div>
+                  )}
+
+                  {modalLandingInfo.tipo === 'registro' && (
+                    <div>
+                      <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1">Confirmar Contraseña</label>
+                      <div className="relative">
+                        <input 
+                          type={mostrarConfirmPassword ? "text" : "password"} 
+                          placeholder="••••••••" 
+                          value={authForm.confirmPassword} 
+                          onChange={e => {setAuthForm({...authForm, confirmPassword: e.target.value}); setAuthErrores({...authErrores, confirmPassword: ""})}} 
+                          className={`w-full p-3.5 pr-10 bg-slate-50 dark:bg-[#020617] border ${authErrores.confirmPassword ? 'border-rose-500' : 'border-slate-200 dark:border-slate-800'} rounded-xl outline-none focus:border-blue-500 dark:text-white font-bold text-sm`} 
+                        />
+                        <button 
+                          type="button" 
+                          onClick={() => setMostrarConfirmPassword(!mostrarConfirmPassword)} 
+                          className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-blue-600 focus:outline-none cursor-pointer"
+                        >
+                          {mostrarConfirmPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                        </button>
+                      </div>
+                      {authErrores.confirmPassword && <p className="text-rose-500 text-xs font-bold mt-1 ml-1 flex items-center gap-1"><AlertCircle size={12}/>{authErrores.confirmPassword}</p>}
+                    </div>
+                  )}
+
+                  {modalLandingInfo.tipo === 'registro' && (
+                    <div className="flex items-start gap-2.5 p-3 rounded-2xl bg-slate-50 dark:bg-[#020617] border border-slate-200 dark:border-slate-800 text-left">
+                      <input
+                        type="checkbox"
+                        id="acepta_terminos_check"
+                        checked={aceptaTerminos}
+                        onChange={e => {
+                          setAceptaTerminos(e.target.checked);
+                          if (authErrores.general) setAuthErrores(p => ({ ...p, general: "" }));
+                        }}
+                        className="mt-0.5 w-4 h-4 rounded text-blue-600 focus:ring-blue-500 border-slate-300 dark:border-slate-700 cursor-pointer shrink-0 accent-blue-600"
+                      />
+                      <label htmlFor="acepta_terminos_check" className="text-[11px] text-slate-600 dark:text-slate-400 leading-snug cursor-pointer font-medium select-none">
+                        He leído y acepto los{" "}
+                        <button
+                          type="button"
+                          onClick={() => setModalLegal({ visible: true, titulo: "Términos y Condiciones del Servicio", tipo: 'terminos' })}
+                          className="text-blue-600 dark:text-blue-400 font-black underline hover:opacity-80"
+                        >
+                          Términos del Servicio
+                        </button>{" "}
+                        y la{" "}
+                        <button
+                          type="button"
+                          onClick={() => setModalLegal({ visible: true, titulo: "Política de Tratamiento de Datos Personales", tipo: 'privacidad' })}
+                          className="text-blue-600 dark:text-blue-400 font-black underline hover:opacity-80"
+                        >
+                          Política de Privacidad
+                        </button>{" "}
+                        (Ley 1581 de Habeas Data).
+                      </label>
+                    </div>
+                  )}
+
+                  <button 
+                    type="submit" 
+                    disabled={modalLandingInfo.tipo === 'registro' && !aceptaTerminos}
+                    className="w-full bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-black text-base py-4 rounded-xl shadow-lg shadow-blue-600/25 transition-transform transform active:scale-95 mt-2 cursor-pointer select-none"
+                  >
+                    {modalLandingInfo.tipo === 'login' ? 'Iniciar Sesión' : 'Continuar al Onboarding ➔'}
+                  </button>
+                </form>
+
+                <div className="mt-6 text-center">
                   <button 
                     type="button" 
-                    onClick={() => setMostrarPassword(!mostrarPassword)} 
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-blue-600 focus:outline-none cursor-pointer"
+                    onClick={() => {
+                      setModalLandingInfo({ visible: true, tipo: modalLandingInfo.tipo === 'login' ? 'registro' : 'login' }); 
+                      setAuthErrores({email:"",password:"",confirmPassword:"",general:""}); 
+                      setAuthForm({email:"",password:"",confirmPassword:"",nombreUsuario:"",negocio:""});
+                      setMostrarPassword(false);
+                      setMostrarConfirmPassword(false);
+                    }} 
+                    className="text-xs font-bold text-slate-500 hover:text-blue-600 dark:hover:text-blue-400 transition-colors cursor-pointer"
                   >
-                    {mostrarPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                    {modalLandingInfo.tipo === 'login' ? '¿No tienes cuenta? Regístrate gratis' : '¿Ya tienes cuenta? Inicia sesión aquí'}
                   </button>
                 </div>
-                {authErrores.password && <p className="text-rose-500 text-xs font-bold mt-1 ml-1 flex items-center gap-1"><AlertCircle size={12}/>{authErrores.password}</p>}
-              </div>
-
-              {modalLandingInfo.tipo === 'registro' && (
-                <div>
-                  <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1">Confirmar Contraseña</label>
-                  <div className="relative">
-                    <input 
-                      type={mostrarConfirmPassword ? "text" : "password"} 
-                      placeholder="••••••••" 
-                      value={authForm.confirmPassword} 
-                      onChange={e => {setAuthForm({...authForm, confirmPassword: e.target.value}); setAuthErrores({...authErrores, confirmPassword: ""})}} 
-                      className={`w-full p-3.5 pr-10 bg-slate-50 dark:bg-[#020617] border ${authErrores.confirmPassword ? 'border-rose-500' : 'border-slate-200 dark:border-slate-800'} rounded-xl outline-none focus:border-blue-500 dark:text-white font-bold text-sm`} 
-                    />
-                    <button 
-                      type="button" 
-                      onClick={() => setMostrarConfirmPassword(!mostrarConfirmPassword)} 
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-blue-600 focus:outline-none cursor-pointer"
-                    >
-                      {mostrarConfirmPassword ? <EyeOff size={18} /> : <Eye size={18} />}
-                    </button>
-                  </div>
-                  {authErrores.confirmPassword && <p className="text-rose-500 text-xs font-bold mt-1 ml-1 flex items-center gap-1"><AlertCircle size={12}/>{authErrores.confirmPassword}</p>}
-                </div>
-              )}
-
-              {/* Código Promocional / Suscripción en Registro tradicional */}
-              {modalLandingInfo.tipo === 'registro' && (
-                <div className="p-3.5 bg-slate-50 dark:bg-[#020617] rounded-2xl border border-slate-200 dark:border-slate-800 space-y-2">
-                  <div className="flex items-center justify-between">
-                    <label className="text-[11px] font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
-                      <Tag size={13} className="text-blue-600 dark:text-blue-400"/> ¿Tienes un código promocional?
-                    </label>
-                    {codigoAplicado && (
-                      <span className="text-[10px] font-black text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-500/10 px-2 py-0.5 rounded-md">
-                        {codigoAplicado.codigo} ✓
-                      </span>
-                    )}
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <input 
-                      type="text" 
-                      placeholder="Ej. PRO2026 (opcional)" 
-                      value={codigoInput} 
-                      onChange={e => {
-                        setCodigoInput(e.target.value);
-                        setErrorCodigo("");
-                        setExitoCodigo("");
-                      }}
-                      className="w-full p-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-black uppercase outline-none focus:border-blue-500 dark:text-white"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => validarCodigo(undefined, authForm.email)}
-                      disabled={validandoCodigo || !codigoInput.trim()}
-                      className="bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 text-xs font-bold py-2.5 px-3 rounded-xl disabled:opacity-50 cursor-pointer shrink-0"
-                    >
-                      {validandoCodigo ? "..." : "Aplicar"}
-                    </button>
-                  </div>
-                  {errorCodigo && <p className="text-rose-500 text-[11px] font-bold flex items-center gap-1"><AlertCircle size={12}/>{errorCodigo}</p>}
-                  {exitoCodigo && <p className="text-emerald-600 dark:text-emerald-400 text-[11px] font-bold flex items-center gap-1"><CheckCircle2 size={12}/>{exitoCodigo}</p>}
-                </div>
-              )}
-
-              {modalLandingInfo.tipo === 'registro' && (
-                <div className="flex items-start gap-2.5 p-3 rounded-2xl bg-slate-50 dark:bg-[#020617] border border-slate-200 dark:border-slate-800 text-left">
-                  <input
-                    type="checkbox"
-                    id="acepta_terminos_check"
-                    checked={aceptaTerminos}
-                    onChange={e => {
-                      setAceptaTerminos(e.target.checked);
-                      if (authErrores.general) setAuthErrores(p => ({ ...p, general: "" }));
-                    }}
-                    className="mt-0.5 w-4 h-4 rounded text-blue-600 focus:ring-blue-500 border-slate-300 dark:border-slate-700 cursor-pointer shrink-0 accent-blue-600"
-                  />
-                  <label htmlFor="acepta_terminos_check" className="text-[11px] text-slate-600 dark:text-slate-400 leading-snug cursor-pointer font-medium">
-                    He leído y acepto los{" "}
-                    <button
-                      type="button"
-                      onClick={() => setModalLegal({ visible: true, titulo: "Términos y Condiciones del Servicio", tipo: 'terminos' })}
-                      className="text-blue-600 dark:text-blue-400 font-black underline hover:opacity-80"
-                    >
-                      Términos del Servicio
-                    </button>{" "}
-                    y la{" "}
-                    <button
-                      type="button"
-                      onClick={() => setModalLegal({ visible: true, titulo: "Política de Tratamiento de Datos Personales", tipo: 'privacidad' })}
-                      className="text-blue-600 dark:text-blue-400 font-black underline hover:opacity-80"
-                    >
-                      Política de Privacidad
-                    </button>{" "}
-                    (Ley 1581 de Habeas Data).
-                  </label>
-                </div>
-              )}
-
-              <button 
-                type="submit" 
-                disabled={modalLandingInfo.tipo === 'registro' && !aceptaTerminos}
-                className="w-full bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-black text-base py-4 rounded-xl shadow-lg shadow-blue-600/25 transition-transform transform active:scale-95 mt-2 cursor-pointer"
-              >
-                {modalLandingInfo.tipo === 'login' ? 'Iniciar Sesión' : 'Crear mi Cuenta'}
-              </button>
-            </form>
-
-            <div className="mt-6 text-center">
-              <button 
-                type="button" 
-                onClick={() => {
-                  setModalLandingInfo({ visible: true, tipo: modalLandingInfo.tipo === 'login' ? 'registro' : 'login' }); 
-                  setAuthErrores({email:"",password:"",confirmPassword:"",general:""}); 
-                  setAuthForm({email:"",password:"",confirmPassword:"",nombreUsuario:"",negocio:""});
-                  setMostrarPassword(false);
-                  setMostrarConfirmPassword(false);
-                }} 
-                className="text-xs font-bold text-slate-500 hover:text-blue-600 dark:hover:text-blue-400 transition-colors cursor-pointer"
-              >
-                {modalLandingInfo.tipo === 'login' ? '¿No tienes cuenta? Regístrate gratis' : '¿Ya tienes cuenta? Inicia sesión aquí'}
-              </button>
-            </div>
+              </>
+            )}
           </div>
         </div>
       )}
@@ -2520,12 +2601,14 @@ export default function LandingPage() {
               <h3 className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-white mb-1">
                 {pasoGoogleOnboarding === 1 && 'Identidad de tu Negocio 🏪'}
                 {pasoGoogleOnboarding === 2 && 'Modelo & Herramientas ⚙️'}
-                {pasoGoogleOnboarding === 3 && 'Elige tu Plan de Inicio 🚀'}
+                {pasoGoogleOnboarding === 3 && (codigoAplicado ? 'Suscripción con Cupón 🎁' : 'Elige tu Plan de Inicio 🚀')}
               </h3>
               <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 max-w-md mx-auto">
                 {pasoGoogleOnboarding === 1 && 'Personaliza el nombre y WhatsApp para tus comprobantes y recibos.'}
                 {pasoGoogleOnboarding === 2 && 'Indícanos tu categoría para activar las funciones ideales para tu tienda.'}
-                {pasoGoogleOnboarding === 3 && 'Prueba todas las funciones avanzadas por 14 días sin costo ni tarjeta.'}
+                {pasoGoogleOnboarding === 3 && (codigoAplicado 
+                  ? `Beneficio aplicado: Plan ${codigoAplicado.planOtorgado.toUpperCase()} por ${codigoAplicado.diasOtorgados} días sin costo.` 
+                  : (codigoInput.trim() ? 'Valida tu código promocional con el botón "Aplicar" para continuar.' : 'Prueba todas las funciones avanzadas por 14 días sin costo ni tarjeta.'))}
               </p>
 
               {/* Indicador visual de 3 Pasos */}
@@ -2633,8 +2716,16 @@ export default function LandingPage() {
                       ? 'bg-emerald-50 dark:bg-emerald-950/30 border-emerald-200 dark:border-emerald-800 text-emerald-600 dark:text-emerald-400 font-bold'
                       : 'border-slate-100 dark:border-slate-800 text-slate-400'
                   }`}>
-                    <div className="text-[10px] font-black uppercase">3. 14 Días</div>
-                    <div className="text-[11px]">{progresoCargaOnboarding >= 80 ? '✓ Activado' : '...'}</div>
+                    <div className="text-[10px] font-black uppercase">
+                      {codigoAplicado 
+                        ? `3. Cupón (${codigoAplicado.diasOtorgados}d)` 
+                        : (formGoogleOnboarding.plan === 'gratis' ? '3. Plan Básico' : '3. 14 Días')}
+                    </div>
+                    <div className="text-[11px]">
+                      {progresoCargaOnboarding >= 80 
+                        ? (codigoAplicado ? `✓ Plan ${codigoAplicado.planOtorgado.toUpperCase()}` : '✓ Activado') 
+                        : '...'}
+                    </div>
                   </div>
                 </div>
               </div>
@@ -2643,83 +2734,46 @@ export default function LandingPage() {
                 {/* ===================== PASO 1: IDENTIDAD DEL COMERCIO ===================== */}
                 {pasoGoogleOnboarding === 1 && (
                   <div className="space-y-4 animate-in fade-in duration-200">
-                    {/* Si ya fueron completados previamente, mostramos tarjeta limpia y compacta */}
-                    {formGoogleOnboarding.nombreNegocio.trim() && !editandoNombreNegocio ? (
-                      <div className="bg-slate-50 dark:bg-slate-900/60 p-3.5 rounded-2xl border border-slate-200 dark:border-slate-800 flex items-center justify-between gap-3 animate-in fade-in">
-                        <div className="flex items-center gap-3 min-w-0">
-                          <div className="w-10 h-10 rounded-xl bg-blue-100 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400 flex items-center justify-center shrink-0">
-                            <Store size={20} />
-                          </div>
-                          <div className="min-w-0">
-                            <div className="text-sm font-black text-slate-900 dark:text-white truncate">
-                              {formGoogleOnboarding.nombreNegocio}
-                            </div>
-                            <div className="text-xs text-slate-500 dark:text-slate-400 truncate">
-                              {formGoogleOnboarding.nombreUsuario || 'Comerciante'}
-                            </div>
-                          </div>
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => setEditandoNombreNegocio(true)}
-                          className="text-xs font-bold text-blue-600 dark:text-blue-400 hover:underline shrink-0 cursor-pointer px-2.5 py-1 rounded-lg hover:bg-blue-50 dark:hover:bg-blue-950/30 transition-colors active:scale-95"
-                        >
-                          Cambiar
-                        </button>
+                    <div className="space-y-3.5">
+                      {/* Nombre de la persona */}
+                      <div>
+                        <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1.5">
+                          Tu Nombre Completo
+                        </label>
+                        <input 
+                          type="text" 
+                          required
+                          placeholder="Ej. Johan Escobar" 
+                          value={formGoogleOnboarding.nombreUsuario} 
+                          onChange={e => {
+                            setFormGoogleOnboarding({...formGoogleOnboarding, nombreUsuario: e.target.value});
+                            setErrorGoogleOnboarding("");
+                          }} 
+                          className="w-full p-3.5 bg-slate-50 dark:bg-[#020617] border border-slate-200 dark:border-slate-800 rounded-2xl outline-none focus:border-blue-500 dark:text-white font-bold text-sm transition-all focus:ring-2 focus:ring-blue-500/20" 
+                        />
                       </div>
-                    ) : (
-                      <div className="space-y-3.5 animate-in fade-in">
-                        {/* Nombre de la persona */}
-                        <div>
-                          <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1.5">
-                            Tu Nombre Completo
-                          </label>
+
+                      {/* Nombre del Negocio */}
+                      <div>
+                        <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1.5">
+                          Nombre de tu Negocio / Tienda <span className="text-rose-500">*</span>
+                        </label>
+                        <div className="relative">
+                          <Store size={18} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"/>
                           <input 
                             type="text" 
                             required
-                            placeholder="Ej. Johan Escobar" 
-                            value={formGoogleOnboarding.nombreUsuario} 
+                            placeholder="Ej. Minimarket Central, Boutique Glamour..." 
+                            value={formGoogleOnboarding.nombreNegocio} 
                             onChange={e => {
-                              setFormGoogleOnboarding({...formGoogleOnboarding, nombreUsuario: e.target.value});
+                              setFormGoogleOnboarding({...formGoogleOnboarding, nombreNegocio: e.target.value});
                               setErrorGoogleOnboarding("");
                             }} 
-                            className="w-full p-3.5 bg-slate-50 dark:bg-[#020617] border border-slate-200 dark:border-slate-800 rounded-2xl outline-none focus:border-blue-500 dark:text-white font-bold text-sm transition-all focus:ring-2 focus:ring-blue-500/20" 
+                            className="w-full pl-10 pr-4 py-3.5 bg-slate-50 dark:bg-[#020617] border border-slate-200 dark:border-slate-800 rounded-2xl outline-none focus:border-blue-500 dark:text-white font-bold text-sm transition-all focus:ring-2 focus:ring-blue-500/20" 
                           />
                         </div>
-
-                        {/* Nombre del Negocio */}
-                        <div>
-                          <div className="flex items-center justify-between mb-1.5">
-                            <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                              Nombre de tu Negocio / Tienda <span className="text-rose-500">*</span>
-                            </label>
-                            {formGoogleOnboarding.nombreNegocio.trim() && (
-                              <button
-                                type="button"
-                                onClick={() => setEditandoNombreNegocio(false)}
-                                className="text-[11px] font-bold text-blue-600 dark:text-blue-400 hover:underline cursor-pointer active:scale-95"
-                              >
-                                Listo ✓
-                              </button>
-                            )}
-                          </div>
-                          <div className="relative">
-                            <Store size={18} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"/>
-                            <input 
-                              type="text" 
-                              required
-                              placeholder="Ej. Minimarket Central, Boutique Glamour..." 
-                              value={formGoogleOnboarding.nombreNegocio} 
-                              onChange={e => {
-                                setFormGoogleOnboarding({...formGoogleOnboarding, nombreNegocio: e.target.value});
-                                setErrorGoogleOnboarding("");
-                              }} 
-                              className="w-full pl-10 pr-4 py-3.5 bg-slate-50 dark:bg-[#020617] border border-slate-200 dark:border-slate-800 rounded-2xl outline-none focus:border-blue-500 dark:text-white font-bold text-sm transition-all focus:ring-2 focus:ring-blue-500/20" 
-                            />
-                          </div>
-                        </div>
                       </div>
-                    )}
+                    </div>
 
                     {/* Teléfono / WhatsApp OBLIGATORIO */}
                     <div>
@@ -2778,9 +2832,14 @@ export default function LandingPage() {
                   <div className="space-y-4 animate-in fade-in duration-200">
                     {/* Tipo / Categoría del Negocio */}
                     <div>
-                      <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1.5">
-                        Tipo de Negocio
-                      </label>
+                      <div className="flex items-center justify-between mb-1.5">
+                        <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                          Tipo de Negocio <span className="text-rose-500">*</span>
+                        </label>
+                        {!formGoogleOnboarding.tipoNegocio && (
+                          <span className="text-[10px] font-bold text-amber-500">Selecciona uno</span>
+                        )}
+                      </div>
                       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                         {[
                           { id: "Moda y Ropa", icon: Shirt, label: "Moda / Ropa", usaSepare: true },
@@ -2794,11 +2853,14 @@ export default function LandingPage() {
                             <button
                               key={t.id}
                               type="button"
-                              onClick={() => setFormGoogleOnboarding({
-                                ...formGoogleOnboarding, 
-                                tipoNegocio: t.id,
-                                moduloSepare: t.usaSepare
-                              })}
+                              onClick={() => {
+                                setFormGoogleOnboarding(prev => ({
+                                  ...prev, 
+                                  tipoNegocio: t.id,
+                                  moduloSepare: t.usaSepare
+                                }));
+                                setErrorGoogleOnboarding("");
+                              }}
                               className={`p-3 rounded-2xl border text-center transition-all cursor-pointer flex flex-col items-center gap-1.5 active:scale-95 select-none ${
                                 activo 
                                   ? 'border-blue-600 bg-blue-50/80 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 font-bold shadow-sm ring-2 ring-blue-500/20' 
@@ -2818,22 +2880,27 @@ export default function LandingPage() {
                       <div className="flex items-center justify-between">
                         <span className="text-[11px] font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
                           <Bookmark size={14} className="text-violet-600 dark:text-violet-400"/>
-                          ¿Deseas activar el Plan Separe?
+                          ¿Deseas activar el Plan Separe? <span className="text-rose-500">*</span>
                         </span>
                         <span className={`text-[10px] font-black px-2 py-0.5 rounded-full ${
-                          formGoogleOnboarding.moduloSepare 
+                          formGoogleOnboarding.moduloSepare === true
                             ? 'bg-violet-100 text-violet-700 dark:bg-violet-950/50 dark:text-violet-300' 
-                            : 'bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400'
+                            : formGoogleOnboarding.moduloSepare === false
+                              ? 'bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400'
+                              : 'bg-amber-100 text-amber-700 dark:bg-amber-950/50 dark:text-amber-300'
                         }`}>
-                          {formGoogleOnboarding.moduloSepare ? 'Activo' : 'Desactivado'}
+                          {formGoogleOnboarding.moduloSepare === true ? 'Activo' : formGoogleOnboarding.moduloSepare === false ? 'Desactivado' : 'Sin seleccionar'}
                         </span>
                       </div>
                       <div className="grid grid-cols-2 gap-2">
                         <button
                           type="button"
-                          onClick={() => setFormGoogleOnboarding({...formGoogleOnboarding, moduloSepare: true})}
+                          onClick={() => {
+                            setFormGoogleOnboarding(prev => ({ ...prev, moduloSepare: true }));
+                            setErrorGoogleOnboarding("");
+                          }}
                           className={`py-3 px-3 rounded-xl border text-xs font-bold transition-all cursor-pointer text-center active:scale-95 select-none ${
-                            formGoogleOnboarding.moduloSepare
+                            formGoogleOnboarding.moduloSepare === true
                               ? 'border-violet-600 bg-violet-50 dark:bg-violet-950/40 text-violet-700 dark:text-violet-300 shadow-sm ring-2 ring-violet-500/20'
                               : 'border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-500 hover:border-slate-300'
                           }`}
@@ -2842,9 +2909,12 @@ export default function LandingPage() {
                         </button>
                         <button
                           type="button"
-                          onClick={() => setFormGoogleOnboarding({...formGoogleOnboarding, moduloSepare: false})}
+                          onClick={() => {
+                            setFormGoogleOnboarding(prev => ({ ...prev, moduloSepare: false }));
+                            setErrorGoogleOnboarding("");
+                          }}
                           className={`py-3 px-3 rounded-xl border text-xs font-bold transition-all cursor-pointer text-center active:scale-95 select-none ${
-                            !formGoogleOnboarding.moduloSepare
+                            formGoogleOnboarding.moduloSepare === false
                               ? 'border-blue-600 bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 shadow-sm ring-2 ring-blue-500/20'
                               : 'border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-500 hover:border-slate-300'
                           }`}
@@ -2874,6 +2944,10 @@ export default function LandingPage() {
                         onClick={() => {
                           if (!formGoogleOnboarding.tipoNegocio) {
                             setErrorGoogleOnboarding("Por favor selecciona un tipo de negocio.");
+                            return;
+                          }
+                          if (formGoogleOnboarding.moduloSepare === null) {
+                            setErrorGoogleOnboarding("Por favor indica si deseas activar el Plan Separe o no.");
                             return;
                           }
                           setErrorGoogleOnboarding("");
@@ -2921,126 +2995,201 @@ export default function LandingPage() {
                       </label>
                     </div>
 
-                    {/* Canjear Código Promocional */}
-                    <div className="p-3 bg-blue-50/60 dark:bg-blue-950/30 rounded-2xl border border-blue-200/80 dark:border-blue-900/40 space-y-2">
-                      <div className="flex items-center justify-between">
-                        <span className="text-[11px] font-bold text-blue-900 dark:text-blue-200 flex items-center gap-1.5">
-                          <Tag size={13} className="text-blue-600 dark:text-blue-400"/>
-                          ¿Tienes un código de suscripción o descuento?
-                        </span>
-                        {codigoAplicado && (
-                          <span className="text-[10px] font-black text-emerald-600 dark:text-emerald-400 bg-emerald-100 dark:bg-emerald-500/20 px-2 py-0.5 rounded-md">
-                            {codigoAplicado.codigo} ✓
-                          </span>
-                        )}
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <input
-                          type="text"
-                          placeholder="Ej. PRO2026"
-                          value={codigoInput}
-                          onChange={e => {
-                            setCodigoInput(e.target.value);
-                            setErrorCodigo("");
-                            setExitoCodigo("");
-                          }}
-                          className="p-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-xs font-black uppercase outline-none focus:border-blue-500 dark:text-white flex-1"
-                        />
-                        <button
-                          type="button"
-                          onClick={() => validarCodigo(undefined, googleUserPendiente.email)}
-                          disabled={validandoCodigo || !codigoInput.trim()}
-                          className="bg-blue-600 hover:bg-blue-700 text-white text-xs font-black py-2.5 px-3.5 rounded-xl disabled:opacity-50 cursor-pointer shrink-0 active:scale-95 transition-all"
-                        >
-                          {validandoCodigo ? "..." : "Aplicar"}
-                        </button>
-                      </div>
-                      {errorCodigo && <p className="text-rose-500 text-[11px] font-bold flex items-center gap-1"><AlertCircle size={12}/>{errorCodigo}</p>}
-                      {exitoCodigo && <p className="text-emerald-600 dark:text-emerald-400 text-[11px] font-bold flex items-center gap-1"><CheckCircle2 size={12}/>{exitoCodigo}</p>}
-                    </div>
-
-                    {/* Tarjetas de Selección de Plan */}
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
-                      {/* Plan Comercio */}
-                      <button
-                        type="button"
-                        onClick={() => setFormGoogleOnboarding({...formGoogleOnboarding, plan: 'comercio'})}
-                        className={`p-3.5 rounded-2xl border-2 text-left transition-all cursor-pointer relative flex flex-col justify-between active:scale-95 select-none ${
-                          formGoogleOnboarding.plan === 'comercio'
-                            ? 'border-blue-600 bg-blue-50/70 dark:bg-blue-950/40 text-blue-900 dark:text-blue-100 shadow-md ring-2 ring-blue-500/20'
-                            : 'border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400 hover:border-slate-300'
-                        }`}
-                      >
-                        <div>
-                          <span className="text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full bg-blue-600 text-white inline-block mb-1.5">
-                            14 Días Gratis
-                          </span>
-                          <div className="font-black text-sm text-slate-900 dark:text-white">Plan Comercio</div>
-                          <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">
-                            Comprobantes WhatsApp, ventas y 1 caja.
+                    {/* SECCIÓN DE ELECCIÓN DE PLAN O BENEFICIO DE CUPÓN */}
+                    {codigoAplicado ? (
+                      /* Al ingresar un cupón válido, NO se muestran ni permiten seleccionar pruebas gratuitas de 14 días: el cupón otorga directamente su beneficio */
+                      <div className="p-4 rounded-2xl bg-gradient-to-br from-emerald-500/10 via-teal-500/10 to-blue-500/10 border-2 border-emerald-500/40 dark:border-emerald-500/50 space-y-3 animate-in fade-in">
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="flex items-center gap-2.5 min-w-0">
+                            <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-emerald-600 to-teal-500 text-white flex items-center justify-center shrink-0 shadow-md shadow-emerald-600/20">
+                              <Gift size={20} />
+                            </div>
+                            <div className="min-w-0">
+                              <div className="flex items-center gap-1.5">
+                                <span className="text-[10px] font-black uppercase tracking-wider text-emerald-700 dark:text-emerald-300 bg-emerald-100 dark:bg-emerald-950/60 px-2 py-0.5 rounded-full">
+                                  Cupón Promocional Activo
+                                </span>
+                              </div>
+                              <h4 className="text-sm font-black text-slate-900 dark:text-white truncate mt-0.5">
+                                Código: {codigoAplicado.codigo}
+                              </h4>
+                            </div>
                           </div>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setCodigoAplicado(null);
+                              setCodigoInput("");
+                              setExitoCodigo("");
+                              setErrorCodigo("");
+                              setFormGoogleOnboarding(p => ({ ...p, plan: planSeleccionadoRegistro || 'comercio' }));
+                            }}
+                            className="text-xs font-bold text-rose-500 hover:text-rose-600 hover:underline cursor-pointer bg-white dark:bg-slate-900 px-3 py-1.5 rounded-xl border border-rose-200 dark:border-rose-900/40 shrink-0"
+                          >
+                            Quitar cupón
+                          </button>
                         </div>
-                        <div className="text-[10px] font-bold text-blue-600 dark:text-blue-400 mt-3 flex items-center gap-1">
-                          <Check size={12}/> Recomendado
-                        </div>
-                      </button>
 
-                      {/* Plan PRO */}
-                      <button
-                        type="button"
-                        onClick={() => setFormGoogleOnboarding({...formGoogleOnboarding, plan: 'pro'})}
-                        className={`p-3.5 rounded-2xl border-2 text-left transition-all cursor-pointer relative flex flex-col justify-between active:scale-95 select-none ${
-                          formGoogleOnboarding.plan === 'pro'
-                            ? 'border-purple-600 bg-purple-50/70 dark:bg-purple-950/40 text-purple-900 dark:text-purple-100 shadow-md ring-2 ring-purple-500/20'
-                            : 'border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400 hover:border-slate-300'
-                        }`}
-                      >
-                        <div>
-                          <span className="text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full bg-purple-600 text-white inline-block mb-1.5">
-                            14 Días Gratis
-                          </span>
-                          <div className="font-black text-sm text-slate-900 dark:text-white">Plan PRO</div>
-                          <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">
-                            Plan Separe con fotos, hasta 4 cajeros y reportes top.
+                        <div className="p-3 bg-white/90 dark:bg-slate-900/90 rounded-xl border border-emerald-200/80 dark:border-emerald-800/60 flex items-center justify-between">
+                          <div>
+                            <div className="text-xs font-black text-slate-900 dark:text-white uppercase tracking-wide">
+                              Plan {codigoAplicado.planOtorgado.toUpperCase()}
+                            </div>
+                            <div className="text-[11px] text-slate-500 dark:text-slate-400">
+                              {codigoAplicado.diasOtorgados} días de suscripción directa sin costo incluidos.
+                            </div>
                           </div>
-                        </div>
-                        <div className="text-[10px] font-bold text-purple-600 dark:text-purple-400 mt-3 flex items-center gap-1">
-                          <Crown size={12}/> Más Completo
-                        </div>
-                      </button>
-
-                      {/* Plan Gratuito */}
-                      <button
-                        type="button"
-                        onClick={() => setFormGoogleOnboarding({...formGoogleOnboarding, plan: 'gratis'})}
-                        className={`p-3.5 rounded-2xl border-2 text-left transition-all cursor-pointer relative flex flex-col justify-between active:scale-95 select-none ${
-                          formGoogleOnboarding.plan === 'gratis'
-                            ? 'border-slate-700 bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-white shadow-md'
-                            : 'border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400 hover:border-slate-300'
-                        }`}
-                      >
-                        <div>
-                          <span className="text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 inline-block mb-1.5">
-                            Sin costo
+                          <span className="text-xs font-black text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/60 px-2.5 py-1 rounded-lg border border-emerald-200 dark:border-emerald-800">
+                            ✓ Otorgado
                           </span>
-                          <div className="font-black text-sm text-slate-900 dark:text-white">Plan Básico</div>
-                          <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">
-                            Registro de cuentas y fiados esenciales.
-                          </div>
                         </div>
-                        <div className="text-[10px] font-bold text-slate-500 mt-3">
-                          Siempre gratis
-                        </div>
-                      </button>
-                    </div>
 
-                    {/* Términos y Condiciones: Sin redundancias */}
-                    {aceptaTerminos ? (
-                      <div className="flex items-center gap-2.5 p-3 rounded-2xl bg-emerald-50/80 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-800/40 text-emerald-800 dark:text-emerald-300 text-xs font-bold text-left animate-in fade-in">
-                        <CheckCircle2 size={16} className="text-emerald-600 dark:text-emerald-400 shrink-0" />
-                        <span>Términos del Servicio y Política de Privacidad ya aceptados.</span>
+                        <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-snug">
+                          Al usar este cupón tu cuenta queda configurada con todos sus beneficios directamente (no aplican pruebas de 14 días). Si prefieres usar una prueba ordinaria de 14 días, haz clic en "Quitar cupón".
+                        </p>
                       </div>
                     ) : (
+                      <>
+                        {/* Canjear Código Promocional */}
+                        <div className="p-3 bg-blue-50/60 dark:bg-blue-950/30 rounded-2xl border border-blue-200/80 dark:border-blue-900/40 space-y-2">
+                          <div className="flex items-center justify-between">
+                            <span className="text-[11px] font-bold text-blue-900 dark:text-blue-200 flex items-center gap-1.5">
+                              <Tag size={13} className="text-blue-600 dark:text-blue-400"/>
+                              ¿Tienes un código de suscripción o descuento?
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <input
+                              type="text"
+                              placeholder="Ej. COMERCIO26 o PRO2026"
+                              value={codigoInput}
+                              onChange={e => {
+                                setCodigoInput(e.target.value);
+                                setErrorCodigo("");
+                                setExitoCodigo("");
+                              }}
+                              className="p-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-xs font-black uppercase outline-none focus:border-blue-500 dark:text-white flex-1"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => validarCodigo(undefined, googleUserPendiente?.email)}
+                              disabled={validandoCodigo || !codigoInput.trim()}
+                              className="bg-blue-600 hover:bg-blue-700 text-white text-xs font-black py-2.5 px-3.5 rounded-xl disabled:opacity-50 cursor-pointer shrink-0 active:scale-95 transition-all"
+                            >
+                              {validandoCodigo ? "..." : "Aplicar"}
+                            </button>
+                          </div>
+                          {errorCodigo && <p className="text-rose-500 text-[11px] font-bold flex items-center gap-1"><AlertCircle size={12}/>{errorCodigo}</p>}
+                          {exitoCodigo && <p className="text-emerald-600 dark:text-emerald-400 text-[11px] font-bold flex items-center gap-1"><CheckCircle2 size={12}/>{exitoCodigo}</p>}
+                        </div>
+
+                        {/* Aviso si tiene código escrito sin aplicar */}
+                        {codigoInput.trim() && !codigoAplicado && (
+                          <div className="p-3 bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-700/50 rounded-2xl flex items-center justify-between gap-2 animate-in fade-in">
+                            <div className="flex items-center gap-2">
+                              <AlertCircle size={16} className="text-amber-600 dark:text-amber-400 shrink-0"/>
+                              <span className="text-[11px] font-bold text-amber-900 dark:text-amber-200">
+                                Código <strong>"{codigoInput.trim().toUpperCase()}"</strong> escrito. Presiona "Aplicar" para validar tu beneficio.
+                              </span>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => validarCodigo(undefined, googleUserPendiente?.email)}
+                              disabled={validandoCodigo}
+                              className="px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white text-xs font-black rounded-xl shrink-0 cursor-pointer active:scale-95 transition-all shadow-sm"
+                            >
+                              {validandoCodigo ? "..." : "Aplicar ahora"}
+                            </button>
+                          </div>
+                        )}
+
+                        {/* Tarjetas de Selección de Plan (Pruebas Gratuitas) - Bloqueadas si hay texto en el código */}
+                        <div className={`grid grid-cols-1 sm:grid-cols-3 gap-2.5 transition-all ${
+                          codigoInput.trim() && !codigoAplicado ? 'opacity-35 pointer-events-none filter grayscale' : ''
+                        }`}>
+                          {/* Plan Comercio */}
+                          <button
+                            type="button"
+                            onClick={() => setFormGoogleOnboarding({...formGoogleOnboarding, plan: 'comercio'})}
+                            className={`p-3.5 rounded-2xl border-2 text-left transition-all cursor-pointer relative flex flex-col justify-between active:scale-95 select-none ${
+                              formGoogleOnboarding.plan === 'comercio'
+                                ? 'border-blue-600 bg-blue-50/70 dark:bg-blue-950/40 text-blue-900 dark:text-blue-100 shadow-md ring-2 ring-blue-500/20'
+                                : 'border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400 hover:border-slate-300'
+                            }`}
+                          >
+                            <div>
+                              <span className="text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full bg-blue-600 text-white inline-block mb-1.5">
+                                14 Días Gratis
+                              </span>
+                              <div className="font-black text-sm text-slate-900 dark:text-white">Plan Comercio</div>
+                              <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">
+                                Comprobantes WhatsApp, ventas y 1 caja.
+                              </div>
+                            </div>
+                            <div className="text-[10px] font-bold text-blue-600 dark:text-blue-400 mt-3 flex items-center gap-1">
+                              <Check size={12}/> Recomendado
+                            </div>
+                          </button>
+
+                          {/* Plan PRO */}
+                          <button
+                            type="button"
+                            onClick={() => setFormGoogleOnboarding({...formGoogleOnboarding, plan: 'pro'})}
+                            className={`p-3.5 rounded-2xl border-2 text-left transition-all cursor-pointer relative flex flex-col justify-between active:scale-95 select-none ${
+                              formGoogleOnboarding.plan === 'pro'
+                                ? 'border-purple-600 bg-purple-50/70 dark:bg-purple-950/40 text-purple-900 dark:text-purple-100 shadow-md ring-2 ring-purple-500/20'
+                                : 'border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400 hover:border-slate-300'
+                            }`}
+                          >
+                            <div>
+                              <span className="text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full bg-purple-600 text-white inline-block mb-1.5">
+                                14 Días Gratis
+                              </span>
+                              <div className="font-black text-sm text-slate-900 dark:text-white">Plan PRO</div>
+                              <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">
+                                Plan Separe con fotos, hasta 4 cajeros y reportes top.
+                              </div>
+                            </div>
+                            <div className="text-[10px] font-bold text-purple-600 dark:text-purple-400 mt-3 flex items-center gap-1">
+                              <Crown size={12}/> Más Completo
+                            </div>
+                          </button>
+
+                          {/* Plan Gratuito */}
+                          <button
+                            type="button"
+                            onClick={() => setFormGoogleOnboarding({...formGoogleOnboarding, plan: 'gratis'})}
+                            className={`p-3.5 rounded-2xl border-2 text-left transition-all cursor-pointer relative flex flex-col justify-between active:scale-95 select-none ${
+                              formGoogleOnboarding.plan === 'gratis'
+                                ? 'border-slate-700 bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-white shadow-md'
+                                : 'border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400 hover:border-slate-300'
+                            }`}
+                          >
+                            <div>
+                              <span className="text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 inline-block mb-1.5">
+                                Sin costo
+                              </span>
+                              <div className="font-black text-sm text-slate-900 dark:text-white">Plan Básico</div>
+                              <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">
+                                Registro de cuentas y fiados esenciales.
+                              </div>
+                            </div>
+                            <div className="text-[10px] font-bold text-slate-500 mt-3">
+                              Siempre gratis
+                            </div>
+                          </button>
+                        </div>
+
+                        {codigoInput.trim() && !codigoAplicado && (
+                          <p className="text-center text-[11px] text-amber-600 dark:text-amber-400 font-bold">
+                            🔒 Selección de planes pausada mientras ingresas un código. Borra el texto si deseas elegir una prueba de 14 días.
+                          </p>
+                        )}
+                      </>
+                    )}
+
+                    {/* Términos y Condiciones: Únicamente para usuarios que iniciaron con Google (en registro por correo ya se aceptaron) */}
+                    {origenRegistro === 'google' && (
                       <div className="flex items-start gap-2.5 p-3 rounded-2xl bg-blue-50/60 dark:bg-blue-950/20 border border-blue-200/80 dark:border-blue-900/40 text-left animate-in fade-in">
                         <input
                           type="checkbox"
@@ -3081,11 +3230,15 @@ export default function LandingPage() {
 
                       <button 
                         type="submit" 
-                        disabled={guardandoGoogleOnboarding || (!aceptaTerminos && !aceptaTerminosGoogle)}
+                        disabled={guardandoGoogleOnboarding || (origenRegistro === 'google' && !aceptaTerminosGoogle)}
                         className="flex-1 flex items-center justify-center gap-2 bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 hover:opacity-95 text-white font-black text-sm py-4 rounded-2xl shadow-xl shadow-blue-600/30 transition-all transform active:scale-95 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed select-none"
                       >
                         <PartyPopper size={18}/>
-                        <span>Crear mi Negocio y Comenzar</span>
+                        <span>
+                          {codigoAplicado 
+                            ? `Crear mi Negocio con Plan ${codigoAplicado.planOtorgado.toUpperCase()}`
+                            : (codigoInput.trim() ? `Validar "${codigoInput.trim().toUpperCase()}" y Comenzar` : 'Crear mi Negocio y Comenzar')}
+                        </span>
                       </button>
                     </div>
                   </div>

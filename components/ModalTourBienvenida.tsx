@@ -43,20 +43,10 @@ export default function ModalTourBienvenida({
   useEffect(() => {
     if (isOpen) {
       setPaso(1);
+      // Limpiar residuos de sesiones anteriores para que el nuevo usuario elija libremente
       try {
-        const guardado = localStorage.getItem('fiabono_rubros_negocio');
-        if (guardado) {
-          const parsed = JSON.parse(guardado);
-          if (Array.isArray(parsed) && parsed.length > 0) {
-            setRubrosSeleccionadosIds(parsed);
-            return;
-          }
-        }
-        const guardadoSimple = localStorage.getItem('fiabono_rubro_negocio');
-        if (guardadoSimple && RUBROS_NEGOCIOS.some(r => r.id === guardadoSimple)) {
-          setRubrosSeleccionadosIds([guardadoSimple]);
-          return;
-        }
+        localStorage.removeItem('fiabono_rubro_negocio');
+        localStorage.removeItem('fiabono_rubros_negocio');
       } catch (e) {}
       setRubrosSeleccionadosIds([]);
     }

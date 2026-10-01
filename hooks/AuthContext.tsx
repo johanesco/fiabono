@@ -1,5 +1,5 @@
 "use client";
-import { createContext, useContext, useState, useEffect } from "react";
+import { createContext, useContext, useState, useEffect, useRef } from "react";
 import { onAuthStateChanged, signOut } from "firebase/auth";
 import { doc, getDoc, updateDoc, collection, query, where, getDocs } from "firebase/firestore";
 import { auth, db } from "../firebase";
@@ -23,6 +23,18 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [bloqueoColaborador, setBloqueoColaborador] = useState<BloqueoColaboradorInfo | null>(null);
   const router = useRouter();
   const pathname = usePathname();
+  const pathnameRef = useRef(pathname);
+
+  useEffect(() => {
+    pathnameRef.current = pathname;
+  }, [pathname]);
+
+  const estaEnDashboard = () => {
+    if (typeof window !== 'undefined') {
+      return window.location.pathname.startsWith('/dashboard');
+    }
+    return (pathnameRef.current || '').startsWith('/dashboard');
+  };
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
@@ -30,7 +42,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         setDatosSesion(null);
         setCargando(false);
         // Si intenta entrar al dashboard sin sesión, lo patea a la landing
-        if (pathname?.includes('/dashboard')) {
+        if (estaEnDashboard()) {
            router.push('/');
         }
         return;
@@ -39,11 +51,11 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       try {
         const userDoc = await getDoc(doc(db, "usuarios", user.uid));
         if (!userDoc.exists()) {
-          // Si estamos fuera del dashboard (ej. en la landing completando el registro con Google),
-          // simplemente dejamos la sesión local limpia para que el onboarding fluya.
+          // Si estamos fuera del dashboard (ej. en la landing completando el registro o en onboarding),
+          // simplemente dejamos la sesión local limpia para que el onboarding fluya sin cerrar sesión de Firebase.
           setDatosSesion(null);
           setCargando(false);
-          if (pathname?.includes('/dashboard')) {
+          if (estaEnDashboard()) {
             await signOut(auth);
             router.push('/');
           }
@@ -138,6 +150,12 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         // Si pasa todas las validaciones, despejamos cualquier bloqueo previo
         setBloqueoColaborador(null);
 
+        // VALIDACIÓN MASTER: Si el negocio fue suspendido o desactivado por el Master
+        const esMasterSuperAdmin = user.email?.toLowerCase().trim() === 'johanescobar1@gmail.com';
+        if ((adminData.activo === false || adminData.suspendido === true) && !esMasterSuperAdmin) {
+          throw new Error("NegocioSuspendido");
+        }
+
         // Validar expiración plan de la cuenta principal
         let planRaw = (adminData.plan || 'gratis').toLowerCase();
         if (planRaw === 'basico') planRaw = 'gratis';
@@ -204,7 +222,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         setDatosSesion({
           uid: user.uid,
           cuentaPrincipalId: idParaConsultar,
-          nombreUsuario: data.nombreUsuario,
+          nombreUsuario: data.nombreUsuario || adminData.nombreUsuario || user.displayName || "",
           nombreNegocio: adminData.nombreNegocio,
           telefonoNegocio: adminData.telefonoNegocio || "",
           telefonoAdmin: adminData.telefonoNegocio || adminData.celular || adminData.telefono || "",
@@ -259,6 +277,20 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
           slugNegocio: adminData.slugNegocio || "",
           datosUsuarioOriginales: data as UsuarioBD
         });
+
+        // Registrar fecha de último acceso para telemetría de tiendas activas (máximo 1 vez cada 12 horas)
+        try {
+          const ahora = new Date().getTime();
+          const ultimoTime = adminData.ultimoAcceso?.toDate 
+            ? adminData.ultimoAcceso.toDate().getTime() 
+            : (adminData.ultimoAcceso ? new Date(adminData.ultimoAcceso).getTime() : 0);
+          
+          if (!ultimoTime || (ahora - ultimoTime > 12 * 3600 * 1000)) {
+            updateDoc(doc(db, "usuarios", idParaConsultar), {
+              ultimoAcceso: new Date()
+            }).catch(() => {});
+          }
+        } catch (e) {}
       } catch (e: any) {
         console.error("Error validando sesión:", e);
         // Desloguear con mensaje explicativo si el acceso está revocado o bloqueado
@@ -266,25 +298,33 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
           e.message === "No existe" || 
           e.message === "Inactivo" || 
           e.message === "NegocioNoExiste" || 
+          e.message === "NegocioSuspendido" ||
           e.message === "PlanGratisSinColaboradores" ||
           e.message === "FueraDeHorario" ||
           e.code === "permission-denied"
         ) {
-          if (e.message === "PlanGratisSinColaboradores") {
-            toast.error("El negocio se encuentra en Plan Gratuito. El administrador debe activar el Plan Comercio o PRO para permitir el acceso de colaboradores.", { duration: 6000 });
-          } else if (e.message === "Inactivo") {
-            toast.error("Tu cuenta de colaborador ha sido deshabilitada por el administrador.", { duration: 5000 });
-          } else if (e.message === "FueraDeHorario") {
-            toast.error("Tu acceso no está permitido fuera del horario laboral configurado.", { duration: 5000 });
-          } else if (e.message === "NegocioNoExiste" || e.message === "No existe") {
-            toast.error("Usuario o negocio no encontrado.", { duration: 4000 });
-          } else if (e.code === "permission-denied") {
-            toast.error("Tu acceso ha sido restringido o no tienes permisos en este negocio.", { duration: 5000 });
-          }
+          if (estaEnDashboard()) {
+            if (e.message === "NegocioSuspendido") {
+              toast.error("Esta cuenta de negocio ha sido suspendida o inhabilitada. Comunícate con soporte de Fiabono.", { duration: 6000 });
+            } else if (e.message === "PlanGratisSinColaboradores") {
+              toast.error("El negocio se encuentra en Plan Gratuito. El administrador debe activar el Plan Comercio o PRO para permitir el acceso de colaboradores.", { duration: 6000 });
+            } else if (e.message === "Inactivo") {
+              toast.error("Tu cuenta de colaborador ha sido deshabilitada por el administrador.", { duration: 5000 });
+            } else if (e.message === "FueraDeHorario") {
+              toast.error("Tu acceso no está permitido fuera del horario laboral configurado.", { duration: 5000 });
+            } else if (e.message === "NegocioNoExiste" || e.message === "No existe") {
+              toast.error("Usuario o negocio no encontrado.", { duration: 4000 });
+            } else if (e.code === "permission-denied") {
+              toast.error("Tu acceso ha sido restringido o no tienes permisos en este negocio.", { duration: 5000 });
+            }
 
-          await signOut(auth);
-          setDatosSesion(null);
-          router.push('/');
+            await signOut(auth);
+            setDatosSesion(null);
+            router.push('/');
+          } else {
+            // En landing u onboarding no expulsamos al usuario autenticado
+            setDatosSesion(null);
+          }
         }
       }
       setCargando(false);

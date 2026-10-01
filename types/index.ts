@@ -148,6 +148,8 @@ export interface UsuarioBD {
   slugNegocio?: string;
   esCajaMostrador?: boolean;
   pruebaGratisUsada?: boolean;
+  ultimoAcceso?: any;
+  fechaRegistro?: any;
 }
 
 export interface Cliente {
