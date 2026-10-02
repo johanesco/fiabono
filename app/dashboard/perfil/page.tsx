@@ -2232,7 +2232,7 @@ export default function PerfilPage() {
                             setSlugNegocioEdicion(limpiarUsuarioColaborador(e.target.value).slice(0, 20));
                             setErrorSlug("");
                           }} 
-                          placeholder="Ej. camellas, ofe, tienda1" 
+                          placeholder="Ej. ofe, mitienda, sucursal1" 
                           className={`w-full p-4 bg-white dark:bg-[#020617] border rounded-xl outline-none transition-all font-mono font-bold text-base text-slate-900 dark:text-white placeholder-slate-400 ${errorSlug ? 'border-rose-500' : 'border-blue-200 dark:border-blue-800/80 focus:border-blue-500'}`} 
                         />
                         {errorSlug ? (

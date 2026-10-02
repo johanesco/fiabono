@@ -987,76 +987,112 @@ function SepareContenido() {
           </div>
         </div>
 
-        {/* Cuadrícula de Productos */}
-        <div className="flex-1 overflow-y-auto p-3 sm:p-4 grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 xl:grid-cols-6 gap-3 content-start pb-24 lg:pb-4">
+        {/* Cuadrícula de Productos Fluida y Táctil */}
+        <div className="flex-1 overflow-y-auto p-2 sm:p-3 grid grid-cols-[repeat(auto-fill,minmax(112px,1fr))] gap-2 sm:gap-2.5 content-start pb-28 lg:pb-6">
           {productosFiltrados.slice(0, limiteVisual).map(prod => {
             const indexCarrito = filas.findIndex(f => f.descripcion.trim().toLowerCase() === (prod.nombre || "").toLowerCase());
             const cantidadCarrito = indexCarrito >= 0 ? filas[indexCarrito].cantidad : 0;
+            const esInv = prod.tipoProducto !== 'servicio' && prod.inventariable !== false;
+            const stockDisp = esInv ? (prod.stock || 0) : 999;
+            const estaAgotado = esInv && stockDisp <= 0;
 
             return (
               <div 
                 key={prod.id} 
-                className={`flex flex-col bg-white dark:bg-[#0f172a] border ${cantidadCarrito > 0 ? 'border-purple-500 ring-2 ring-purple-500/20 shadow-md' : 'border-slate-200 dark:border-slate-800'} rounded-2xl overflow-hidden hover:border-purple-400 hover:shadow-lg transition-all transform duration-150 relative group`}
+                onClick={() => {
+                  if (estaAgotado) {
+                    toast.error(`"${prod.nombre}" no tiene existencias disponibles.`, { duration: 2000, position: 'bottom-center' });
+                    return;
+                  }
+                  agregarProductoVisual(prod);
+                }}
+                className={`flex flex-col bg-white dark:bg-[#0f172a] rounded-2xl border ${cantidadCarrito > 0 ? 'border-violet-500 ring-2 ring-violet-500/25 shadow-sm' : 'border-slate-200 dark:border-slate-800'} p-2 transition-all shadow-xs hover:shadow-md cursor-pointer select-none group justify-between gap-1`}
               >
-                {cantidadCarrito > 0 && (
-                  <div className="absolute top-1.5 left-1.5 bg-purple-500 text-white w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-black z-10 shadow-sm animate-in zoom-in duration-200">
-                    {cantidadCarrito}
-                  </div>
-                )}
-                <div 
-                  className="w-full bg-slate-100 dark:bg-slate-900 flex items-center justify-center relative overflow-hidden cursor-pointer shrink-0"
-                  style={{ aspectRatio: '1/1' }}
-                  onClick={(e) => {
-                    const el = e.currentTarget.parentElement;
-                    if(el) { el.classList.add('scale-90'); setTimeout(() => el.classList.remove('scale-90'), 150); }
-                    agregarProductoVisual(prod);
-                  }}
-                >
-                  {(prod.imagen || prod.imagenUrl || prod.fotoUrl) ? (
-                    <img src={prod.imagen || prod.imagenUrl || prod.fotoUrl} alt={prod.nombre} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
-                  ) : (
-                    <span className="text-3xl font-black text-slate-300 dark:text-slate-700 tracking-tighter">
-                      {prod.nombre ? prod.nombre.substring(0, 2).toUpperCase() : '??'}
-                    </span>
-                  )}
-                  {/* Badge de Precio Flotante (Abajo Derecha) */}
-                  <div className="absolute bottom-1 right-1 flex flex-col gap-1 items-end">
-                    <div className="bg-white/95 dark:bg-black/90 backdrop-blur-sm px-1.5 py-0.5 rounded-md shadow-sm border border-slate-200/50 dark:border-slate-700/50 z-10">
-                      <span className="text-[11px] font-black text-slate-900 dark:text-white">${Number(prod.precioVenta || prod.precio || 0).toLocaleString('es-CO')}</span>
+                {/* Miniatura / Foto o Iniciales Grandes */}
+                <div className="relative w-full h-24 sm:h-28 rounded-xl overflow-hidden bg-slate-100 dark:bg-slate-900 flex items-center justify-center shrink-0">
+                  {/* Badge de Cantidad en Carrito */}
+                  {cantidadCarrito > 0 && (
+                    <div className="absolute top-1.5 left-1.5 bg-violet-600 text-white min-w-5 h-5 px-1.5 rounded-full flex items-center justify-center text-[10px] font-black z-10 shadow-md">
+                      {cantidadCarrito}
                     </div>
+                  )}
+
+                  {(prod.imagen || prod.imagenUrl || prod.fotoUrl) ? (
+                    <img 
+                      src={prod.imagen || prod.imagenUrl || prod.fotoUrl} 
+                      alt={prod.nombre} 
+                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" 
+                    />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center bg-slate-100 dark:bg-slate-800/80">
+                      <span className="text-3xl font-black text-slate-300 dark:text-slate-600 tracking-tighter">
+                        {prod.nombre ? prod.nombre.trim().substring(0, 2).toUpperCase() : '??'}
+                      </span>
+                    </div>
+                  )}
+
+                  {/* Badge de Precio Flotante */}
+                  <div className="absolute bottom-1 right-1 bg-white/95 dark:bg-black/90 backdrop-blur-sm px-1.5 py-0.5 rounded-lg shadow-sm border border-slate-200/50 dark:border-slate-700/50 z-10 pointer-events-none">
+                    <span className="text-[11px] font-black text-slate-900 dark:text-white leading-none">${Number(prod.precioVenta || prod.precio || 0).toLocaleString('es-CO')}</span>
                   </div>
                 </div>
-                <div className="p-2 flex-1 flex flex-col justify-between">
+
+                {/* Contenido: Nombre */}
+                <div>
+                  <h5 className="text-[11px] sm:text-xs font-bold text-slate-700 dark:text-slate-200 leading-tight line-clamp-2 min-h-[2.2em] group-hover:text-violet-600 dark:group-hover:text-violet-400 transition-colors">
+                    {prod.nombre}
+                  </h5>
+                </div>
+
+                {/* Fila Inferior: Stock + Botón */}
+                <div className="flex items-center justify-between gap-1 mt-auto pt-0.5">
                   <div>
-                    <span className="text-[10px] sm:text-xs font-bold text-slate-700 dark:text-slate-200 leading-tight line-clamp-2">{prod.nombre}</span>
-                    {prod.tipoProducto !== 'servicio' && prod.inventariable !== false && (
-                      <span className={`text-[9px] font-bold block mt-0.5 ${Number(prod.stock || 0) <= 0 ? 'text-rose-500' : Number(prod.stock || 0) <= 5 ? 'text-amber-500' : 'text-slate-400'}`}>
-                        {prod.stock || 0} en stock
+                    {!esInv ? (
+                      <span className="text-[9px] font-bold text-indigo-600 dark:text-indigo-400">Servicio</span>
+                    ) : estaAgotado ? (
+                      <span className="text-[9px] font-bold text-rose-500">Agotado</span>
+                    ) : (
+                      <span className={`text-[9px] font-bold ${stockDisp <= 5 ? 'text-amber-500' : 'text-slate-400'}`}>
+                        {stockDisp} en stock
                       </span>
                     )}
                   </div>
-                  
+
                   {/* Controles de Cantidad */}
-                  <div className="flex items-center justify-end gap-1 mt-1">
-                    {cantidadCarrito > 0 && (
-                      <button 
-                        onClick={(e) => { e.stopPropagation(); cambiarCantidadVisual(indexCarrito, -1); }}
-                        className="w-7 h-7 bg-slate-100 dark:bg-slate-800 text-slate-600 rounded-full flex items-center justify-center shrink-0 transition-colors active:bg-slate-300 active:text-slate-900 cursor-pointer"
-                      >
-                        <Minus size={14} />
-                      </button>
-                    )}
-                    <button 
-                      onClick={(e) => {
-                        const el = e.currentTarget.parentElement?.parentElement;
-                        if(el) { el.classList.add('scale-90'); setTimeout(() => el.classList.remove('scale-90'), 150); }
-                        agregarProductoVisual(prod);
-                      }}
-                      className="w-7 h-7 bg-purple-100 dark:bg-purple-900/40 text-purple-600 rounded-full flex items-center justify-center shrink-0 transition-colors active:bg-purple-500 active:text-white cursor-pointer"
+                  {cantidadCarrito > 0 ? (
+                    <div 
+                      className="flex items-center bg-slate-100 dark:bg-slate-800 rounded-lg p-0.5 border border-slate-200 dark:border-slate-700 shrink-0 shadow-xs"
+                      onClick={(e) => e.stopPropagation()}
                     >
-                      <Plus size={14} />
+                      <button 
+                        type="button" 
+                        onClick={() => cambiarCantidadVisual(indexCarrito, -1)} 
+                        className="w-5 h-5 flex items-center justify-center text-slate-600 hover:text-rose-600 active:scale-90 transition-transform cursor-pointer"
+                        title="Restar una unidad"
+                      >
+                        <Minus size={11} />
+                      </button>
+                      <span className="text-[10px] font-black w-4 text-center text-slate-900 dark:text-white">
+                        {cantidadCarrito}
+                      </span>
+                      <button 
+                        type="button" 
+                        onClick={() => agregarProductoVisual(prod)} 
+                        className="w-5 h-5 flex items-center justify-center text-violet-600 hover:text-violet-700 active:scale-90 transition-transform cursor-pointer"
+                        title="Sumar una unidad"
+                      >
+                        <Plus size={11} />
+                      </button>
+                    </div>
+                  ) : (
+                    <button 
+                      type="button" 
+                      onClick={(e) => { e.stopPropagation(); agregarProductoVisual(prod); }}
+                      className="w-6 h-6 rounded-lg bg-violet-50 hover:bg-violet-600 dark:bg-violet-950/40 dark:hover:bg-violet-600 text-violet-600 hover:text-white dark:text-violet-400 dark:hover:text-white flex items-center justify-center transition-all shadow-xs shrink-0 cursor-pointer active:scale-90"
+                    >
+                      <Plus size={13} />
                     </button>
-                  </div>
+                  )}
                 </div>
               </div>
             );
@@ -2284,7 +2320,7 @@ Estamos atentos para cualquier consulta.
         {/* COLUMNA IZQUIERDA: ARTÍCULOS A SEPARAR */}
         <div className={`flex-1 flex flex-col relative bg-slate-50/50 dark:bg-[#020617]/50 lg:min-h-0 lg:overflow-hidden shrink-0 ${pasoMovil === 'cobro' ? 'hidden lg:flex' : 'flex'}`}>
           {modoVisual ? renderModoVisualGrid() : (
-          <div ref={scrollArticulosRef} className="p-3 sm:p-5 lg:p-6 xl:p-8 space-y-3 sm:space-y-4 lg:flex-1 lg:overflow-y-auto min-h-0">
+          <div ref={scrollArticulosRef} className="p-3 sm:p-4 lg:p-4 xl:p-6 space-y-3 sm:space-y-4 lg:flex-1 lg:overflow-y-auto min-h-0">
             <div className="max-w-4xl mx-auto space-y-3 sm:space-y-4">
               <h4 className="font-bold text-slate-400 uppercase text-[10px] md:text-xs tracking-wider">
                 Artículos a Separar <span className="text-rose-500">*</span>
@@ -2299,11 +2335,11 @@ Estamos atentos para cualquier consulta.
                   return (
                     <div
                       key={fila.id}
-                      className={`flex flex-col sm:flex-row gap-2 sm:gap-2.5 md:gap-3 p-2.5 sm:py-2.5 sm:px-3.5 bg-white dark:bg-[#0f172a] rounded-xl sm:rounded-2xl border border-slate-200 dark:border-slate-800 relative shadow-xs transition-colors hover:border-violet-300 ${busquedaProductoIndex === index ? 'z-40' : 'z-10'}`}
+                      className={`flex flex-col xl:flex-row gap-2.5 sm:gap-3 p-2.5 sm:py-2.5 sm:px-3.5 bg-white dark:bg-[#0f172a] rounded-xl sm:rounded-2xl border border-slate-200 dark:border-slate-800 relative shadow-xs transition-colors hover:border-violet-300 ${busquedaProductoIndex === index ? 'z-40' : 'z-10'}`}
                     >
 
                       {/* Input de descripción con buscador de inventario */}
-                      <div className="flex-1 min-w-0 relative">
+                      <div className="w-full xl:flex-1 min-w-0 relative">
                         <label className="text-[9px] md:text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1 block whitespace-nowrap truncate flex items-center gap-1">
                           <Package size={11} /> Descripción o SKU
                         </label>
@@ -2406,7 +2442,7 @@ Estamos atentos para cualquier consulta.
                       </div>
 
                       {/* Controles de Cantidad + Precio + Foto + Eliminar */}
-                      <div className="flex flex-row items-end gap-1.5 sm:gap-2 w-full sm:w-auto shrink-0">
+                      <div className="flex flex-row items-end gap-1.5 sm:gap-2 w-full xl:w-auto shrink-0">
                         
                         {/* Cantidad (+/-) */}
                         <div className="w-[85px] sm:w-[95px] md:w-[105px] shrink-0">
@@ -2623,7 +2659,7 @@ Estamos atentos para cualquier consulta.
         </div>
 
         {/* PANEL DERECHO: CLIENTE + FECHA LÍMITE + ABONO INICIAL + RESUMEN FIJO */}
-        <div className={`w-full lg:w-[380px] xl:w-[410px] bg-slate-50 dark:bg-[#020617] lg:border-l border-slate-200 dark:border-slate-800 flex flex-col z-20 shrink-0 lg:min-h-0 lg:overflow-hidden ${pasoMovil === 'articulos' ? 'hidden lg:flex' : 'flex'}`}>
+        <div className={`w-full lg:w-[350px] xl:w-[390px] bg-slate-50 dark:bg-[#020617] lg:border-l border-slate-200 dark:border-slate-800 flex flex-col z-20 shrink-0 lg:min-h-0 lg:overflow-hidden ${pasoMovil === 'articulos' ? 'hidden lg:flex' : 'flex'}`}>
           
           {/* Cabecera Móvil en Paso 2 (< 1024px) */}
           <div className="lg:hidden flex items-center justify-between p-3 pb-1 max-w-xl mx-auto w-full shrink-0">

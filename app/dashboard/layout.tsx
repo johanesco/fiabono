@@ -1,7 +1,7 @@
 "use client";
 import { useState, useEffect } from "react";
 import { useRouter, usePathname } from "next/navigation";
-import { Home, BarChart3, Clock, Settings, LogOut, ChevronLeft, ChevronRight, Package, Receipt, Bookmark, Users } from 'lucide-react';
+import { Home, BarChart3, Clock, Settings, LogOut, ChevronLeft, ChevronRight, Package, Receipt, Bookmark, Users, Crown } from 'lucide-react';
 import { collection, query, where, onSnapshot } from "firebase/firestore";
 import { db, auth as firebaseAuth } from "../../firebase";
 import { useAuth } from "@/hooks/AuthContext";
@@ -17,6 +17,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const pathname = usePathname();
   const [fijadoExpandido, setFijadoExpandido] = useState(false);
   const [hoverSidebar, setHoverSidebar] = useState(false);
+  const [esPantallaAncha, setEsPantallaAncha] = useState(false);
+  const [tieneMouse, setTieneMouse] = useState(false);
   const estaExpandido = fijadoExpandido || hoverSidebar;
   const menuColapsado = !estaExpandido;
   const [ordenesPendientesCount, setOrdenesPendientesCount] = useState(0);
@@ -121,16 +123,29 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   // Adaptabilidad Inteligente: en tablets inicia colapsado, en pantallas grandes (1280px+) puede iniciar expandido
   useEffect(() => {
     const handleResize = () => {
+      const ancha = window.innerWidth >= 1280;
+      setEsPantallaAncha(ancha);
       if (window.innerWidth >= 768 && window.innerWidth < 1280) {
         setFijadoExpandido(false);
       } else if (window.innerWidth >= 1280) {
         setFijadoExpandido(true);
       }
+      // Solo permitir hover si el dispositivo cuenta con cursor físico (mouse/trackpad)
+      const mediaHover = window.matchMedia('(hover: hover) and (pointer: fine)');
+      setTieneMouse(mediaHover.matches);
     };
     handleResize();
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
   }, []);
+
+  // En pantallas no anchas (tablets / iPads), cerrar el drawer flotante al navegar
+  useEffect(() => {
+    if (!esPantallaAncha) {
+      setFijadoExpandido(false);
+      setHoverSidebar(false);
+    }
+  }, [pathname, esPantallaAncha]);
 
   const nombreNegocio = datosSesion?.nombreNegocio || "Mi Negocio";
   const rutaActiva = (ruta: string) => pathname === ruta;
@@ -149,13 +164,40 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   if (!datosSesion) return null;
 
   return (
-    <div className="flex h-[100dvh] w-screen bg-slate-100 dark:bg-slate-950 overflow-hidden font-sans">
+    <div className="flex h-[100dvh] w-screen bg-slate-100 dark:bg-slate-950 overflow-hidden font-sans relative">
 
-      {/* BARRA LATERAL INTELIGENTE (TABLETS & ESCRITORIO CON DESPLIEGUE POR HOVER O CLIC) */}
+      {/* BACKDROP PARA TABLETS / IPAD CUANDO EL MENÚ ESTÁ DESPLEGADO */}
+      {!esPantallaAncha && estaExpandido && (
+        <div 
+          onClick={() => {
+            setFijadoExpandido(false);
+            setHoverSidebar(false);
+          }}
+          className="fixed inset-0 bg-slate-950/30 backdrop-blur-xs z-40 lg:block hidden animate-in fade-in duration-200 cursor-pointer"
+          aria-hidden="true"
+        />
+      )}
+
+      {/* ESPACIADOR EN FLUJO PARA TABLET (Garantiza que el POS y páginas mantengan su ancho óptimo sin saltos) */}
+      {!esPantallaAncha && (
+        <div className="hidden lg:block w-20 shrink-0 pointer-events-none" aria-hidden="true" />
+      )}
+
+      {/* BARRA LATERAL INTELIGENTE (TABLETS & ESCRITORIO CON DESPLIEGUE FLOTANTE EN TABLET O EN FLUJO EN PC) */}
       <aside 
-        onMouseEnter={() => setHoverSidebar(true)}
-        onMouseLeave={() => setHoverSidebar(false)}
-        className={`hidden lg:flex flex-col bg-white dark:bg-[#0f172a] border-r border-slate-200 dark:border-slate-800 transition-all duration-300 z-40 shrink-0 shadow-sm ${estaExpandido ? 'w-64' : 'w-20'}`}
+        onMouseEnter={() => {
+          if (tieneMouse) setHoverSidebar(true);
+        }}
+        onMouseLeave={() => {
+          if (tieneMouse) setHoverSidebar(false);
+        }}
+        className={`hidden lg:flex flex-col bg-white dark:bg-[#0f172a] border-r border-slate-200 dark:border-slate-800 transition-all duration-300 shadow-sm ${
+          !esPantallaAncha
+            ? (estaExpandido 
+                ? 'fixed left-0 top-0 bottom-0 w-64 z-50 shadow-2xl' 
+                : 'fixed left-0 top-0 bottom-0 w-20 z-30')
+            : (estaExpandido ? 'w-64 shrink-0 z-30 relative' : 'w-20 shrink-0 z-30 relative')
+        }`}
       >
         <div className={`p-4 flex items-center border-b border-slate-100 dark:border-slate-800/60 ${!estaExpandido ? 'justify-center flex-col gap-2' : 'justify-between'}`}>
           {estaExpandido ? (
@@ -170,21 +212,25 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           )}
           <button
             onClick={() => {
-              setFijadoExpandido(!fijadoExpandido);
-              setHoverSidebar(false);
+              if (estaExpandido) {
+                setFijadoExpandido(false);
+                setHoverSidebar(false);
+              } else {
+                setFijadoExpandido(true);
+              }
             }}
-            title={fijadoExpandido ? "Fijar menú colapsado" : "Fijar menú siempre abierto"}
+            title={estaExpandido ? "Colapsar menú" : "Expandir menú"}
             className="p-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-500 dark:text-slate-400 transition-all active:scale-95 cursor-pointer"
           >
-            {fijadoExpandido ? <ChevronLeft size={16} /> : <ChevronRight size={16} />}
+            {estaExpandido ? <ChevronLeft size={16} /> : <ChevronRight size={16} />}
           </button>
         </div>
 
-        <nav className="flex-1 p-3 space-y-1.5 overflow-y-auto">
+        <nav className="flex-1 p-2.5 space-y-1 overflow-y-auto">
           <button
             onClick={() => router.push('/dashboard/inicio')}
             title="Inicio"
-            className={`w-full flex items-center gap-3.5 p-3 rounded-2xl font-bold transition-all active:scale-95 ${menuColapsado ? 'justify-center' : ''} ${rutaActiva('/dashboard/inicio') ? 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 shadow-sm' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800/50'}`}
+            className={`w-full flex items-center gap-3.5 py-2.5 px-3 rounded-2xl font-bold transition-all active:scale-95 ${menuColapsado ? 'justify-center' : ''} ${rutaActiva('/dashboard/inicio') ? 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 shadow-sm' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800/50'}`}
           >
             <Home size={22} className="shrink-0" />
             {!menuColapsado && <span>Inicio</span>}
@@ -193,7 +239,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           <button
             onClick={() => router.push('/dashboard/inventario')}
             title="Inventario"
-            className={`w-full flex items-center gap-3.5 p-3 rounded-2xl font-bold transition-all active:scale-95 ${menuColapsado ? 'justify-center' : ''} ${rutaActiva('/dashboard/inventario') ? 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 shadow-sm' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800/50'}`}
+            className={`w-full flex items-center gap-3.5 py-2.5 px-3 rounded-2xl font-bold transition-all active:scale-95 ${menuColapsado ? 'justify-center' : ''} ${rutaActiva('/dashboard/inventario') ? 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 shadow-sm' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800/50'}`}
           >
             <Package size={22} className="shrink-0" />
             {!menuColapsado && <span>Inventario</span>}
@@ -202,7 +248,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           <button
             onClick={() => router.push('/dashboard/ordenes')}
             title="Órdenes"
-            className={`w-full flex items-center gap-3.5 p-3 rounded-2xl font-bold transition-all active:scale-95 relative ${menuColapsado ? 'justify-center' : ''} ${rutaActiva('/dashboard/ordenes') ? 'bg-amber-50 dark:bg-amber-500/10 text-amber-600 dark:text-amber-400 shadow-sm' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800/50'}`}
+            className={`w-full flex items-center gap-3.5 py-2.5 px-3 rounded-2xl font-bold transition-all active:scale-95 relative ${menuColapsado ? 'justify-center' : ''} ${rutaActiva('/dashboard/ordenes') ? 'bg-amber-50 dark:bg-amber-500/10 text-amber-600 dark:text-amber-400 shadow-sm' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800/50'}`}
           >
             <div className="relative shrink-0">
               <Receipt size={22} />
@@ -229,7 +275,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             <button
               onClick={() => router.push('/dashboard/separes')}
               title="Planes Separe"
-              className={`w-full flex items-center gap-3.5 p-3 rounded-2xl font-bold transition-all active:scale-95 relative ${menuColapsado ? 'justify-center' : ''} ${pathname?.startsWith('/dashboard/separe') ? 'bg-violet-50 dark:bg-violet-500/10 text-violet-600 dark:text-violet-400 shadow-sm' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800/50'}`}
+              className={`w-full flex items-center gap-3.5 py-2.5 px-3 rounded-2xl font-bold transition-all active:scale-95 relative ${menuColapsado ? 'justify-center' : ''} ${pathname?.startsWith('/dashboard/separe') ? 'bg-violet-50 dark:bg-violet-500/10 text-violet-600 dark:text-violet-400 shadow-sm' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800/50'}`}
             >
               <div className="relative shrink-0">
                 <Bookmark size={22} />
@@ -256,7 +302,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             <button
               onClick={() => router.push('/dashboard/clientes')}
               title="Clientes & Cartera"
-              className={`w-full flex items-center gap-3.5 p-3 rounded-2xl font-bold transition-all active:scale-95 ${menuColapsado ? 'justify-center' : ''} ${rutaActiva('/dashboard/clientes') ? 'bg-amber-50 dark:bg-amber-500/10 text-amber-600 dark:text-amber-400 shadow-sm' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800/50'}`}
+              className={`w-full flex items-center gap-3.5 py-2.5 px-3 rounded-2xl font-bold transition-all active:scale-95 ${menuColapsado ? 'justify-center' : ''} ${rutaActiva('/dashboard/clientes') ? 'bg-amber-50 dark:bg-amber-500/10 text-amber-600 dark:text-amber-400 shadow-sm' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800/50'}`}
             >
               <Users size={22} className="shrink-0" />
               {!menuColapsado && <span>Clientes & Cartera</span>}
@@ -267,7 +313,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             <button
               onClick={() => router.push('/dashboard/reportes')}
               title="Reportes"
-              className={`w-full flex items-center gap-3.5 p-3 rounded-2xl font-bold transition-all active:scale-95 ${menuColapsado ? 'justify-center' : ''} ${rutaActiva('/dashboard/reportes') ? 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 shadow-sm' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800/50'}`}
+              className={`w-full flex items-center gap-3.5 py-2.5 px-3 rounded-2xl font-bold transition-all active:scale-95 ${menuColapsado ? 'justify-center' : ''} ${rutaActiva('/dashboard/reportes') ? 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 shadow-sm' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800/50'}`}
             >
               <BarChart3 size={22} className="shrink-0" />
               {!menuColapsado && <span>Reportes</span>}
@@ -277,7 +323,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           <button
             onClick={() => router.push('/dashboard/historial')}
             title="Historial"
-            className={`w-full flex items-center gap-3.5 p-3 rounded-2xl font-bold transition-all active:scale-95 ${menuColapsado ? 'justify-center' : ''} ${rutaActiva('/dashboard/historial') ? 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 shadow-sm' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800/50'}`}
+            className={`w-full flex items-center gap-3.5 py-2.5 px-3 rounded-2xl font-bold transition-all active:scale-95 ${menuColapsado ? 'justify-center' : ''} ${rutaActiva('/dashboard/historial') ? 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 shadow-sm' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800/50'}`}
           >
             <Clock size={22} className="shrink-0" />
             {!menuColapsado && <span>Historial</span>}
@@ -286,7 +332,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           <button
             onClick={() => router.push('/dashboard/perfil')}
             title="Ajustes"
-            className={`w-full flex items-center gap-3.5 p-3 rounded-2xl font-bold transition-all active:scale-95 ${menuColapsado ? 'justify-center' : ''} ${rutaActiva('/dashboard/perfil') ? 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 shadow-sm' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800/50'}`}
+            className={`w-full flex items-center gap-3.5 py-2.5 px-3 rounded-2xl font-bold transition-all active:scale-95 ${menuColapsado ? 'justify-center' : ''} ${rutaActiva('/dashboard/perfil') ? 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 shadow-sm' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800/50'}`}
           >
             <Settings size={22} className="shrink-0" />
             {!menuColapsado && <span>Ajustes</span>}
@@ -298,9 +344,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             <button
               onClick={() => router.push('/dashboard/master')}
               title="Panel Maestro"
-              className={`w-full flex items-center gap-3.5 p-3 rounded-2xl font-black transition-all active:scale-95 ${menuColapsado ? 'justify-center' : ''} ${rutaActiva('/dashboard/master') ? 'bg-amber-500 text-white shadow-md' : 'text-amber-500 bg-amber-50 dark:bg-amber-500/10 hover:bg-amber-100 dark:hover:bg-amber-500/20'}`}
+              className={`w-full flex items-center gap-3.5 py-2.5 px-3 rounded-2xl font-black transition-all active:scale-95 ${menuColapsado ? 'justify-center' : ''} ${rutaActiva('/dashboard/master') ? 'bg-amber-500 text-white shadow-md' : 'text-amber-500 bg-amber-50 dark:bg-amber-500/10 hover:bg-amber-100 dark:hover:bg-amber-500/20'}`}
             >
-              <span className="shrink-0 text-xl">👑</span>
+              <Crown size={22} className="shrink-0" />
               {!menuColapsado && <span>Master</span>}
             </button>
           )}
@@ -308,7 +354,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           <button
             onClick={cerrarSesion}
             title="Cerrar Sesión"
-            className={`w-full flex items-center gap-3.5 p-3 rounded-2xl font-bold text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-500/10 transition-all active:scale-95 ${menuColapsado ? 'justify-center' : ''}`}
+            className={`w-full flex items-center gap-3.5 py-2.5 px-3 rounded-2xl font-bold text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-500/10 transition-all active:scale-95 ${menuColapsado ? 'justify-center' : ''}`}
           >
             <LogOut size={22} className="shrink-0" />
             {!menuColapsado && <span>Salir</span>}

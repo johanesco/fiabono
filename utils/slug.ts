@@ -7,9 +7,8 @@
  * como "Variedades", "Almacén", "Tienda", etc.
  *
  * Ejemplos:
- *  - "Variedades Las Camellas" -> "lascamellas"
- *  - "Almacén Ofe" -> "almacenofe"
  *  - "Supermercado El Éxito" -> "elexito"
+ *  - "Almacén Ofe" -> "almacenofe"
  */
 export function generarSlugNegocio(nombre: string): string {
   if (!nombre || typeof nombre !== 'string') return "negocio";

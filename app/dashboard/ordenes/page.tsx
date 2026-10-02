@@ -1529,9 +1529,13 @@ Muchas gracias por tu compra. Estamos atentos para cualquier consulta.
             <ArrowLeft size={18} className="sm:w-5 sm:h-5" />
           </button>
           <div className="min-w-0 flex-1">
-            <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
-              <h2 className="text-base sm:text-xl md:text-2xl font-black text-slate-900 dark:text-white flex items-center gap-1.5 sm:gap-2 truncate">
-                <Receipt className="text-amber-500 shrink-0" size={20} /> <span className="truncate">Órdenes Pendientes</span>
+            <div className="flex items-center gap-2 flex-wrap">
+              <h2 className="text-base sm:text-xl md:text-2xl font-black text-slate-900 dark:text-white flex items-center gap-1.5 sm:gap-2 shrink-0">
+                <Receipt className="text-amber-500 shrink-0" size={20} />
+                <span>Órdenes</span>
+                {filtroTab !== 'pendientes' && (
+                  <span className="text-xs sm:text-sm font-bold text-slate-400 capitalize">({filtroTab})</span>
+                )}
               </h2>
               {pendientesCount > 0 && (
                 <span className="bg-rose-500 text-white text-[11px] sm:text-xs font-black px-2.5 py-0.5 rounded-full animate-pulse shrink-0 whitespace-nowrap inline-flex items-center shadow-sm">
@@ -1665,7 +1669,7 @@ Muchas gracias por tu compra. Estamos atentos para cualquier consulta.
               </p>
             </div>
           ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 w-full">
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-4 w-full">
               {ordenesFiltradas.map((ord) => {
                 const esPendiente = ord.estado === 'pendiente';
                 const esFiado = ord.tipo === 'fiado';
@@ -1755,15 +1759,25 @@ Muchas gracias por tu compra. Estamos atentos para cualquier consulta.
                           <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Forma de Pago:</span>
                           <span className="font-black text-xs text-slate-800 dark:text-slate-200 flex items-center gap-1">
                             {ord.tipo === 'fiado' ? (
-                              <span className="text-rose-600 dark:text-rose-400">🔴 Fiado Total</span>
+                              <span className="text-rose-600 dark:text-rose-400 font-black inline-flex items-center gap-1">
+                                <span className="w-1.5 h-1.5 rounded-full bg-rose-500"></span> Fiado Total
+                              </span>
                             ) : ord.metodoPago === 'credito_externo' ? (
-                              <span className="text-purple-600 dark:text-purple-400 font-black">⚡ Crédito ({ord.subMetodoPago || 'Sistecrédito/Addi'})</span>
+                              <span className="text-purple-600 dark:text-purple-400 font-black inline-flex items-center gap-1">
+                                <Zap size={12} /> Crédito ({ord.subMetodoPago || 'Sistecrédito/Addi'})
+                              </span>
                             ) : ord.metodoPago === 'transferencia' ? (
-                              <span className="text-blue-600 dark:text-blue-400 font-black">📱 Transferencia ({ord.subMetodoPago || 'Nequi/Banco'})</span>
+                              <span className="text-blue-600 dark:text-blue-400 font-black inline-flex items-center gap-1">
+                                <Smartphone size={12} /> Transferencia ({ord.subMetodoPago || 'Nequi/Banco'})
+                              </span>
                             ) : ord.metodoPago === 'datafono' ? (
-                              <span className="text-indigo-600 dark:text-indigo-400 font-black">💳 Datáfono</span>
+                              <span className="text-indigo-600 dark:text-indigo-400 font-black inline-flex items-center gap-1">
+                                <CreditCard size={12} /> Datáfono
+                              </span>
                             ) : (
-                              <span className="text-emerald-600 dark:text-emerald-400 font-black">💵 Efectivo</span>
+                              <span className="text-emerald-600 dark:text-emerald-400 font-black inline-flex items-center gap-1">
+                                <Banknote size={12} /> Efectivo
+                              </span>
                             )}
                           </span>
                         </div>
