@@ -64,7 +64,7 @@ function sanitizarMovimiento(movimiento: any, orden: any, usuarioId: string) {
     ...movimiento,
     usuarioId,
     clienteId,
-    clienteNombre: movimiento.clienteNombre || orden.clienteNombre || (clienteId === 'mostrador' ? 'Mostrador' : 'Cliente'),
+    clienteNombre: (movimiento.clienteNombre && movimiento.clienteNombre !== 'Mostrador') ? movimiento.clienteNombre : (orden.clienteNombre && orden.clienteNombre !== 'Mostrador' ? orden.clienteNombre : 'Consumidor Final'),
     clienteCelular: movimiento.clienteCelular || orden.clienteCelular || '',
     fecha: aFecha(movimiento.fecha),
     monto: sanitizarNumero(movimiento.monto),

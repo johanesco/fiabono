@@ -441,7 +441,9 @@ Quedamos pendientes para revisar detalles o responder cualquier duda.
     if (mov.tipo === 'ingreso_inventario') return;
 
     const clienteEncontrado = clienteTarget || clientes.find(c => c.id === mov.clienteId);
-    const nombreCli = mov.clienteId === 'mostrador' ? 'Venta de Mostrador' : (clienteEncontrado?.nombre || mov.clienteNombre || 'Cliente');
+    const nombreCli = mov.clienteId === 'mostrador' 
+      ? (mov.clienteNombre && mov.clienteNombre !== 'Mostrador' ? mov.clienteNombre : 'Consumidor Final') 
+      : (clienteEncontrado?.nombre || mov.clienteNombre || 'Cliente');
     const celularCli = clienteEncontrado?.celular || '';
 
     const datosTicket: DatosFacturaProps = {

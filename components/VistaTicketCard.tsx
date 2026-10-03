@@ -333,7 +333,7 @@ export default function VistaTicketCard({ datos, ticketRef }: VistaTicketCardPro
         <SeccionDivider tipo="suave" />
         <FilaMeta
           label="Cliente:"
-          valor={datos.nombreCliente || "Venta de Mostrador"}
+          valor={datos.nombreCliente || "Consumidor Final"}
           negrita
         />
         {datos.celularCliente && (
@@ -487,6 +487,8 @@ export default function VistaTicketCard({ datos, ticketRef }: VistaTicketCardPro
               - Si la operación fue un Abono o Fiado: SIEMPRE mostrar para dar constancia de la cuenta. */}
           {datos.saldoNuevo !== undefined &&
             datos.nombreCliente !== "Venta de Mostrador" &&
+            datos.nombreCliente !== "Mostrador" &&
+            datos.nombreCliente !== "Consumidor Final" &&
             (datos.saldoNuevo !== 0 || datos.tipo === 'abono' || datos.tipo === 'abono_separe' || datos.tipo === 'fiado') && (
               <>
                 <SeccionDivider tipo="suave" />
@@ -494,7 +496,7 @@ export default function VistaTicketCard({ datos, ticketRef }: VistaTicketCardPro
                   label="Saldo en cuenta:"
                   valor={
                     datos.saldoNuevo === 0
-                      ? "$0 — Al día ✓"
+                      ? "$0 — Al dia"
                       : datos.saldoNuevo < 0
                       ? `A favor: $${Math.abs(datos.saldoNuevo).toLocaleString("es-CO")}`
                       : `Pendiente: $${datos.saldoNuevo.toLocaleString("es-CO")}`
@@ -504,6 +506,27 @@ export default function VistaTicketCard({ datos, ticketRef }: VistaTicketCardPro
                 />
               </>
             )}
+
+          {/* Bloque Factura Electrónica DIAN */}
+          {datos.facturaElectronica?.cufe && (
+            <>
+              <SeccionDivider tipo="suave" />
+              <div className="bg-slate-100 rounded-md p-2 my-1 text-left border border-slate-200">
+                <div className="flex justify-between items-center text-[10px] font-black uppercase text-slate-900">
+                  <span>Factura Electronica DIAN</span>
+                  <span>{datos.facturaElectronica.numeroFactura || "SETT"}</span>
+                </div>
+                <p className="text-[8px] font-mono text-slate-700 break-all mt-1 leading-tight">
+                  CUFE: {datos.facturaElectronica.cufe}
+                </p>
+                {datos.facturaElectronica.urlPdf && (
+                  <p className="text-[8.5px] font-bold text-slate-900 mt-1 underline">
+                    Documento electronico validado
+                  </p>
+                )}
+              </div>
+            </>
+          )}
         </div>
       </div>
 

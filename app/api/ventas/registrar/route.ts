@@ -189,7 +189,7 @@ export async function POST(request: Request) {
       let movimientoFiadoId: string | undefined;
       const baseMovimiento = {
         clienteId,
-        clienteNombre: clienteData?.nombre,
+        clienteNombre: clienteData?.nombre || (typeof body.nombreCliente === 'string' && body.nombreCliente.trim() ? body.nombreCliente.trim() : 'Consumidor Final'),
         usuarioId: cuentaPrincipalId,
         detalles: detallesValidados,
         registradoPor,

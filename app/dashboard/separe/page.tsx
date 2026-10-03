@@ -1879,7 +1879,7 @@ function SepareContenido() {
           tipo: 'separe',
           estado: 'pendiente',
           usuarioId: cuentaPrincipalId || "",
-          creadoPor: datosSesion?.uid || "",
+          creadoPor: datosSesion?.uid || auth.currentUser?.uid || "",
           nombreColaborador: vendedorActivo || nombreUsuario || "Colaborador",
           vendedor: vendedorActivo || nombreUsuario || "Vendedor",
           clienteId: clienteSeleccionado.id,

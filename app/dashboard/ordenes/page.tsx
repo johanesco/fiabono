@@ -44,7 +44,11 @@ import {
   Crown,
   Sparkles,
   ShieldCheck,
-  Users
+  Users,
+  Lock,
+  ShieldAlert,
+  Save,
+  Wrench
 } from "lucide-react";
 import ModalSuscripcion from "@/components/ModalSuscripcion";
 
@@ -55,8 +59,15 @@ export default function OrdenesPage() {
   const cuentaPrincipalId = datosSesion?.cuentaPrincipalId;
   const esAdmin = datosSesion?.tipoUsuario === 'principal' || datosSesion?.esAdmin === true;
   const puedeVentaDirecta = esAdmin || (datosSesion?.puedeVentaDirecta === true);
-  const puedeModificarPrecios = esAdmin || (datosSesion?.permisos?.editarInventario === true);
-  const puedeAplicarDescuentos = esAdmin;
+  const puedeModificarPrecios = esAdmin || (datosSesion?.permisos?.modificarPrecios === true) || (datosSesion?.permisos?.editarInventario === true);
+  const puedeAplicarDescuentos = esAdmin || (datosSesion?.permisos?.aplicarDescuentos === true);
+
+  // Lógica de Permisos de Plan Separe
+  const moduloSepareActivo = datosSesion?.moduloSepareActivo !== false;
+  const tienePlanProSepare = Boolean(datosSesion?.esPro || datosSesion?.puedeSepare);
+  const tienePermisoSepare = esAdmin || (datosSesion?.permisos?.planSepare === true);
+  const puedeCrearSepare = moduloSepareActivo && tienePlanProSepare && tienePermisoSepare;
+
   const nombreNegocio = datosSesion?.nombreNegocio || "Mi Negocio";
   const nombreUsuario = datosSesion?.nombreUsuario || "Vendedor";
 
@@ -107,7 +118,7 @@ export default function OrdenesPage() {
     orden: null,
     tipo: 'venta',
     clienteId: null,
-    clienteNombre: "Mostrador",
+    clienteNombre: "Consumidor Final",
     clienteCelular: "",
     items: [],
     descuentoTipo: null,
@@ -127,6 +138,121 @@ export default function OrdenesPage() {
   const inputsDescripcionEdicionRef = useRef<(HTMLInputElement | null)[]>([]);
   const [itemIdxParaFotoEdicion, setItemIdxParaFotoEdicion] = useState<number | null>(null);
   const [fotoLightboxEdicion, setFotoLightboxEdicion] = useState<string | null>(null);
+
+  // Identificador único de sesión / pestaña para diferenciar terminales y pantallas que comparten cuenta
+  const [clienteSessionId] = useState<string>(() => {
+    if (typeof window === 'undefined') return '';
+    try {
+      let sid = sessionStorage.getItem('fiabono_ordenes_session_id');
+      if (!sid) {
+        sid = 'sid_' + Math.random().toString(36).substring(2, 10) + '_' + Date.now();
+        sessionStorage.setItem('fiabono_ordenes_session_id', sid);
+      }
+      return sid;
+    } catch {
+      return 'sid_' + Math.random().toString(36).substring(2, 10) + '_' + Date.now();
+    }
+  });
+
+  // Estados de Concurrencia y Bloqueo Suave de Edición
+  const ultimaActividadEdicionRef = useRef<number>(Date.now());
+  const [edicionPausadaInactividad, setEdicionPausadaInactividad] = useState(false);
+  const ordenEnEdicionIdRef = useRef<string | null>(null);
+
+  // Helper para gestionar bloqueos en el backend
+  const gestionarBloqueoOrden = async (ordenId: string, accion: 'bloquear' | 'liberar' | 'heartbeat') => {
+    try {
+      const token = await auth.currentUser?.getIdToken();
+      if (!token) return { ok: false };
+      const res = await fetch('/api/ordenes/bloqueo', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ ordenId, accion, sessionId: clienteSessionId })
+      });
+      if (!res.ok) return { ok: false };
+      return await res.json();
+    } catch (e) {
+      return { ok: false };
+    }
+  };
+
+  const cerrarModalEdicion = (liberarRemoto: boolean = true) => {
+    const ordenId = modalEdicion.orden?.id || ordenEnEdicionIdRef.current;
+    if (liberarRemoto && ordenId) {
+      gestionarBloqueoOrden(ordenId, 'liberar');
+    }
+    ordenEnEdicionIdRef.current = null;
+    setEdicionPausadaInactividad(false);
+    setModalEdicion(prev => ({ ...prev, visible: false, orden: null }));
+  };
+
+  const registrarActividadModal = () => {
+    ultimaActividadEdicionRef.current = Date.now();
+    if (edicionPausadaInactividad && modalEdicion.orden) {
+      gestionarBloqueoOrden(modalEdicion.orden.id, 'bloquear').then(res => {
+        if (res?.ok) setEdicionPausadaInactividad(false);
+      });
+    }
+  };
+
+  // Temporizador de inactividad (90 segundos) y Heartbeat periódico en tiempo real
+  useEffect(() => {
+    if (!modalEdicion.visible || !modalEdicion.orden) return;
+    const ordenId = modalEdicion.orden.id;
+    ordenEnEdicionIdRef.current = ordenId;
+    ultimaActividadEdicionRef.current = Date.now();
+    setEdicionPausadaInactividad(false);
+
+    const intervalo = setInterval(() => {
+      const tiempoSinActividad = Date.now() - ultimaActividadEdicionRef.current;
+      if (tiempoSinActividad >= 90000) {
+        gestionarBloqueoOrden(ordenId, 'liberar');
+        setEdicionPausadaInactividad(true);
+      } else {
+        gestionarBloqueoOrden(ordenId, 'heartbeat');
+      }
+    }, 15000);
+
+    return () => {
+      clearInterval(intervalo);
+      if (ordenEnEdicionIdRef.current) {
+        gestionarBloqueoOrden(ordenEnEdicionIdRef.current, 'liberar');
+      }
+    };
+  }, [modalEdicion.visible, modalEdicion.orden?.id]);
+
+  // Reacción en vivo si la orden abierta es aprobada/rechazada o tomada por el Administrador
+  useEffect(() => {
+    if (!modalEdicion.visible || !modalEdicion.orden) return;
+    const ordenActual = ordenes.find(o => o.id === modalEdicion.orden?.id);
+    if (!ordenActual) return;
+
+    if (ordenActual.estado === 'aprobado') {
+      toast.success("Esta orden acaba de ser aprobada por el Administrador.", { duration: 5000 });
+      cerrarModalEdicion(false);
+      return;
+    }
+    if (ordenActual.estado === 'rechazado') {
+      toast.error("Esta orden fue rechazada por el Administrador.", { duration: 5000 });
+      cerrarModalEdicion(false);
+      return;
+    }
+
+    const miUid = datosSesion?.uid || auth.currentUser?.uid;
+    const bloqueo = ordenActual.bloqueoEdicion;
+    const ahora = Date.now();
+    const bloqueoVigente = Boolean(bloqueo && (ahora - Number(bloqueo.timestamp || 0) < 90000));
+    const esMiSesionActual = Boolean(
+      bloqueo && (
+        bloqueo.sessionId ? (bloqueo.sessionId === clienteSessionId) : (bloqueo.uid === miUid)
+      )
+    );
+
+    if (!esAdmin && bloqueo && bloqueoVigente && !esMiSesionActual && bloqueo.rol === 'admin') {
+      toast.error(`El Administrador (${bloqueo.nombre}) ha tomado el control de esta orden.`, { duration: 6000 });
+      cerrarModalEdicion(false);
+    }
+  }, [ordenes, modalEdicion.visible, modalEdicion.orden?.id, esAdmin, clienteSessionId]);
 
   // Modal de Cámara en Vivo para Edición de Órdenes
   const [modalCamaraEdicion, setModalCamaraEdicion] = useState(false);
@@ -505,7 +631,7 @@ Muchas gracias por tu compra. Estamos atentos para cualquier consulta.
       } as OrdenPendiente;
 
       const ordenPrevia = modalEdicion.orden;
-      setModalEdicion({ ...modalEdicion, visible: false, orden: null });
+      cerrarModalEdicion(false);
 
       // Comparar y listar cambios detallados realizados por el Administrador
       const listaCambios: string[] = [];
@@ -558,9 +684,9 @@ Muchas gracias por tu compra. Estamos atentos para cualquier consulta.
           cambios: listaCambios.length > 0 ? listaCambios : ["Sin modificaciones detectadas"]
         });
       }
-    } catch (e) {
+    } catch (e: any) {
       console.error("Error al guardar cambios de la orden:", e);
-      toast.error("No se pudieron guardar las modificaciones.");
+      toast.error(e?.message || "No se pudieron guardar las modificaciones.");
     } finally {
       setProcesandoId(null);
     }
@@ -616,19 +742,56 @@ Muchas gracias por tu compra. Estamos atentos para cualquier consulta.
   };
 
   // Abrir Modal de Edición (Administrador o Colaborador para su propia orden pendiente)
-  const abrirModalEdicion = (orden: OrdenPendiente) => {
+  const abrirModalEdicion = async (orden: OrdenPendiente, tipoDeseado?: 'venta' | 'fiado' | 'separe') => {
     if (!esAdmin) {
       if (orden.estado !== 'pendiente') {
         toast.error("Solo puedes modificar órdenes mientras estén pendientes.");
         return;
       }
-      if (orden.creadoPor && orden.creadoPor !== datosSesion?.uid) {
+      const miUid = (datosSesion?.uid || auth.currentUser?.uid || '').trim();
+      const creadorOrden = (orden.creadoPor || '').trim();
+      const miNombre = (datosSesion?.nombreUsuario || '').trim().toLowerCase();
+      const colabOrden = (orden.nombreColaborador || (orden as any).vendedor || '').trim().toLowerCase();
+
+      const esMiOrden = (miUid && creadorOrden && miUid === creadorOrden) ||
+                        (miNombre && colabOrden && miNombre === colabOrden);
+
+      if (!esMiOrden) {
         toast.error("No puedes modificar las órdenes creadas por otro colaborador.");
         return;
       }
     }
-    const esFiado = orden.tipo === 'fiado';
-    const esSepare = orden.tipo === 'separe';
+
+    if (tipoDeseado === 'separe' && !puedeCrearSepare) {
+      toast.error("No tienes permisos habilitados para crear o cambiar a Plan Separe.");
+      return;
+    }
+
+    // Comprobación de bloqueo suave en tiempo real
+    const ahora = Date.now();
+    const bloqueo = orden.bloqueoEdicion;
+    const miUid = datosSesion?.uid || auth.currentUser?.uid;
+    const bloqueoVigente = Boolean(bloqueo && (ahora - Number(bloqueo.timestamp || 0) < 90000));
+    const estaBloqueadoPorOtro = bloqueoVigente && bloqueo?.uid !== miUid;
+
+    if (estaBloqueadoPorOtro && !esAdmin) {
+      toast.error(`Esta orden está siendo editada en este momento por ${bloqueo?.nombre || 'otro usuario'}. Por favor espera.`);
+      return;
+    }
+
+    // Notificar al servidor que se inicia la edición (bloqueo suave)
+    const resBloqueo = await gestionarBloqueoOrden(orden.id, 'bloquear');
+    if (resBloqueo && !resBloqueo.ok && resBloqueo.bloqueadoPor && !esAdmin) {
+      toast.error(`Esta orden está siendo editada por ${resBloqueo.bloqueadoPor}.`);
+      return;
+    }
+    if (resBloqueo?.tomoControl) {
+      toast("Has tomado el control de la orden para revisarla.");
+    }
+
+    const tipoEfectivo = tipoDeseado || orden.tipo || 'venta';
+    const esFiado = tipoEfectivo === 'fiado';
+    const esSepare = tipoEfectivo === 'separe';
 
     let fechaLimStr = "";
     if (orden.payloadSepare?.fechaLimite) {
@@ -641,15 +804,22 @@ Muchas gracias por tu compra. Estamos atentos para cualquier consulta.
       if (!isNaN(d.getTime())) {
         fechaLimStr = d.toISOString().split('T')[0];
       }
+    } else if (esSepare) {
+      const d = new Date();
+      d.setMonth(d.getMonth() + 1);
+      fechaLimStr = d.toISOString().split('T')[0];
     }
+
+    const clienteNombreInicial = (esSepare && orden.clienteNombre === 'Mostrador') ? '' : orden.clienteNombre;
+    const clienteIdInicial = (esSepare && orden.clienteNombre === 'Mostrador') ? null : orden.clienteId;
 
     setModalEdicion({
       visible: true,
       orden: orden,
-      tipo: orden.tipo || 'venta',
+      tipo: tipoEfectivo,
       items: orden.items.map(i => ({ ...i, fotoUrl: (i as any).fotoUrl || null })),
-      clienteId: orden.clienteId,
-      clienteNombre: orden.clienteNombre,
+      clienteId: clienteIdInicial,
+      clienteNombre: clienteNombreInicial,
       clienteCelular: orden.clienteCelular || "",
       descuentoTipo: orden.descuentoTipo || null,
       descuentoValor: orden.descuentoValor ? String(orden.descuentoValor) : "",
@@ -854,7 +1024,7 @@ Muchas gracias por tu compra. Estamos atentos para cualquier consulta.
     reproducirSonidoCamaraEdicion();
     actualizarItemEdicion(itemIdxParaFotoEdicion, 'fotoUrl', dataUrl);
     cerrarCamaraEdicion();
-    toast.success("Foto capturada", { icon: "📸" });
+    toast.success("Foto capturada");
   };
 
   // Cálculos dinámicos en edición
@@ -923,10 +1093,11 @@ Muchas gracias por tu compra. Estamos atentos para cualquier consulta.
     // 0. Regla de privacidad: Colaborador solo ve sus propias órdenes
     const esColaborador = !esAdmin || datosSesion?.rol === 'cajero';
     if (esColaborador) {
+      const miUid = (datosSesion?.uid || auth.currentUser?.uid || '').trim();
       const nombreActual = (datosSesion?.nombreUsuario || '').trim().toLowerCase();
-      const nomColab = (ord.nombreColaborador || '').trim().toLowerCase();
-      const creador = ord.creadoPor || '';
-      const matchPropio = (nombreActual && nomColab === nombreActual) || (datosSesion?.uid && creador === datosSesion.uid);
+      const nomColab = (ord.nombreColaborador || (ord as any).vendedor || '').trim().toLowerCase();
+      const creador = (ord.creadoPor || '').trim();
+      const matchPropio = (nombreActual && nomColab === nombreActual) || (miUid && creador && creador === miUid);
       if (!matchPropio) return false;
     }
 
@@ -1229,7 +1400,7 @@ Muchas gracias por tu compra. Estamos atentos para cualquier consulta.
       idTransaccionGenerada = resAtomo.idTransaccionGenerada;
       saldoClienteResultante = resAtomo.nuevoSaldoCliente;
 
-      toast.success(`¡Orden de ${orden.nombreColaborador} aprobada y registrada!`, { icon: '✅' });
+      toast.success(`¡Orden de ${orden.nombreColaborador} aprobada y registrada!`);
 
       const ticketGenerado: DatosFacturaProps = {
         nombreNegocio,
@@ -1455,10 +1626,10 @@ Muchas gracias por tu compra. Estamos atentos para cualquier consulta.
                 Ideal para tiendas de barrio y minimarkets con 1 cajero o empleado adicional.
               </p>
               <ul className="text-xs space-y-1.5 text-slate-600 dark:text-slate-300 font-medium">
-                <li className="flex items-center gap-2">✓ <strong>1 Colaborador</strong> con usuario y contraseña propios</li>
-                <li className="flex items-center gap-2">✓ <strong>Módulo de Órdenes</strong> con aprobación del dueño</li>
-                <li className="flex items-center gap-2">✓ Clientes e Inventario <strong>100% Ilimitados</strong></li>
-                <li className="flex items-center gap-2">✓ Factura térmica con logo y comprobantes por WhatsApp</li>
+                <li className="flex items-center gap-2"><CheckCircle2 size={13} className="text-blue-500 shrink-0" /> <span><strong>1 Colaborador</strong> con usuario y contraseña propios</span></li>
+                <li className="flex items-center gap-2"><CheckCircle2 size={13} className="text-blue-500 shrink-0" /> <span><strong>Módulo de Órdenes</strong> con aprobación del dueño</span></li>
+                <li className="flex items-center gap-2"><CheckCircle2 size={13} className="text-blue-500 shrink-0" /> <span>Clientes e Inventario <strong>100% Ilimitados</strong></span></li>
+                <li className="flex items-center gap-2"><CheckCircle2 size={13} className="text-blue-500 shrink-0" /> <span>Factura térmica con logo y comprobantes por WhatsApp</span></li>
               </ul>
             </div>
             <button
@@ -1487,10 +1658,10 @@ Muchas gracias por tu compra. Estamos atentos para cualquier consulta.
                 Para almacenes de ropa, calzado, tecnología y boutiques con múltiples vendedores.
               </p>
               <ul className="text-xs space-y-1.5 text-slate-600 dark:text-slate-300 font-medium">
-                <li className="flex items-center gap-2">✓ <strong>Hasta 4 Colaboradores</strong> independientes</li>
-                <li className="flex items-center gap-2">✓ Modo Terminal Multivendedor con reportes por vendedor</li>
-                <li className="flex items-center gap-2">✓ <strong>Plan Separe completo</strong> con fechas límite y fotos</li>
-                <li className="flex items-center gap-2">✓ Generador e impresor de <strong>Etiquetas QR Adhesivas</strong></li>
+                <li className="flex items-center gap-2"><CheckCircle2 size={13} className="text-purple-500 shrink-0" /> <span><strong>Hasta 4 Colaboradores</strong> independientes</span></li>
+                <li className="flex items-center gap-2"><CheckCircle2 size={13} className="text-purple-500 shrink-0" /> <span>Modo Terminal Multivendedor con reportes por vendedor</span></li>
+                <li className="flex items-center gap-2"><CheckCircle2 size={13} className="text-purple-500 shrink-0" /> <span><strong>Plan Separe completo</strong> con fechas límite y fotos</span></li>
+                <li className="flex items-center gap-2"><CheckCircle2 size={13} className="text-purple-500 shrink-0" /> <span>Generador e impresor de <strong>Etiquetas QR Adhesivas</strong></span></li>
               </ul>
             </div>
             <button
@@ -1600,7 +1771,7 @@ Muchas gracias por tu compra. Estamos atentos para cualquier consulta.
             { id: 'todos', label: 'Todos' },
             { id: 'venta', label: 'Ventas', icon: ShoppingCart },
             { id: 'fiado', label: 'Fiados', icon: Receipt },
-            { id: 'separe', label: 'Separes', icon: Bookmark }
+            ...((tienePermisoSepare && moduloSepareActivo) ? [{ id: 'separe', label: 'Separes', icon: Bookmark }] : [])
           ].map((t) => {
             const Icon = (t as any).icon;
             const activo = filtroTipo === t.id;
@@ -1671,16 +1842,34 @@ Muchas gracias por tu compra. Estamos atentos para cualquier consulta.
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-4 w-full">
               {ordenesFiltradas.map((ord) => {
+                const miUid = datosSesion?.uid || auth.currentUser?.uid || '';
                 const esPendiente = ord.estado === 'pendiente';
                 const esFiado = ord.tipo === 'fiado';
                 const estaProcesando = procesandoId === ord.id;
+                const bloqueo = ord.bloqueoEdicion;
+                const ahora = Date.now();
+                const estaBloqueadaPorOtro = Boolean(
+                  esPendiente &&
+                  bloqueo &&
+                  (bloqueo.sessionId ? (bloqueo.sessionId !== clienteSessionId) : (bloqueo.uid !== miUid)) &&
+                  (ahora - Number(bloqueo.timestamp || 0) < 90000)
+                );
+                const bloqueoMio = Boolean(
+                  esPendiente &&
+                  bloqueo &&
+                  (bloqueo.sessionId ? (bloqueo.sessionId === clienteSessionId) : (bloqueo.uid === miUid)) &&
+                  (ahora - Number(bloqueo.timestamp || 0) < 90000)
+                );
+                const esMiOrden = ord.creadoPor === miUid || (Boolean(ord.nombreColaborador) && ord.nombreColaborador.trim().toLowerCase() === nombreUsuario.trim().toLowerCase());
 
                 return (
                   <div
                     key={ord.id}
                     className={`bg-white dark:bg-[#0f172a] rounded-3xl border transition-all hover:shadow-md flex flex-col justify-between overflow-hidden ${
                       esPendiente
-                        ? 'border-amber-200 dark:border-amber-500/30 shadow-sm'
+                        ? estaBloqueadaPorOtro
+                          ? 'border-amber-400/80 dark:border-amber-500/50 shadow-md ring-1 ring-amber-400/30'
+                          : 'border-amber-200 dark:border-amber-500/30 shadow-sm'
                         : ord.estado === 'aprobado'
                         ? 'border-emerald-100 dark:border-emerald-500/20 opacity-85'
                         : 'border-rose-100 dark:border-rose-500/20 opacity-75'
@@ -1783,7 +1972,7 @@ Muchas gracias por tu compra. Estamos atentos para cualquier consulta.
                         </div>
 
                         {/* Si hubo pago parcial o es separe */}
-                        {ord.tipo !== 'fiado' && ord.pagoCliente !== undefined && Number(ord.pagoCliente) < ord.total && (
+                        {ord.tipo !== 'separe' && ord.pagoCliente !== undefined && Number(ord.pagoCliente) < ord.total && (
                           <div className="flex items-center justify-between text-[11px] pt-1 border-t border-slate-200/50 dark:border-slate-800 font-semibold">
                             <span className="text-slate-500">Recibido: <strong className="text-slate-800 dark:text-slate-200">${(Number(ord.pagoCliente) || 0).toLocaleString('es-CO')}</strong></span>
                             <span className="text-rose-500 font-bold">Saldo: ${(ord.total - (Number(ord.pagoCliente) || 0)).toLocaleString('es-CO')}</span>
@@ -1807,12 +1996,33 @@ Muchas gracias por tu compra. Estamos atentos para cualquier consulta.
                       )}
                     </div>
 
-                    {/* BOTONES DE ACCIÓN PARA PENDIENTES (SOLO ADMINISTRADOR) */}
+                    {/* BOTONES DE ACCIÓN PARA PENDIENTES */}
                     {esPendiente && (
                       <div className="p-3 bg-slate-50 dark:bg-[#020617]/50 border-t border-slate-100 dark:border-slate-800/80">
+                        {/* Indicador visual de Bloqueo por Concurrencia */}
+                        {estaBloqueadaPorOtro && (
+                          <div className="mb-2 px-2.5 py-1.5 rounded-xl bg-amber-500/10 border border-amber-500/25 flex items-center justify-between text-xs text-amber-700 dark:text-amber-400 animate-in fade-in duration-150">
+                            <span className="flex items-center gap-1.5 font-bold">
+                              <Lock size={12} className="shrink-0 animate-pulse text-amber-600" />
+                              <span className="truncate max-w-[150px] sm:max-w-[190px]">En edición por {bloqueo?.nombre || 'otro usuario'}</span>
+                            </span>
+                            <span className="text-[10px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-800 dark:text-amber-300">
+                              {bloqueo?.rol === 'admin' ? 'Admin' : 'Colaborador'}
+                            </span>
+                          </div>
+                        )}
+                        {bloqueoMio && (
+                          <div className="mb-2 px-2.5 py-1.5 rounded-xl bg-blue-500/10 border border-blue-500/25 flex items-center justify-between text-xs text-blue-700 dark:text-blue-400">
+                            <span className="flex items-center gap-1.5 font-bold">
+                              <Edit2 size={12} className="shrink-0 text-blue-600" />
+                              <span>Tienes esta orden abierta en edición</span>
+                            </span>
+                          </div>
+                        )}
+
                         {esAdmin ? (
                           <div className="space-y-1.5">
-                            {/* Fila 1: Rechazar y Editar */}
+                            {/* Fila 1: Rechazar y Editar / Tomar Control */}
                             <div className="grid grid-cols-2 gap-1.5">
                               <button
                                 onClick={() => setModalRechazo({ visible: true, orden: ord, motivo: "" })}
@@ -1826,12 +2036,39 @@ Muchas gracias por tu compra. Estamos atentos para cualquier consulta.
                               <button
                                 onClick={() => abrirModalEdicion(ord)}
                                 disabled={estaProcesando}
-                                className="w-full py-2 px-2 bg-amber-500/10 hover:bg-amber-500/20 text-amber-700 dark:text-amber-400 font-bold rounded-xl text-xs transition-all active:scale-95 flex items-center justify-center gap-1.5 border border-amber-500/20 cursor-pointer"
+                                className={`w-full py-2 px-2 font-bold rounded-xl text-xs transition-all active:scale-95 flex items-center justify-center gap-1.5 border cursor-pointer ${
+                                  estaBloqueadaPorOtro
+                                    ? 'bg-amber-600 hover:bg-amber-700 text-white border-amber-600 shadow-sm'
+                                    : 'bg-amber-500/10 hover:bg-amber-500/20 text-amber-700 dark:text-amber-400 border-amber-500/20'
+                                }`}
+                                title={estaBloqueadaPorOtro ? `En edición por ${bloqueo?.nombre}. Al ingresar tomarás el control.` : 'Editar orden'}
                               >
-                                <Edit2 size={14} className="shrink-0" />
-                                <span>Editar</span>
+                                {estaBloqueadaPorOtro ? (
+                                  <>
+                                    <ShieldAlert size={14} className="shrink-0" />
+                                    <span>Tomar Control</span>
+                                  </>
+                                ) : (
+                                  <>
+                                    <Edit2 size={14} className="shrink-0" />
+                                    <span>Editar</span>
+                                  </>
+                                )}
                               </button>
                             </div>
+
+                            {/* Fila Intermedia: Pasar a Plan Separe (solo si no es separe y tiene permiso activo) */}
+                            {ord.tipo !== 'separe' && puedeCrearSepare && (
+                              <button
+                                onClick={() => abrirModalEdicion(ord, 'separe')}
+                                disabled={estaProcesando}
+                                className="w-full py-1.5 px-2 bg-violet-50 dark:bg-violet-500/10 hover:bg-violet-100 dark:hover:bg-violet-500/20 text-violet-700 dark:text-violet-300 font-bold rounded-xl text-xs transition-all active:scale-95 flex items-center justify-center gap-1.5 border border-violet-200/80 dark:border-violet-800/50 cursor-pointer"
+                                title="Cambiar esta orden a modalidad Plan Separe"
+                              >
+                                <Bookmark size={13} className="shrink-0 text-violet-600 dark:text-violet-400" />
+                                <span>Pasar a Plan Separe</span>
+                              </button>
+                            )}
 
                             {/* Fila 2: Aprobar Orden destacado */}
                             <button
@@ -1850,19 +2087,45 @@ Muchas gracias por tu compra. Estamos atentos para cualquier consulta.
                             </button>
                           </div>
                         ) : (
-                          <div className="flex items-center justify-between gap-2">
-                            <div className="flex items-center gap-1.5 text-amber-700 dark:text-amber-400 text-[11px] font-bold">
-                              <Clock size={13} className="shrink-0 animate-pulse text-amber-600" />
-                              <span>Esperando aprobación</span>
+                          <div className="flex flex-col gap-1.5">
+                            <div className="flex items-center justify-between gap-2">
+                              <div className="flex items-center gap-1.5 text-amber-700 dark:text-amber-400 text-[11px] font-bold">
+                                <Clock size={13} className="shrink-0 animate-pulse text-amber-600" />
+                                <span>Esperando aprobación</span>
+                              </div>
+                              {esMiOrden && (
+                                <button
+                                  onClick={() => abrirModalEdicion(ord)}
+                                  disabled={estaProcesando || estaBloqueadaPorOtro}
+                                  className={`py-1.5 px-3 font-black rounded-xl text-xs transition-all active:scale-95 flex items-center gap-1.5 border shadow-sm ${
+                                    estaBloqueadaPorOtro
+                                      ? 'bg-slate-100 dark:bg-slate-800 text-slate-400 border-slate-200 dark:border-slate-700 cursor-not-allowed opacity-60'
+                                      : 'bg-amber-500/15 hover:bg-amber-500/25 text-amber-800 dark:text-amber-300 border-amber-500/30 cursor-pointer'
+                                  }`}
+                                  title={estaBloqueadaPorOtro ? `En edición por ${bloqueo?.nombre}` : 'Editar los datos de mi orden'}
+                                >
+                                  {estaBloqueadaPorOtro ? <Lock size={12} className="shrink-0" /> : <Edit2 size={12} className="shrink-0" />}
+                                  <span>{estaBloqueadaPorOtro ? 'Bloqueada' : 'Editar mi orden'}</span>
+                                </button>
+                              )}
                             </div>
-                            <button
-                              onClick={() => abrirModalEdicion(ord)}
-                              disabled={estaProcesando}
-                              className="py-1.5 px-3 bg-amber-500/15 hover:bg-amber-500/25 text-amber-800 dark:text-amber-300 font-black rounded-xl text-xs transition-all active:scale-95 flex items-center gap-1.5 border border-amber-500/30 cursor-pointer shadow-sm"
-                            >
-                              <Edit2 size={12} className="shrink-0" />
-                              <span>Editar mi orden</span>
-                            </button>
+
+                            {/* Pasar a Plan Separe para colaborador autorizado si es su orden */}
+                            {esMiOrden && ord.tipo !== 'separe' && puedeCrearSepare && (
+                              <button
+                                onClick={() => abrirModalEdicion(ord, 'separe')}
+                                disabled={estaProcesando || estaBloqueadaPorOtro}
+                                className={`w-full py-1.5 px-2 font-bold rounded-xl text-xs transition-all active:scale-95 flex items-center justify-center gap-1.5 border ${
+                                  estaBloqueadaPorOtro
+                                    ? 'bg-slate-100 dark:bg-slate-800 text-slate-400 border-slate-200 dark:border-slate-700 cursor-not-allowed opacity-60'
+                                    : 'bg-violet-50 dark:bg-violet-500/10 hover:bg-violet-100 dark:hover:bg-violet-500/20 text-violet-700 dark:text-violet-300 border-violet-200/80 dark:border-violet-800/50 cursor-pointer'
+                                }`}
+                                title={estaBloqueadaPorOtro ? `En edición por ${bloqueo?.nombre}` : 'Cambiar mi orden a modalidad Plan Separe'}
+                              >
+                                <Bookmark size={13} className="shrink-0 text-violet-600 dark:text-violet-400" />
+                                <span>Pasar a Plan Separe</span>
+                              </button>
+                            )}
                           </div>
                         )}
                       </div>
@@ -1898,7 +2161,11 @@ Muchas gracias por tu compra. Estamos atentos para cualquier consulta.
 
       {/* MODAL DE EDICIÓN DE ORDEN INTEGRAL (IDÉNTICO A VENDER / FIAR / SEPARE ORIGINAL) */}
       {modalEdicion.visible && modalEdicion.orden && (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center p-0 md:p-4 z-[999] animate-in fade-in duration-200 overflow-y-auto">
+        <div 
+          onKeyDown={registrarActividadModal}
+          onClick={registrarActividadModal}
+          className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center p-0 md:p-4 z-[999] animate-in fade-in duration-200 overflow-y-auto"
+        >
           <div className="bg-white dark:bg-[#0f172a] rounded-none md:rounded-[2.5rem] w-full max-w-7xl shadow-2xl border border-slate-100 dark:border-slate-800 my-auto animate-in zoom-in-95 duration-200 h-[100dvh] md:h-[92dvh] max-h-[100dvh] flex flex-col overflow-hidden">
             
             {/* CABECERA SUPERIOR CON SELECTOR DE MODALIDAD VENTA / FIADO / SEPARE */}
@@ -1910,36 +2177,65 @@ Muchas gracias por tu compra. Estamos atentos para cualquier consulta.
               <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
                 <button 
                   type="button"
-                  onClick={() => setModalEdicion({ ...modalEdicion, visible: false, orden: null })} 
+                  onClick={() => cerrarModalEdicion(true)} 
                   className="bg-white/20 hover:bg-white/30 p-2 sm:p-2.5 rounded-full transition-colors backdrop-blur-sm cursor-pointer active:scale-95 shrink-0"
                   title="Volver"
                 >
                   <ArrowLeft size={18} className="sm:w-5 sm:h-5" />
                 </button>
                 
-                {/* Selector de Modalidad Venta / Fiado o Badge de Plan Separe */}
-                {modalEdicion.tipo === 'separe' ? (
-                  <div className="flex items-center gap-2 bg-black/25 px-3.5 py-1.5 rounded-2xl border border-white/20 text-white font-black text-xs sm:text-sm">
-                    <Bookmark size={15} /> ✦ MODIFICAR PLAN SEPARE
-                  </div>
-                ) : (
-                  <div className="flex items-center bg-black/20 p-1 rounded-2xl border border-white/20">
+                {/* Selector de Modalidad Venta / Fiado / Separe */}
+                <div className="flex items-center bg-black/20 p-1 rounded-2xl border border-white/20">
+                  <button
+                    type="button"
+                    onClick={() => setModalEdicion({ 
+                      ...modalEdicion, 
+                      tipo: 'venta', 
+                      metodoPago: modalEdicion.metodoPago === 'fiado' ? 'efectivo' : modalEdicion.metodoPago 
+                    })}
+                    className={`px-3 py-1 rounded-xl text-xs font-black transition-all flex items-center gap-1.5 cursor-pointer ${modalEdicion.tipo === 'venta' ? 'bg-white text-emerald-800 shadow-md scale-105' : 'text-white/80 hover:text-white'}`}
+                  >
+                    <ShoppingCart size={14} /> Venta
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setModalEdicion({ 
+                      ...modalEdicion, 
+                      tipo: 'fiado', 
+                      metodoPago: 'fiado', 
+                      pagoCliente: '0' 
+                    })}
+                    className={`px-3 py-1 rounded-xl text-xs font-black transition-all flex items-center gap-1.5 cursor-pointer ${modalEdicion.tipo === 'fiado' ? 'bg-white text-rose-800 shadow-md scale-105' : 'text-white/80 hover:text-white'}`}
+                  >
+                    <Receipt size={14} /> Fiado
+                  </button>
+
+                  {/* Plan Separe: solo visible si el usuario o negocio tiene permisos completos para Plan Separe */}
+                  {puedeCrearSepare && (
                     <button
                       type="button"
-                      onClick={() => setModalEdicion({ ...modalEdicion, tipo: 'venta', metodoPago: modalEdicion.metodoPago === 'fiado' ? 'efectivo' : modalEdicion.metodoPago })}
-                      className={`px-3 py-1 rounded-xl text-xs font-black transition-all flex items-center gap-1.5 cursor-pointer ${modalEdicion.tipo === 'venta' ? 'bg-white text-emerald-800 shadow-md scale-105' : 'text-white/80 hover:text-white'}`}
+                      onClick={() => {
+                        let fLim = modalEdicion.fechaLimite;
+                        if (!fLim) {
+                          const d = new Date();
+                          d.setMonth(d.getMonth() + 1);
+                          fLim = d.toISOString().split('T')[0];
+                        }
+                        setModalEdicion({ 
+                          ...modalEdicion, 
+                          tipo: 'separe', 
+                          fechaLimite: fLim,
+                          clienteNombre: (modalEdicion.clienteNombre === 'Mostrador' || modalEdicion.clienteNombre === 'Consumidor Final') ? '' : modalEdicion.clienteNombre,
+                          clienteId: (modalEdicion.clienteNombre === 'Mostrador' || modalEdicion.clienteNombre === 'Consumidor Final') ? null : modalEdicion.clienteId,
+                          metodoPago: modalEdicion.metodoPago === 'fiado' ? 'efectivo' : modalEdicion.metodoPago
+                        });
+                      }}
+                      className={`px-3 py-1 rounded-xl text-xs font-black transition-all flex items-center gap-1.5 cursor-pointer ${modalEdicion.tipo === 'separe' ? 'bg-white text-violet-800 shadow-md scale-105' : 'text-white/80 hover:text-white'}`}
                     >
-                      <ShoppingCart size={14} /> Venta
+                      <Bookmark size={14} /> Separe
                     </button>
-                    <button
-                      type="button"
-                      onClick={() => setModalEdicion({ ...modalEdicion, tipo: 'fiado', metodoPago: 'fiado', pagoCliente: '0' })}
-                      className={`px-3 py-1 rounded-xl text-xs font-black transition-all flex items-center gap-1.5 cursor-pointer ${modalEdicion.tipo === 'fiado' ? 'bg-white text-rose-800 shadow-md scale-105' : 'text-white/80 hover:text-white'}`}
-                    >
-                      <Receipt size={14} /> Fiado
-                    </button>
-                  </div>
-                )}
+                  )}
+                </div>
               </div>
 
               {/* Vendedor Responsable */}
@@ -1950,7 +2246,7 @@ Muchas gracias por tu compra. Estamos atentos para cualquier consulta.
                 </div>
                 <button
                   type="button"
-                  onClick={() => setModalEdicion({ ...modalEdicion, visible: false, orden: null })}
+                  onClick={() => cerrarModalEdicion(true)}
                   className="bg-white/20 hover:bg-white/30 p-1.5 rounded-xl text-white transition-colors cursor-pointer shrink-0"
                   title="Cerrar"
                 >
@@ -1958,6 +2254,23 @@ Muchas gracias por tu compra. Estamos atentos para cualquier consulta.
                 </button>
               </div>
             </div>
+
+            {/* ALERTA DE INACTIVIDAD (90s) */}
+            {edicionPausadaInactividad && (
+              <div className="bg-amber-500 text-white px-4 py-2.5 flex items-center justify-between text-xs font-bold shrink-0 animate-in slide-in-from-top duration-200 shadow-md">
+                <div className="flex items-center gap-2">
+                  <Lock size={15} className="shrink-0 animate-pulse text-amber-950" />
+                  <span>Edición en pausa por inactividad (90s sin actividad). El bloqueo se liberó automáticamente para tus compañeros.</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={registrarActividadModal}
+                  className="px-3 py-1 bg-white text-amber-900 rounded-lg text-xs font-black shadow hover:bg-amber-50 active:scale-95 transition-all cursor-pointer shrink-0"
+                >
+                  Reanudar Edición
+                </button>
+              </div>
+            )}
 
             {/* BARRA DE PESTAÑA */}
             <div className={`px-4 py-2 border-b flex items-center gap-2 shrink-0 z-20 transition-colors ${
@@ -2059,7 +2372,7 @@ Muchas gracias por tu compra. Estamos atentos para cualquier consulta.
                                       key={p.id}
                                       onClick={() => {
                                         if (estaAgotado) {
-                                          toast.error(`⚠️ "${p.nombre}" no tiene existencias disponibles.`, { position: 'bottom-center', icon: '🚫' });
+                                          toast.error(`"${p.nombre}" no tiene existencias disponibles.`, { position: 'bottom-center' });
                                           return;
                                         }
                                         const nuevos = [...modalEdicion.items];
@@ -2093,20 +2406,20 @@ Muchas gracias por tu compra. Estamos atentos para cualquier consulta.
                                         <div className="mt-1 flex items-center gap-1.5 flex-wrap">
                                           {!esInv ? (
                                             <span className="text-[10px] font-bold text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-500/20 px-2 py-0.5 rounded-full inline-flex items-center gap-1">
-                                              🛠️ Servicio / Ilimitado
+                                              <Wrench size={11} /> Servicio / Ilimitado
                                             </span>
                                           ) : estaAgotado ? (
                                             <span className="text-[10px] font-bold text-rose-700 dark:text-rose-400 bg-rose-100 dark:bg-rose-500/20 px-2.5 py-0.5 rounded-full inline-flex items-center gap-1">
-                                              🚫 Agotado ({cantEnOtras > 0 ? `${cantEnOtras} en tu lista` : '0 disponibles'})
+                                              <XCircle size={11} /> Agotado ({cantEnOtras > 0 ? `${cantEnOtras} en tu lista` : '0 disponibles'})
                                             </span>
                                           ) : stockDisp <= 5 ? (
                                             <span className="text-[10px] font-bold text-amber-700 dark:text-amber-300 bg-amber-100 dark:bg-amber-500/20 px-2.5 py-0.5 rounded-full inline-flex items-center gap-1">
                                               <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse"></span>
-                                              ⚡ ¡Solo quedan {stockDisp}!
+                                              <Zap size={11} /> ¡Solo quedan {stockDisp}!
                                             </span>
                                           ) : (
                                             <span className="text-[10px] font-medium text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-500/10 px-2.5 py-0.5 rounded-full inline-flex items-center gap-1">
-                                              ✓ {stockDisp} disponibles
+                                              <CheckCircle2 size={11} /> {stockDisp} disponibles
                                             </span>
                                           )}
                                         </div>
@@ -2577,9 +2890,9 @@ Muchas gracias por tu compra. Estamos atentos para cualquier consulta.
                         <button
                           type="button"
                           onClick={() => setModalEdicion({ ...modalEdicion, pagoCliente: String(totalEdicion) })}
-                          className="px-2 py-1 bg-emerald-50 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300 font-bold text-[10px] rounded-xl border border-emerald-300 dark:border-emerald-700 hover:bg-emerald-100 transition-colors cursor-pointer shrink-0 h-7"
+                          className="px-2 py-1 bg-emerald-50 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300 font-bold text-[10px] rounded-xl border border-emerald-300 dark:border-emerald-700 hover:bg-emerald-100 transition-colors cursor-pointer shrink-0 h-7 flex items-center gap-1"
                         >
-                          ✓ Exacto
+                          <CheckCircle2 size={11} /> Exacto
                         </button>
                       )}
                     </div>
@@ -2710,7 +3023,7 @@ Muchas gracias por tu compra. Estamos atentos para cualquier consulta.
                             (!esAdmin && !puedeVentaDirecta) ? 'col-span-2' : ''
                           }`}
                         >
-                          💾 Guardar
+                          <Save size={14} /> Guardar
                         </button>
                         {(esAdmin || puedeVentaDirecta) && (
                           <button

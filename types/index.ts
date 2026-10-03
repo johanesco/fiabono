@@ -97,6 +97,13 @@ export interface OrdenPendiente {
   fechaLimite?: any | null;
   notas?: string;
   payloadSepare?: any;
+  bloqueoEdicion?: {
+    uid: string;
+    sessionId?: string | null;
+    nombre: string;
+    rol: 'admin' | 'colaborador';
+    timestamp: number;
+  } | null;
 }
 
 export type TipoPlan = 'gratis' | 'comercio' | 'pro' | 'basico';
@@ -130,6 +137,25 @@ export interface UsuarioBD {
   mediosPago?: MediosPagoNegocio;
   habilitarIva?: boolean;
   porcentajeIva?: number;
+  facturaDianPorDefecto?: boolean;
+  facturacionDianHabilitada?: boolean;
+  solicitudDian?: {
+    estado: 'pendiente' | 'aprobada' | 'rechazada';
+    fechaSolicitud: string;
+    nit: string;
+    dv?: string;
+    razonSocial: string;
+    nombreComercial: string;
+    tipoPersona: 'natural' | 'juridica';
+    regimenIva: 'no_responsable' | 'responsable';
+    direccion: string;
+    municipio: string;
+    telefono: string;
+    notas?: string;
+  };
+  matiasTokenCustom?: string;
+  matiasResolucionCustom?: string;
+  matiasPrefijoCustom?: string;
   email: string;
   rol: 'admin' | 'cajero';
   adminId?: string;
@@ -161,6 +187,11 @@ export interface Cliente {
   direccion?: string;
   notas?: string;
   fecha_creacion?: any;
+  tipoDocumento?: 'CC' | 'NIT' | 'CE' | 'PP' | string;
+  numeroDocumento?: string;
+  dv?: string;
+  email?: string;
+  razonSocial?: string;
 }
 
 export interface DetalleMovimiento {
@@ -208,6 +239,20 @@ export interface Movimiento {
   montoEfectivoReembolsado?: number;
   montoAmortizadoCartera?: number;
   esPublico?: boolean;
+  facturaElectronica?: DatosFacturaElectronica;
+}
+
+export interface DatosFacturaElectronica {
+  estado: 'emitida' | 'error' | 'pendiente';
+  cufe?: string;
+  qr?: string;
+  numeroFactura?: string;
+  prefijo?: string;
+  fechaEmision?: string;
+  urlPdf?: string;
+  urlXml?: string;
+  mensajeDian?: string;
+  ambiente?: 'sandbox' | 'produccion';
 }
 
 export interface DatosSesionContext {
@@ -224,6 +269,12 @@ export interface DatosSesionContext {
   mediosPago?: MediosPagoNegocio;
   habilitarIva?: boolean;
   porcentajeIva?: number;
+  facturaDianPorDefecto?: boolean;
+  facturacionDianHabilitada?: boolean;
+  solicitudDian?: any;
+  matiasTokenCustom?: string;
+  matiasResolucionCustom?: string;
+  matiasPrefijoCustom?: string;
   rol: 'admin' | 'cajero';
   permisos: PermisosColaborador | null;
   planActual: 'gratis' | 'basico' | 'comercio' | 'pro';

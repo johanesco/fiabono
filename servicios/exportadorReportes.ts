@@ -249,7 +249,7 @@ export async function exportarReporteExcel(datos: DatosExportacionReporte): Prom
     const r = wsMovs.addRow([
       formatearFechaHora(m.fecha),
       (m.tipo || '').toUpperCase(),
-      (m as any).clienteNombre || (m.clienteId === 'mostrador' ? 'Venta de Mostrador' : 'Cliente General'),
+      (m as any).clienteNombre || (m.clienteId === 'mostrador' ? 'Consumidor Final' : 'Cliente General'),
       m.descripcion || (Array.isArray(m.detalles) ? m.detalles.map((d: any) => `${d.cantidad || 1}x ${d.descripcion}`).join(', ') : ''),
       (m.metodoPago || 'Efectivo').toUpperCase(),
       m.registradoPor || 'Admin',

@@ -1390,7 +1390,7 @@ function FiarContenido() {
                 tipo: 'fiado',
                 estado: 'pendiente',
                 usuarioId: cuentaPrincipalId,
-                creadoPor: datosSesion?.uid || '',
+                creadoPor: datosSesion?.uid || auth.currentUser?.uid || '',
                 nombreColaborador: vendedorActivo || nombreUsuario || 'Colaborador',
                 clienteId: clienteTransaccion.id,
                 clienteNombre: clienteTransaccion.nombre,

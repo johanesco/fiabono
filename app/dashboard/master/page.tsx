@@ -46,7 +46,26 @@ export default function MasterPage() {
   
   const [busqueda, setBusqueda] = useState("");
   const [tabActiva, setTabActiva] = useState<'usuarios' | 'bonos' | 'anuncios'>('usuarios');
-  const [filtroEstado, setFiltroEstado] = useState<'todos' | 'porVencer' | 'pro' | 'comercio' | 'gratis' | 'prueba' | 'vencidos' | 'recientes' | 'inactivos' | 'suspendidos'>('todos');
+  const [filtroEstado, setFiltroEstado] = useState<'todos' | 'porVencer' | 'pro' | 'comercio' | 'gratis' | 'prueba' | 'vencidos' | 'recientes' | 'inactivos' | 'suspendidos' | 'conDian' | 'solicitudDian'>('todos');
+
+  // Modal Gestión Facturación Electrónica DIAN
+  const [modalDian, setModalDian] = useState<{
+    visible: boolean;
+    usuario: any | null;
+    habilitada: boolean;
+    tokenCustom: string;
+    resolucionCustom: string;
+    prefijoCustom: string;
+    guardando: boolean;
+  }>({
+    visible: false,
+    usuario: null,
+    habilitada: false,
+    tokenCustom: "",
+    resolucionCustom: "",
+    prefijoCustom: "",
+    guardando: false,
+  });
 
   // MEDIOS DE PAGO CONFIGURABLES (Nequi, Llave, Bancolombia)
   const [mediosPago, setMediosPago] = useState<MediosPagoMaster>({
@@ -364,6 +383,8 @@ export default function MasterPage() {
     let recientes7d = 0;
     let inactivos30d = 0;
     let suspendidos = 0;
+    let conDian = 0;
+    let solicitudesDian = 0;
 
     const ahora = new Date().getTime();
     const sieteDiasAtras = ahora - (7 * 24 * 3600 * 1000);
@@ -375,6 +396,14 @@ export default function MasterPage() {
 
       if (u.activo === false || u.suspendido === true) {
         suspendidos++;
+      }
+
+      if (u.facturacionDianHabilitada === true) {
+        conDian++;
+      }
+
+      if (u.solicitudDian && u.solicitudDian.estado === 'pendiente' && !u.facturacionDianHabilitada) {
+        solicitudesDian++;
       }
 
       if (esGratis) {
@@ -420,6 +449,8 @@ export default function MasterPage() {
       recientes7d,
       inactivos30d,
       suspendidos,
+      conDian,
+      solicitudesDian,
       mrr
     };
   }, [usuarios]);
@@ -447,6 +478,8 @@ export default function MasterPage() {
       if (filtroEstado === 'comercio') return esActivo && u.plan === 'comercio';
       if (filtroEstado === 'prueba') return esActivo && dias <= 14;
       if (filtroEstado === 'vencidos') return !esActivo && !esGratis;
+      if (filtroEstado === 'conDian') return u.facturacionDianHabilitada === true;
+      if (filtroEstado === 'solicitudDian') return Boolean(u.solicitudDian && u.solicitudDian.estado === 'pendiente');
       if (filtroEstado === 'inactivos') {
         const info = calcularInactividad(u);
         return info.esInactivo30d;
@@ -605,6 +638,63 @@ export default function MasterPage() {
     } catch (e) {
       toast.error("Error al guardar nota.");
       setModalNota(prev => ({ ...prev, guardando: false }));
+    }
+  };
+
+  const abrirModalDian = (u: any) => {
+    setModalDian({
+      visible: true,
+      usuario: u,
+      habilitada: Boolean(u.facturacionDianHabilitada),
+      tokenCustom: u.matiasTokenCustom || "",
+      resolucionCustom: u.matiasResolucionCustom || "",
+      prefijoCustom: u.matiasPrefijoCustom || "",
+      guardando: false,
+    });
+  };
+
+  const guardarConfiguracionDian = async () => {
+    if (!modalDian.usuario) return;
+    setModalDian(prev => ({ ...prev, guardando: true }));
+    try {
+      const uId = modalDian.usuario.id;
+      const dataUpdate: any = {
+        facturacionDianHabilitada: modalDian.habilitada,
+        matiasTokenCustom: modalDian.tokenCustom.trim() || null,
+        matiasResolucionCustom: modalDian.resolucionCustom.trim() || null,
+        matiasPrefijoCustom: modalDian.prefijoCustom.trim() || null,
+      };
+
+      if (modalDian.habilitada && modalDian.usuario.solicitudDian?.estado === 'pendiente') {
+        dataUpdate['solicitudDian.estado'] = 'aprobada';
+        dataUpdate['solicitudDian.fechaRespuesta'] = new Date();
+      }
+
+      await updateDoc(doc(db, "usuarios", uId), dataUpdate);
+
+      setUsuarios(prev => prev.map(usr => {
+        if (usr.id === uId) {
+          return {
+            ...usr,
+            ...dataUpdate,
+            solicitudDian: modalDian.habilitada && usr.solicitudDian?.estado === 'pendiente'
+              ? { ...usr.solicitudDian, estado: 'aprobada', fechaRespuesta: new Date() }
+              : usr.solicitudDian
+          };
+        }
+        return usr;
+      }));
+
+      toast.success(modalDian.habilitada 
+        ? "Facturacion DIAN HABILITADA para el negocio." 
+        : "Facturacion DIAN DESHABILITADA para el negocio."
+      );
+      setModalDian(prev => ({ ...prev, visible: false }));
+    } catch (err: any) {
+      console.error(err);
+      toast.error("Error al guardar configuracion DIAN.");
+    } finally {
+      setModalDian(prev => ({ ...prev, guardando: false }));
     }
   };
 
@@ -1320,6 +1410,28 @@ export default function MasterPage() {
                   Vencidos ({metricas.vencidos})
                 </button>
                 <button
+                  onClick={() => setFiltroEstado('conDian')}
+                  className={`px-3 py-1.5 rounded-xl font-bold transition flex items-center gap-1 shrink-0 whitespace-nowrap active:scale-95 cursor-pointer ${
+                    filtroEstado === 'conDian' 
+                      ? 'bg-emerald-600 text-white shadow-xs font-black' 
+                      : (modoOscuro ? 'bg-emerald-500/10 text-emerald-300 border border-emerald-500/20' : 'bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100')
+                  }`}
+                >
+                  <FileText size={12} className="text-emerald-400" />
+                  Factura DIAN ({metricas.conDian})
+                </button>
+                <button
+                  onClick={() => setFiltroEstado('solicitudDian')}
+                  className={`px-3 py-1.5 rounded-xl font-bold transition flex items-center gap-1.5 shrink-0 whitespace-nowrap active:scale-95 cursor-pointer ${
+                    filtroEstado === 'solicitudDian' 
+                      ? 'bg-amber-500 text-slate-950 font-black shadow-xs' 
+                      : (modoOscuro ? 'bg-amber-500/10 text-amber-300 border border-amber-500/20' : 'bg-amber-50 text-amber-800 border border-amber-200 hover:bg-amber-100')
+                  }`}
+                >
+                  <AlertTriangle size={12} className="text-amber-500" />
+                  Solicitudes DIAN ({metricas.solicitudesDian})
+                </button>
+                <button
                   onClick={() => setFiltroEstado('recientes')}
                   className={`px-3 py-1.5 rounded-xl font-bold transition shrink-0 whitespace-nowrap active:scale-95 cursor-pointer ${
                     filtroEstado === 'recientes' 
@@ -1398,6 +1510,26 @@ export default function MasterPage() {
                                 Plan Separe
                               </span>
                             )}
+
+                            {u.facturacionDianHabilitada && (
+                              <button
+                                onClick={() => abrirModalDian(u)}
+                                className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30 flex items-center gap-1 cursor-pointer hover:bg-emerald-500/25 transition"
+                                title="DIAN habilitada - Clic para gestionar"
+                              >
+                                <FileText size={11} /> DIAN Activa
+                              </button>
+                            )}
+
+                            {u.solicitudDian && u.solicitudDian.estado === 'pendiente' && !u.facturacionDianHabilitada && (
+                              <button
+                                onClick={() => abrirModalDian(u)}
+                                className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-amber-500/20 text-amber-800 dark:text-amber-300 border border-amber-500/40 flex items-center gap-1 animate-pulse cursor-pointer hover:bg-amber-500/30 transition"
+                                title="Solicitud DIAN pendiente de aprobacion - Clic para revisar"
+                              >
+                                <AlertTriangle size={11} /> Solicitud DIAN
+                              </button>
+                            )}
                           </div>
 
                           <div className={`flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs ${theme.textMuted} mt-1.5`}>
@@ -1451,6 +1583,22 @@ export default function MasterPage() {
                         >
                           <Edit2 size={14} />
                           <span>Plan</span>
+                        </button>
+
+                        {/* Botón DIAN Master */}
+                        <button
+                          onClick={() => abrirModalDian(u)}
+                          className={`px-3 py-2.5 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition active:scale-95 cursor-pointer ${
+                            u.facturacionDianHabilitada
+                              ? 'bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30'
+                              : (u.solicitudDian && u.solicitudDian.estado === 'pendiente'
+                                  ? 'bg-amber-500/20 hover:bg-amber-500/30 text-amber-800 dark:text-amber-300 border border-amber-500/50 animate-pulse'
+                                  : (modoOscuro ? 'bg-slate-800 hover:bg-slate-700 text-slate-300' : 'bg-slate-100 hover:bg-slate-200 text-slate-700'))
+                          }`}
+                          title="Gestionar Facturacion Electronica DIAN"
+                        >
+                          <FileText size={14} className={u.facturacionDianHabilitada ? 'text-emerald-500' : (u.solicitudDian?.estado === 'pendiente' ? 'text-amber-500' : '')} />
+                          <span>DIAN</span>
                         </button>
 
                         {/* Botón Notas Master */}
@@ -2700,6 +2848,195 @@ export default function MasterPage() {
                     <>
                       <Trash2 size={15} />
                       <span>Confirmar Purga Definitiva</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* MODAL MASTER: GESTIONAR FACTURACIÓN ELECTRÓNICA DIAN */}
+        {modalDian.visible && modalDian.usuario && (
+          <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4 z-[9999] animate-in fade-in">
+            <div className={`${theme.modalBg} rounded-[2rem] sm:rounded-[2.5rem] p-5 sm:p-7 w-full max-w-xl border space-y-4 max-h-[90dvh] overflow-y-auto overscroll-contain shadow-2xl relative`}>
+              <div className="flex justify-between items-start">
+                <div>
+                  <h3 className={`text-xl font-black ${theme.textMain} flex items-center gap-2`}>
+                    <FileText className="text-emerald-500" size={22} />
+                    Facturacion Electronica DIAN
+                  </h3>
+                  <p className={`text-xs ${theme.textMuted} mt-0.5`}>
+                    Gestion de emision fiscal para {modalDian.usuario.nombreNegocio || modalDian.usuario.nombreUsuario}
+                  </p>
+                </div>
+                <button 
+                  onClick={() => setModalDian(prev => ({ ...prev, visible: false, usuario: null }))} 
+                  className={`p-2 rounded-full cursor-pointer ${modoOscuro ? 'bg-slate-800 text-slate-400 hover:text-white' : 'bg-slate-100 text-slate-600'}`}
+                >
+                  <X size={18} />
+                </button>
+              </div>
+
+              {/* Ficha de Solicitud Fiscal enviada por el Negocio */}
+              {modalDian.usuario.solicitudDian ? (
+                <div className={`p-4 rounded-2xl border ${theme.cardSubtle} space-y-2.5 text-xs`}>
+                  <div className="flex justify-between items-center pb-2 border-b border-slate-700/40">
+                    <span className="font-black text-amber-500 uppercase tracking-wider text-[11px] flex items-center gap-1.5">
+                      <AlertTriangle size={13} /> Solicitud Enviada por el Comercio
+                    </span>
+                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase ${
+                      modalDian.usuario.solicitudDian.estado === 'pendiente' 
+                        ? 'bg-amber-500/20 text-amber-600 dark:text-amber-400' 
+                        : 'bg-emerald-500/20 text-emerald-600 dark:text-emerald-400'
+                    }`}>
+                      {modalDian.usuario.solicitudDian.estado}
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <span className={theme.textMuted}>NIT / DV:</span>
+                      <p className={`font-mono font-bold ${theme.textMain}`}>
+                        {modalDian.usuario.solicitudDian.nit} - {modalDian.usuario.solicitudDian.dv}
+                      </p>
+                    </div>
+                    <div>
+                      <span className={theme.textMuted}>Razon Social:</span>
+                      <p className={`font-bold ${theme.textMain} truncate`}>
+                        {modalDian.usuario.solicitudDian.razonSocial || "N/A"}
+                      </p>
+                    </div>
+                    <div>
+                      <span className={theme.textMuted}>Nombre Comercial:</span>
+                      <p className={`font-bold ${theme.textMain} truncate`}>
+                        {modalDian.usuario.solicitudDian.nombreComercial || "N/A"}
+                      </p>
+                    </div>
+                    <div>
+                      <span className={theme.textMuted}>Regimen / Tipo:</span>
+                      <p className={`font-bold ${theme.textMain}`}>
+                        {modalDian.usuario.solicitudDian.regimen === 'responsable' ? 'Responsable IVA' : 'No Responsable'} ({modalDian.usuario.solicitudDian.tipoPersona === 'juridica' ? 'Juridica' : 'Natural'})
+                      </p>
+                    </div>
+                    <div>
+                      <span className={theme.textMuted}>Municipio:</span>
+                      <p className={`font-bold ${theme.textMain}`}>
+                        {modalDian.usuario.solicitudDian.municipio || "N/A"}
+                      </p>
+                    </div>
+                    <div>
+                      <span className={theme.textMuted}>Direccion:</span>
+                      <p className={`font-bold ${theme.textMain} truncate`}>
+                        {modalDian.usuario.solicitudDian.direccion || "N/A"}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className={`p-4 rounded-2xl border ${theme.cardSubtle} text-xs ${theme.textMuted}`}>
+                  Este comercio aun no ha completado el formulario de solicitud DIAN en su perfil. Puedes habilitarlo manualmente de todas formas si ya tienes su documentacion.
+                </div>
+              )}
+
+              {/* Interruptor de Habilitación */}
+              <div className={`p-4 rounded-2xl border ${
+                modalDian.habilitada 
+                  ? (modoOscuro ? 'bg-emerald-950/20 border-emerald-500/30' : 'bg-emerald-50 border-emerald-200')
+                  : theme.cardSubtle
+              }`}>
+                <label className="flex items-start gap-3 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={modalDian.habilitada}
+                    onChange={(e) => setModalDian(prev => ({ ...prev, habilitada: e.target.checked }))}
+                    className="w-5 h-5 rounded accent-emerald-500 mt-0.5 cursor-pointer"
+                  />
+                  <div>
+                    <span className={`text-sm font-black ${theme.textMain}`}>
+                      Habilitar Facturacion Electronica DIAN
+                    </span>
+                    <p className={`text-xs ${theme.textMuted} mt-0.5`}>
+                      Al activar esta casilla, el comercio podra encender el toggle DIAN en el modulo de venta para generar CUFE y facturas electronicas oficiales.
+                    </p>
+                  </div>
+                </label>
+              </div>
+
+              {/* Credenciales Tecnicas Personalizadas (Multi-tienda / Sandbox) */}
+              <div className={`p-4 rounded-2xl border space-y-3 ${theme.cardSubtle}`}>
+                <div>
+                  <h4 className={`text-xs font-black uppercase tracking-wider ${theme.textMain} flex items-center gap-1.5`}>
+                    <KeyRound size={13} className="text-amber-500" />
+                    Credenciales Tecnicas MATIAS API (Opcional)
+                  </h4>
+                  <p className={`text-[11px] ${theme.textMuted} mt-0.5`}>
+                    Si se deja vacio, se utilizara el Token Global de Fiabono configurado en el servidor. Para aislar legalmente a este comercio con su propio NIT y nombre emisor en MATIAS (o simular una segunda tienda en Sandbox), ingresa su Token aqui:
+                  </p>
+                </div>
+
+                <div className="space-y-1">
+                  <label className={`block text-[10px] font-black uppercase ${theme.textMuted}`}>Token MATIAS Personalizado</label>
+                  <textarea
+                    rows={2}
+                    value={modalDian.tokenCustom}
+                    onChange={(e) => setModalDian(prev => ({ ...prev, tokenCustom: e.target.value }))}
+                    placeholder="eyJ0eXAiOiJKV1QiLC... (Vacio para token global)"
+                    className={`w-full p-2.5 rounded-xl border text-xs font-mono outline-none ${theme.input} focus:border-emerald-500`}
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <label className={`block text-[10px] font-black uppercase ${theme.textMuted}`}>Prefijo Factura (Ej. FEV)</label>
+                    <input
+                      type="text"
+                      value={modalDian.prefijoCustom}
+                      onChange={(e) => setModalDian(prev => ({ ...prev, prefijoCustom: e.target.value }))}
+                      placeholder="FEV"
+                      className={`w-full p-2.5 rounded-xl border text-xs font-medium outline-none ${theme.input} focus:border-emerald-500`}
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className={`block text-[10px] font-black uppercase ${theme.textMuted}`}>Numero Resolucion DIAN</label>
+                    <input
+                      type="text"
+                      value={modalDian.resolucionCustom}
+                      onChange={(e) => setModalDian(prev => ({ ...prev, resolucionCustom: e.target.value }))}
+                      placeholder="18760000001"
+                      className={`w-full p-2.5 rounded-xl border text-xs font-medium outline-none ${theme.input} focus:border-emerald-500`}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Botones de Guardar y Cancelar */}
+              <div className="flex gap-2.5 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setModalDian(prev => ({ ...prev, visible: false, usuario: null }))}
+                  disabled={modalDian.guardando}
+                  className={`flex-1 py-3 rounded-xl text-xs font-bold transition cursor-pointer disabled:opacity-50 ${
+                    modoOscuro ? 'bg-slate-800 hover:bg-slate-700 text-slate-300' : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
+                  }`}
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  onClick={guardarConfiguracionDian}
+                  disabled={modalDian.guardando}
+                  className="flex-1 py-3 bg-emerald-600 hover:bg-emerald-500 text-white font-black rounded-xl text-xs flex items-center justify-center gap-2 transition active:scale-98 shadow-md shadow-emerald-600/20 cursor-pointer disabled:opacity-50"
+                >
+                  {modalDian.guardando ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />
+                      <span>Guardando...</span>
+                    </>
+                  ) : (
+                    <>
+                      <CheckCircle2 size={15} />
+                      <span>Guardar Cambios DIAN</span>
                     </>
                   )}
                 </button>

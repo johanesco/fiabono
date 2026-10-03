@@ -42,7 +42,7 @@ export default function PaginaTicketPublico() {
             idTransaccion: snapMov.id,
             tipo: movData.tipo || 'venta',
             fecha: movData.fecha,
-            nombreCliente: movData.clienteNombre || "Venta de Mostrador",
+            nombreCliente: movData.clienteNombre && movData.clienteNombre !== "Mostrador" ? movData.clienteNombre : "Consumidor Final",
             celularCliente: movData.clienteCelular || "",
             registradoPor: movData.registradoPor || "",
             montoTotal: movData.monto || 0,

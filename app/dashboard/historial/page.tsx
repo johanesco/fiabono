@@ -136,7 +136,9 @@ export default function HistorialPage() {
     if (mov.tipo === 'ingreso_inventario') return;
 
     const clienteEncontrado = clientes.find(c => c.id === mov.clienteId);
-    const nombreCli = mov.clienteId === 'mostrador' ? 'Venta de Mostrador' : (clienteEncontrado?.nombre || 'Cliente');
+    const nombreCli = mov.clienteId === 'mostrador' 
+      ? (mov.clienteNombre && mov.clienteNombre !== 'Mostrador' ? mov.clienteNombre : 'Consumidor Final') 
+      : (clienteEncontrado?.nombre || mov.clienteNombre || 'Cliente');
     const celularCli = clienteEncontrado?.celular || '';
 
     const datosTicket: DatosFacturaProps = {
@@ -161,7 +163,8 @@ export default function HistorialPage() {
       referenciaPago: mov.referenciaPago,
       subtotal: mov.subtotal,
       valorIva: mov.valorIva,
-      porcentajeIva: mov.porcentajeIva
+      porcentajeIva: mov.porcentajeIva,
+      facturaElectronica: mov.facturaElectronica
     };
 
     setModalTicketFactura({ visible: true, datos: datosTicket });
@@ -170,7 +173,7 @@ export default function HistorialPage() {
   const getNombreCliente = (id?: string, tipo?: string) => {
     if (tipo === 'ingreso_inventario') return 'Entrada de Mercancía';
     if (!id) return 'Entrada de Stock';
-    if (id === 'mostrador') return 'Venta de Mostrador';
+    if (id === 'mostrador') return 'Consumidor Final';
     return clientes.find(c => c.id === id)?.nombre || "Cliente Eliminado";
   };
 
@@ -362,7 +365,7 @@ Quedamos pendientes para revisar detalles o responder cualquier duda.
     const clienteMov = clientes.find(c => c.id === mov.clienteId);
     const nombreCliente = esIngresoInv 
       ? 'Entrada de Mercancía' 
-      : (clienteMov?.nombre || (mov.clienteId === 'mostrador' ? 'Venta de Mostrador' : 'Cliente Eliminado'));
+      : (clienteMov?.nombre || (mov.clienteId === 'mostrador' ? (mov.clienteNombre && mov.clienteNombre !== 'Mostrador' ? mov.clienteNombre : 'Consumidor Final') : 'Cliente Eliminado'));
     const celularCliente = clienteMov?.celular || '';
     const vendedorMov = (mov.registradoPor || (mov as any).vendedor || '').toString();
     
@@ -1073,9 +1076,9 @@ Quedamos pendientes para revisar detalles o responder cualquier duda.
             <div className="w-20 h-20 bg-slate-100 dark:bg-slate-800 text-slate-500 rounded-full flex items-center justify-center mx-auto mb-6 shadow-inner">
               <Store size={40} />
             </div>
-            <h3 className="text-2xl font-black text-slate-900 dark:text-white mb-2">Venta de Mostrador</h3>
+            <h3 className="text-2xl font-black text-slate-900 dark:text-white mb-2">Consumidor Final</h3>
             <p className="text-base text-slate-500 dark:text-slate-400 mb-6 leading-relaxed">
-              Este registro corresponde a una venta directa al público. <br/><br/>No está asociada a la cuenta de ningún cliente en específico, por lo que no genera deudas ni historial de perfil.
+              Este registro corresponde a una venta directa a Consumidor Final. <br/><br/>No está asociada a la cuenta a crédito de ningún cliente en específico, por lo que no genera deudas ni saldos pendientes.
             </p>
             <button onClick={() => setModalMostrador(false)} className="w-full bg-slate-100 dark:bg-[#020617] hover:bg-slate-200 text-slate-700 dark:text-slate-300 font-black py-4 rounded-2xl transition-colors text-lg border dark:border-slate-800/60">
               Entendido

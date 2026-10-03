@@ -48,6 +48,7 @@ export interface DatosFacturaProps {
   descuentoValor?: number;
   montoDescuento?: number;
   saldoFavorAplicado?: number;
+  facturaElectronica?: import("@/types").DatosFacturaElectronica;
 }
 
 interface TicketFacturaModalProps {
@@ -63,10 +64,51 @@ export default function TicketFacturaModal({ isOpen, onClose, datos }: TicketFac
   const [modalUpsell, setModalUpsell] = useState(false);
   const [montado, setMontado] = useState(false);
   const [generandoImagen, setGenerandoImagen] = useState(false);
+  const [emitiendoDian, setEmitiendoDian] = useState(false);
+  const [facturaDianLocal, setFacturaDianLocal] = useState<import("@/types").DatosFacturaElectronica | undefined>(datos?.facturaElectronica);
 
   useEffect(() => {
     setMontado(true);
   }, []);
+
+  useEffect(() => {
+    setFacturaDianLocal(datos?.facturaElectronica);
+  }, [datos?.facturaElectronica, datos?.idTransaccion]);
+
+  const emitirFacturaDianDirecta = async () => {
+    if (!datos?.idTransaccion || emitiendoDian) return;
+    setEmitiendoDian(true);
+    try {
+      const { getAuth } = await import("firebase/auth");
+      const user = getAuth().currentUser;
+      const token = user ? await user.getIdToken() : null;
+      if (!token) {
+        toast.error("Debes iniciar sesion para emitir factura electronica.");
+        return;
+      }
+
+      const res = await fetch("/api/factura-electronica/emitir", {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${token}`,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({ movimientoId: datos.idTransaccion })
+      });
+
+      const resJson = await res.json();
+      if (res.ok && resJson.success && resJson.facturaElectronica) {
+        setFacturaDianLocal(resJson.facturaElectronica);
+        toast.success("Factura electronica emitida exitosamente ante la DIAN.");
+      } else {
+        toast.error(resJson.error || "No se pudo emitir la factura electronica.");
+      }
+    } catch (err: any) {
+      toast.error("Error al conectar con el servicio DIAN.");
+    } finally {
+      setEmitiendoDian(false);
+    }
+  };
 
   if (!isOpen || !datos) return null;
 
@@ -114,7 +156,7 @@ export default function TicketFacturaModal({ isOpen, onClose, datos }: TicketFac
 
   const generarTextoTicketWhatsApp = () => {
     const nombreNegocio = datos.nombreNegocio || "nuestra tienda";
-    const nombreCliente = datos.nombreCliente && datos.nombreCliente !== "Venta de Mostrador" ? datos.nombreCliente : "Cliente";
+    const nombreCliente = datos.nombreCliente && datos.nombreCliente !== "Venta de Mostrador" && datos.nombreCliente !== "Mostrador" && datos.nombreCliente !== "Consumidor Final" ? datos.nombreCliente : "Cliente";
 
     let enlaceTexto = "";
     if (datos.idTransaccion && typeof window !== 'undefined') {
@@ -303,7 +345,7 @@ Estamos atentos para cualquier consulta.`;
       }
 
       let estadoCuenta = "";
-      if (datos.saldoNuevo !== undefined && datos.nombreCliente !== "Venta de Mostrador") {
+      if (datos.saldoNuevo !== undefined && datos.nombreCliente !== "Venta de Mostrador" && datos.nombreCliente !== "Mostrador" && datos.nombreCliente !== "Consumidor Final") {
         if (datos.saldoNuevo === 0) {
           estadoCuenta = "\n\n*Estado de cuenta:* Al día ($0)";
         } else if (datos.saldoNuevo < 0) {
@@ -711,7 +753,7 @@ Estamos atentos para cualquier consulta.
 
           {/* CONTENIDO SCROLLEABLE - TICKET TÉRMICO */}
           <div className="p-2 sm:py-2 sm:px-4 overflow-y-auto flex-1 bg-slate-100/80 dark:bg-slate-950 flex flex-col items-center min-h-0">
-            <VistaTicketCard datos={datos} ticketRef={ticketRef} />
+            <VistaTicketCard datos={{ ...datos, facturaElectronica: facturaDianLocal }} ticketRef={ticketRef} />
           </div>
 
           {/* BOTONES DE ACCIÓN */}
@@ -719,6 +761,26 @@ Estamos atentos para cualquier consulta.
             
             {/* VISTA MÓVIL: ORGANIZADA SEGÚN SI TIENE NÚMERO O NO */}
             <div className="sm:hidden flex flex-col gap-2 w-full">
+              {/* Botón Factura Electrónica DIAN en móvil */}
+              {datos.tipo === 'venta' && datos.idTransaccion && (
+                facturaDianLocal?.cufe ? (
+                  <div className="w-full py-2 px-3 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/60 font-bold rounded-xl flex items-center justify-center gap-1.5 text-xs">
+                    <FileText size={14} className="shrink-0 text-emerald-600 dark:text-emerald-400" />
+                    <span>Factura DIAN: {facturaDianLocal.numeroFactura || "Emitida"}</span>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    disabled={emitiendoDian}
+                    onClick={emitirFacturaDianDirecta}
+                    className="w-full py-2.5 px-3 bg-emerald-600 hover:bg-emerald-700 text-white font-black rounded-xl shadow-xs flex items-center justify-center gap-1.5 transition active:scale-95 text-xs text-center cursor-pointer disabled:opacity-60"
+                  >
+                    {emitiendoDian ? <Loader2 size={14} className="animate-spin shrink-0" /> : <FileText size={14} className="shrink-0" />}
+                    <span>{emitiendoDian ? "Emitiendo DIAN..." : "Emitir Factura DIAN"}</span>
+                  </button>
+                )
+              )}
+
               {/* Fila 1 en móvil: WhatsApp (solo si el cliente tiene número guardado y el usuario tiene permiso) */}
               {tieneCelularValido && puedeEnviarWhatsApp && (
                 <button
@@ -729,7 +791,7 @@ Estamos atentos para cualquier consulta.
                 >
                   <MessageCircle size={16} className="shrink-0 fill-white/20" />
                   <span className="truncate">
-                    Enviar a WhatsApp 💬
+                    Enviar a WhatsApp
                   </span>
                 </button>
               )}
@@ -778,6 +840,27 @@ Estamos atentos para cualquier consulta.
               </button>
 
               <div className="flex items-center gap-2">
+                {/* Botón Factura Electrónica DIAN en escritorio */}
+                {datos.tipo === 'venta' && datos.idTransaccion && (
+                  facturaDianLocal?.cufe ? (
+                    <div className="py-2.5 px-3 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/60 font-bold rounded-xl flex items-center gap-1.5 text-xs">
+                      <FileText size={15} className="shrink-0 text-emerald-600 dark:text-emerald-400" />
+                      <span>DIAN: {facturaDianLocal.numeroFactura || "Emitida"}</span>
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      disabled={emitiendoDian}
+                      onClick={emitirFacturaDianDirecta}
+                      className="py-2.5 px-3.5 bg-emerald-600 hover:bg-emerald-700 text-white font-black rounded-xl shadow-sm flex items-center justify-center gap-1.5 transition active:scale-95 text-xs text-center cursor-pointer disabled:opacity-60"
+                      title="Emitir Factura Electrónica ante la DIAN"
+                    >
+                      {emitiendoDian ? <Loader2 size={15} className="animate-spin shrink-0" /> : <FileText size={15} className="shrink-0" />}
+                      <span>{emitiendoDian ? "Emitiendo..." : "Factura DIAN"}</span>
+                    </button>
+                  )
+                )}
+
                 {tieneCelularValido && puedeEnviarWhatsApp && (
                   <button
                     type="button"

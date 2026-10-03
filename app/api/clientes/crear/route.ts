@@ -32,6 +32,11 @@ export async function POST(request: Request) {
       celular: typeof body.celular === 'string' ? body.celular.trim() : '',
       direccion: typeof body.direccion === 'string' ? body.direccion.trim() : '',
       notas: typeof body.notas === 'string' ? body.notas.trim() : '',
+      tipoDocumento: typeof body.tipoDocumento === 'string' ? body.tipoDocumento.trim() : 'CC',
+      numeroDocumento: typeof body.numeroDocumento === 'string' ? body.numeroDocumento.trim() : '',
+      dv: typeof body.dv === 'string' ? body.dv.trim() : '',
+      email: typeof body.email === 'string' ? body.email.trim() : '',
+      razonSocial: typeof body.razonSocial === 'string' ? body.razonSocial.trim() : '',
       deudaTotal: 0,
       usuarioId: cuentaPrincipalId,
       fecha_creacion: new Date()

@@ -234,6 +234,12 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
           mediosPago: adminData.mediosPago || {},
           habilitarIva: adminData.habilitarIva || false,
           porcentajeIva: typeof adminData.porcentajeIva === 'number' ? adminData.porcentajeIva : 19,
+          facturaDianPorDefecto: adminData.facturaDianPorDefecto === true,
+          facturacionDianHabilitada: adminData.facturacionDianHabilitada === true,
+          solicitudDian: adminData.solicitudDian || null,
+          matiasTokenCustom: adminData.matiasTokenCustom || "",
+          matiasResolucionCustom: adminData.matiasResolucionCustom || "",
+          matiasPrefijoCustom: adminData.matiasPrefijoCustom || "",
           rol: data.rol,
           permisos,
           // Helpers derivados de permisos y planes

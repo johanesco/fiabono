@@ -3,7 +3,7 @@ import { useState, useEffect, Suspense, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { collection, addDoc, getDocs, getDoc, query, doc, updateDoc, where, increment, writeBatch } from "firebase/firestore";
 import { auth, db } from "../../../firebase";
-import { Search, ShoppingCart, CheckCircle2, ChevronRight, X, AlertCircle, UserCog, Plus, Minus, ArrowLeft, MessageCircle, Banknote, Package, QrCode, Volume2, Printer, Smartphone, CreditCard, Zap, Receipt, ChevronDown, ChevronUp, Tag, Percent, Pause, FolderOpen, User, Trash2, Store, Wallet, LayoutGrid, List } from 'lucide-react';
+import { Search, ShoppingCart, CheckCircle2, ChevronRight, X, AlertCircle, UserCog, Plus, Minus, ArrowLeft, MessageCircle, Banknote, Package, QrCode, Volume2, Printer, Smartphone, CreditCard, Zap, Receipt, ChevronDown, ChevronUp, Tag, Percent, Pause, FolderOpen, User, Trash2, Store, Wallet, LayoutGrid, List, FileText, ArrowRightLeft, Edit3 } from 'lucide-react';
 import { useAuth } from "@/hooks/AuthContext";
 import toast from "react-hot-toast";
 import { notificar } from "@/utils/notificaciones";
@@ -143,6 +143,34 @@ function VenderContenido() {
   const [modalTicketFactura, setModalTicketFactura] = useState<{ visible: boolean; datos: any | null }>({ visible: false, datos: null });
   const [guardandoVenta, setGuardandoVenta] = useState(false);
   const isSubmittingVentaRef = useRef(false);
+
+  // Estados para Facturación Electrónica DIAN
+  const [emitirFacturaElectronica, setEmitirFacturaElectronica] = useState<boolean>(datosSesion?.facturaDianPorDefecto ?? false);
+  const [tipoDocumentoFE, setTipoDocumentoFE] = useState<'CC' | 'NIT' | 'CE'>('CC');
+  const [numeroDocumentoFE, setNumeroDocumentoFE] = useState('');
+  const [emailFE, setEmailFE] = useState('');
+  const [razonSocialFE, setRazonSocialFE] = useState('');
+  const [modalDatosDian, setModalDatosDian] = useState(false);
+  const [modalBloqueoDian, setModalBloqueoDian] = useState(false);
+
+  useEffect(() => {
+    if (datosSesion?.facturaDianPorDefecto !== undefined) {
+      setEmitirFacturaElectronica(datosSesion.facturaDianPorDefecto);
+    }
+  }, [datosSesion?.facturaDianPorDefecto]);
+
+  useEffect(() => {
+    if (clienteTransaccion) {
+      setRazonSocialFE(clienteTransaccion.razonSocial || clienteTransaccion.nombre || '');
+      setNumeroDocumentoFE(clienteTransaccion.numeroDocumento || '');
+      setTipoDocumentoFE((clienteTransaccion.tipoDocumento as any) || 'CC');
+      setEmailFE(clienteTransaccion.email || '');
+    } else {
+      setRazonSocialFE('');
+      setNumeroDocumentoFE('');
+      setEmailFE('');
+    }
+  }, [clienteTransaccion]);
 
   const esTerminalMultivendedor: boolean = datosSesion?.esTerminalMultivendedor ?? false;
 
@@ -322,6 +350,7 @@ function VenderContenido() {
     setTipoDescuento(p.tipoDescuento || 'porcentaje');
     setValorDescuento(p.valorDescuento || "");
     setUsarSaldoFavor(true);
+    setEmitirFacturaElectronica(false);
   };
 
   // Cambiar de pestaña
@@ -1052,10 +1081,10 @@ function VenderContenido() {
         tipo: esFiadoCompleto ? 'fiado' : 'venta',
         estado: 'pendiente',
         usuarioId: cuentaPrincipalId,
-        creadoPor: datosSesion?.uid || '',
+        creadoPor: datosSesion?.uid || auth.currentUser?.uid || '',
         nombreColaborador: vendedorActivo || nombreUsuario || 'Colaborador',
         clienteId: clienteTransaccion?.id || null,
-        clienteNombre: clienteTransaccion?.nombre || 'Mostrador',
+        clienteNombre: clienteTransaccion?.nombre || 'Consumidor Final',
         clienteCelular: clienteTransaccion?.celular || '',
         items: filasValidas.map(f => ({ descripcion: f.descripcion, valor: f.valor, cantidad: f.cantidad })),
         totalBruto: subtotalBruto,
@@ -1284,6 +1313,20 @@ function VenderContenido() {
         clienteFinalActualizado = { ...clienteTransaccion, deudaTotal: saldoFinalCliente };
       }
 
+      // Guardar o actualizar datos fiscales del cliente en Firestore para futuras compras
+      if (clienteTransaccion?.id && clienteTransaccion.id !== 'mostrador' && (numeroDocumentoFE.trim() || emailFE.trim() || razonSocialFE.trim())) {
+        try {
+          const cliDocRef = doc(db, 'clientes', clienteTransaccion.id);
+          await updateDoc(cliDocRef, {
+            tipoDocumento: tipoDocumentoFE,
+            numeroDocumento: numeroDocumentoFE.trim(),
+            email: emailFE.trim(),
+            razonSocial: razonSocialFE.trim()
+          });
+        } catch (e) {
+          console.error('Error al guardar datos fiscales del cliente:', e);
+        }
+      }
 
       // 4. GENERAR OBJETO PARA TICKET MODAL
       const ticketDatos: DatosFacturaProps = {
@@ -1294,7 +1337,7 @@ function VenderContenido() {
         nitNegocio: datosSesion?.nitNegocio || "",
         direccionNegocio: datosSesion?.direccionNegocio || "",
         mensajePieTicket: datosSesion?.mensajePieTicket || "",
-        nombreCliente: clienteTransaccion ? clienteTransaccion.nombre : "Venta de Mostrador",
+        nombreCliente: clienteTransaccion ? (razonSocialFE.trim() || clienteTransaccion.nombre) : (razonSocialFE.trim() || "Consumidor Final"),
         celularCliente: clienteTransaccion ? (clienteTransaccion.celular || "") : "",
         registradoPor: nombreUsuario || "Vendedor",
         fecha: new Date(),
@@ -1319,6 +1362,34 @@ function VenderContenido() {
         montoDescuento: montoDescuentoTotal > 0 ? montoDescuentoTotal : undefined,
         saldoFavorAplicado: montoSaldoFavorAplicado > 0 ? montoSaldoFavorAplicado : undefined
       };
+
+      // 5. EMITIR FACTURA ELECTRÓNICA DIAN SI ESTABA MARCADA
+      if (emitirFacturaElectronica && idTransaccionVenta) {
+        try {
+          const resDian = await fetch('/api/factura-electronica/emitir', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+            body: JSON.stringify({ 
+              movimientoId: idTransaccionVenta,
+              clienteDianManual: numeroDocumentoFE.trim() ? {
+                numeroDocumento: numeroDocumentoFE.trim(),
+                tipoDocumento: tipoDocumentoFE,
+                nombre: razonSocialFE.trim() || 'Consumidor',
+                email: emailFE.trim()
+              } : undefined
+            })
+          });
+          const resJsonDian = await resDian.json();
+          if (resDian.ok && resJsonDian.success && resJsonDian.facturaElectronica) {
+            ticketDatos.facturaElectronica = resJsonDian.facturaElectronica;
+            toast.success('Factura electronica emitida exitosamente ante la DIAN.');
+          } else {
+            toast.error(resJsonDian.error || 'Venta registrada. Factura electronica pendiente por procesar.');
+          }
+        } catch (e) {
+          console.error('Error al conectar con la DIAN:', e);
+        }
+      }
 
       const faltanteReal = Math.max(totalNetoACobrar - pagadoNum, 0);
       setPasoMovil('articulos');
@@ -1992,57 +2063,69 @@ Estamos atentos para cualquier consulta.
       <div className="flex flex-col gap-1.5 sm:gap-2 w-full justify-between">
         {/* BOTONES DE TRANSFERENCIA DE CARRITO */}
         {totalFilasRegistro > 0 && (
-          <div className="flex gap-2 w-full mb-0.5">
+          <div className="flex items-center gap-1.5 w-full mb-0.5">
             <button 
               type="button"
               onClick={() => trasladarCarrito('fiar')} 
-              className="flex-1 py-1.5 text-[9px] sm:text-[10px] font-black rounded-lg border border-rose-300 dark:border-rose-800 text-rose-700 dark:text-rose-400 bg-rose-50 dark:bg-rose-950/30 hover:bg-rose-100 dark:hover:bg-rose-900/50 flex items-center justify-center gap-1 transition-colors cursor-pointer"
+              className="flex-1 py-1.5 px-2 text-[10px] font-bold rounded-lg border border-rose-200 dark:border-rose-900/60 text-rose-700 dark:text-rose-400 bg-rose-50/70 dark:bg-rose-950/20 hover:bg-rose-100/80 dark:hover:bg-rose-900/40 flex items-center justify-center gap-1.5 transition-all cursor-pointer"
             >
-              🔄 Mover a Fiar
+              <ArrowRightLeft size={11} className="shrink-0" />
+              <span>Mover a Fiar</span>
             </button>
             {puedePlanSepare && (
               <button 
                 type="button"
                 onClick={() => trasladarCarrito('separe')} 
-                className="flex-1 py-1.5 text-[9px] sm:text-[10px] font-black rounded-lg border border-purple-300 dark:border-purple-800 text-purple-700 dark:text-purple-400 bg-purple-50 dark:bg-purple-950/30 hover:bg-purple-100 dark:hover:bg-purple-900/50 flex items-center justify-center gap-1 transition-colors cursor-pointer"
+                className="flex-1 py-1.5 px-2 text-[10px] font-bold rounded-lg border border-purple-200 dark:border-purple-900/60 text-purple-700 dark:text-purple-400 bg-purple-50/70 dark:bg-purple-950/20 hover:bg-purple-100/80 dark:hover:bg-purple-900/40 flex items-center justify-center gap-1.5 transition-all cursor-pointer"
               >
-                🔄 Mover a Separe
+                <ArrowRightLeft size={11} className="shrink-0" />
+                <span>Mover a Separe</span>
               </button>
             )}
           </div>
         )}
 
-        {/* 1. RECUADRO CLIENTE: COMPACTO CON SALDO A FAVOR INTEGRADO */}
-        <div className={`flex flex-col p-2 rounded-xl transition-all duration-200 ${
+        {/* 1. RECUADRO CLIENTE (DESTACADO ESTÉTICO) */}
+        <div className={`flex flex-col p-2.5 rounded-xl transition-all duration-200 border ${
           clienteTransaccion 
-            ? 'bg-emerald-50/80 dark:bg-emerald-950/30 border-2 border-emerald-500 dark:border-emerald-400 shadow-xs' 
-            : 'bg-amber-50/40 dark:bg-amber-950/20 border-2 border-dashed border-amber-400 dark:border-amber-500/80 shadow-xs'
+            ? 'bg-gradient-to-br from-emerald-500/10 via-emerald-500/5 to-transparent dark:from-emerald-950/40 dark:via-emerald-950/20 dark:to-transparent border-emerald-400/80 dark:border-emerald-700/80 shadow-xs' 
+            : 'bg-gradient-to-br from-indigo-50/70 via-white to-slate-50/70 dark:from-indigo-950/25 dark:via-[#0f172a] dark:to-slate-900/40 border-indigo-200/90 dark:border-indigo-900/70 shadow-xs'
         }`}>
-          <div className="flex justify-between items-center mb-1">
-            <label className={`text-[10px] font-black uppercase tracking-wider flex items-center gap-1.5 ${
-              clienteTransaccion ? 'text-emerald-700 dark:text-emerald-300' : 'text-amber-800 dark:text-amber-300'
-            }`}>
-              <UserCog size={13} /> {clienteTransaccion ? '✓ 1. Cliente Asignado' : '1. Cliente (Opcional)'}
-            </label>
+          <div className="flex justify-between items-center mb-1.5">
+            <div className="flex items-center gap-1.5">
+              <div className={`w-5 h-5 rounded-md flex items-center justify-center shrink-0 ${
+                clienteTransaccion 
+                  ? 'bg-emerald-600 text-white shadow-2xs' 
+                  : 'bg-indigo-100 dark:bg-indigo-950 text-indigo-600 dark:text-indigo-400 border border-indigo-200/60 dark:border-indigo-800/60'
+              }`}>
+                <UserCog size={12} />
+              </div>
+              <span className={`text-[10px] font-black uppercase tracking-wider ${
+                clienteTransaccion ? 'text-emerald-950 dark:text-emerald-200' : 'text-indigo-950 dark:text-indigo-200'
+              }`}>
+                1. Cliente {clienteTransaccion ? 'Asignado' : '(Opcional)'}
+              </span>
+            </div>
+
             {!clienteTransaccion ? (
-              <span className="text-[9px] sm:text-[9.5px] font-black text-amber-800 dark:text-amber-200 bg-amber-200/80 dark:bg-amber-900/60 px-2 py-0.5 rounded-md border border-amber-300/50">
-                Mostrador
+              <span className="text-[9px] font-bold text-indigo-700 dark:text-indigo-300 bg-indigo-100/80 dark:bg-indigo-900/50 px-2 py-0.5 rounded-full border border-indigo-200/70 dark:border-indigo-800/60">
+                Consumidor Final
               </span>
             ) : (
-              <span className="text-[9px] sm:text-[9.5px] font-black text-white bg-emerald-600 px-2 py-0.5 rounded-md shadow-2xs">
-                ✓ Asignado
+              <span className="text-[9px] font-black text-white bg-emerald-600 px-2 py-0.5 rounded-full shadow-2xs">
+                Asignado
               </span>
             )}
           </div>
 
           {clienteTransaccion ? (
-            <div className="py-1 sm:py-1.5 px-2.5 bg-white dark:bg-slate-900 rounded-xl border border-emerald-300 dark:border-emerald-700/60 flex flex-col gap-1 shadow-xs">
+            <div className="py-1.5 px-2.5 bg-white dark:bg-slate-900 rounded-xl border border-emerald-300 dark:border-emerald-700/60 flex flex-col gap-1 shadow-2xs">
               <div className="flex justify-between items-center">
                 <div className="flex items-center gap-1.5 min-w-0">
-                  <span className="w-2 sm:w-2.5 h-2 sm:h-2.5 rounded-full bg-emerald-500 shrink-0 animate-pulse"></span>
-                  <span className="font-black text-slate-900 dark:text-emerald-300 text-xs truncate">{clienteTransaccion.nombre}</span>
+                  <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0"></span>
+                  <span className="font-bold text-slate-900 dark:text-emerald-300 text-xs truncate">{clienteTransaccion.nombre}</span>
                   {clienteTransaccion.deudaTotal !== undefined && clienteTransaccion.deudaTotal > 0 && (
-                    <span className="text-[9px] sm:text-[9.5px] font-bold text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-500/10 px-1.5 py-0.5 rounded shrink-0">
+                    <span className="text-[9px] font-bold text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-500/10 px-1.5 py-0.5 rounded shrink-0">
                       Debe: ${(clienteTransaccion.deudaTotal || 0).toLocaleString('es-CO')}
                     </span>
                   )}
@@ -2050,23 +2133,23 @@ Estamos atentos para cualquier consulta.
                 <button 
                   type="button"
                   onClick={() => setClienteTransaccion(null)} 
-                  title="Remover cliente y volver a Venta de Mostrador"
+                  title="Remover cliente y volver a Consumidor Final"
                   className="text-slate-400 hover:text-rose-500 shrink-0 hover:bg-rose-50 dark:hover:bg-rose-950/40 p-0.5 rounded-full transition-colors cursor-pointer"
                 >
-                  <X size={14}/>
+                  <X size={13}/>
                 </button>
               </div>
 
-              {/* Saldo a Favor integrado dentro de la misma tarjeta del cliente */}
+              {/* Saldo a Favor integrado */}
               {saldoFavorDisponible > 0 && (
                 <div className="pt-1 mt-0.5 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between gap-1">
                   <div className="flex items-center gap-1 text-blue-700 dark:text-blue-300 min-w-0">
-                    <span className="text-xs shrink-0">💎</span>
-                    <span className="text-[10px] sm:text-[10.5px] font-bold truncate">
+                    <Wallet size={12} className="shrink-0" />
+                    <span className="text-[10px] font-bold truncate">
                       Favor: ${saldoFavorDisponible.toLocaleString('es-CO')}
                     </span>
                   </div>
-                  <div className="flex items-center bg-blue-100/80 dark:bg-blue-900/60 p-0.5 rounded-lg border border-blue-200 dark:border-blue-800/60 shrink-0">
+                  <div className="flex items-center bg-blue-50 dark:bg-blue-950/60 p-0.5 rounded-lg border border-blue-200 dark:border-blue-800/60 shrink-0">
                     <button
                       type="button"
                       onClick={() => setUsarSaldoFavor(true)}
@@ -2076,7 +2159,7 @@ Estamos atentos para cualquier consulta.
                           : 'text-blue-800 dark:text-blue-300 hover:text-blue-950'
                       }`}
                     >
-                      ✓ Usar
+                      Usar
                     </button>
                     <button
                       type="button"
@@ -2095,7 +2178,7 @@ Estamos atentos para cualquier consulta.
             </div>
           ) : (
             <div className="relative">
-              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 text-amber-600 dark:text-amber-400" size={13} />
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 text-indigo-500/80 dark:text-indigo-400" size={13} />
               <input
                 type="text"
                 value={busquedaRegistro}
@@ -2115,11 +2198,11 @@ Estamos atentos para cualquier consulta.
                     }
                   }
                 }}
-                placeholder="🔎 Toca para buscar o crear cliente..."
-                className="w-full pl-8 pr-2 py-1.5 bg-white dark:bg-[#0f172a] border-2 border-amber-300 dark:border-amber-600/70 rounded-xl text-xs font-bold outline-none focus:border-amber-500 focus:ring-2 focus:ring-amber-400/20 transition-all text-slate-900 dark:!text-white placeholder:text-slate-400 dark:placeholder:text-slate-500"
+                placeholder="Buscar cliente o crear nuevo..."
+                className="w-full pl-8 pr-2.5 py-1.5 bg-white dark:bg-[#020617] border border-indigo-200/90 dark:border-indigo-900/70 rounded-xl text-xs font-semibold outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-400/20 transition-all text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 placeholder:font-normal"
               />
               {mostrarResultadosBuscador && busquedaRegistro.length > 0 && (
-                <div className="absolute top-full left-0 right-0 mt-1 bg-white dark:bg-[#1e293b] border-2 border-slate-200 dark:border-slate-700 rounded-xl shadow-xl z-50 overflow-hidden">
+                <div className="absolute top-full left-0 right-0 mt-1 bg-white dark:bg-[#1e293b] border border-slate-200 dark:border-slate-700 rounded-xl shadow-xl z-50 overflow-hidden">
                   <div className="max-h-40 overflow-y-auto">
                     {clientesFiltradosRegistro.map(c => (
                       <div key={c.id} onClick={() => { setClienteTransaccion(c); setBusquedaRegistro(""); setMostrarResultadosBuscador(false); }} className="p-2.5 border-b border-slate-100 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer flex justify-between items-center text-xs min-w-0">
@@ -2145,25 +2228,26 @@ Estamos atentos para cualquier consulta.
         </div>
 
         {/* 2. RECUADRO FORMA DE PAGO */}
-        <div className="flex flex-col bg-white dark:bg-[#0f172a] p-2 rounded-xl border-2 border-blue-400/80 dark:border-blue-500/60 shadow-xs gap-1 sm:gap-1.5">
+        <div className="flex flex-col bg-slate-50/80 dark:bg-slate-900/40 p-2.5 rounded-xl border border-slate-200 dark:border-slate-800 shadow-2xs gap-1.5">
           <div className="flex justify-between items-center">
-            <label className="text-[10px] font-black uppercase tracking-wider text-blue-800 dark:text-blue-300 flex items-center gap-1.5">
-              <CreditCard size={13} /> {usarSaldoFavor && montoSaldoFavorAplicado > 0 ? '2. Forma de Pago Restante' : '2. Forma de Pago'}
+            <label className="text-[10px] font-black uppercase tracking-wider text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+              <CreditCard size={13} className="text-slate-500" />
+              <span>{usarSaldoFavor && montoSaldoFavorAplicado > 0 ? '2. Pago Restante' : '2. Forma de Pago'}</span>
             </label>
-            <span className="text-[9px] sm:text-[9.5px] font-black uppercase bg-blue-100 dark:bg-blue-900/50 text-blue-800 dark:text-blue-200 px-2 py-0.5 rounded-md border border-blue-200 dark:border-blue-800/40">
+            <span className="text-[9px] font-bold uppercase bg-slate-200/70 dark:bg-slate-800 text-slate-700 dark:text-slate-300 px-2 py-0.5 rounded-md">
               {metodoPago === 'efectivo' ? 'Efectivo' : metodoPago === 'transferencia' ? (subMetodoPago || 'Transf.') : metodoPago === 'datafono' ? 'Datáfono' : (subMetodoPago || 'Crédito')}
             </span>
           </div>
 
-          <div className="grid grid-cols-4 gap-1 sm:gap-1.5">
+          <div className="grid grid-cols-4 gap-1">
             <button
               type="button"
               onClick={() => { setMetodoPago('efectivo'); setSubMetodoPago(''); }}
               title="Efectivo"
-              className={`py-1.5 rounded-xl text-[10px] sm:text-[10.5px] font-black flex flex-col items-center gap-0.5 transition-all cursor-pointer ${
+              className={`py-1.5 rounded-xl text-[10px] font-bold flex flex-col items-center gap-0.5 transition-all cursor-pointer ${
                 metodoPago === 'efectivo' 
-                  ? 'bg-emerald-600 text-white shadow-md border-2 border-emerald-700 ring-2 ring-emerald-400 scale-[1.02]' 
-                  : 'bg-slate-50 dark:bg-slate-800/80 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700 hover:border-emerald-400 hover:text-emerald-600'
+                  ? 'bg-emerald-600 text-white shadow-xs font-black' 
+                  : 'bg-white dark:bg-slate-800/90 text-slate-600 dark:text-slate-400 border border-slate-200/90 dark:border-slate-700 hover:border-emerald-400 hover:text-emerald-600'
               }`}
             >
               <Banknote size={13} />
@@ -2178,10 +2262,10 @@ Estamos atentos para cualquier consulta.
                 if (totalNetoACobrar > 0) setPagoCliente(totalNetoACobrar.toLocaleString('es-CO'));
               }}
               title="Transferencia / Pago en línea"
-              className={`py-1.5 rounded-xl text-[10px] sm:text-[10.5px] font-black flex flex-col items-center gap-0.5 transition-all cursor-pointer ${
+              className={`py-1.5 rounded-xl text-[10px] font-bold flex flex-col items-center gap-0.5 transition-all cursor-pointer ${
                 metodoPago === 'transferencia' 
-                  ? 'bg-blue-600 text-white shadow-md border-2 border-blue-700 ring-2 ring-blue-400 scale-[1.02]' 
-                  : 'bg-slate-50 dark:bg-slate-800/80 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700 hover:border-blue-400 hover:text-blue-600'
+                  ? 'bg-blue-600 text-white shadow-xs font-black' 
+                  : 'bg-white dark:bg-slate-800/90 text-slate-600 dark:text-slate-400 border border-slate-200/90 dark:border-slate-700 hover:border-blue-400 hover:text-blue-600'
               }`}
             >
               <Smartphone size={13} />
@@ -2196,10 +2280,10 @@ Estamos atentos para cualquier consulta.
                 if (totalNetoACobrar > 0) setPagoCliente(totalNetoACobrar.toLocaleString('es-CO'));
               }}
               title="Datáfono / Tarjeta"
-              className={`py-1.5 rounded-xl text-[10px] sm:text-[10.5px] font-black flex flex-col items-center gap-0.5 transition-all cursor-pointer ${
+              className={`py-1.5 rounded-xl text-[10px] font-bold flex flex-col items-center gap-0.5 transition-all cursor-pointer ${
                 metodoPago === 'datafono' 
-                  ? 'bg-indigo-600 text-white shadow-md border-2 border-indigo-700 ring-2 ring-indigo-400 scale-[1.02]' 
-                  : 'bg-slate-50 dark:bg-slate-800/80 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700 hover:border-indigo-400 hover:text-indigo-600'
+                  ? 'bg-indigo-600 text-white shadow-xs font-black' 
+                  : 'bg-white dark:bg-slate-800/90 text-slate-600 dark:text-slate-400 border border-slate-200/90 dark:border-slate-700 hover:border-indigo-400 hover:text-indigo-600'
               }`}
             >
               <CreditCard size={13} />
@@ -2214,10 +2298,10 @@ Estamos atentos para cualquier consulta.
                 if (totalNetoACobrar > 0) setPagoCliente(totalNetoACobrar.toLocaleString('es-CO'));
               }}
               title="Crédito Externo (Addi, Sistecrédito…)"
-              className={`py-1.5 rounded-xl text-[10px] sm:text-[10.5px] font-black flex flex-col items-center gap-0.5 transition-all cursor-pointer ${
+              className={`py-1.5 rounded-xl text-[10px] font-bold flex flex-col items-center gap-0.5 transition-all cursor-pointer ${
                 metodoPago === 'credito_externo' 
-                  ? 'bg-purple-600 text-white shadow-md border-2 border-purple-700 ring-2 ring-purple-400 scale-[1.02]' 
-                  : 'bg-slate-50 dark:bg-slate-800/80 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700 hover:border-purple-400 hover:text-purple-600'
+                  ? 'bg-purple-600 text-white shadow-xs font-black' 
+                  : 'bg-white dark:bg-slate-800/90 text-slate-600 dark:text-slate-400 border border-slate-200/90 dark:border-slate-700 hover:border-purple-400 hover:text-purple-600'
               }`}
             >
               <Zap size={13} />
@@ -2280,7 +2364,7 @@ Estamos atentos para cualquier consulta.
                     ? 'No. Voucher (Opcional)'
                     : `Aprobación ${subMetodoPago || 'crédito'} (Opcional)`
                 }
-                className="w-full px-2 py-1 bg-slate-50 dark:bg-[#0f172a] border border-slate-200 dark:border-slate-700 rounded-xl outline-none font-medium text-xs text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:border-blue-500 transition-colors"
+                className="w-full px-2 py-1 bg-white dark:bg-[#020617] border border-slate-200 dark:border-slate-700 rounded-xl outline-none font-medium text-xs text-slate-900 dark:text-white placeholder:text-slate-400 focus:border-blue-500 transition-colors"
               />
             </div>
           )}
@@ -2288,63 +2372,64 @@ Estamos atentos para cualquier consulta.
 
         {/* 3. RECUADRO DINERO RECIBIDO & CAMBIO */}
         {totalNetoACobrar === 0 && montoSaldoFavorAplicado > 0 ? (
-          <div className="p-2 sm:p-2.5 bg-emerald-50 dark:bg-emerald-950/40 border-2 border-emerald-500 rounded-xl flex items-center gap-2 shadow-xs">
-            <span className="text-lg">✅</span>
+          <div className="p-2.5 bg-emerald-50/70 dark:bg-emerald-950/30 border border-emerald-300 dark:border-emerald-800/60 rounded-xl flex items-center gap-2 shadow-2xs">
+            <CheckCircle2 size={16} className="text-emerald-600 dark:text-emerald-400 shrink-0" />
             <div>
               <h4 className="text-xs font-black text-emerald-800 dark:text-emerald-200">
-                Cobro cubierto con Saldo a Favor
+                Cubierto con Saldo a Favor
               </h4>
-              <p className="text-[10px] sm:text-[10.5px] text-emerald-700 dark:text-emerald-300 font-medium">
-                No se requiere dinero adicional.
+              <p className="text-[10px] text-emerald-700 dark:text-emerald-300 font-medium">
+                No se requiere pago en caja.
               </p>
             </div>
           </div>
         ) : (
-          <div className="flex flex-col bg-white dark:bg-[#0f172a] p-2 rounded-xl border-2 border-emerald-500 dark:border-emerald-400 shadow-xs gap-1 sm:gap-1.5">
+          <div className="flex flex-col bg-slate-50/80 dark:bg-slate-900/40 p-2.5 rounded-xl border border-slate-200 dark:border-slate-800 shadow-2xs gap-1.5">
             <div className="flex justify-between items-center">
-              <label className="text-[10px] font-black uppercase tracking-wider text-emerald-800 dark:text-emerald-300 flex items-center gap-1.5">
-                <Banknote size={13} /> 3. ¿Con cuánto paga el cliente?
+              <label className="text-[10px] font-black uppercase tracking-wider text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+                <Banknote size={13} className="text-emerald-600 dark:text-emerald-400" />
+                <span>3. ¿Con cuánto paga?</span>
               </label>
               {pagoCliente ? (
-                <span className="text-[9px] sm:text-[9.5px] font-black bg-emerald-600 text-white px-2 py-0.5 rounded-md shadow-2xs">
-                  ✓ Listo
+                <span className="text-[9px] font-bold bg-emerald-100 dark:bg-emerald-950/80 text-emerald-700 dark:text-emerald-300 px-2 py-0.5 rounded-md border border-emerald-300/60">
+                  Listo
                 </span>
               ) : (
-                <span className="text-[9px] sm:text-[9.5px] font-bold text-amber-700 dark:text-amber-300 bg-amber-100 dark:bg-amber-950/50 px-2 py-0.5 rounded-md">
-                  Por registrar
+                <span className="text-[9px] font-bold text-slate-400 dark:text-slate-500 bg-slate-200/50 dark:bg-slate-800 px-2 py-0.5 rounded-md">
+                  Pendiente
                 </span>
               )}
             </div>
 
-            <div className="flex items-center gap-1.5 sm:gap-2">
+            <div className="flex items-center gap-1.5">
               <div className="relative flex-1">
-                <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-emerald-600 font-black text-sm sm:text-base">$</span>
+                <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-sm">$</span>
                 <input
                   type="text"
                   inputMode="decimal" pattern="[0-9]*"
                   value={pagoCliente}
                   onChange={(e) => setPagoCliente(formatearMonedaInput(e.target.value))}
                   placeholder="0"
-                  className="w-full pl-7 pr-2 py-1.5 bg-slate-50 dark:bg-[#020617] border-2 border-emerald-500 dark:border-emerald-400 rounded-xl outline-none font-black text-sm sm:text-base text-slate-900 dark:!text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 placeholder:text-xs placeholder:font-normal focus:ring-2 focus:ring-emerald-400/30"
+                  className="w-full pl-6 pr-2 py-1.5 bg-white dark:bg-[#020617] border border-slate-200 dark:border-slate-700 rounded-xl outline-none font-bold text-sm text-slate-900 dark:text-white placeholder:text-slate-400 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-400/20"
                 />
               </div>
               <button
                 type="button"
                 onClick={() => setPagoCliente(totalNetoACobrar.toLocaleString('es-CO'))}
-                className={`px-2.5 sm:px-3 py-1.5 rounded-xl font-black text-xs active:scale-95 whitespace-nowrap transition-all border cursor-pointer ${
+                className={`px-3 py-1.5 rounded-xl font-bold text-xs active:scale-95 whitespace-nowrap transition-all border cursor-pointer ${
                   pagoCliente && parseFloat(pagoCliente.replace(/\D/g, '')) === totalNetoACobrar
-                    ? 'bg-emerald-600 text-white border-emerald-700 shadow-sm'
-                    : 'bg-emerald-500 hover:bg-emerald-600 text-white border-emerald-600 shadow-xs'
+                    ? 'bg-emerald-600 text-white border-emerald-600 shadow-2xs'
+                    : 'bg-white dark:bg-slate-800 text-emerald-700 dark:text-emerald-300 border-slate-200 dark:border-slate-700 hover:bg-emerald-50 dark:hover:bg-emerald-950/40'
                 }`}
                 title="Marcar pago exacto sin cambio"
               >
-                ✓ Exacto
+                Exacto
               </button>
             </div>
 
             {/* Chips de billetes rápidos SOLO en efectivo */}
             {metodoPago === 'efectivo' && (
-              <div className="flex items-center gap-1 sm:gap-1.5 pt-0.5">
+              <div className="flex items-center gap-1 pt-0.5">
                 {[10000, 20000, 50000, 100000].map(billete => (
                   <button
                     key={billete}
@@ -2354,7 +2439,7 @@ Estamos atentos para cualquier consulta.
                       const nuevo = actual > 0 ? actual + billete : billete;
                       setPagoCliente(nuevo.toLocaleString('es-CO'));
                     }}
-                    className="flex-1 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 text-slate-700 dark:text-slate-300 font-bold text-[10px] sm:text-[10.5px] border border-slate-200 dark:border-slate-700 active:scale-95 transition-all cursor-pointer"
+                    className="flex-1 py-1 rounded-lg bg-white dark:bg-slate-800 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 text-slate-700 dark:text-slate-300 font-bold text-[10px] border border-slate-200 dark:border-slate-700 active:scale-95 transition-all cursor-pointer"
                   >
                     +${billete / 1000}k
                   </button>
@@ -2366,13 +2451,13 @@ Estamos atentos para cualquier consulta.
             {pagoCliente && pagadoNum >= totalNetoACobrar && totalNetoACobrar > 0 && (
               <div className={`px-2.5 py-1.5 rounded-xl flex justify-between items-center animate-in zoom-in-95 duration-150 border ${
                 pagadoNum > totalNetoACobrar
-                  ? 'bg-emerald-100 dark:bg-emerald-500/25 text-emerald-900 dark:text-emerald-100 border-emerald-400 dark:border-emerald-600 shadow-xs ring-1 ring-emerald-400/40'
-                  : 'bg-slate-100 dark:bg-slate-800/70 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700'
+                  ? 'bg-emerald-50 dark:bg-emerald-950/30 text-emerald-900 dark:text-emerald-100 border-emerald-300 dark:border-emerald-700 shadow-2xs'
+                  : 'bg-white dark:bg-slate-800/80 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700'
               }`}>
-                <span className="text-[10.5px] uppercase font-black tracking-wider flex items-center gap-1">
-                  💰 {pagadoNum > totalNetoACobrar ? 'Devuelta a entregar:' : 'Devuelta / Cambio:'}
+                <span className="text-[10px] uppercase font-bold tracking-wider">
+                  {pagadoNum > totalNetoACobrar ? 'Devuelta / Cambio:' : 'Devuelta:'}
                 </span>
-                <span className={`font-black font-mono ${pagadoNum > totalNetoACobrar ? 'text-base sm:text-lg text-emerald-800 dark:text-emerald-200' : 'text-xs text-slate-600 dark:text-slate-400'}`}>
+                <span className={`font-black font-mono ${pagadoNum > totalNetoACobrar ? 'text-sm text-emerald-700 dark:text-emerald-300' : 'text-xs text-slate-500 dark:text-slate-400'}`}>
                   ${(pagadoNum - totalNetoACobrar).toLocaleString('es-CO')} {pagadoNum === totalNetoACobrar ? '(Exacto)' : ''}
                 </span>
               </div>
@@ -2380,22 +2465,96 @@ Estamos atentos para cualquier consulta.
 
             {/* Saldo a Fiar si pagó de menos */}
             {pagoCliente !== "" && pagadoNum < totalNetoACobrar && totalNetoACobrar > 0 && (
-              <div className="p-2 bg-rose-50 dark:bg-rose-950/30 border border-rose-300 dark:border-rose-800 rounded-xl flex flex-col gap-0.5 text-rose-800 dark:text-rose-300">
+              <div className="p-2 bg-rose-50/80 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-900/60 rounded-xl flex flex-col gap-0.5 text-rose-800 dark:text-rose-300">
                 <div className="flex justify-between items-center">
-                  <span className="text-[10px] uppercase font-black tracking-wider">Saldo restante a fiar:</span>
-                  <span className="text-sm font-black font-mono text-rose-600 dark:text-rose-400">
+                  <span className="text-[10px] uppercase font-bold tracking-wider">Saldo a fiar:</span>
+                  <span className="text-xs font-black font-mono text-rose-600 dark:text-rose-400">
                     ${(totalNetoACobrar - pagadoNum).toLocaleString('es-CO')}
                   </span>
                 </div>
                 {!clienteTransaccion && (
-                  <p className="text-[9.5px] text-rose-600 dark:text-rose-400 font-bold italic">
-                    ⚠️ Selecciona un cliente arriba para poder fiar la diferencia.
+                  <p className="text-[9.5px] text-rose-600 dark:text-rose-400 font-medium">
+                    Asigna un cliente arriba para poder fiar la diferencia.
                   </p>
                 )}
               </div>
             )}
           </div>
         )}
+
+        {/* 4. RECUADRO FACTURACIÓN ELECTRÓNICA DIAN */}
+        <div className={`flex flex-col p-2.5 rounded-xl transition-all duration-200 border ${
+          emitirFacturaElectronica
+            ? 'bg-emerald-50/30 dark:bg-emerald-950/20 border-emerald-300 dark:border-emerald-800/60 shadow-2xs gap-1.5'
+            : 'bg-slate-50/80 dark:bg-slate-900/40 border-slate-200 dark:border-slate-800 shadow-2xs'
+        }`}>
+          <div className="flex justify-between items-center">
+            <label 
+              onClick={() => {
+                if (datosSesion?.facturacionDianHabilitada !== true) {
+                  setModalBloqueoDian(true);
+                  return;
+                }
+                const nuevo = !emitirFacturaElectronica;
+                setEmitirFacturaElectronica(nuevo);
+                if (nuevo && !numeroDocumentoFE.trim()) {
+                  setModalDatosDian(true);
+                }
+              }} 
+              className="text-[10px] font-black uppercase tracking-wider text-slate-700 dark:text-slate-300 flex items-center gap-1.5 cursor-pointer select-none"
+            >
+              <FileText size={13} className={emitirFacturaElectronica ? "text-emerald-600 dark:text-emerald-400" : "text-slate-400"} />
+              <span>Factura Electrónica DIAN</span>
+              {datosSesion?.facturacionDianHabilitada !== true && (
+                <span className="text-[8.5px] px-1.5 py-0.2 rounded-full font-bold bg-amber-500/15 text-amber-700 dark:text-amber-400 border border-amber-500/30">
+                  Plan Pro DIAN
+                </span>
+              )}
+            </label>
+            <button
+              type="button"
+              onClick={() => {
+                if (datosSesion?.facturacionDianHabilitada !== true) {
+                  setModalBloqueoDian(true);
+                  return;
+                }
+                const nuevo = !emitirFacturaElectronica;
+                setEmitirFacturaElectronica(nuevo);
+                if (nuevo && !numeroDocumentoFE.trim()) {
+                  setModalDatosDian(true);
+                }
+              }}
+              className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                emitirFacturaElectronica ? 'bg-emerald-600' : 'bg-slate-300 dark:bg-slate-700'
+              }`}
+            >
+              <span
+                className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-md ring-0 transition duration-200 ease-in-out ${
+                  emitirFacturaElectronica ? 'translate-x-4' : 'translate-x-0'
+                }`}
+              />
+            </button>
+          </div>
+
+          {emitirFacturaElectronica && (
+            <div className="flex items-center justify-between bg-white dark:bg-slate-900/90 border border-slate-200 dark:border-slate-700/80 px-2.5 py-1.5 rounded-lg text-[11px] animate-in fade-in duration-150">
+              <div className="flex items-center gap-1.5 min-w-0">
+                <CheckCircle2 size={12} className="text-emerald-600 dark:text-emerald-400 shrink-0" />
+                <span className="truncate font-semibold text-slate-800 dark:text-slate-200">
+                  {numeroDocumentoFE.trim() ? `${tipoDocumentoFE} ${numeroDocumentoFE} • ${razonSocialFE || 'Sin razón social'}` : 'Consumidor Final (222222222222)'}
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setModalDatosDian(true)}
+                className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-700 dark:text-emerald-300 hover:text-emerald-800 bg-emerald-50 dark:bg-emerald-950/60 hover:bg-emerald-100 dark:hover:bg-emerald-900/60 px-2 py-0.5 rounded-md border border-emerald-200 dark:border-emerald-800 shrink-0 cursor-pointer transition-all ml-1.5"
+              >
+                <Edit3 size={10} />
+                <span>{numeroDocumentoFE.trim() ? 'Editar' : 'Personalizar'}</span>
+              </button>
+            </div>
+          )}
+        </div>
 
         {/* EN MÓVIL: DESGLOSE DE COBRO JUSTO ARRIBA DEL BOTÓN FINAL (PUNTO 5) */}
         {esModal && (
@@ -3481,6 +3640,166 @@ Estamos atentos para cualquier consulta.
                 className="w-full bg-slate-100 dark:bg-[#020617] hover:bg-slate-200 dark:hover:bg-[#1e293b] text-slate-600 dark:text-slate-300 font-bold py-4 rounded-2xl text-base transition-colors cursor-pointer"
               >
                 Volver al inicio
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL DATOS FACTURACIÓN ELECTRÓNICA DIAN */}
+      {modalDatosDian && (
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-xs flex items-center justify-center p-4 z-[900] animate-in fade-in duration-150">
+          <div className="bg-white dark:bg-[#0f172a] rounded-2xl w-full max-w-md shadow-2xl border border-slate-200 dark:border-slate-800 overflow-hidden animate-in zoom-in-95 duration-200">
+            {/* Header */}
+            <div className="px-5 py-4 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center bg-slate-50/80 dark:bg-slate-900/80">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 rounded-xl bg-emerald-100 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400">
+                  <FileText size={18} />
+                </div>
+                <div>
+                  <h3 className="text-sm font-black text-slate-900 dark:text-white">Datos Facturación Electrónica DIAN</h3>
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400">Configuración fiscal del adquirente</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setModalDatosDian(false)}
+                className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-1 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Form Body */}
+            <div className="p-5 space-y-3.5">
+              <div className="grid grid-cols-3 gap-2.5">
+                <div className="col-span-1">
+                  <label className="text-[11px] font-bold text-slate-600 dark:text-slate-300 block mb-1">Tipo</label>
+                  <select
+                    value={tipoDocumentoFE}
+                    onChange={(e) => setTipoDocumentoFE(e.target.value as any)}
+                    className="w-full py-2 px-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold text-slate-900 dark:text-white outline-none focus:border-emerald-500"
+                  >
+                    <option value="CC">Cédula (CC)</option>
+                    <option value="NIT">NIT</option>
+                    <option value="CE">Cédula Ext. (CE)</option>
+                  </select>
+                </div>
+
+                <div className="col-span-2">
+                  <label className="text-[11px] font-bold text-slate-600 dark:text-slate-300 block mb-1">Número de Documento / NIT</label>
+                  <input
+                    type="text"
+                    value={numeroDocumentoFE}
+                    onChange={(e) => setNumeroDocumentoFE(e.target.value)}
+                    placeholder={tipoDocumentoFE === 'NIT' ? "NIT (sin dígito verificación)" : "Número de documento"}
+                    className="w-full py-2 px-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold text-slate-900 dark:text-white outline-none focus:border-emerald-500"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="text-[11px] font-bold text-slate-600 dark:text-slate-300 block mb-1">Nombre o Razón Social</label>
+                <input
+                  type="text"
+                  value={razonSocialFE}
+                  onChange={(e) => setRazonSocialFE(e.target.value)}
+                  placeholder="Nombre de la persona o empresa"
+                  className="w-full py-2 px-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold text-slate-900 dark:text-white outline-none focus:border-emerald-500"
+                />
+              </div>
+
+              <div>
+                <label className="text-[11px] font-bold text-slate-600 dark:text-slate-300 block mb-1">Correo para Recepción DIAN</label>
+                <input
+                  type="email"
+                  value={emailFE}
+                  onChange={(e) => setEmailFE(e.target.value)}
+                  placeholder="correo@ejemplo.com"
+                  className="w-full py-2 px-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold text-slate-900 dark:text-white outline-none focus:border-emerald-500"
+                />
+              </div>
+
+              {clienteTransaccion ? (
+                <div className="bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800/50 rounded-xl p-2.5 text-[11px] text-emerald-800 dark:text-emerald-300 flex items-center gap-2">
+                  <CheckCircle2 size={14} className="shrink-0 text-emerald-600" />
+                  <span>Estos datos se guardarán automáticamente en la ficha de <strong>{clienteTransaccion.nombre}</strong>.</span>
+                </div>
+              ) : (
+                <div className="bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-700/60 rounded-xl p-2.5 text-[11px] text-slate-500 dark:text-slate-400">
+                  Si dejas los campos en blanco, la factura se emitirá a nombre de <strong>Consumidor Final (222222222222)</strong>.
+                </div>
+              )}
+            </div>
+
+            {/* Footer */}
+            <div className="px-5 py-3.5 bg-slate-50 dark:bg-slate-900/80 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setNumeroDocumentoFE('');
+                  setRazonSocialFE('');
+                  setEmailFE('');
+                  setModalDatosDian(false);
+                }}
+                className="text-xs font-semibold text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200 py-2 px-3 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+              >
+                Usar Consumidor Final
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setEmitirFacturaElectronica(true);
+                  setModalDatosDian(false);
+                }}
+                className="bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white text-xs font-black py-2.5 px-5 rounded-xl shadow-xs transition-all cursor-pointer"
+              >
+                Guardar y Usar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL BLOQUEO FACTURACIÓN DIAN */}
+      {modalBloqueoDian && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-xs animate-in fade-in duration-200">
+          <div className="bg-white dark:bg-slate-900 rounded-3xl max-w-md w-full p-6 shadow-2xl border border-slate-200 dark:border-slate-800 space-y-4 text-center">
+            <div className="w-14 h-14 mx-auto rounded-2xl bg-amber-500/15 border border-amber-500/30 flex items-center justify-center text-amber-600 dark:text-amber-400">
+              <FileText size={28} />
+            </div>
+
+            <div className="space-y-1">
+              <h3 className="text-base font-black text-slate-900 dark:text-white">
+                Facturación Electrónica DIAN
+              </h3>
+              <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
+                Este comercio aún no tiene habilitada la emisión de facturas electrónicas oficiales ante la DIAN (con CUFE y código QR).
+              </p>
+            </div>
+
+            <div className="p-3 bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800/40 rounded-2xl text-[11px] text-amber-800 dark:text-amber-300 text-left">
+              Para habilitar la emisión directa en tu punto de venta, solicita la vinculación desde tu perfil o comunícate con soporte de Fiabono para activar tu plan.
+            </div>
+
+            <div className="flex flex-col sm:flex-row gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setModalBloqueoDian(false)}
+                className="w-full py-2.5 px-4 rounded-xl text-xs font-bold text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer"
+              >
+                Cerrar
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setModalBloqueoDian(false);
+                  router.push('/dashboard/perfil');
+                }}
+                className="w-full py-2.5 px-4 rounded-xl text-xs font-black text-white bg-emerald-600 hover:bg-emerald-700 shadow-xs transition active:scale-95 cursor-pointer flex items-center justify-center gap-1.5"
+              >
+                <span>Solicitar Habilitación</span>
               </button>
             </div>
           </div>

@@ -6,7 +6,7 @@ import { getApps, initializeApp } from "firebase/app";
 import { db, auth } from "../../../firebase";
 import { storage } from "../../../firebase";
 import { getDownloadURL, ref, uploadBytes } from "firebase/storage";
-import { UserCog, LogOut, Sun, Monitor, Moon, Edit2, Mail, ShieldAlert, Shield, CheckCircle2, AlertCircle, Star, Lock, UserPlus, ChevronUp, ChevronDown, ChevronRight, AlertTriangle, Trash2, Info, X, Clock, Upload, Image as ImageIcon, Building2, MapPin, Receipt, PhoneCall, Camera, Smartphone, ArrowUpFromLine, MoreHorizontal, Download, Crown, Store, Sparkles, Bookmark, KeyRound, Eye, EyeOff, CreditCard, Package, Users, Banknote, Tag } from 'lucide-react';
+import { UserCog, LogOut, Sun, Monitor, Moon, Edit2, Mail, ShieldAlert, Shield, CheckCircle2, AlertCircle, Star, Lock, UserPlus, ChevronUp, ChevronDown, ChevronRight, AlertTriangle, Trash2, Info, X, Clock, Upload, Image as ImageIcon, Building2, MapPin, Receipt, PhoneCall, Camera, Smartphone, ArrowUpFromLine, MoreHorizontal, Download, Crown, Store, Sparkles, Bookmark, KeyRound, Eye, EyeOff, CreditCard, Package, Users, Banknote, Tag, FileText, ShieldCheck } from 'lucide-react';
 import ModalHorarios from '@/components/ModalHorarios';
 import { useAuth } from "../../../hooks/AuthContext";
 import ModalSuscripcion from "@/components/ModalSuscripcion";
@@ -37,6 +37,7 @@ export default function PerfilPage() {
   const [habilitarIva, setHabilitarIva] = useState(datosSesion?.habilitarIva || false);
   const [porcentajeIva, setPorcentajeIva] = useState<number>(datosSesion?.porcentajeIva || 19);
   const [moduloSepareActivo, setModuloSepareActivo] = useState(datosSesion?.moduloSepareActivo !== false);
+  const [facturaDianPorDefecto, setFacturaDianPorDefecto] = useState(datosSesion?.facturaDianPorDefecto || false);
   const correoNegocio = datosSesion?.correoNegocio || "";
   
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -56,6 +57,19 @@ export default function PerfilPage() {
   const [passwordData, setPasswordData] = useState({ actual: "", nueva: "", confirmar: "" });
   const [passErrores, setPassErrores] = useState({ actual: "", nueva: "", confirmar: "", general: "" });
   const [mensajePerfil, setMensajePerfil] = useState({ texto: "", tipo: "" });
+
+  // ESTADOS SOLICITUD FACTURACIÓN ELECTRÓNICA DIAN
+  const [modalSolicitudDian, setModalSolicitudDian] = useState(false);
+  const [dianNit, setDianNit] = useState(nitNegocio || "");
+  const [dianDv, setDianDv] = useState("");
+  const [dianRazonSocial, setDianRazonSocial] = useState(nombreNegocio || "");
+  const [dianNombreComercial, setDianNombreComercial] = useState(nombreNegocio || "");
+  const [dianTipoPersona, setDianTipoPersona] = useState<'natural' | 'juridica'>('natural');
+  const [dianRegimen, setDianRegimen] = useState<'no_responsable' | 'responsable'>('no_responsable');
+  const [dianDireccion, setDianDireccion] = useState(direccionNegocio || "");
+  const [dianMunicipio, setDianMunicipio] = useState("Salgar, Antioquia");
+  const [dianTelefono, setDianTelefono] = useState(telefonoNegocio || "");
+  const [enviandoSolicitudDian, setEnviandoSolicitudDian] = useState(false);
 
   const [temaApariencia, setTemaApariencia] = useState<'clara' | 'oscura' | 'auto'>('clara');
   const [temaCargado, setTemaCargado] = useState(false);
@@ -209,6 +223,7 @@ export default function PerfilPage() {
       setHabilitarIva(datosSesion.habilitarIva || false);
       setPorcentajeIva(datosSesion.porcentajeIva || 19);
       setModuloSepareActivo(datosSesion.moduloSepareActivo !== false);
+      setFacturaDianPorDefecto(datosSesion.facturaDianPorDefecto || false);
       const slugVal = datosSesion.slugNegocio || generarSlugNegocio(datosSesion.nombreNegocio || "");
       setSlugNegocioActual(slugVal);
       setSlugNegocioEdicion(slugVal);
@@ -374,6 +389,7 @@ export default function PerfilPage() {
         nombreUsuario: editNombreUsuario,
         habilitarIva,
         porcentajeIva: Number(porcentajeIva) || 19,
+        facturaDianPorDefecto,
         moduloSepareActivo,
         slugNegocio: slugFinal
       });
@@ -391,6 +407,7 @@ export default function PerfilPage() {
         nombreUsuario: editNombreUsuario, 
         habilitarIva, 
         porcentajeIva: Number(porcentajeIva) || 19,
+        facturaDianPorDefecto,
         moduloSepareActivo,
         slugNegocio: slugFinal
       }));
@@ -581,6 +598,61 @@ export default function PerfilPage() {
       toast.success(data.mensaje || "Estado actualizado.");
     } catch (err: any) {
       toast.error(err?.message || "Error al actualizar estado.");
+    }
+  };
+
+  const enviarSolicitudDian = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!dianNit.trim()) {
+      toast.error("El NIT o Cédula es obligatorio.");
+      return;
+    }
+    if (!dianRazonSocial.trim()) {
+      toast.error("La Razón Social es obligatoria.");
+      return;
+    }
+    if (!dianDireccion.trim()) {
+      toast.error("La dirección comercial es obligatoria.");
+      return;
+    }
+    if (!dianTelefono.trim()) {
+      toast.error("El teléfono de contacto es obligatorio.");
+      return;
+    }
+
+    setEnviandoSolicitudDian(true);
+    try {
+      const idParaActualizar = adminId || usuarioAuth?.uid;
+      if (!idParaActualizar) throw new Error("No hay sesión válida.");
+
+      const solicitud = {
+        estado: 'pendiente' as const,
+        fechaSolicitud: new Date().toISOString(),
+        nit: dianNit.trim(),
+        dv: dianDv.trim(),
+        razonSocial: dianRazonSocial.trim(),
+        nombreComercial: dianNombreComercial.trim() || dianRazonSocial.trim(),
+        tipoPersona: dianTipoPersona,
+        regimenIva: dianRegimen,
+        direccion: dianDireccion.trim(),
+        municipio: dianMunicipio.trim(),
+        telefono: dianTelefono.trim()
+      };
+
+      await updateDoc(doc(db, "usuarios", idParaActualizar), {
+        solicitudDian: solicitud,
+        nitNegocio: dianNit.trim() + (dianDv.trim() ? `-${dianDv.trim()}` : ''),
+        direccionNegocio: dianDireccion.trim()
+      });
+
+      setDatosSesion(prev => prev ? { ...prev, solicitudDian: solicitud } : null);
+      setModalSolicitudDian(false);
+      toast.success("Solicitud de Facturación DIAN enviada con éxito.");
+    } catch (err: any) {
+      console.error(err);
+      toast.error(err?.message || "Error al enviar la solicitud.");
+    } finally {
+      setEnviandoSolicitudDian(false);
     }
   };
 
@@ -2362,6 +2434,77 @@ export default function PerfilPage() {
                       </div>
                     </div>
 
+                    {/* FACTURACIÓN ELECTRÓNICA DIAN */}
+                    {datosSesion?.facturacionDianHabilitada ? (
+                      <div className="p-4 rounded-2xl bg-emerald-50/60 dark:bg-emerald-950/20 border border-emerald-100 dark:border-emerald-900/40">
+                        <div className="flex items-center justify-between gap-4">
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <h4 className="font-bold text-sm text-slate-900 dark:text-white flex items-center gap-1.5">
+                                <FileText size={16} className="text-emerald-600 dark:text-emerald-400" /> Facturación Electrónica DIAN
+                              </h4>
+                              <span className="px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-emerald-600 text-white shadow-2xs">
+                                Habilitada
+                              </span>
+                            </div>
+                            <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                              {facturaDianPorDefecto 
+                                ? "Emisión por defecto: El switch de Factura DIAN iniciará encendido en cada venta de la caja." 
+                                : "Emisión manual: El switch de Factura DIAN iniciará apagado y lo activas cuando el cliente la solicite."}
+                            </p>
+                          </div>
+                          <label className="relative inline-flex items-center cursor-pointer shrink-0">
+                            <input 
+                              type="checkbox" 
+                              checked={facturaDianPorDefecto} 
+                              onChange={(e) => setFacturaDianPorDefecto(e.target.checked)} 
+                              className="sr-only peer" 
+                            />
+                            <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer dark:bg-slate-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-600"></div>
+                          </label>
+                        </div>
+                      </div>
+                    ) : datosSesion?.solicitudDian?.estado === 'pendiente' ? (
+                      <div className="p-4 rounded-2xl bg-amber-50/70 dark:bg-amber-950/25 border border-amber-200 dark:border-amber-800/50 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                        <div className="flex items-start gap-2.5">
+                          <Clock size={18} className="text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+                          <div>
+                            <h4 className="font-bold text-sm text-amber-900 dark:text-amber-200">
+                              Solicitud de Facturación DIAN en Revisión
+                            </h4>
+                            <p className="text-xs text-amber-700 dark:text-amber-300/80 mt-0.5">
+                              Datos recibidos (NIT: <strong>{datosSesion.solicitudDian.nit}</strong>). El equipo de Fiabono está procesando la vinculación técnica.
+                            </p>
+                          </div>
+                        </div>
+                        <span className="text-[10px] font-black uppercase tracking-wider px-2.5 py-1 rounded-lg bg-amber-500/20 text-amber-800 dark:text-amber-300 border border-amber-500/30 self-start sm:self-auto">
+                          En Proceso
+                        </span>
+                      </div>
+                    ) : (
+                      <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                        <div className="flex items-start gap-2.5">
+                          <FileText size={18} className="text-slate-400 dark:text-slate-500 shrink-0 mt-0.5" />
+                          <div>
+                            <h4 className="font-bold text-sm text-slate-900 dark:text-white">
+                              Facturación Electrónica DIAN
+                            </h4>
+                            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                              Emite facturas legales con CUFE y código QR ante la DIAN para tus clientes directamente desde la caja.
+                            </p>
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setModalSolicitudDian(true)}
+                          className="px-3.5 py-2 rounded-xl text-xs font-black text-white bg-emerald-600 hover:bg-emerald-700 shadow-xs transition active:scale-95 cursor-pointer self-start sm:self-auto shrink-0 flex items-center gap-1.5"
+                        >
+                          <ShieldCheck size={14} />
+                          <span>Solicitar Habilitación</span>
+                        </button>
+                      </div>
+                    )}
+
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2 border-t border-slate-100 dark:border-slate-800/60">
                       <div>
                         <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1.5">Tu Nombre de Usuario</label>
@@ -2411,6 +2554,12 @@ export default function PerfilPage() {
                         <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1 flex items-center gap-1.5"><Bookmark size={13} className="text-violet-500" /> Plan Separe</p>
                         <p className="font-bold text-slate-800 dark:text-slate-200 text-base truncate">
                           {moduloSepareActivo ? "Habilitado en Inicio" : "Oculto en Inicio"}
+                        </p>
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1 flex items-center gap-1.5"><FileText size={13} className="text-emerald-500" /> Factura DIAN</p>
+                        <p className="font-bold text-slate-800 dark:text-slate-200 text-base truncate">
+                          {facturaDianPorDefecto ? "Activa por defecto" : "Manual según cliente"}
                         </p>
                       </div>
                       <div className="min-w-0 md:col-span-2 bg-blue-50/50 dark:bg-blue-950/20 p-4 rounded-2xl border border-blue-100 dark:border-blue-900/30 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
@@ -3667,6 +3816,175 @@ export default function PerfilPage() {
                 No, conservar mi cuenta y datos
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL DE SOLICITUD DE FACTURACIÓN ELECTRÓNICA DIAN */}
+      {modalSolicitudDian && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-xs animate-in fade-in duration-200">
+          <div className="bg-white dark:bg-slate-900 rounded-3xl max-w-lg w-full max-h-[90vh] overflow-y-auto shadow-2xl border border-slate-200 dark:border-slate-800">
+            {/* Header */}
+            <div className="p-5 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2.5 rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+                  <FileText size={20} />
+                </div>
+                <div>
+                  <h3 className="text-base font-black text-slate-900 dark:text-white">Solicitud Facturación DIAN</h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">Datos fiscales exigidos por la normativa colombiana</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setModalSolicitudDian(false)}
+                className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-1 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Form */}
+            <form onSubmit={enviarSolicitudDian} className="p-5 space-y-4">
+              <div className="p-3 bg-blue-50/60 dark:bg-blue-950/20 border border-blue-100 dark:border-blue-900/40 rounded-2xl text-[11px] text-blue-800 dark:text-blue-300">
+                Al enviar estos datos, el equipo de Fiabono gestionará la vinculación técnica de tu comercio para que puedas emitir facturas legales con CUFE y QR desde tu punto de venta.
+              </div>
+
+              <div className="grid grid-cols-3 gap-2.5">
+                <div className="col-span-2">
+                  <label className="text-[11px] font-bold text-slate-600 dark:text-slate-300 block mb-1">NIT o Cédula *</label>
+                  <input
+                    type="text"
+                    required
+                    value={dianNit}
+                    onChange={(e) => setDianNit(e.target.value)}
+                    placeholder="Ej. 900123456"
+                    className="w-full py-2.5 px-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold text-slate-900 dark:text-white outline-none focus:border-emerald-500"
+                  />
+                </div>
+                <div className="col-span-1">
+                  <label className="text-[11px] font-bold text-slate-600 dark:text-slate-300 block mb-1">DV (Dígito)</label>
+                  <input
+                    type="text"
+                    maxLength={1}
+                    value={dianDv}
+                    onChange={(e) => setDianDv(e.target.value)}
+                    placeholder="Ej. 7"
+                    className="w-full py-2.5 px-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold text-slate-900 dark:text-white outline-none focus:border-emerald-500 text-center"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="text-[11px] font-bold text-slate-600 dark:text-slate-300 block mb-1">Razón Social Legal (Como figura en el RUT) *</label>
+                <input
+                  type="text"
+                  required
+                  value={dianRazonSocial}
+                  onChange={(e) => setDianRazonSocial(e.target.value)}
+                  placeholder="Ej. Comercializadora del Oriente SAS"
+                  className="w-full py-2.5 px-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold text-slate-900 dark:text-white outline-none focus:border-emerald-500"
+                />
+              </div>
+
+              <div>
+                <label className="text-[11px] font-bold text-slate-600 dark:text-slate-300 block mb-1">Nombre Comercial de la Tienda *</label>
+                <input
+                  type="text"
+                  required
+                  value={dianNombreComercial}
+                  onChange={(e) => setDianNombreComercial(e.target.value)}
+                  placeholder="Ej. OFE Almacén y Multiservicios"
+                  className="w-full py-2.5 px-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold text-slate-900 dark:text-white outline-none focus:border-emerald-500"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-2.5">
+                <div>
+                  <label className="text-[11px] font-bold text-slate-600 dark:text-slate-300 block mb-1">Tipo de Organización</label>
+                  <select
+                    value={dianTipoPersona}
+                    onChange={(e) => setDianTipoPersona(e.target.value as any)}
+                    className="w-full py-2.5 px-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold text-slate-900 dark:text-white outline-none focus:border-emerald-500"
+                  >
+                    <option value="natural">Persona Natural (Cédula)</option>
+                    <option value="juridica">Persona Jurídica (Empresa/SAS)</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="text-[11px] font-bold text-slate-600 dark:text-slate-300 block mb-1">Régimen IVA</label>
+                  <select
+                    value={dianRegimen}
+                    onChange={(e) => setDianRegimen(e.target.value as any)}
+                    className="w-full py-2.5 px-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold text-slate-900 dark:text-white outline-none focus:border-emerald-500"
+                  >
+                    <option value="no_responsable">No Responsable de IVA</option>
+                    <option value="responsable">Responsable de IVA</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                <div>
+                  <label className="text-[11px] font-bold text-slate-600 dark:text-slate-300 block mb-1">Dirección Comercial *</label>
+                  <input
+                    type="text"
+                    required
+                    value={dianDireccion}
+                    onChange={(e) => setDianDireccion(e.target.value)}
+                    placeholder="Ej. Calle 30 # 13-21"
+                    className="w-full py-2.5 px-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold text-slate-900 dark:text-white outline-none focus:border-emerald-500"
+                  />
+                </div>
+                <div>
+                  <label className="text-[11px] font-bold text-slate-600 dark:text-slate-300 block mb-1">Municipio / Ciudad *</label>
+                  <input
+                    type="text"
+                    required
+                    value={dianMunicipio}
+                    onChange={(e) => setDianMunicipio(e.target.value)}
+                    placeholder="Ej. Salgar, Antioquia"
+                    className="w-full py-2.5 px-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold text-slate-900 dark:text-white outline-none focus:border-emerald-500"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="text-[11px] font-bold text-slate-600 dark:text-slate-300 block mb-1">WhatsApp / Teléfono de Contacto *</label>
+                <input
+                  type="text"
+                  required
+                  value={dianTelefono}
+                  onChange={(e) => setDianTelefono(e.target.value)}
+                  placeholder="Ej. 3128018444"
+                  className="w-full py-2.5 px-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold text-slate-900 dark:text-white outline-none focus:border-emerald-500"
+                />
+              </div>
+
+              <div className="pt-2 flex items-center justify-end gap-2 border-t border-slate-100 dark:border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => setModalSolicitudDian(false)}
+                  className="px-4 py-2.5 rounded-xl text-xs font-bold text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={enviandoSolicitudDian}
+                  className="px-5 py-2.5 rounded-xl text-xs font-black text-white bg-emerald-600 hover:bg-emerald-700 shadow-xs transition active:scale-95 cursor-pointer disabled:opacity-50 flex items-center gap-1.5"
+                >
+                  {enviandoSolicitudDian ? (
+                    <>
+                      <div className="w-3.5 h-3.5 border-2 border-white/40 border-t-white rounded-full animate-spin" />
+                      <span>Enviando...</span>
+                    </>
+                  ) : (
+                    <span>Enviar Solicitud DIAN</span>
+                  )}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}
