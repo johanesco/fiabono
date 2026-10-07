@@ -56,6 +56,28 @@ export async function GET(request: Request) {
       const d = docSnap.data();
       if (d.activo === false || d.esCajaMostrador === true || d.esTerminalMultivendedor === true) return;
 
+      // Verificar si el colaborador tiene horarios asignados y si está dentro de su turno
+      if (Array.isArray(d.horariosActividad) && d.horariosActividad.length > 0) {
+        const tieneHorariosValidos = d.horariosActividad.some((h: any) => h?.activoAuto !== false);
+        if (tieneHorariosValidos && d.manualOverride !== true) {
+          const ahoraCo = new Date(new Date().toLocaleString("en-US", { timeZone: "America/Bogota" }));
+          const nombresDias = ['Dom', 'Lun', 'Mar', 'Mie', 'Jue', 'Vie', 'Sab'];
+          const diaHoy = nombresDias[ahoraCo.getDay()];
+          const horaActual = `${String(ahoraCo.getHours()).padStart(2, '0')}:${String(ahoraCo.getMinutes()).padStart(2, '0')}`;
+
+          const dentroDeHorario = d.horariosActividad.some((h: any) => {
+            if (h?.activoAuto === false) return false;
+            const dias = h.dias || [];
+            if (!dias.includes(diaHoy)) return false;
+            const inicio = h.inicio || '00:00';
+            const fin = h.fin || '23:59';
+            return inicio <= horaActual && horaActual < fin;
+          });
+
+          if (!dentroDeHorario) return; // Fuera de horario de trabajo
+        }
+      }
+
       const nom = d.nombreUsuario || d.nombre || d.displayName;
       if (!nom) return;
       if (nom.toLowerCase().includes('multivendedor') || nom.toLowerCase().includes('caja mostrador')) return;

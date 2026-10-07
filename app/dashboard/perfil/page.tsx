@@ -1,6 +1,6 @@
 "use client";
 import { useState, useEffect, useRef } from "react";
-import { collection, getDocs, query, doc, updateDoc, where, setDoc, deleteDoc } from "firebase/firestore";
+import { collection, getDocs, query, doc, updateDoc, where, setDoc, deleteDoc, onSnapshot } from "firebase/firestore";
 import { signOut, updatePassword, EmailAuthProvider, reauthenticateWithCredential, getAuth, createUserWithEmailAndPassword } from "firebase/auth";
 import { getApps, initializeApp } from "firebase/app";
 import { db, auth } from "../../../firebase";
@@ -229,6 +229,30 @@ export default function PerfilPage() {
       setSlugNegocioEdicion(slugVal);
     }
   }, [datosSesion]);
+
+  // Sincronización en tiempo real del perfil con Firestore (cambios de Master, DIAN, etc.)
+  useEffect(() => {
+    const idNegocio = adminId || usuarioAuth?.uid;
+    if (!idNegocio) return;
+    const unsub = onSnapshot(doc(db, "usuarios", idNegocio), (docSnap) => {
+      if (docSnap.exists()) {
+        const d = docSnap.data();
+        setDatosSesion((prev: any) => {
+          if (!prev) return prev;
+          return {
+            ...prev,
+            facturacionDianHabilitada: d.facturacionDianHabilitada === true,
+            solicitudDian: d.solicitudDian || null,
+            facturaDianPorDefecto: d.facturaDianPorDefecto === true,
+            matiasTokenCustom: d.matiasTokenCustom || "",
+            matiasResolucionCustom: d.matiasResolucionCustom || "",
+            matiasPrefijoCustom: d.matiasPrefijoCustom || ""
+          };
+        });
+      }
+    });
+    return () => unsub();
+  }, [adminId, usuarioAuth?.uid, setDatosSesion]);
 
   useEffect(() => {
     // Sincronización robusta de tema
@@ -601,6 +625,31 @@ export default function PerfilPage() {
     }
   };
 
+  const abrirModalSolicitudDian = () => {
+    if (datosSesion?.solicitudDian) {
+      setDianNit(datosSesion.solicitudDian.nit || nitNegocio || "");
+      setDianDv(datosSesion.solicitudDian.dv || "");
+      setDianRazonSocial(datosSesion.solicitudDian.razonSocial || nombreNegocio || "");
+      setDianNombreComercial(datosSesion.solicitudDian.nombreComercial || nombreNegocio || "");
+      setDianTipoPersona(datosSesion.solicitudDian.tipoPersona || 'natural');
+      setDianRegimen(datosSesion.solicitudDian.regimenIva || 'no_responsable');
+      setDianDireccion(datosSesion.solicitudDian.direccion || direccionNegocio || "");
+      setDianMunicipio(datosSesion.solicitudDian.municipio || "Salgar, Antioquia");
+      setDianTelefono(datosSesion.solicitudDian.telefono || telefonoNegocio || "");
+    } else {
+      setDianNit(nitNegocio || "");
+      setDianDv("");
+      setDianRazonSocial(nombreNegocio || "");
+      setDianNombreComercial(nombreNegocio || "");
+      setDianTipoPersona('natural');
+      setDianRegimen('no_responsable');
+      setDianDireccion(direccionNegocio || "");
+      setDianMunicipio("Salgar, Antioquia");
+      setDianTelefono(telefonoNegocio || "");
+    }
+    setModalSolicitudDian(true);
+  };
+
   const enviarSolicitudDian = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!dianNit.trim()) {
@@ -625,8 +674,9 @@ export default function PerfilPage() {
       const idParaActualizar = adminId || usuarioAuth?.uid;
       if (!idParaActualizar) throw new Error("No hay sesión válida.");
 
+      const estadoFinal = datosSesion?.facturacionDianHabilitada ? 'aprobada' : 'pendiente';
       const solicitud = {
-        estado: 'pendiente' as const,
+        estado: estadoFinal as any,
         fechaSolicitud: new Date().toISOString(),
         nit: dianNit.trim(),
         dv: dianDv.trim(),
@@ -647,7 +697,10 @@ export default function PerfilPage() {
 
       setDatosSesion(prev => prev ? { ...prev, solicitudDian: solicitud } : null);
       setModalSolicitudDian(false);
-      toast.success("Solicitud de Facturación DIAN enviada con éxito.");
+      toast.success(datosSesion?.facturacionDianHabilitada 
+        ? "Datos fiscales actualizados con éxito." 
+        : "Solicitud de Facturación DIAN enviada con éxito."
+      );
     } catch (err: any) {
       console.error(err);
       toast.error(err?.message || "Error al enviar la solicitud.");
@@ -1373,7 +1426,8 @@ export default function PerfilPage() {
                               ingresoInventario: cajaMostrador.permisos.ingresoInventario || false,
                               modificarPrecios: cajaMostrador.permisos.modificarPrecios || false,
                               aplicarDescuentos: cajaMostrador.permisos.aplicarDescuentos || false,
-                                hacerDevoluciones: cajaMostrador.permisos.hacerDevoluciones || false,
+                              hacerDevoluciones: cajaMostrador.permisos.hacerDevoluciones || false,
+                              ventaLibre: cajaMostrador.permisos.ventaLibre || false,
                               enviarWhatsApp: cajaMostrador.permisos.enviarWhatsApp !== false
                             });
                           } else {
@@ -1390,6 +1444,8 @@ export default function PerfilPage() {
                               ingresoInventario: false,
                               modificarPrecios: false,
                               aplicarDescuentos: false,
+                              hacerDevoluciones: false,
+                              ventaLibre: false,
                               enviarWhatsApp: true
                             });
                           }
@@ -1400,6 +1456,19 @@ export default function PerfilPage() {
                       >
                         <Shield size={16} />
                         <span className="hidden sm:inline">Permisos</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setColabParaHorarios(cajaMostrador);
+                          setModalHorariosOpen(true);
+                        }}
+                        title="Configurar horarios de actividad de la terminal"
+                        className="bg-white dark:bg-[#0f172a] p-2.5 rounded-xl border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 transition-colors shadow-xs cursor-pointer flex items-center gap-1.5 text-xs font-bold"
+                      >
+                        <Clock size={16} />
+                        <span className="hidden sm:inline">Horarios</span>
                       </button>
 
                       <button
@@ -1456,13 +1525,20 @@ export default function PerfilPage() {
                     </div>
 
                     <div className="mt-2.5 pt-2.5 border-t border-indigo-100/80 dark:border-indigo-950/50 flex flex-wrap items-center gap-2 text-[11px]">
-                      <span className="text-slate-400 dark:text-slate-500 font-semibold">Permisos configurados:</span>
+                      <span className="text-slate-400 dark:text-slate-500 font-semibold">Configuración:</span>
                       <span className={`px-2 py-0.5 rounded-md font-bold inline-flex items-center gap-1 ${
                         cajaMostrador.permisos?.ventaDirecta 
                           ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400' 
                           : 'bg-amber-100 text-amber-700 dark:bg-amber-950/40 dark:text-amber-400'
                       }`}>
                         {cajaMostrador.permisos?.ventaDirecta ? '✓ Venta Directa' : '⏳ Requiere Aprobación (Pedidos)'}
+                      </span>
+                      <span className={`px-2 py-0.5 rounded-md font-bold inline-flex items-center gap-1 ${
+                        cajaMostrador.permisos?.ventaLibre 
+                          ? 'bg-blue-100 text-blue-700 dark:bg-blue-950/40 dark:text-blue-400' 
+                          : 'bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400'
+                      }`}>
+                        {cajaMostrador.permisos?.ventaLibre ? '✓ Venta Libre' : '✕ Sin Venta Libre'}
                       </span>
                       <span className={`px-2 py-0.5 rounded-md font-bold inline-flex items-center gap-1 ${
                         cajaMostrador.permisos?.abonar 
@@ -1474,6 +1550,24 @@ export default function PerfilPage() {
                       <span className="bg-indigo-100/70 text-indigo-700 dark:bg-indigo-950/40 dark:text-indigo-300 px-2 py-0.5 rounded-md font-bold inline-flex items-center gap-1">
                         ✓ Multivendedor
                       </span>
+                      {cajaMostrador.horariosActividad && cajaMostrador.horariosActividad.length > 0 ? (
+                        <span className="bg-blue-100/70 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300 px-2 py-0.5 rounded-md font-bold inline-flex items-center gap-1">
+                          <Clock size={11} className="shrink-0" />
+                          <span>
+                            {cajaMostrador.horariosActividad[0]?.dias?.length === 7 
+                              ? 'Todos los días' 
+                              : (cajaMostrador.horariosActividad[0]?.dias?.length === 5 && !cajaMostrador.horariosActividad[0]?.dias?.includes('Sab') && !cajaMostrador.horariosActividad[0]?.dias?.includes('Dom'))
+                                ? 'Lun-Vie'
+                                : cajaMostrador.horariosActividad[0]?.dias?.join(', ')} 
+                            {' '}({cajaMostrador.horariosActividad[0]?.inicio} - {cajaMostrador.horariosActividad[0]?.fin})
+                            {cajaMostrador.horariosActividad.length > 1 ? ` +${cajaMostrador.horariosActividad.length - 1}` : ''}
+                          </span>
+                        </span>
+                      ) : (
+                        <span className="bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400 px-2 py-0.5 rounded-md font-medium inline-flex items-center gap-1">
+                          <Clock size={11} className="shrink-0" /> Sin límite horario
+                        </span>
+                      )}
                     </div>
                   </>
                 )}
@@ -2214,6 +2308,215 @@ export default function PerfilPage() {
             
             {mostrarPerfilNegocio && (
               <div className="pt-6 animate-in fade-in duration-200">
+
+                {/* SECCIÓN FACTURACIÓN ELECTRÓNICA DIAN (Siempre visible en Perfil del Negocio) */}
+                <div className="mb-6">
+                  {datosSesion?.facturacionDianHabilitada ? (
+                    <div className="p-5 rounded-2xl bg-emerald-50/70 dark:bg-emerald-950/25 border border-emerald-200 dark:border-emerald-800/50 space-y-4 shadow-xs">
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-emerald-200/60 dark:border-emerald-800/40">
+                        <div className="flex items-center gap-2.5">
+                          <div className="p-2.5 rounded-xl bg-emerald-500/20 text-emerald-700 dark:text-emerald-400">
+                            <FileText size={20} />
+                          </div>
+                          <div>
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <h4 className="font-black text-sm sm:text-base text-slate-900 dark:text-white">
+                                Facturación Electrónica DIAN
+                              </h4>
+                              <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-emerald-600 text-white shadow-2xs">
+                                Habilitada
+                              </span>
+                            </div>
+                            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                              Tu negocio está autorizado para emitir facturas electrónicas con CUFE y código QR ante la DIAN.
+                            </p>
+                          </div>
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={abrirModalSolicitudDian}
+                          className="px-3.5 py-2 rounded-xl text-xs font-black text-emerald-800 dark:text-emerald-300 bg-white dark:bg-slate-900 border border-emerald-300 dark:border-emerald-700/60 hover:bg-emerald-100 dark:hover:bg-slate-800 transition active:scale-95 cursor-pointer flex items-center gap-1.5 self-start sm:self-auto shadow-2xs shrink-0"
+                        >
+                          <Edit2 size={13} />
+                          <span>Editar Datos Fiscales</span>
+                        </button>
+                      </div>
+
+                      {/* Ficha Fiscal del Comercio */}
+                      {datosSesion.solicitudDian && (
+                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-xs bg-white/70 dark:bg-slate-900/50 p-3.5 rounded-xl border border-emerald-100 dark:border-emerald-900/30">
+                          <div>
+                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">NIT / Cédula</span>
+                            <span className="font-mono font-black text-slate-800 dark:text-slate-200 text-xs sm:text-sm">
+                              {datosSesion.solicitudDian.nit} - {datosSesion.solicitudDian.dv || '0'}
+                            </span>
+                          </div>
+                          <div>
+                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Razón Social</span>
+                            <span className="font-bold text-slate-800 dark:text-slate-200 text-xs sm:text-sm truncate block">
+                              {datosSesion.solicitudDian.razonSocial || nombreNegocio}
+                            </span>
+                          </div>
+                          <div>
+                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Régimen IVA</span>
+                            <span className="font-bold text-slate-800 dark:text-slate-200 text-xs sm:text-sm">
+                              {datosSesion.solicitudDian.regimenIva === 'responsable' ? 'Responsable IVA' : 'No Responsable'}
+                            </span>
+                          </div>
+                          <div className="col-span-2 sm:col-span-3 pt-2 border-t border-slate-100 dark:border-slate-800/40">
+                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Ubicación y Contacto</span>
+                            <span className="text-slate-700 dark:text-slate-300 font-medium">
+                              {datosSesion.solicitudDian.direccion}, {datosSesion.solicitudDian.municipio} {datosSesion.solicitudDian.telefono ? `· Tel: ${datosSesion.solicitudDian.telefono}` : ''}
+                            </span>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Preferencia de inicio de caja */}
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-2 border-t border-emerald-200/50 dark:border-emerald-800/30">
+                        <div>
+                          <p className="text-xs font-bold text-slate-800 dark:text-slate-200">
+                            Preferencia de Caja: Iniciar con switch DIAN encendido
+                          </p>
+                          <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
+                            {facturaDianPorDefecto 
+                              ? "Emisión por defecto: Cada venta iniciará lista para facturar ante la DIAN." 
+                              : "Emisión manual: El switch iniciará apagado y tú lo activas cuando el cliente pida factura."}
+                          </p>
+                        </div>
+                        <label className="relative inline-flex items-center cursor-pointer shrink-0 self-start sm:self-auto">
+                          <input 
+                            type="checkbox" 
+                            checked={facturaDianPorDefecto} 
+                            onChange={(e) => setFacturaDianPorDefecto(e.target.checked)} 
+                            className="sr-only peer" 
+                          />
+                          <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer dark:bg-slate-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-600"></div>
+                        </label>
+                      </div>
+                    </div>
+                  ) : datosSesion?.solicitudDian?.estado === 'desactivada' ? (
+                    <div className="p-5 rounded-2xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 space-y-4 shadow-xs">
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-200/60 dark:border-slate-800">
+                        <div className="flex items-start gap-2.5">
+                          <div className="p-2.5 rounded-xl bg-rose-500/15 text-rose-600 dark:text-rose-400">
+                            <FileText size={20} />
+                          </div>
+                          <div>
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <h4 className="font-black text-sm sm:text-base text-slate-900 dark:text-white">
+                                Facturación Electrónica DIAN
+                              </h4>
+                              <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-rose-500/20 text-rose-700 dark:text-rose-400 border border-rose-500/30">
+                                Desactivada
+                              </span>
+                            </div>
+                            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                              La emisión fiscal fue desactivada por el administrador. Comunícate con soporte si deseas reactivarla.
+                            </p>
+                          </div>
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={abrirModalSolicitudDian}
+                          className="px-3.5 py-2 rounded-xl text-xs font-black text-slate-700 dark:text-slate-300 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700 transition active:scale-95 cursor-pointer flex items-center gap-1.5 self-start sm:self-auto shadow-2xs shrink-0"
+                        >
+                          <Edit2 size={13} />
+                          <span>Modificar Datos Fiscales</span>
+                        </button>
+                      </div>
+
+                      {/* Ficha Fiscal del Comercio (permanece visible) */}
+                      {datosSesion.solicitudDian && (
+                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-xs bg-white/70 dark:bg-slate-900/50 p-3.5 rounded-xl border border-slate-200 dark:border-slate-800">
+                          <div>
+                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">NIT / Cédula</span>
+                            <span className="font-mono font-black text-slate-800 dark:text-slate-200 text-xs sm:text-sm">
+                              {datosSesion.solicitudDian.nit} - {datosSesion.solicitudDian.dv || '0'}
+                            </span>
+                          </div>
+                          <div>
+                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Razón Social</span>
+                            <span className="font-bold text-slate-800 dark:text-slate-200 text-xs sm:text-sm truncate block">
+                              {datosSesion.solicitudDian.razonSocial || nombreNegocio}
+                            </span>
+                          </div>
+                          <div>
+                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Régimen IVA</span>
+                            <span className="font-bold text-slate-800 dark:text-slate-200 text-xs sm:text-sm">
+                              {datosSesion.solicitudDian.regimenIva === 'responsable' ? 'Responsable IVA' : 'No Responsable'}
+                            </span>
+                          </div>
+                          <div className="col-span-2 sm:col-span-3 pt-2 border-t border-slate-100 dark:border-slate-800/40">
+                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Ubicación y Contacto</span>
+                            <span className="text-slate-700 dark:text-slate-300 font-medium">
+                              {datosSesion.solicitudDian.direccion}, {datosSesion.solicitudDian.municipio} {datosSesion.solicitudDian.telefono ? `· Tel: ${datosSesion.solicitudDian.telefono}` : ''}
+                            </span>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  ) : datosSesion?.solicitudDian?.estado === 'pendiente' ? (
+                    <div className="p-5 rounded-2xl bg-amber-50/70 dark:bg-amber-950/25 border border-amber-200 dark:border-amber-800/50 space-y-3 shadow-xs">
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                        <div className="flex items-start gap-2.5">
+                          <div className="p-2.5 rounded-xl bg-amber-500/20 text-amber-700 dark:text-amber-400">
+                            <Clock size={20} />
+                          </div>
+                          <div>
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <h4 className="font-black text-sm sm:text-base text-amber-900 dark:text-amber-200">
+                                Solicitud de Facturación DIAN en Revisión
+                              </h4>
+                              <span className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-800 dark:text-amber-300 border border-amber-500/30">
+                                En Proceso
+                              </span>
+                            </div>
+                            <p className="text-xs text-amber-700 dark:text-amber-300/80 mt-0.5">
+                              Datos recibidos (NIT: <strong>{datosSesion.solicitudDian.nit}</strong>). El equipo Master está procesando la vinculación técnica.
+                            </p>
+                          </div>
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={abrirModalSolicitudDian}
+                          className="px-3.5 py-2 rounded-xl text-xs font-black text-amber-800 dark:text-amber-300 bg-white dark:bg-slate-900 border border-amber-300 dark:border-amber-700/60 hover:bg-amber-100 dark:hover:bg-slate-800 transition active:scale-95 cursor-pointer flex items-center gap-1.5 self-start sm:self-auto shadow-2xs shrink-0"
+                        >
+                          <Edit2 size={13} />
+                          <span>Modificar Datos Enviados</span>
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="p-5 rounded-2xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-xs">
+                      <div className="flex items-start gap-3">
+                        <div className="p-2.5 rounded-xl bg-slate-200 dark:bg-slate-800 text-slate-500 dark:text-slate-400">
+                          <FileText size={20} />
+                        </div>
+                        <div>
+                          <h4 className="font-black text-sm sm:text-base text-slate-900 dark:text-white">
+                            Facturación Electrónica DIAN
+                          </h4>
+                          <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 leading-relaxed">
+                            Emite facturas electrónicas oficiales con CUFE y código QR ante la DIAN para tus clientes directamente desde el punto de venta.
+                          </p>
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={abrirModalSolicitudDian}
+                        className="px-4 py-2.5 rounded-xl text-xs font-black text-white bg-emerald-600 hover:bg-emerald-700 shadow-md shadow-emerald-600/20 transition active:scale-95 cursor-pointer self-start sm:self-auto shrink-0 flex items-center gap-1.5"
+                      >
+                        <ShieldCheck size={15} />
+                        <span>Solicitar Habilitación DIAN</span>
+                      </button>
+                    </div>
+                  )}
+                </div>
+
                 {modoEdicionPerfil ? (
                   <div className="flex flex-col gap-5">
                     
@@ -2434,77 +2737,6 @@ export default function PerfilPage() {
                       </div>
                     </div>
 
-                    {/* FACTURACIÓN ELECTRÓNICA DIAN */}
-                    {datosSesion?.facturacionDianHabilitada ? (
-                      <div className="p-4 rounded-2xl bg-emerald-50/60 dark:bg-emerald-950/20 border border-emerald-100 dark:border-emerald-900/40">
-                        <div className="flex items-center justify-between gap-4">
-                          <div>
-                            <div className="flex items-center gap-2">
-                              <h4 className="font-bold text-sm text-slate-900 dark:text-white flex items-center gap-1.5">
-                                <FileText size={16} className="text-emerald-600 dark:text-emerald-400" /> Facturación Electrónica DIAN
-                              </h4>
-                              <span className="px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-emerald-600 text-white shadow-2xs">
-                                Habilitada
-                              </span>
-                            </div>
-                            <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-                              {facturaDianPorDefecto 
-                                ? "Emisión por defecto: El switch de Factura DIAN iniciará encendido en cada venta de la caja." 
-                                : "Emisión manual: El switch de Factura DIAN iniciará apagado y lo activas cuando el cliente la solicite."}
-                            </p>
-                          </div>
-                          <label className="relative inline-flex items-center cursor-pointer shrink-0">
-                            <input 
-                              type="checkbox" 
-                              checked={facturaDianPorDefecto} 
-                              onChange={(e) => setFacturaDianPorDefecto(e.target.checked)} 
-                              className="sr-only peer" 
-                            />
-                            <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer dark:bg-slate-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-600"></div>
-                          </label>
-                        </div>
-                      </div>
-                    ) : datosSesion?.solicitudDian?.estado === 'pendiente' ? (
-                      <div className="p-4 rounded-2xl bg-amber-50/70 dark:bg-amber-950/25 border border-amber-200 dark:border-amber-800/50 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                        <div className="flex items-start gap-2.5">
-                          <Clock size={18} className="text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
-                          <div>
-                            <h4 className="font-bold text-sm text-amber-900 dark:text-amber-200">
-                              Solicitud de Facturación DIAN en Revisión
-                            </h4>
-                            <p className="text-xs text-amber-700 dark:text-amber-300/80 mt-0.5">
-                              Datos recibidos (NIT: <strong>{datosSesion.solicitudDian.nit}</strong>). El equipo de Fiabono está procesando la vinculación técnica.
-                            </p>
-                          </div>
-                        </div>
-                        <span className="text-[10px] font-black uppercase tracking-wider px-2.5 py-1 rounded-lg bg-amber-500/20 text-amber-800 dark:text-amber-300 border border-amber-500/30 self-start sm:self-auto">
-                          En Proceso
-                        </span>
-                      </div>
-                    ) : (
-                      <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                        <div className="flex items-start gap-2.5">
-                          <FileText size={18} className="text-slate-400 dark:text-slate-500 shrink-0 mt-0.5" />
-                          <div>
-                            <h4 className="font-bold text-sm text-slate-900 dark:text-white">
-                              Facturación Electrónica DIAN
-                            </h4>
-                            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                              Emite facturas legales con CUFE y código QR ante la DIAN para tus clientes directamente desde la caja.
-                            </p>
-                          </div>
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => setModalSolicitudDian(true)}
-                          className="px-3.5 py-2 rounded-xl text-xs font-black text-white bg-emerald-600 hover:bg-emerald-700 shadow-xs transition active:scale-95 cursor-pointer self-start sm:self-auto shrink-0 flex items-center gap-1.5"
-                        >
-                          <ShieldCheck size={14} />
-                          <span>Solicitar Habilitación</span>
-                        </button>
-                      </div>
-                    )}
-
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2 border-t border-slate-100 dark:border-slate-800/60">
                       <div>
                         <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1.5">Tu Nombre de Usuario</label>
@@ -2554,12 +2786,6 @@ export default function PerfilPage() {
                         <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1 flex items-center gap-1.5"><Bookmark size={13} className="text-violet-500" /> Plan Separe</p>
                         <p className="font-bold text-slate-800 dark:text-slate-200 text-base truncate">
                           {moduloSepareActivo ? "Habilitado en Inicio" : "Oculto en Inicio"}
-                        </p>
-                      </div>
-                      <div className="min-w-0">
-                        <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1 flex items-center gap-1.5"><FileText size={13} className="text-emerald-500" /> Factura DIAN</p>
-                        <p className="font-bold text-slate-800 dark:text-slate-200 text-base truncate">
-                          {facturaDianPorDefecto ? "Activa por defecto" : "Manual según cliente"}
                         </p>
                       </div>
                       <div className="min-w-0 md:col-span-2 bg-blue-50/50 dark:bg-blue-950/20 p-4 rounded-2xl border border-blue-100 dark:border-blue-900/30 flex flex-col sm:flex-row sm:items-center justify-between gap-3">

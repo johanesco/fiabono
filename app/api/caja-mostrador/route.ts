@@ -198,6 +198,8 @@ export async function POST(request: Request) {
         ingresoInventario: permisos.ingresoInventario === true,
         modificarPrecios: permisos.modificarPrecios === true,
         aplicarDescuentos: permisos.aplicarDescuentos === true,
+        hacerDevoluciones: permisos.hacerDevoluciones === true,
+        ventaLibre: permisos.ventaLibre === true,
         enviarWhatsApp: permisos.enviarWhatsApp !== false,
       };
 
@@ -284,6 +286,8 @@ export async function POST(request: Request) {
         ingresoInventario: false,
         modificarPrecios: false,
         aplicarDescuentos: false,
+        hacerDevoluciones: false,
+        ventaLibre: false,
         enviarWhatsApp: true
       },
       activo: true,

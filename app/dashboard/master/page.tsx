@@ -665,21 +665,29 @@ export default function MasterPage() {
         matiasPrefijoCustom: modalDian.prefijoCustom.trim() || null,
       };
 
-      if (modalDian.habilitada && modalDian.usuario.solicitudDian?.estado === 'pendiente') {
-        dataUpdate['solicitudDian.estado'] = 'aprobada';
-        dataUpdate['solicitudDian.fechaRespuesta'] = new Date();
+      if (modalDian.habilitada) {
+        if (modalDian.usuario.solicitudDian) {
+          dataUpdate['solicitudDian.estado'] = 'aprobada';
+          dataUpdate['solicitudDian.fechaRespuesta'] = new Date();
+        }
+      } else {
+        if (modalDian.usuario.solicitudDian) {
+          dataUpdate['solicitudDian.estado'] = 'desactivada';
+          dataUpdate['solicitudDian.fechaRespuesta'] = new Date();
+        }
       }
 
       await updateDoc(doc(db, "usuarios", uId), dataUpdate);
 
       setUsuarios(prev => prev.map(usr => {
         if (usr.id === uId) {
+          const nuevoEstado = modalDian.habilitada ? 'aprobada' : (usr.solicitudDian?.estado === 'pendiente' ? 'pendiente' : 'desactivada');
           return {
             ...usr,
             ...dataUpdate,
-            solicitudDian: modalDian.habilitada && usr.solicitudDian?.estado === 'pendiente'
-              ? { ...usr.solicitudDian, estado: 'aprobada', fechaRespuesta: new Date() }
-              : usr.solicitudDian
+            solicitudDian: usr.solicitudDian
+              ? { ...usr.solicitudDian, estado: nuevoEstado, fechaRespuesta: new Date() }
+              : null
           };
         }
         return usr;
@@ -2886,11 +2894,13 @@ export default function MasterPage() {
                       <AlertTriangle size={13} /> Solicitud Enviada por el Comercio
                     </span>
                     <span className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase ${
-                      modalDian.usuario.solicitudDian.estado === 'pendiente' 
-                        ? 'bg-amber-500/20 text-amber-600 dark:text-amber-400' 
-                        : 'bg-emerald-500/20 text-emerald-600 dark:text-emerald-400'
+                      modalDian.habilitada
+                        ? 'bg-emerald-500/20 text-emerald-600 dark:text-emerald-400' 
+                        : (modalDian.usuario.solicitudDian.estado === 'pendiente'
+                            ? 'bg-amber-500/20 text-amber-600 dark:text-amber-400'
+                            : 'bg-rose-500/20 text-rose-600 dark:text-rose-400')
                     }`}>
-                      {modalDian.usuario.solicitudDian.estado}
+                      {modalDian.habilitada ? 'Habilitada' : (modalDian.usuario.solicitudDian.estado === 'pendiente' ? 'Pendiente' : 'Desactivada')}
                     </span>
                   </div>
 
