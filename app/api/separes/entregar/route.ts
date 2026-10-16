@@ -14,7 +14,8 @@ export async function POST(request: Request) {
     const usuario = usuarioSnap.data() as any;
     const esAdmin = usuario.rol !== 'cajero';
     const cuentaPrincipalId = esAdmin ? decodedToken.uid : usuario.adminId;
-    if (!cuentaPrincipalId || (!esAdmin && usuario.permisos?.planSepare !== true)) {
+    const tienePermisoEntrega = esAdmin || usuario.permisos?.planSepare === true || usuario.permisos?.ventaDirecta === true || usuario.permisos?.abonar === true;
+    if (!cuentaPrincipalId || !tienePermisoEntrega) {
       return NextResponse.json({ error: 'No tienes permiso para entregar Separes.' }, { status: 403 });
     }
 

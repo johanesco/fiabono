@@ -17,7 +17,7 @@ import { RUBROS_NEGOCIOS } from "@/constants/rubrosCategorias";
 import toast from "react-hot-toast";
 
 export default function PerfilPage() {
-  const { datosSesion, setDatosSesion } = useAuth();
+  const { datosSesion, setDatosSesion, cerrarSesion } = useAuth();
   
   const usuarioAuth = auth.currentUser;
   const planActual = datosSesion?.planActual || 'basico';
@@ -96,7 +96,8 @@ export default function PerfilPage() {
       aplicarDescuentos: false,
       planSepare: false,
       hacerDevoluciones: false,
-      enviarWhatsApp: false
+      ventaLibre: false,
+      enviarWhatsApp: true
     }
   });
   const [errorFormColaborador, setErrorFormColaborador] = useState({ usuarioAcceso: "", general: "" });
@@ -276,15 +277,37 @@ export default function PerfilPage() {
     localStorage.setItem('temaFiabono', temaApariencia);
     localStorage.setItem('tema', temaApariencia);
     const aplicarTema = () => {
-      if (temaApariencia === 'oscura') document.documentElement.classList.add('dark');
-      else if (temaApariencia === 'clara') document.documentElement.classList.remove('dark');
-      else {
-        const hora = new Date().getHours();
-        if (hora >= 6 && hora < 18) document.documentElement.classList.remove('dark');
-        else document.documentElement.classList.add('dark');
+      if (temaApariencia === 'oscura') {
+        document.documentElement.classList.add('dark');
+      } else if (temaApariencia === 'clara') {
+        document.documentElement.classList.remove('dark');
+      } else {
+        // Auto: Detecta dinámicamente preferencias del sistema / navegador
+        if (typeof window !== 'undefined' && window.matchMedia) {
+          const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+          if (mediaQuery.matches) {
+            document.documentElement.classList.add('dark');
+          } else {
+            document.documentElement.classList.remove('dark');
+          }
+        } else {
+          const hora = new Date().getHours();
+          if (hora >= 6 && hora < 18) document.documentElement.classList.remove('dark');
+          else document.documentElement.classList.add('dark');
+        }
       }
     };
     aplicarTema();
+
+    if (temaApariencia === 'auto' && typeof window !== 'undefined' && window.matchMedia) {
+      const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+      const listener = (e: MediaQueryListEvent) => {
+        if (e.matches) document.documentElement.classList.add('dark');
+        else document.documentElement.classList.remove('dark');
+      };
+      mediaQuery.addEventListener('change', listener);
+      return () => mediaQuery.removeEventListener('change', listener);
+    }
   }, [temaApariencia, temaCargado]);
 
   const cargarListaColaboradores = async (uid: string) => {
@@ -468,10 +491,31 @@ export default function PerfilPage() {
       setTimeout(() => setMensajePerfil({ texto: "", tipo: "" }), 4000);
     } catch (error: any) { 
       if (error.code === 'auth/invalid-credential' || error.code === 'auth/wrong-password') {
-        setPassErrores(prev => ({ ...prev, actual: "Contraseña incorrecta." }));
+        setPassErrores(prev => ({ ...prev, actual: "Contraseña actual incorrecta." }));
+      } else if (error.code === 'auth/weak-password') {
+        setPassErrores(prev => ({ ...prev, nueva: "Contraseña muy débil. Debe tener al menos 6 caracteres con letras y números." }));
+      } else if (error.code === 'auth/requires-recent-login') {
+        setPassErrores(prev => ({ ...prev, general: "Por seguridad, vuelve a iniciar sesión antes de cambiar tu contraseña." }));
+      } else if (error.code === 'auth/too-many-requests') {
+        setPassErrores(prev => ({ ...prev, general: "Demasiados intentos fallidos. Por favor espera unos minutos." }));
       } else {
-        setPassErrores(prev => ({ ...prev, general: "Ocurrió un error inesperado." }));
+        setPassErrores(prev => ({ ...prev, general: error?.message || "Ocurrió un error inesperado al actualizar la contraseña." }));
       }
+    }
+  };
+
+  const handleCerrarSesion = async () => {
+    try {
+      if (cerrarSesion) {
+        await cerrarSesion();
+      } else {
+        await signOut(auth);
+        window.location.href = "/";
+      }
+    } catch (e) {
+      console.error(e);
+      await signOut(auth);
+      window.location.href = "/";
     }
   };
 
@@ -709,6 +753,41 @@ export default function PerfilPage() {
     }
   };
 
+  const calcularDvNit = (nit: string): string => {
+    const nitLimpio = nit.replace(/\D/g, "");
+    if (!nitLimpio) return "";
+    const primos = [71, 67, 59, 53, 47, 43, 41, 37, 29, 23, 19, 17, 13, 7, 3];
+    let suma = 0;
+    const longitud = nitLimpio.length;
+    for (let i = 0; i < longitud; i++) {
+      const digito = parseInt(nitLimpio.charAt(longitud - 1 - i), 10);
+      const peso = primos[primos.length - 1 - i] || 0;
+      suma += digito * peso;
+    }
+    const residuo = suma % 11;
+    if (residuo > 1) return String(11 - residuo);
+    return String(residuo);
+  };
+
+  const cambiarPreferenciaDianPorDefecto = async (nuevoValor: boolean) => {
+    setFacturaDianPorDefecto(nuevoValor);
+    try {
+      const idParaActualizar = adminId || usuarioAuth?.uid;
+      if (idParaActualizar) {
+        await updateDoc(doc(db, "usuarios", idParaActualizar), {
+          facturaDianPorDefecto: nuevoValor
+        });
+        setDatosSesion((prev: any) => prev ? { ...prev, facturaDianPorDefecto: nuevoValor } : null);
+        toast.success(nuevoValor 
+          ? "Facturación DIAN activada por defecto al vender" 
+          : "Facturación DIAN configurada en modo manual");
+      }
+    } catch (e) {
+      toast.error("Error al guardar la preferencia.");
+      setFacturaDianPorDefecto(!nuevoValor);
+    }
+  };
+
   const ejecutarActivarCajaMostrador = async () => {
     setErrorPassCaja("");
     if (colaboradoresRegistrados.length === 0) {
@@ -918,6 +997,7 @@ export default function PerfilPage() {
     const permisosSanitizados: PermisosColaborador = {
       ...formColaborador.permisos,
       terminalMultivendedor: false,
+      ingresoInventario: formColaborador.permisos.editarInventario ?? false,
       planSepare: esPro ? (formColaborador.permisos.planSepare ?? false) : false
     };
 
@@ -959,11 +1039,33 @@ export default function PerfilPage() {
         setModalAvisoColaborador({ 
           visible: true, 
           titulo: "¡Colaborador Creado!", 
-          mensaje: `El colaborador fue creado exitosamente.\n\n👤 Usuario para entrar:\n${identificadorUsuario}\n\n🔑 Contraseña: la que acabas de asignarle.\n\nTu colaborador no necesita correo, solo debe escribir ese usuario y clave en la pantalla de inicio.`, 
+          mensaje: `El colaborador fue creado exitosamente.\n\nUsuario para entrar:\n${identificadorUsuario}\n\nContraseña: la que acabas de asignarle.\n\nTu colaborador no necesita correo, solo debe escribir ese usuario y clave en la pantalla de inicio.`, 
           icono: 'exito' 
         });
       }
-      setFormColaborador({ nombre:"", usuarioAcceso:"", password:"", confirmPassword: "", permisos: { verCelulares: false, verDirectorio: false, verCartera: false, verReportes: false, ventaDirecta: false, abonar: false, editarInventario: false, ingresoInventario: false, terminalMultivendedor: false, modificarPrecios: false, aplicarDescuentos: false, planSepare: false, hacerDevoluciones: false, ventaLibre: false, enviarWhatsApp: false } });
+      setFormColaborador({ 
+        nombre: "", 
+        usuarioAcceso: "", 
+        password: "", 
+        confirmPassword: "", 
+        permisos: { 
+          verCelulares: false, 
+          verDirectorio: false, 
+          verCartera: false, 
+          verReportes: false, 
+          ventaDirecta: true, 
+          abonar: false, 
+          editarInventario: false, 
+          ingresoInventario: false, 
+          terminalMultivendedor: false, 
+          modificarPrecios: false, 
+          aplicarDescuentos: false, 
+          planSepare: false, 
+          hacerDevoluciones: false, 
+          ventaLibre: false, 
+          enviarWhatsApp: true 
+        } 
+      });
       setModoCrearColaborador(false); setColaboradorEnEdicion(null);
       cargarListaColaboradores(adminId!);
     } catch (error: any) {
@@ -979,10 +1081,17 @@ export default function PerfilPage() {
 
 
   const cancelarSuscripcion = async () => {
-    if(!passCancelarPro) return setErrorCancelarPro("Ingresa tu contraseña para confirmar.");
+    const esCuentaGoogle = usuarioAuth?.providerData?.some(p => p.providerId === 'google.com') && !usuarioAuth?.providerData?.some(p => p.providerId === 'password');
+
+    if (!esCuentaGoogle && !passCancelarPro) {
+      return setErrorCancelarPro("Ingresa tu contraseña para confirmar.");
+    }
+
     try {
-      const cred = EmailAuthProvider.credential(usuarioAuth!.email!, passCancelarPro);
-      await reauthenticateWithCredential(usuarioAuth!, cred);
+      if (!esCuentaGoogle && passCancelarPro) {
+        const cred = EmailAuthProvider.credential(usuarioAuth!.email!, passCancelarPro);
+        await reauthenticateWithCredential(usuarioAuth!, cred);
+      }
       
       const diasRestantes = datosSesion?.diasRestantesPlan ?? 0;
 
@@ -1011,7 +1120,9 @@ export default function PerfilPage() {
       setModalCancelarPro(false); setPassCancelarPro(""); setErrorCancelarPro("");
       cargarListaColaboradores(usuarioAuth!.uid);
       setModalAvisoColaborador({ visible: true, titulo: "Suscripción Cancelada", mensaje: "Has vuelto al Plan Gratuito con éxito.\n\nTodos tus datos, clientes e inventario se conservan intactos. Las nuevas creaciones respetarán los límites del plan gratuito.", icono: 'info' });
-    } catch (error) { setErrorCancelarPro("Contraseña incorrecta. Intenta de nuevo."); }
+    } catch (error) { 
+      setErrorCancelarPro("Contraseña incorrecta. Intenta de nuevo."); 
+    }
   };
 
   // Función para ejecutar la eliminación permanente de la cuenta y datos
@@ -1223,7 +1334,7 @@ export default function PerfilPage() {
             );
           })()}
 
-          <button onClick={() => signOut(auth)} className="w-full bg-rose-50 dark:bg-rose-500/10 text-rose-600 dark:text-rose-400 font-bold py-5 sm:py-6 rounded-[2rem] border border-rose-200 dark:border-rose-500/20 hover:bg-rose-100 dark:hover:bg-rose-500/30 transition-colors mb-24 sm:mb-6 flex justify-center items-center gap-2 text-lg mt-8">
+          <button onClick={handleCerrarSesion} className="w-full bg-rose-50 dark:bg-rose-500/10 text-rose-600 dark:text-rose-400 font-bold py-5 sm:py-6 rounded-[2rem] border border-rose-200 dark:border-rose-500/20 hover:bg-rose-100 dark:hover:bg-rose-500/30 transition-colors mb-24 sm:mb-6 flex justify-center items-center gap-2 text-lg mt-8 cursor-pointer">
             <LogOut size={24} className="shrink-0" /> Cerrar Sesión
           </button>
         </div>
@@ -1374,12 +1485,13 @@ export default function PerfilPage() {
                           Multivendedor • Plan PRO
                         </span>
                         {cajaMostrador && (
-                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full inline-flex items-center gap-1.5 ${
                             cajaMostrador.activo !== false
                               ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-400'
                               : 'bg-slate-200 text-slate-600 dark:bg-slate-800 dark:text-slate-400'
                           }`}>
-                            {cajaMostrador.activo !== false ? '🟢 Habilitada' : 'Pausada'}
+                            <span className={`w-1.5 h-1.5 rounded-full ${cajaMostrador.activo !== false ? 'bg-emerald-500 animate-pulse' : 'bg-slate-400'}`}></span>
+                            {cajaMostrador.activo !== false ? 'Habilitada' : 'Pausada'}
                           </span>
                         )}
                       </div>
@@ -1531,24 +1643,24 @@ export default function PerfilPage() {
                           ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400' 
                           : 'bg-amber-100 text-amber-700 dark:bg-amber-950/40 dark:text-amber-400'
                       }`}>
-                        {cajaMostrador.permisos?.ventaDirecta ? '✓ Venta Directa' : '⏳ Requiere Aprobación (Pedidos)'}
+                        {cajaMostrador.permisos?.ventaDirecta ? 'Venta Directa' : 'Requiere Aprobación (Pedidos)'}
                       </span>
                       <span className={`px-2 py-0.5 rounded-md font-bold inline-flex items-center gap-1 ${
                         cajaMostrador.permisos?.ventaLibre 
                           ? 'bg-blue-100 text-blue-700 dark:bg-blue-950/40 dark:text-blue-400' 
                           : 'bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400'
                       }`}>
-                        {cajaMostrador.permisos?.ventaLibre ? '✓ Venta Libre' : '✕ Sin Venta Libre'}
+                        {cajaMostrador.permisos?.ventaLibre ? 'Venta Libre' : 'Sin Venta Libre'}
                       </span>
                       <span className={`px-2 py-0.5 rounded-md font-bold inline-flex items-center gap-1 ${
                         cajaMostrador.permisos?.abonar 
                           ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400' 
                           : 'bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400'
                       }`}>
-                        {cajaMostrador.permisos?.abonar ? '✓ Abonos Permitidos' : '✕ Abonos Bloqueados'}
+                        {cajaMostrador.permisos?.abonar ? 'Abonos Permitidos' : 'Abonos Bloqueados'}
                       </span>
                       <span className="bg-indigo-100/70 text-indigo-700 dark:bg-indigo-950/40 dark:text-indigo-300 px-2 py-0.5 rounded-md font-bold inline-flex items-center gap-1">
-                        ✓ Multivendedor
+                        Multivendedor
                       </span>
                       {cajaMostrador.horariosActividad && cajaMostrador.horariosActividad.length > 0 ? (
                         <span className="bg-blue-100/70 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300 px-2 py-0.5 rounded-md font-bold inline-flex items-center gap-1">
@@ -1633,7 +1745,9 @@ export default function PerfilPage() {
                                   modificarPrecios: c.permisos?.modificarPrecios || false,
                                   aplicarDescuentos: c.permisos?.aplicarDescuentos || false,
                                   planSepare: c.permisos?.planSepare ?? false,
-                                  enviarWhatsApp: c.permisos?.enviarWhatsApp === true
+                                  hacerDevoluciones: c.permisos?.hacerDevoluciones || false,
+                                  ventaLibre: c.permisos?.ventaLibre || false,
+                                  enviarWhatsApp: c.permisos?.enviarWhatsApp !== false
                                 }
                               }); 
                               setModoCrearColaborador(true); 
@@ -1693,17 +1807,21 @@ export default function PerfilPage() {
                             </span>
                           ) : (
                             <span className="text-[10px] bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400 font-medium px-2 py-0.5 rounded-md flex items-center gap-1">
-                              <Clock size={11} className="text-slate-400 shrink-0" /> Sin límite de horario
+                              <Clock size={11} className="text-slate-400 shrink-0" /> Sin límite horario
                             </span>
                           )}
                           {c.permisos?.ventaDirecta ? <span className="text-[10px] bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-400 font-bold px-2 py-0.5 rounded-md">Venta directa</span> : <span className="text-[10px] bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-400 font-bold px-2 py-0.5 rounded-md">Solo Órdenes</span>}
-                          {c.permisos?.modificarPrecios ? <span className="text-[10px] bg-cyan-100 text-cyan-700 dark:bg-cyan-500/20 dark:text-cyan-400 font-bold px-2 py-0.5 rounded-md">Editar Precios</span> : null}
-                          {c.permisos?.aplicarDescuentos ? <span className="text-[10px] bg-rose-100 text-rose-700 dark:bg-rose-500/20 dark:text-rose-400 font-bold px-2 py-0.5 rounded-md">Descuentos</span> : null}
+                          {c.permisos?.ventaLibre ? <span className="text-[10px] bg-sky-100 text-sky-700 dark:bg-sky-500/20 dark:text-sky-400 font-bold px-2 py-0.5 rounded-md">Venta Libre</span> : null}
                           {c.permisos?.abonar ? <span className="text-[10px] bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-400 font-bold px-2 py-0.5 rounded-md">Abonar</span> : null}
-                          {c.permisos?.ingresoInventario ? <span className="text-[10px] bg-indigo-100 text-indigo-700 dark:bg-indigo-500/20 dark:text-indigo-400 font-bold px-2 py-0.5 rounded-md">Ingresar</span> : null}
-                          {c.permisos?.editarInventario ? <span className="text-[10px] bg-teal-100 text-teal-700 dark:bg-teal-500/20 dark:text-teal-400 font-bold px-2 py-0.5 rounded-md">Editar Inv.</span> : null}
                           {c.permisos?.planSepare ? <span className="text-[10px] bg-purple-100 text-purple-700 dark:bg-purple-500/20 dark:text-purple-400 font-bold px-2 py-0.5 rounded-md">Separes</span> : null}
+                          {c.permisos?.aplicarDescuentos ? <span className="text-[10px] bg-rose-100 text-rose-700 dark:bg-rose-500/20 dark:text-rose-400 font-bold px-2 py-0.5 rounded-md">Descuentos</span> : null}
+                          {c.permisos?.modificarPrecios ? <span className="text-[10px] bg-cyan-100 text-cyan-700 dark:bg-cyan-500/20 dark:text-cyan-400 font-bold px-2 py-0.5 rounded-md">Editar Precios</span> : null}
+                          {c.permisos?.editarInventario ? <span className="text-[10px] bg-teal-100 text-teal-700 dark:bg-teal-500/20 dark:text-teal-400 font-bold px-2 py-0.5 rounded-md">Editar Inv.</span> : null}
                           {c.permisos?.hacerDevoluciones ? <span className="text-[10px] bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-400 font-bold px-2 py-0.5 rounded-md">Devoluciones</span> : null}
+                          {c.permisos?.verCartera ? <span className="text-[10px] bg-indigo-100 text-indigo-700 dark:bg-indigo-500/20 dark:text-indigo-400 font-bold px-2 py-0.5 rounded-md">Cartera</span> : null}
+                          {c.permisos?.verReportes ? <span className="text-[10px] bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-400 font-bold px-2 py-0.5 rounded-md">Reportes</span> : null}
+                          {c.permisos?.verDirectorio ? <span className="text-[10px] bg-slate-200 text-slate-700 dark:bg-slate-800 dark:text-slate-300 font-bold px-2 py-0.5 rounded-md">Directorio</span> : null}
+                          {c.permisos?.enviarWhatsApp ? <span className="text-[10px] bg-emerald-100 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300 font-bold px-2 py-0.5 rounded-md">WhatsApp</span> : null}
                         </div>
                       </div>
                     );
@@ -1722,17 +1840,18 @@ export default function PerfilPage() {
                       toast.error("El Plan Gratis no incluye colaboradores. Mejora al Plan Comercio para agregar a tu primer colaborador.");
                       return;
                     }
-                    if (esComercio && colaboradoresRegistrados.length >= 1) {
+                    const activosCount = colaboradoresRegistrados.filter(c => c.activo === true || c.activo === undefined).length;
+                    if (esComercio && activosCount >= 1) {
                       setPlanInicialSuscripcion('pro');
                       setModalSuscripcionOpen(true);
-                      toast.error("Tu Plan Comercio permite 1 colaborador. Mejora al Plan PRO Almacén para tener hasta 4 colaboradores.");
+                      toast.error("Tu Plan Comercio ya tiene 1 colaborador activo. Mejora al Plan PRO Almacén para tener hasta 4, o desactiva el actual y crea el nuevo.");
                       return;
                     }
-                    if (esPro && colaboradoresRegistrados.length >= 4) {
+                    if (esPro && activosCount >= 4) {
                       setModalAvisoColaborador({ 
                         visible: true, 
                         titulo: "Límite Alcanzado", 
-                        mensaje: "Tu Plan PRO Almacén permite un máximo de 4 colaboradores simultáneos para tu negocio.", 
+                        mensaje: "Tu Plan PRO Almacén permite un máximo de 4 colaboradores activos simultáneos. Desactiva uno antes de crear otro.", 
                         icono: 'error' 
                       });
                       return;
@@ -1747,13 +1866,17 @@ export default function PerfilPage() {
                         verDirectorio: false, 
                         verCartera: false, 
                         verReportes: false, 
-                        ventaDirecta: false, 
+                        ventaDirecta: true, 
                         abonar: false, 
-                        editarInventario: false, ingresoInventario: false, 
+                        editarInventario: false, 
+                        ingresoInventario: false, 
                         terminalMultivendedor: false, 
                         modificarPrecios: false, 
                         aplicarDescuentos: false, 
-                        planSepare: false
+                        planSepare: false,
+                        hacerDevoluciones: false,
+                        ventaLibre: false,
+                        enviarWhatsApp: true
                       }
                     }); 
                     setColaboradorEnEdicion(null); 
@@ -1867,9 +1990,164 @@ export default function PerfilPage() {
                 
                 {/* Permisos */}
                 <div className="flex flex-col gap-4 mt-2 mb-2 bg-slate-50 dark:bg-[#020617] p-5 rounded-2xl border border-slate-200 dark:border-slate-800">
-                  <div>
-                    <p className="text-base font-black text-slate-800 dark:text-slate-200">Permisos del Colaborador:</p>
-                    <p className="text-xs text-slate-400 mt-0.5">Controla qué acciones y secciones puede ejecutar este usuario.</p>
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2 border-b border-slate-200/70 dark:border-slate-800">
+                    <div>
+                      <p className="text-base font-black text-slate-800 dark:text-slate-200">Permisos del Colaborador:</p>
+                      <p className="text-xs text-slate-400 mt-0.5">Controla qué acciones y secciones puede ejecutar este usuario.</p>
+                    </div>
+                    <div className="flex items-center gap-1.5 self-start sm:self-auto">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setFormColaborador(prev => ({
+                            ...prev,
+                            permisos: {
+                              ventaDirecta: true,
+                              ventaLibre: true,
+                              abonar: true,
+                              modificarPrecios: true,
+                              aplicarDescuentos: true,
+                              editarInventario: true,
+                              ingresoInventario: true,
+                              planSepare: planActual === 'pro',
+                              verCartera: true,
+                              verDirectorio: true,
+                              verCelulares: true,
+                              hacerDevoluciones: true,
+                              enviarWhatsApp: true,
+                              verReportes: true,
+                              terminalMultivendedor: false
+                            }
+                          }));
+                          toast.success("Todos los permisos seleccionados");
+                        }}
+                        className="text-[11px] font-bold text-blue-600 dark:text-blue-400 hover:bg-blue-100/60 dark:hover:bg-blue-500/20 px-2 py-1 rounded-md transition-colors cursor-pointer"
+                      >
+                        Marcar todos
+                      </button>
+                      <span className="text-slate-300 dark:text-slate-700">|</span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setFormColaborador(prev => ({
+                            ...prev,
+                            permisos: {
+                              ventaDirecta: false,
+                              ventaLibre: false,
+                              abonar: false,
+                              modificarPrecios: false,
+                              aplicarDescuentos: false,
+                              editarInventario: false,
+                              ingresoInventario: false,
+                              planSepare: false,
+                              verCartera: false,
+                              verDirectorio: false,
+                              verCelulares: false,
+                              hacerDevoluciones: false,
+                              enviarWhatsApp: false,
+                              verReportes: false,
+                              terminalMultivendedor: false
+                            }
+                          }));
+                          toast.success("Permisos desmarcados");
+                        }}
+                        className="text-[11px] font-bold text-slate-500 dark:text-slate-400 hover:bg-slate-200/60 dark:hover:bg-slate-800 px-2 py-1 rounded-md transition-colors cursor-pointer"
+                      >
+                        Limpiar
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* PRESETS RÁPIDOS */}
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-xs font-bold text-slate-400">Plantillas:</span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setFormColaborador(prev => ({
+                          ...prev,
+                          permisos: {
+                            ...prev.permisos,
+                            ventaDirecta: true,
+                            ventaLibre: true,
+                            abonar: true,
+                            modificarPrecios: false,
+                            aplicarDescuentos: false,
+                            editarInventario: false,
+                            ingresoInventario: false,
+                            planSepare: false,
+                            verCartera: false,
+                            verDirectorio: true,
+                            verCelulares: false,
+                            hacerDevoluciones: false,
+                            enviarWhatsApp: true,
+                            verReportes: false
+                          }
+                        }));
+                        toast.success("Plantilla 'Cajero Estándar' aplicada");
+                      }}
+                      className="text-xs font-bold px-2.5 py-1 rounded-lg bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:border-blue-500 hover:text-blue-600 transition-colors cursor-pointer shadow-2xs"
+                    >
+                      Cajero Estándar
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setFormColaborador(prev => ({
+                          ...prev,
+                          permisos: {
+                            ...prev.permisos,
+                            ventaDirecta: false,
+                            ventaLibre: false,
+                            abonar: false,
+                            modificarPrecios: false,
+                            aplicarDescuentos: false,
+                            editarInventario: false,
+                            ingresoInventario: false,
+                            planSepare: false,
+                            verCartera: false,
+                            verDirectorio: true,
+                            verCelulares: false,
+                            hacerDevoluciones: false,
+                            enviarWhatsApp: false,
+                            verReportes: false
+                          }
+                        }));
+                        toast.success("Plantilla 'Toma-Pedidos' aplicada");
+                      }}
+                      className="text-xs font-bold px-2.5 py-1 rounded-lg bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:border-amber-500 hover:text-amber-600 transition-colors cursor-pointer shadow-2xs"
+                    >
+                      Toma-Pedidos
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setFormColaborador(prev => ({
+                          ...prev,
+                          permisos: {
+                            ...prev.permisos,
+                            ventaDirecta: true,
+                            ventaLibre: true,
+                            abonar: true,
+                            modificarPrecios: true,
+                            aplicarDescuentos: true,
+                            editarInventario: true,
+                            ingresoInventario: true,
+                            planSepare: planActual === 'pro',
+                            verCartera: false,
+                            verDirectorio: true,
+                            verCelulares: true,
+                            hacerDevoluciones: true,
+                            enviarWhatsApp: true,
+                            verReportes: false
+                          }
+                        }));
+                        toast.success("Plantilla 'Vendedor Total' aplicada");
+                      }}
+                      className="text-xs font-bold px-2.5 py-1 rounded-lg bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:border-indigo-500 hover:text-indigo-600 transition-colors cursor-pointer shadow-2xs"
+                    >
+                      Vendedor Total
+                    </button>
                   </div>
 
                   {/* BLOQUE 1: COBROS Y VENTAS */}
@@ -2209,7 +2487,7 @@ export default function PerfilPage() {
                           try {
                             await updateDoc(doc(db, "usuarios", usuarioAuth!.uid), { proximoPlan: null });
                             setDatosSesion((prev: any) => ({ ...prev, proximoPlan: null }));
-                            toast.success("Renovación reactivada con éxito 🙌");
+                            toast.success("Renovación reactivada con éxito");
                           } catch (e) {
                             toast.error("Error al reactivar la renovación.");
                           }
@@ -2389,7 +2667,7 @@ export default function PerfilPage() {
                           <input 
                             type="checkbox" 
                             checked={facturaDianPorDefecto} 
-                            onChange={(e) => setFacturaDianPorDefecto(e.target.checked)} 
+                            onChange={(e) => cambiarPreferenciaDianPorDefecto(e.target.checked)} 
                             className="sr-only peer" 
                           />
                           <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer dark:bg-slate-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-600"></div>
@@ -2544,7 +2822,21 @@ export default function PerfilPage() {
                           {logoNegocio && (
                             <button
                               type="button"
-                              onClick={() => setLogoNegocio(null)}
+                              onClick={async () => {
+                                setLogoNegocio(null);
+                                if (usuarioAuth) {
+                                  try {
+                                    await updateDoc(doc(db, "usuarios", usuarioAuth.uid), {
+                                      logoNegocio: null,
+                                      logoUrl: null
+                                    });
+                                    setDatosSesion((prev: any) => prev ? { ...prev, logoNegocio: null, logoUrl: null } : null);
+                                    toast.success("Logo eliminado del negocio.");
+                                  } catch (e) {
+                                    // Estado local ya actualizado
+                                  }
+                                }
+                              }}
                               className="bg-rose-50 hover:bg-rose-100 dark:bg-rose-500/10 text-rose-600 dark:text-rose-400 text-xs font-bold py-2 px-3 rounded-xl border border-rose-200 dark:border-rose-500/20 transition-colors flex items-center gap-1 cursor-pointer"
                             >
                               <Trash2 size={13} /> Quitar
@@ -2613,8 +2905,9 @@ export default function PerfilPage() {
                         {errorSlug ? (
                           <p className="text-xs font-bold text-rose-500 mt-1.5">{errorSlug}</p>
                         ) : (
-                          <p className="text-xs text-slate-500 dark:text-slate-400 mt-2 leading-relaxed">
-                            💡 Puedes cambiar este código cuando quieras. Al guardar, <strong>todos tus colaboradores se sincronizan automáticamente</strong> a este nuevo código sin perder su contraseña ni su historial de ventas.
+                          <p className="text-xs text-slate-500 dark:text-slate-400 mt-2 leading-relaxed flex items-start gap-1.5">
+                            <Sparkles size={14} className="text-blue-500 shrink-0 mt-0.5" />
+                            <span>Puedes cambiar este código cuando quieras. Al guardar, <strong>todos tus colaboradores se sincronizan automáticamente</strong> a este nuevo código sin perder su contraseña ni su historial de ventas.</span>
                           </p>
                         )}
                       </div>
@@ -2713,7 +3006,7 @@ export default function PerfilPage() {
                           onClick={(e) => {
                             if (!datosSesion?.esPro) {
                               e.preventDefault();
-                              toast.error("El módulo Plan Separe está disponible exclusivamente en el Plan PRO.", { icon: "👑" });
+                              toast.error("El módulo Plan Separe está disponible exclusivamente en el Plan PRO.");
                               setModalSuscripcionOpen(true);
                             }
                           }}
@@ -2723,7 +3016,7 @@ export default function PerfilPage() {
                             checked={datosSesion?.esPro ? moduloSepareActivo : false} 
                             onChange={(e) => {
                               if (!datosSesion?.esPro) {
-                                toast.error("El módulo Plan Separe está disponible exclusivamente en el Plan PRO.", { icon: "👑" });
+                                toast.error("El módulo Plan Separe está disponible exclusivamente en el Plan PRO.");
                                 setModalSuscripcionOpen(true);
                                 return;
                               }
@@ -2759,6 +3052,12 @@ export default function PerfilPage() {
                       <div className="min-w-0">
                         <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1 flex items-center gap-1.5"><Building2 size={13} className="text-blue-500" /> Negocio</p>
                         <p className="font-bold text-slate-800 dark:text-slate-200 text-lg truncate">{nombreNegocio}</p>
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1 flex items-center gap-1.5"><Store size={13} className="text-blue-500" /> Rubro / Tipo</p>
+                        <p className="font-bold text-slate-800 dark:text-slate-200 text-lg truncate">
+                          {RUBROS_NEGOCIOS.find(r => r.id === rubroNegocio)?.nombre || "Moda y Ropa"}
+                        </p>
                       </div>
                       <div className="min-w-0">
                         <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1 flex items-center gap-1.5"><Receipt size={13} className="text-blue-500" /> NIT / RUT</p>
@@ -2803,6 +3102,38 @@ export default function PerfilPage() {
                       <div className="min-w-0 md:col-span-2">
                         <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1 flex items-center gap-1.5"><Receipt size={13} className="text-blue-500" /> Pie de Ticket</p>
                         <p className="font-bold text-slate-800 dark:text-slate-200 text-base truncate">{mensajePieTicket || "¡GRACIAS POR SU COMPRA!"}</p>
+                      </div>
+
+                      <div className="min-w-0 md:col-span-2 pt-2 border-t border-slate-100 dark:border-slate-800/40">
+                        <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-2 flex items-center gap-1.5">
+                          <CreditCard size={13} className="text-emerald-500" /> Cuentas y Medios de Pago Configurados
+                        </p>
+                        {mediosPago.nequi || mediosPago.brebLlave || mediosPago.bancolombiaNumero || mediosPago.daviviendaNumero ? (
+                          <div className="flex flex-wrap gap-2">
+                            {mediosPago.nequi && (
+                              <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-purple-50 dark:bg-purple-950/30 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-800/60 text-xs font-bold font-mono">
+                                <span className="w-2 h-2 rounded-full bg-purple-500" /> Nequi: {mediosPago.nequi}
+                              </span>
+                            )}
+                            {mediosPago.brebLlave && (
+                              <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-50 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/60 text-xs font-bold font-mono">
+                                <span className="w-2 h-2 rounded-full bg-emerald-500" /> Bre-B: {mediosPago.brebLlave}
+                              </span>
+                            )}
+                            {mediosPago.bancolombiaNumero && (
+                              <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-50 dark:bg-amber-950/30 text-amber-800 dark:text-amber-300 border border-amber-200 dark:border-amber-800/60 text-xs font-bold font-mono">
+                                <span className="w-2 h-2 rounded-full bg-amber-500" /> Bancolombia: {mediosPago.bancolombiaNumero} ({mediosPago.bancolombiaTipo || 'Ahorros'})
+                              </span>
+                            )}
+                            {mediosPago.daviviendaNumero && (
+                              <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-rose-50 dark:bg-rose-950/30 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-800/60 text-xs font-bold font-mono">
+                                <span className="w-2 h-2 rounded-full bg-rose-500" /> Davivienda: {mediosPago.daviviendaNumero} ({mediosPago.daviviendaTipo || 'Ahorros'})
+                              </span>
+                            )}
+                          </div>
+                        ) : (
+                          <p className="text-xs text-slate-400 font-medium italic">Sin cuentas configuradas para comprobantes y transferencias.</p>
+                        )}
                       </div>
                     </div>
 
@@ -2984,7 +3315,7 @@ export default function PerfilPage() {
             </div>
           )}
 
-          <button onClick={() => signOut(auth)} className="w-full bg-rose-50 dark:bg-rose-500/10 text-rose-600 dark:text-rose-400 font-bold py-5 sm:py-6 rounded-[2rem] border border-rose-200 dark:border-rose-500/20 hover:bg-rose-100 dark:hover:bg-rose-500/30 transition-colors mb-4 sm:mb-6 flex justify-center items-center gap-2 text-lg mt-6">
+          <button onClick={handleCerrarSesion} className="w-full bg-rose-50 dark:bg-rose-500/10 text-rose-600 dark:text-rose-400 font-bold py-5 sm:py-6 rounded-[2rem] border border-rose-200 dark:border-rose-500/20 hover:bg-rose-100 dark:hover:bg-rose-500/30 transition-colors mb-4 sm:mb-6 flex justify-center items-center gap-2 text-lg mt-6 cursor-pointer">
             <LogOut size={24} className="shrink-0" /> Cerrar Sesión
           </button>
 
@@ -3008,7 +3339,12 @@ export default function PerfilPage() {
 
       {/* MODAL GUÍA DE INSTALACIÓN PASO A PASO */}
       {modalInstalarApp && (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 z-[350] animate-in zoom-in-95 duration-200">
+        <div 
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setModalInstalarApp(false);
+          }}
+          className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 z-[350] animate-in zoom-in-95 duration-200"
+        >
           <div className="bg-white dark:bg-[#0f172a] p-6 sm:p-8 rounded-[2.5rem] w-full max-w-md shadow-2xl border border-slate-100 dark:border-slate-800 relative max-h-[90dvh] overflow-y-auto pb-8 sm:pb-8">
             <button 
               onClick={() => setModalInstalarApp(false)} 
@@ -3033,7 +3369,8 @@ export default function PerfilPage() {
               {/* Sección PC / Escritorio */}
               <div className="p-4 bg-slate-50 dark:bg-[#020617] rounded-2xl border border-slate-200/80 dark:border-slate-800 space-y-2.5">
                 <div className="flex items-center gap-2 text-xs font-black text-slate-900 dark:text-white">
-                  <span>💻 En Computador (Chrome / Edge)</span>
+                  <Monitor size={15} className="text-slate-600 dark:text-slate-300" />
+                  <span>En Computador (Chrome / Edge)</span>
                 </div>
                 <div className="text-xs text-slate-600 dark:text-slate-300 space-y-1.5 pl-1">
                   <div className="flex items-start gap-2">
@@ -3054,7 +3391,8 @@ export default function PerfilPage() {
               {/* Sección iPhone / iOS */}
               <div className="p-4 bg-slate-50 dark:bg-[#020617] rounded-2xl border border-slate-200/80 dark:border-slate-800 space-y-2.5">
                 <div className="flex items-center gap-2 text-xs font-black text-slate-900 dark:text-white">
-                  <span>🍎 En iPhone / iPad (Safari)</span>
+                  <Smartphone size={15} className="text-slate-600 dark:text-slate-300" />
+                  <span>En iPhone / iPad (Safari)</span>
                 </div>
                 <div className="text-xs text-slate-600 dark:text-slate-300 space-y-1.5 pl-1">
                   <div className="flex items-start gap-2">
@@ -3075,7 +3413,8 @@ export default function PerfilPage() {
               {/* Sección Android */}
               <div className="p-4 bg-slate-50 dark:bg-[#020617] rounded-2xl border border-slate-200/80 dark:border-slate-800 space-y-2.5">
                 <div className="flex items-center gap-2 text-xs font-black text-slate-900 dark:text-white">
-                  <span>🤖 En Android / Chrome</span>
+                  <Smartphone size={15} className="text-slate-600 dark:text-slate-300" />
+                  <span>En Android / Chrome</span>
                 </div>
                 <div className="text-xs text-slate-600 dark:text-slate-300 space-y-1.5 pl-1">
                   <div className="flex items-start gap-2">
@@ -3102,42 +3441,70 @@ export default function PerfilPage() {
 
       {/* MODALES FLOTANTES */}
       {modalCancelarPro && (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 z-[300] animate-in zoom-in duration-200">
-          <div className="bg-white dark:bg-[#0f172a] p-8 rounded-[2.5rem] w-full max-w-sm shadow-2xl border border-slate-100 dark:border-slate-800/60 text-center relative overflow-hidden">
-            <div className="w-20 h-20 bg-rose-100 dark:bg-rose-500/20 text-rose-500 dark:text-rose-400 rounded-full flex items-center justify-center mx-auto mb-6 shadow-inner mt-4">
-              <AlertCircle size={40} />
+        <div 
+          className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 z-[300] animate-in zoom-in duration-200"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) {
+              setModalCancelarPro(false);
+              setPassCancelarPro("");
+              setErrorCancelarPro("");
+            }
+          }}
+        >
+          <div className="bg-white dark:bg-[#0f172a] p-6 sm:p-8 rounded-[2.5rem] w-full max-w-sm shadow-2xl border border-slate-100 dark:border-slate-800/60 text-center relative overflow-hidden">
+            <div className="w-16 h-16 sm:w-20 sm:h-20 bg-rose-100 dark:bg-rose-500/20 text-rose-500 dark:text-rose-400 rounded-full flex items-center justify-center mx-auto mb-4 sm:mb-6 shadow-inner mt-2">
+              <AlertCircle size={36} />
             </div>
-            <h2 className="text-2xl font-black text-slate-900 dark:text-white mb-2">¿Cancelar Plan PRO?</h2>
-            <p className="text-slate-600 dark:text-slate-400 font-medium text-base mb-6">Perderás acceso inmediato a tus reportes y el límite de clientes y colaboradores volverá al plan básico.</p>
+            <h2 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white mb-2">
+              ¿Cancelar {planActual === 'pro' ? 'Plan PRO Almacén' : 'Plan Comercio'}?
+            </h2>
+            <p className="text-slate-600 dark:text-slate-400 font-medium text-xs sm:text-sm mb-5 leading-relaxed">
+              {(datosSesion?.diasRestantesPlan ?? 0) > 0
+                ? `Conservarás todos los beneficios de tu plan durante los ${datosSesion?.diasRestantesPlan} días restantes. Al vencer esa fecha, tu cuenta pasará automáticamente al Plan Gratuito sin cobros adicionales.`
+                : 'Tu cuenta pasará al Plan Gratuito. Todos tus datos, clientes e inventario se conservarán intactos.'}
+            </p>
             
-            <div className="relative mb-2">
-              <input 
-                type={verPassCancelarPro ? "text" : "password"} 
-                value={passCancelarPro} 
-                onChange={e => {setPassCancelarPro(e.target.value); setErrorCancelarPro("")}} 
-                placeholder="Ingresa tu contraseña actual" 
-                className="w-full p-4 pr-12 bg-slate-50 dark:bg-[#020617] border border-slate-200 dark:border-slate-800/80 rounded-xl outline-none focus:border-rose-500 text-slate-900 dark:text-white placeholder-slate-400 font-bold text-lg" 
-              />
-              <button 
-                type="button" 
-                onClick={() => setVerPassCancelarPro(!verPassCancelarPro)}
-                className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors p-1"
-              >
-                {verPassCancelarPro ? <EyeOff size={20} /> : <Eye size={20} />}
-              </button>
-            </div>
-            {errorCancelarPro && <p className="text-rose-500 text-sm font-bold mb-4">{errorCancelarPro}</p>}
+            {usuarioAuth?.providerData?.some(p => p.providerId === 'google.com') && !usuarioAuth?.providerData?.some(p => p.providerId === 'password') ? (
+              <div className="bg-slate-50 dark:bg-[#020617] border border-slate-200 dark:border-slate-800 rounded-xl p-3 text-xs text-slate-500 dark:text-slate-400 font-medium mb-3 text-left">
+                Tu cuenta está autenticada con <strong>Google</strong>. Haz clic en Confirmar para programar la cancelación.
+              </div>
+            ) : (
+              <div className="relative mb-2">
+                <input 
+                  type={verPassCancelarPro ? "text" : "password"} 
+                  value={passCancelarPro} 
+                  onChange={e => {setPassCancelarPro(e.target.value); setErrorCancelarPro("")}} 
+                  placeholder="Ingresa tu contraseña actual" 
+                  className="w-full p-3.5 pr-12 bg-slate-50 dark:bg-[#020617] border border-slate-200 dark:border-slate-800/80 rounded-xl outline-none focus:border-rose-500 text-slate-900 dark:text-white placeholder-slate-400 font-bold text-sm" 
+                />
+                <button 
+                  type="button" 
+                  onClick={() => setVerPassCancelarPro(!verPassCancelarPro)}
+                  className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors p-1 cursor-pointer"
+                >
+                  {verPassCancelarPro ? <EyeOff size={18} /> : <Eye size={18} />}
+                </button>
+              </div>
+            )}
+            {errorCancelarPro && <p className="text-rose-500 text-xs font-bold mb-4">{errorCancelarPro}</p>}
 
-            <div className="flex gap-4 mt-2">
-              <button onClick={() => {setModalCancelarPro(false); setPassCancelarPro(""); setErrorCancelarPro("");}} className="flex-1 bg-slate-100 dark:bg-[#020617] hover:bg-slate-200 dark:hover:bg-[#1e293b] text-slate-700 dark:text-slate-300 font-bold py-4 text-lg rounded-2xl transition-colors border dark:border-slate-800/80">Volver</button>
-              <button onClick={cancelarSuscripcion} className="flex-1 bg-rose-600 hover:bg-rose-700 text-white font-bold py-4 text-lg rounded-2xl shadow-lg transition-transform active:scale-95">Confirmar</button>
+            <div className="flex gap-3 mt-3">
+              <button onClick={() => {setModalCancelarPro(false); setPassCancelarPro(""); setErrorCancelarPro("");}} className="flex-1 bg-slate-100 dark:bg-[#020617] hover:bg-slate-200 dark:hover:bg-[#1e293b] text-slate-700 dark:text-slate-300 font-bold py-3.5 text-sm rounded-2xl transition-colors border dark:border-slate-800/80 cursor-pointer">Volver</button>
+              <button onClick={cancelarSuscripcion} className="flex-1 bg-rose-600 hover:bg-rose-700 text-white font-bold py-3.5 text-sm rounded-2xl shadow-lg transition-transform active:scale-95 cursor-pointer">Confirmar</button>
             </div>
           </div>
         </div>
       )}
 
       {modalSuscripcion.visible && (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 z-[300] animate-in zoom-in-95 duration-200">
+        <div 
+          className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 z-[300] animate-in zoom-in-95 duration-200"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) {
+              setModalSuscripcion({ visible: false, titulo: "", mensaje: "" });
+            }
+          }}
+        >
           <div className="bg-white dark:bg-[#0f172a] p-8 rounded-[2.5rem] w-full max-w-sm shadow-2xl border border-slate-100 dark:border-slate-800/60 text-center relative overflow-hidden transition-colors duration-500">
             <button onClick={() => setModalSuscripcion({ visible: false, titulo: "", mensaje: "" })} className="absolute top-4 right-4 bg-slate-100 dark:bg-[#1e293b] hover:bg-slate-200 text-slate-500 rounded-full p-2 transition-colors z-10"><X size={24}/></button>
             <div className="absolute top-0 left-0 right-0 bg-blue-600 h-28"></div>
@@ -3154,7 +3521,14 @@ export default function PerfilPage() {
       )}
 
       {modalAvisoColaborador.visible && (
-        <div className="fixed inset-0 bg-black/60 dark:bg-black/80 backdrop-blur-md flex items-center justify-center p-4 z-[300] animate-in zoom-in duration-300">
+        <div 
+          className="fixed inset-0 bg-black/60 dark:bg-black/80 backdrop-blur-md flex items-center justify-center p-4 z-[300] animate-in zoom-in duration-300"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) {
+              setModalAvisoColaborador({ visible: false, titulo: "", mensaje: "", icono: 'exito' });
+            }
+          }}
+        >
           <div className="bg-white dark:bg-[#0f172a] rounded-[2.5rem] w-full max-w-sm shadow-2xl p-8 text-center border border-slate-100 dark:border-slate-800/60 relative">
             <div className={`w-24 h-24 rounded-full flex items-center justify-center mx-auto mb-6 shadow-inner ${modalAvisoColaborador.icono === 'exito' ? 'bg-emerald-100 dark:bg-emerald-500/20 text-emerald-500 dark:text-emerald-400' : (modalAvisoColaborador.icono === 'error' ? 'bg-rose-100 dark:bg-rose-500/20 text-rose-500 dark:text-rose-400' : 'bg-blue-100 dark:bg-blue-500/20 text-blue-500 dark:text-blue-400')}`}>
               {modalAvisoColaborador.icono === 'exito' && <CheckCircle2 size={50} />}
@@ -3170,7 +3544,16 @@ export default function PerfilPage() {
 
       {/* MODAL PARA RESTABLECER CONTRASEÑA DE COLABORADOR (POR ADMIN) */}
       {modalResetPass.visible && modalResetPass.colaborador && (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 z-[320] animate-in zoom-in-95 duration-200">
+        <div 
+          className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 z-[320] animate-in zoom-in-95 duration-200"
+          onClick={(e) => {
+            if (e.target === e.currentTarget && !resettingPass) {
+              setModalResetPass({ visible: false, colaborador: null });
+              setNuevaPassReset("");
+              setErrorResetPass("");
+            }
+          }}
+        >
           <div className="bg-white dark:bg-[#0f172a] p-6 sm:p-8 rounded-[2.5rem] w-full max-w-sm shadow-2xl border border-slate-100 dark:border-slate-800/60 text-center">
             <div className="w-16 h-16 bg-amber-100 dark:bg-amber-500/20 text-amber-600 dark:text-amber-400 rounded-full flex items-center justify-center mx-auto mb-4">
               <KeyRound size={32} />
@@ -3260,7 +3643,14 @@ export default function PerfilPage() {
 
       {/* MODAL CONFIRMAR ELIMINACIÓN DE COLABORADOR */}
       {modalEliminarColaborador.visible && modalEliminarColaborador.colaborador && (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 z-[300] animate-in zoom-in-95 duration-200">
+        <div 
+          className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 z-[300] animate-in zoom-in-95 duration-200"
+          onClick={(e) => {
+            if (e.target === e.currentTarget && !eliminandoColab) {
+              setModalEliminarColaborador({ visible: false, colaborador: null });
+            }
+          }}
+        >
           <div className="bg-white dark:bg-[#0f172a] p-6 sm:p-8 rounded-[2.5rem] w-full max-w-sm shadow-2xl border border-rose-200 dark:border-rose-900/60 text-center">
             <div className="w-16 h-16 bg-rose-100 dark:bg-rose-500/20 text-rose-600 dark:text-rose-400 rounded-full flex items-center justify-center mx-auto mb-4">
               <Trash2 size={32} />
@@ -3280,7 +3670,7 @@ export default function PerfilPage() {
               <button 
                 type="button"
                 onClick={() => setModalEliminarColaborador({ visible: false, colaborador: null })} 
-                disabled={eliminandoColab}
+                disabled={eliminandoColab} 
                 className="bg-slate-100 dark:bg-[#020617] hover:bg-slate-200 dark:hover:bg-[#1e293b] text-slate-700 dark:text-slate-300 font-bold py-3.5 rounded-xl transition-colors border dark:border-slate-800/80 text-sm cursor-pointer disabled:opacity-50"
               >
                 Cancelar
@@ -3304,7 +3694,17 @@ export default function PerfilPage() {
 
       {/* MODAL ACTIVAR TERMINAL MULTIVENDEDOR */}
       {modalActivarCajaOpen && (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 z-[320] animate-in zoom-in-95 duration-200">
+        <div 
+          className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 z-[320] animate-in zoom-in-95 duration-200"
+          onClick={(e) => {
+            if (e.target === e.currentTarget && !guardandoCaja) {
+              setModalActivarCajaOpen(false);
+              setPassCajaInicial("");
+              setConfirmarPassCajaInicial("");
+              setErrorPassCaja("");
+            }
+          }}
+        >
           <div className="bg-white dark:bg-[#0f172a] p-6 sm:p-8 rounded-[2.5rem] w-full max-w-sm shadow-2xl border border-indigo-100 dark:border-indigo-900/60 text-center">
             <div className="w-16 h-16 bg-indigo-100 dark:bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 rounded-full flex items-center justify-center mx-auto mb-4">
               <Monitor size={32} />
@@ -3398,7 +3798,17 @@ export default function PerfilPage() {
 
       {/* MODAL CAMBIAR CLAVE DE TERMINAL MULTIVENDEDOR */}
       {modalCambiarClaveCajaOpen && (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 z-[320] animate-in zoom-in-95 duration-200">
+        <div 
+          className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 z-[320] animate-in zoom-in-95 duration-200"
+          onClick={(e) => {
+            if (e.target === e.currentTarget && !guardandoClaveCaja) {
+              setModalCambiarClaveCajaOpen(false);
+              setNuevaClaveCaja("");
+              setConfirmarClaveCaja("");
+              setErrorCambiarClaveCaja("");
+            }
+          }}
+        >
           <div className="bg-white dark:bg-[#0f172a] p-6 sm:p-8 rounded-[2.5rem] w-full max-w-sm shadow-2xl border border-slate-100 dark:border-slate-800/60 text-center">
             <div className="w-16 h-16 bg-amber-100 dark:bg-amber-500/20 text-amber-600 dark:text-amber-400 rounded-full flex items-center justify-center mx-auto mb-4">
               <KeyRound size={32} />
@@ -3488,7 +3898,14 @@ export default function PerfilPage() {
 
       {/* MODAL CONFIRMAR ELIMINAR TERMINAL MULTIVENDEDOR */}
       {modalEliminarCajaOpen && (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 z-[320] animate-in zoom-in-95 duration-200">
+        <div 
+          className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 z-[320] animate-in zoom-in-95 duration-200"
+          onClick={(e) => {
+            if (e.target === e.currentTarget && !eliminandoCaja) {
+              setModalEliminarCajaOpen(false);
+            }
+          }}
+        >
           <div className="bg-white dark:bg-[#0f172a] p-6 sm:p-8 rounded-[2.5rem] w-full max-w-sm shadow-2xl border border-rose-200 dark:border-rose-900/60 text-center">
             <div className="w-16 h-16 bg-rose-100 dark:bg-rose-500/20 text-rose-600 dark:text-rose-400 rounded-full flex items-center justify-center mx-auto mb-4">
               <Trash2 size={32} />
@@ -3532,7 +3949,14 @@ export default function PerfilPage() {
 
       {/* MODAL CONFIGURACIÓN DE PERMISOS TERMINAL MULTIVENDEDOR */}
       {modalPermisosCajaOpen && (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 z-[320] animate-in zoom-in-95 duration-200">
+        <div 
+          className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 z-[320] animate-in zoom-in-95 duration-200"
+          onClick={(e) => {
+            if (e.target === e.currentTarget && !guardandoPermisosCaja) {
+              setModalPermisosCajaOpen(false);
+            }
+          }}
+        >
           <div className="bg-white dark:bg-[#0f172a] p-6 sm:p-7 rounded-[2.5rem] w-full max-w-lg shadow-2xl border border-indigo-100 dark:border-indigo-900/60 flex flex-col max-h-[90vh]">
             
             {/* Header */}
@@ -3587,12 +4011,13 @@ export default function PerfilPage() {
                         <span className="font-bold text-slate-900 dark:text-white text-sm">
                           Cierre Directo en Caja
                         </span>
-                        <span className={`text-[10px] font-black px-2 py-0.5 rounded-full ${
+                        <span className={`text-[10px] font-black px-2 py-0.5 rounded-full inline-flex items-center gap-1.5 ${
                           permisosCajaEdicion.ventaDirecta
                             ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300'
                             : 'bg-amber-100 text-amber-700 dark:bg-amber-950/50 dark:text-amber-300'
                         }`}>
-                          {permisosCajaEdicion.ventaDirecta ? '🟢 Cobro Inmediato' : '🟠 Modo Pedidos'}
+                          <span className={`w-1.5 h-1.5 rounded-full ${permisosCajaEdicion.ventaDirecta ? 'bg-emerald-500' : 'bg-amber-500'}`}></span>
+                          {permisosCajaEdicion.ventaDirecta ? 'Cobro Inmediato' : 'Modo Pedidos'}
                         </span>
                       </div>
                       <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
@@ -3889,7 +4314,16 @@ export default function PerfilPage() {
 
       {/* MODAL ELIMINAR CUENTA Y DATOS (LEY 1581 / HABEAS DATA) */}
       {modalEliminarCuenta && (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 z-[350] animate-in zoom-in-95 duration-200">
+        <div 
+          onClick={(e) => {
+            if (e.target === e.currentTarget && !eliminandoCuenta) {
+              setModalEliminarCuenta(false);
+              setTextoConfirmacionEliminar("");
+              setErrorEliminarCuenta("");
+            }
+          }}
+          className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 z-[350] animate-in zoom-in-95 duration-200"
+        >
           <div className="bg-white dark:bg-[#0f172a] p-6 sm:p-8 rounded-[2.5rem] w-full max-w-lg shadow-2xl border border-rose-200 dark:border-rose-900/60 relative max-h-[90dvh] overflow-y-auto">
             <button 
               onClick={() => {
@@ -3933,7 +4367,9 @@ export default function PerfilPage() {
               </div>
 
               <div className="p-3.5 bg-amber-50 dark:bg-amber-950/30 rounded-xl border border-amber-200/80 dark:border-amber-900/40 text-xs text-amber-900 dark:text-amber-200 leading-relaxed">
-                <strong className="block mb-1">⚠️ Advertencia sobre futuros registros:</strong>
+                <strong className="block mb-1 flex items-center gap-1.5">
+                  <AlertTriangle size={14} className="text-amber-600 shrink-0" /> Advertencia sobre futuros registros:
+                </strong>
                 Si en el futuro decides volver a registrarte con este mismo correo o cuenta de Google, ingresarás como un <strong>negocio completamente nuevo desde cero</strong>. No encontrarás absolutamente nada de tu información anterior, ya que el borrado de la base de datos es definitivo e irrecuperable.
               </div>
             </div>
@@ -3995,7 +4431,16 @@ export default function PerfilPage() {
 
       {/* MODAL 2: CONFIRMACIÓN FINAL DE SEGURIDAD (ÚLTIMA OPORTUNIDAD) */}
       {modalConfirmacionFinalEliminar && (
-        <div className="fixed inset-0 bg-black/85 backdrop-blur-md flex items-center justify-center p-4 z-[400] animate-in zoom-in-95 duration-200">
+        <div 
+          onClick={(e) => {
+            if (e.target === e.currentTarget && !eliminandoCuenta) {
+              setModalConfirmacionFinalEliminar(false);
+              setTextoConfirmacionEliminar("");
+              setErrorEliminarCuenta("");
+            }
+          }}
+          className="fixed inset-0 bg-black/85 backdrop-blur-md flex items-center justify-center p-4 z-[400] animate-in zoom-in-95 duration-200"
+        >
           <div className="bg-white dark:bg-[#0f172a] p-6 sm:p-8 rounded-[2.5rem] w-full max-w-md shadow-2xl border-2 border-rose-500/80 relative text-center">
             <div className="w-16 h-16 bg-rose-500 text-white rounded-full flex items-center justify-center mx-auto mb-4 shadow-lg shadow-rose-500/30 animate-pulse">
               <AlertTriangle size={32} />
@@ -4048,7 +4493,14 @@ export default function PerfilPage() {
 
       {/* MODAL DE SOLICITUD DE FACTURACIÓN ELECTRÓNICA DIAN */}
       {modalSolicitudDian && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-xs animate-in fade-in duration-200">
+        <div 
+          onClick={(e) => {
+            if (e.target === e.currentTarget && !enviandoSolicitudDian) {
+              setModalSolicitudDian(false);
+            }
+          }}
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-xs animate-in fade-in duration-200"
+        >
           <div className="bg-white dark:bg-slate-900 rounded-3xl max-w-lg w-full max-h-[90vh] overflow-y-auto shadow-2xl border border-slate-200 dark:border-slate-800">
             {/* Header */}
             <div className="p-5 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
@@ -4057,8 +4509,14 @@ export default function PerfilPage() {
                   <FileText size={20} />
                 </div>
                 <div>
-                  <h3 className="text-base font-black text-slate-900 dark:text-white">Solicitud Facturación DIAN</h3>
-                  <p className="text-xs text-slate-500 dark:text-slate-400">Datos fiscales exigidos por la normativa colombiana</p>
+                  <h3 className="text-base font-black text-slate-900 dark:text-white">
+                    {datosSesion?.facturacionDianHabilitada ? "Actualizar Datos Fiscales" : "Solicitud Facturación DIAN"}
+                  </h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                    {datosSesion?.facturacionDianHabilitada
+                      ? "Datos del emisor que aparecerán en tus facturas electrónicas"
+                      : "Datos fiscales exigidos por la normativa colombiana"}
+                  </p>
                 </div>
               </div>
               <button
@@ -4072,8 +4530,14 @@ export default function PerfilPage() {
 
             {/* Form */}
             <form onSubmit={enviarSolicitudDian} className="p-5 space-y-4">
-              <div className="p-3 bg-blue-50/60 dark:bg-blue-950/20 border border-blue-100 dark:border-blue-900/40 rounded-2xl text-[11px] text-blue-800 dark:text-blue-300">
-                Al enviar estos datos, el equipo de Fiabono gestionará la vinculación técnica de tu comercio para que puedas emitir facturas legales con CUFE y QR desde tu punto de venta.
+              <div className={`p-3 rounded-2xl text-[11px] border ${
+                datosSesion?.facturacionDianHabilitada
+                  ? "bg-emerald-50/60 dark:bg-emerald-950/20 border-emerald-100 dark:border-emerald-900/40 text-emerald-800 dark:text-emerald-300"
+                  : "bg-blue-50/60 dark:bg-blue-950/20 border-blue-100 dark:border-blue-900/40 text-blue-800 dark:text-blue-300"
+              }`}>
+                {datosSesion?.facturacionDianHabilitada
+                  ? "Tu comercio ya está habilitado ante la DIAN. Cualquier modificación en estos campos se actualizará de inmediato en tus próximas facturas electrónicas emitidas."
+                  : "Al enviar estos datos, el equipo de Fiabono gestionará la vinculación técnica de tu comercio para que puedas emitir facturas legales con CUFE y QR desde tu punto de venta."}
               </div>
 
               <div className="grid grid-cols-3 gap-2.5">
@@ -4083,13 +4547,35 @@ export default function PerfilPage() {
                     type="text"
                     required
                     value={dianNit}
-                    onChange={(e) => setDianNit(e.target.value)}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setDianNit(val);
+                      if (val.trim()) {
+                        const autocalc = calcularDvNit(val);
+                        if (autocalc) setDianDv(autocalc);
+                      }
+                    }}
                     placeholder="Ej. 900123456"
                     className="w-full py-2.5 px-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold text-slate-900 dark:text-white outline-none focus:border-emerald-500"
                   />
                 </div>
                 <div className="col-span-1">
-                  <label className="text-[11px] font-bold text-slate-600 dark:text-slate-300 block mb-1">DV (Dígito)</label>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="text-[11px] font-bold text-slate-600 dark:text-slate-300">DV</label>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const autocalc = calcularDvNit(dianNit);
+                        if (autocalc) {
+                          setDianDv(autocalc);
+                          toast.success(`Dígito calculado: ${autocalc}`);
+                        }
+                      }}
+                      className="text-[10px] text-emerald-600 dark:text-emerald-400 font-bold hover:underline cursor-pointer"
+                    >
+                      Calcular
+                    </button>
+                  </div>
                   <input
                     type="text"
                     maxLength={1}
@@ -4203,10 +4689,10 @@ export default function PerfilPage() {
                   {enviandoSolicitudDian ? (
                     <>
                       <div className="w-3.5 h-3.5 border-2 border-white/40 border-t-white rounded-full animate-spin" />
-                      <span>Enviando...</span>
+                      <span>Guardando...</span>
                     </>
                   ) : (
-                    <span>Enviar Solicitud DIAN</span>
+                    <span>{datosSesion?.facturacionDianHabilitada ? "Guardar Datos Fiscales" : "Enviar Solicitud DIAN"}</span>
                   )}
                 </button>
               </div>

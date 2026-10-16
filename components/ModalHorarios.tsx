@@ -159,7 +159,12 @@ export default function ModalHorarios({
   };
 
   return (
-    <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-slate-900/70 backdrop-blur-md p-3 sm:p-4 animate-in fade-in duration-200">
+    <div 
+      className="fixed inset-0 z-[9999] flex items-center justify-center bg-slate-900/70 backdrop-blur-md p-3 sm:p-4 animate-in fade-in duration-200"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
+    >
       <div className="bg-white dark:bg-[#0f172a] rounded-[2.5rem] w-full max-w-xl shadow-2xl border border-slate-100 dark:border-slate-800 relative max-h-[92dvh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-200">
         
         {/* CABECERA */}

@@ -64,7 +64,8 @@ function ClientesContenido() {
   const router = useRouter();
   const cuentaPrincipalId = datosSesion?.cuentaPrincipalId;
   const nombreNegocio = datosSesion?.nombreNegocio || "Mi Negocio";
-  const puedeSepare = Boolean(datosSesion?.puedeSepare ?? true);
+  const moduloSepareActivo = datosSesion?.moduloSepareActivo !== false;
+  const puedeSepare = (datosSesion?.esPro === true) && (datosSesion?.puedeSepare !== false) && moduloSepareActivo;
   const esCajero = datosSesion?.rol === 'cajero';
   const puedeVerCartera = datosSesion?.puedeVerCartera === true;
   const puedeEnviarWhatsApp = Boolean(datosSesion?.puedeEnviarWhatsApp ?? false);
@@ -321,14 +322,17 @@ function ClientesContenido() {
 
   // 5. Filtrado por Búsqueda y Pestañas
   const clientesFiltrados = useMemo(() => {
+    const normalizar = (texto: string) => (texto || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
+    const qNorm = normalizar(busqueda);
+
     return clientesConAnalisis.filter((c) => {
-      // Filtro de texto
+      // Filtro de texto insensible a mayúsculas y acentos
       const coincideBusqueda = 
-        !busqueda.trim() ||
-        c.nombre.toLowerCase().includes(busqueda.toLowerCase()) ||
-        (c.celular && c.celular.includes(busqueda)) ||
-        (c.direccion && c.direccion.toLowerCase().includes(busqueda.toLowerCase())) ||
-        (c.notas && c.notas.toLowerCase().includes(busqueda.toLowerCase()));
+        !qNorm ||
+        normalizar(c.nombre).includes(qNorm) ||
+        (c.celular && c.celular.includes(busqueda.trim())) ||
+        normalizar(c.direccion || "").includes(qNorm) ||
+        normalizar(c.notas || "").includes(qNorm);
 
       if (!coincideBusqueda) return false;
 
@@ -468,7 +472,8 @@ Quedamos pendientes para revisar detalles o responder cualquier duda.
       referenciaPago: mov.referenciaPago,
       subtotal: mov.subtotal,
       valorIva: mov.valorIva,
-      porcentajeIva: mov.porcentajeIva
+      porcentajeIva: mov.porcentajeIva,
+      facturaElectronica: mov.facturaElectronica
     };
 
     setModalTicketFactura({ visible: true, datos: datosTicket });
@@ -488,7 +493,7 @@ Quedamos pendientes para revisar detalles o responder cualquier duda.
     if (esGratis && clientes.length >= limite) {
       toast.error(
         `Has alcanzado el límite de ${limite} clientes del Plan Gratuito. Pasa al Plan Comercio o PRO para clientes ilimitados.`,
-        { duration: 6000, icon: '🔒' }
+        { duration: 6000 }
       );
       setModalNuevoAbierto(false);
       return;
@@ -541,7 +546,8 @@ Quedamos pendientes para revisar detalles o responder cualquier duda.
       .filter((s: any) => s.estado === 'activo')
       .reduce((acc: number, s: any) => acc + (s.saldoPendiente || 0), 0);
     const deudaFiado = cliente.deuda ?? cliente.deudaTotal ?? 0;
-    const totalCompromiso = deudaFiado + saldoSeparesActivos;
+    const tieneSaldoAFavor = deudaFiado < 0;
+    const totalCompromiso = tieneSaldoAFavor ? Math.abs(deudaFiado) : (deudaFiado + saldoSeparesActivos);
     const separesActivosCliente = separesList.filter((s: any) => s.estado === 'activo');
 
     // Filtrado de movimientos por tipo en el expediente (sin hook useMemo dentro de función auxiliar)
@@ -603,6 +609,12 @@ Quedamos pendientes para revisar detalles o responder cualquier duda.
                       {tieneDevolucion && (
                         <span className="text-[9px] sm:text-[10px] font-black uppercase px-1.5 py-0.5 rounded-md shrink-0 bg-amber-500 text-white shadow-xs flex items-center gap-1">
                           <AlertTriangle size={10} /> Con Devolución
+                        </span>
+                      )}
+
+                      {mov.facturaElectronica?.numeroFactura && (
+                        <span className="text-[9px] sm:text-[10px] font-black uppercase px-1.5 py-0.5 rounded-md shrink-0 bg-blue-600 text-white shadow-xs">
+                          FE {mov.facturaElectronica.numeroFactura}
                         </span>
                       )}
                     </div>
@@ -881,24 +893,28 @@ Quedamos pendientes para revisar detalles o responder cualquier duda.
             <div className="p-2.5 rounded-xl bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-800 shadow-xs">
               <div className="flex items-center justify-between">
                 <span className={`text-[10px] font-black uppercase tracking-wider block ${
-                  totalCompromiso < 0 
+                  tieneSaldoAFavor 
                     ? 'text-emerald-600 dark:text-emerald-400' 
                     : (totalCompromiso === 0 ? 'text-slate-400' : 'text-slate-500 dark:text-slate-400')
                 }`}>
-                  {totalCompromiso < 0 ? 'Saldo a Favor' : (totalCompromiso === 0 ? 'Estado' : (saldoSeparesActivos > 0 ? 'Saldo Total Pendiente' : 'Saldo Actual'))}
+                  {tieneSaldoAFavor ? 'Saldo a Favor' : (totalCompromiso === 0 ? 'Estado' : (saldoSeparesActivos > 0 ? 'Saldo Total Pendiente' : 'Saldo Actual'))}
                 </span>
                 <span className={`text-lg font-black ${
-                  totalCompromiso === 0 
+                  !tieneSaldoAFavor && totalCompromiso === 0 
                     ? 'text-slate-400' 
-                    : (totalCompromiso < 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400')
+                    : (tieneSaldoAFavor ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400')
                 }`}>
-                  {totalCompromiso === 0 ? 'Al Día' : `$${Math.round(Math.abs(totalCompromiso)).toLocaleString('es-CO')}`}
+                  {!tieneSaldoAFavor && totalCompromiso === 0 ? 'Al Día' : `$${Math.round(Math.abs(totalCompromiso)).toLocaleString('es-CO')}`}
                 </span>
               </div>
 
               {saldoSeparesActivos > 0 && (
                 <div className="flex items-center justify-between text-[10px] font-bold text-slate-500 dark:text-slate-400 pt-1.5 mt-1.5 border-t border-slate-200 dark:border-slate-800">
-                  <span>Fiados: <strong className="text-rose-600 dark:text-rose-400">${Math.round(deudaFiado).toLocaleString('es-CO')}</strong></span>
+                  {tieneSaldoAFavor ? (
+                    <span>A favor: <strong className="text-emerald-600 dark:text-emerald-400">${Math.round(Math.abs(deudaFiado)).toLocaleString('es-CO')}</strong></span>
+                  ) : (
+                    <span>Fiados: <strong className="text-rose-600 dark:text-rose-400">${Math.round(deudaFiado).toLocaleString('es-CO')}</strong></span>
+                  )}
                   <span className="text-violet-600 dark:text-violet-400">Separes: <strong>${Math.round(saldoSeparesActivos).toLocaleString('es-CO')}</strong></span>
                 </div>
               )}
@@ -927,7 +943,7 @@ Quedamos pendientes para revisar detalles o responder cualquier duda.
               >
                 Abonar
               </button>
-              {puedeSepare && (
+              {puedeSepare ? (
                 <button 
                   type="button"
                   onClick={() => router.push(`/dashboard/separe?clienteId=${cliente.id}`)} 
@@ -935,7 +951,15 @@ Quedamos pendientes para revisar detalles o responder cualquier duda.
                 >
                   Separe
                 </button>
-              )}
+              ) : separesActivosCliente.length > 0 ? (
+                <button 
+                  type="button"
+                  onClick={() => router.push(`/dashboard/separes?tab=activos&busqueda=${encodeURIComponent(cliente.nombre)}`)} 
+                  className="flex-1 py-2 px-2 bg-violet-600 hover:bg-violet-700 text-white font-black rounded-xl text-xs uppercase shadow-xs transition active:scale-95 cursor-pointer text-center"
+                >
+                  Ver Separes
+                </button>
+              ) : null}
             </div>
 
             {/* Fila 4: Botón WhatsApp */}
@@ -1030,24 +1054,28 @@ Quedamos pendientes para revisar detalles o responder cualquier duda.
             <div className="p-3 sm:p-3.5 rounded-2xl bg-slate-50/80 dark:bg-[#020617] border border-slate-200 dark:border-slate-800 shadow-xs">
               <div className="flex items-center justify-between">
                 <span className={`text-[10px] font-black uppercase tracking-wider block ${
-                  totalCompromiso < 0 
+                  tieneSaldoAFavor 
                     ? 'text-emerald-600 dark:text-emerald-400' 
                     : (totalCompromiso === 0 ? 'text-slate-400' : 'text-slate-500 dark:text-slate-400')
                 }`}>
-                  {totalCompromiso < 0 ? 'Saldo a Favor' : (totalCompromiso === 0 ? 'Estado' : (saldoSeparesActivos > 0 ? 'Saldo Total Pendiente' : 'Saldo Actual'))}
+                  {tieneSaldoAFavor ? 'Saldo a Favor' : (totalCompromiso === 0 ? 'Estado' : (saldoSeparesActivos > 0 ? 'Saldo Total Pendiente' : 'Saldo Actual'))}
                 </span>
                 <span className={`text-xl sm:text-2xl font-black ${
-                  totalCompromiso === 0 
+                  !tieneSaldoAFavor && totalCompromiso === 0 
                     ? 'text-slate-400' 
-                    : (totalCompromiso < 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400')
+                    : (tieneSaldoAFavor ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400')
                 }`}>
-                  {totalCompromiso === 0 ? 'Al Día' : `$${Math.round(Math.abs(totalCompromiso)).toLocaleString('es-CO')}`}
+                  {!tieneSaldoAFavor && totalCompromiso === 0 ? 'Al Día' : `$${Math.round(Math.abs(totalCompromiso)).toLocaleString('es-CO')}`}
                 </span>
               </div>
 
               {saldoSeparesActivos > 0 && (
                 <div className="flex items-center justify-between text-[11px] font-bold text-slate-500 dark:text-slate-400 pt-2 mt-2 border-t border-slate-200 dark:border-slate-800">
-                  <span>Fiados: <strong className="text-rose-600 dark:text-rose-400">${Math.round(deudaFiado).toLocaleString('es-CO')}</strong></span>
+                  {tieneSaldoAFavor ? (
+                    <span>A favor: <strong className="text-emerald-600 dark:text-emerald-400">${Math.round(Math.abs(deudaFiado)).toLocaleString('es-CO')}</strong></span>
+                  ) : (
+                    <span>Fiados: <strong className="text-rose-600 dark:text-rose-400">${Math.round(deudaFiado).toLocaleString('es-CO')}</strong></span>
+                  )}
                   <span className="text-violet-600 dark:text-violet-400">Separes: <strong>${Math.round(saldoSeparesActivos).toLocaleString('es-CO')}</strong></span>
                 </div>
               )}
@@ -1060,31 +1088,39 @@ Quedamos pendientes para revisar detalles o responder cualquier duda.
                 onClick={() => router.push(`/dashboard/vender?clienteId=${cliente.id}`)} 
                 className="py-2.5 px-3 bg-emerald-500 hover:bg-emerald-600 text-white font-black rounded-xl text-xs uppercase shadow-xs transition active:scale-95 cursor-pointer text-center flex items-center justify-center gap-1.5"
               >
-                <span>🛍️ Vender</span>
+                <span>Vender</span>
               </button>
               <button 
                 type="button"
                 onClick={() => router.push(`/dashboard/fiar?clienteId=${cliente.id}`)} 
                 className="py-2.5 px-3 bg-rose-500 hover:bg-rose-600 text-white font-black rounded-xl text-xs uppercase shadow-xs transition active:scale-95 cursor-pointer text-center flex items-center justify-center gap-1.5"
               >
-                <span>📋 Fiar</span>
+                <span>Fiar</span>
               </button>
               <button 
                 type="button"
                 onClick={() => router.push(`/dashboard/abonar?clienteId=${cliente.id}`)} 
-                className={`py-2.5 px-3 bg-blue-500 hover:bg-blue-600 text-white font-black rounded-xl text-xs uppercase shadow-xs transition active:scale-95 cursor-pointer text-center flex items-center justify-center gap-1.5 ${!puedeSepare ? 'col-span-2' : ''}`}
+                className={`py-2.5 px-3 bg-blue-500 hover:bg-blue-600 text-white font-black rounded-xl text-xs uppercase shadow-xs transition active:scale-95 cursor-pointer text-center flex items-center justify-center gap-1.5 ${(!puedeSepare && separesActivosCliente.length === 0) ? 'col-span-2' : ''}`}
               >
-                <span>💵 Abonar</span>
+                <span>Abonar</span>
               </button>
-              {puedeSepare && (
+              {puedeSepare ? (
                 <button 
                   type="button"
                   onClick={() => router.push(`/dashboard/separe?clienteId=${cliente.id}`)} 
                   className="py-2.5 px-3 bg-violet-600 hover:bg-violet-700 text-white font-black rounded-xl text-xs uppercase shadow-xs transition active:scale-95 cursor-pointer text-center flex items-center justify-center gap-1.5"
                 >
-                  <span>🔖 Separe</span>
+                  <span>Separe</span>
                 </button>
-              )}
+              ) : separesActivosCliente.length > 0 ? (
+                <button 
+                  type="button"
+                  onClick={() => router.push(`/dashboard/separes?tab=activos&busqueda=${encodeURIComponent(cliente.nombre)}`)} 
+                  className="py-2.5 px-3 bg-violet-600 hover:bg-violet-700 text-white font-black rounded-xl text-xs uppercase shadow-xs transition active:scale-95 cursor-pointer text-center flex items-center justify-center gap-1.5"
+                >
+                  <span>Ver Separes</span>
+                </button>
+              ) : null}
             </div>
 
             {/* Fila 4: Botón de WhatsApp oficial */}
@@ -1525,13 +1561,19 @@ Quedamos pendientes para revisar detalles o responder cualquier duda.
                             ? c.semaforo === 'riesgo' 
                               ? 'text-rose-600 dark:text-rose-400' 
                               : 'text-amber-600 dark:text-amber-400' 
-                            : 'text-emerald-600 dark:text-emerald-400'
+                            : c.deuda < 0
+                              ? 'text-emerald-600 dark:text-emerald-400'
+                              : 'text-slate-400 dark:text-slate-500'
                         }`}>
-                          ${Math.round(c.deuda).toLocaleString('es-CO')}
+                          ${Math.round(Math.abs(c.deuda)).toLocaleString('es-CO')}
                         </span>
-                        <span className="text-[10px] text-slate-400 block font-medium">
+                        <span className={`text-[10px] block font-bold ${
+                          c.deuda < 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-400 font-medium'
+                        }`}>
                           {c.deuda > 0 ? (
                             c.diasSinAbonar > 0 ? `Hace ${c.diasSinAbonar}d` : 'Fiado reciente'
+                          ) : c.deuda < 0 ? (
+                            'Saldo a favor'
                           ) : (
                             'Al día'
                           )}
@@ -1595,7 +1637,10 @@ Quedamos pendientes para revisar detalles o responder cualquier duda.
           MODAL: REGISTRAR NUEVO CLIENTE
           ========================================================================= */}
       {modalNuevoAbierto && (
-        <div className="fixed inset-0 z-[160] flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-xs animate-in fade-in duration-200">
+        <div 
+          onClick={(e) => { if (e.target === e.currentTarget) setModalNuevoAbierto(false); }}
+          className="fixed inset-0 z-[160] flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-xs animate-in fade-in duration-200"
+        >
           <div className="bg-white dark:bg-[#0f172a] rounded-3xl max-w-md w-full p-6 border border-slate-100 dark:border-slate-800 shadow-2xl space-y-4">
             <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
               <div className="flex items-center gap-2.5">
@@ -1661,13 +1706,13 @@ Quedamos pendientes para revisar detalles o responder cualquier duda.
 
               <div>
                 <label className="text-xs font-bold text-slate-600 dark:text-slate-300 block mb-1">
-                  Notas o Parentesco
+                  Notas / Referencia / Apodo
                 </label>
                 <textarea
                   rows={2}
                   value={notasNuevas}
                   onChange={(e) => setNotasNuevas(e.target.value)}
-                  placeholder="Ej: Hermana de Juan, compra los viernes..."
+                  placeholder="Ej: Apodo (Cachaco), parentesco (Hermana de Juan), referencia..."
                   className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3.5 py-2 text-xs font-semibold text-slate-800 dark:text-white focus:ring-2 focus:ring-emerald-500 focus:outline-hidden resize-none"
                 />
               </div>
@@ -1738,6 +1783,16 @@ Quedamos pendientes para revisar detalles o responder cualquier duda.
         isOpen={modalTicketFactura.visible}
         onClose={() => setModalTicketFactura({ visible: false, datos: null })}
         datos={modalTicketFactura.datos}
+        onFacturaEmitida={(fe) => {
+          setModalTicketFactura(prev => ({
+            ...prev,
+            datos: prev.datos ? { ...prev.datos, facturaElectronica: fe } : null
+          }));
+          const id = modalTicketFactura.datos?.idTransaccion;
+          if (id) {
+            setMovimientos(prev => prev.map(m => m.id === id ? { ...m, facturaElectronica: fe } : m));
+          }
+        }}
       />
     </div>
   );

@@ -25,7 +25,12 @@ import {
   Zap,
   Lock,
   Percent,
-  ShieldAlert
+  ShieldAlert,
+  Flame,
+  ThumbsUp,
+  AlertTriangle,
+  Rocket,
+  Lightbulb
 } from 'lucide-react';
 import toast from "react-hot-toast";
 import { collection, query, where, onSnapshot } from "firebase/firestore";
@@ -678,7 +683,7 @@ export default function ReportesPage() {
         <div className="bg-gradient-to-r from-blue-600 via-indigo-600 to-slate-900 text-white p-6 sm:p-8 rounded-[2.5rem] shadow-2xl border border-white/20 flex flex-col sm:flex-row items-center justify-between gap-6 z-50">
           <div className="space-y-1 text-center sm:text-left">
             <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/20 text-emerald-300 font-bold text-xs uppercase tracking-wider border border-emerald-500/30">
-              ✨ ¡Tus métricas reales ya están calculadas!
+              <Sparkles size={14} className="text-emerald-400" /> ¡Tus métricas reales ya están calculadas!
             </span>
             <h3 className="text-xl sm:text-2xl font-black tracking-tight">
               Desbloquea el Panel de Reportes y Comportamiento Financiero
@@ -696,7 +701,8 @@ export default function ReportesPage() {
             }}
             className="bg-white text-blue-900 hover:bg-slate-100 font-black text-sm sm:text-base py-3.5 px-7 rounded-2xl shadow-xl transition-transform transform active:scale-95 shrink-0 cursor-pointer flex items-center gap-2"
           >
-            Actualizar al Plan PRO 🚀
+            <span>Actualizar al Plan PRO</span>
+            <Rocket size={18} className="text-blue-900" />
           </button>
         </div>
 
@@ -1040,20 +1046,36 @@ export default function ReportesPage() {
       
       {/* CABECERA PRINCIPAL CON SELECTOR DE PERIODO */}
       <div className="bg-gradient-to-br from-slate-800 via-slate-900 to-indigo-950 p-6 sm:p-8 md:p-10 rounded-[2rem] sm:rounded-[2.5rem] shadow-2xl text-white flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6 relative">
-        <div className="space-y-3 z-10">
-          <div className="flex items-center gap-2.5 flex-wrap">
-            <span className="bg-emerald-500/25 text-emerald-300 border border-emerald-500/40 px-3.5 py-1 rounded-full text-xs font-black uppercase tracking-wider inline-flex items-center gap-1.5 shadow-sm">
-              <Sparkles size={14} className="text-emerald-400" /> {esPro ? 'Plan PRO Almacén' : 'Plan Comercio'}
-            </span>
-            <span className="text-slate-200 text-xs font-bold flex items-center gap-1.5 bg-white/15 px-3.5 py-1 rounded-full backdrop-blur-md border border-white/15 shadow-sm">
-              <Calendar size={14} className="text-blue-300" /> {metaPeriodo.rangoDescriptivo}
-            </span>
+        <div className="space-y-3 z-10 w-full lg:w-auto">
+          <div className="flex items-center justify-between gap-2.5 w-full flex-wrap sm:flex-nowrap">
+            <div className="flex items-center gap-2.5 flex-wrap">
+              <span className="bg-emerald-500/25 text-emerald-300 border border-emerald-500/40 px-3.5 py-1 rounded-full text-xs font-black uppercase tracking-wider inline-flex items-center gap-1.5 shadow-sm">
+                <Sparkles size={14} className="text-emerald-400" /> {esPro ? 'Plan PRO Almacén' : 'Plan Comercio'}
+              </span>
+              <span className="text-slate-200 text-xs font-bold flex items-center gap-1.5 bg-white/15 px-3.5 py-1 rounded-full backdrop-blur-md border border-white/15 shadow-sm">
+                <Calendar size={14} className="text-blue-300" /> {metaPeriodo.rangoDescriptivo}
+              </span>
+            </div>
+
+            {/* BOTÓN EXPORTAR EN MÓVIL: COMPACTO, ELEGANTE Y NO INVASIVO */}
+            <button
+              type="button"
+              onClick={() => setModalExportarOpen(true)}
+              className="sm:hidden px-3 py-1.5 rounded-xl bg-gradient-to-r from-amber-500 via-amber-400 to-amber-500 text-slate-950 font-black text-xs tracking-wide shadow-md shadow-amber-500/20 inline-flex items-center gap-1.5 active:scale-95 cursor-pointer shrink-0"
+              title="Exportar Reporte Financiero"
+            >
+              <FileDown size={14} className="stroke-[2.5]" />
+              <span>Exportar</span>
+              <span className="bg-slate-950 text-amber-400 px-1.5 py-0.2 rounded-full text-[9px] font-black uppercase tracking-wider">
+                PRO
+              </span>
+            </button>
           </div>
           <h1 className="text-2xl sm:text-4xl font-black tracking-tight">Reportes y Analíticas</h1>
           <p className="text-slate-300 text-xs sm:text-sm font-medium">Supervisa el flujo de caja, estado de cartera y rendimiento del negocio en tiempo real.</p>
         </div>
 
-        {/* SELECTOR DE PERIODO GENERAL (HOY / SEMANA / MES / AÑO / TODOS) Y BOTÓN EXPORTAR */}
+        {/* SELECTOR DE PERIODO GENERAL (HOY / SEMANA / MES / AÑO / TODOS) Y BOTÓN EXPORTAR ESCRITORIO */}
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full lg:w-auto shrink-0 z-10">
           <div className="flex bg-black/50 backdrop-blur-md p-1.5 rounded-2xl w-full sm:w-auto border border-white/15 overflow-x-auto">
             {[
@@ -1077,11 +1099,11 @@ export default function ReportesPage() {
             ))}
           </div>
 
-          {/* BOTÓN EXPORTAR REPORTE (CON BADGE PRO) */}
+          {/* BOTÓN EXPORTAR REPORTE (SOLO ESCRITORIO / TABLET) */}
           <button
             type="button"
             onClick={() => setModalExportarOpen(true)}
-            className="px-4 py-2.5 rounded-2xl bg-gradient-to-r from-amber-500 via-amber-400 to-amber-500 hover:from-amber-400 hover:to-amber-300 text-slate-950 font-black text-xs tracking-wide shadow-lg shadow-amber-500/25 flex items-center justify-center gap-2 transition-all transform active:scale-95 cursor-pointer group shrink-0"
+            className="hidden sm:flex px-4 py-2.5 rounded-2xl bg-gradient-to-r from-amber-500 via-amber-400 to-amber-500 hover:from-amber-400 hover:to-amber-300 text-slate-950 font-black text-xs tracking-wide shadow-lg shadow-amber-500/25 items-center justify-center gap-2 transition-all transform active:scale-95 cursor-pointer group shrink-0"
           >
             <div className="p-1 rounded-lg bg-slate-950/10 group-hover:scale-110 transition-transform">
               <FileDown size={16} className="stroke-[2.5]" />
@@ -1394,8 +1416,23 @@ export default function ReportesPage() {
                 <span className="text-[10px] sm:text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
                   Salud del Margen
                 </span>
-                <span className="text-[10px] sm:text-xs font-black text-indigo-600 dark:text-indigo-400">
-                  {margenGananciaEstimado >= 35 ? '🔥 Óptimo' : margenGananciaEstimado > 0 ? '👍 Estable' : 'ℹ️ Sin costo'}
+                <span className="text-[10px] sm:text-xs font-black text-indigo-600 dark:text-indigo-400 inline-flex items-center gap-1">
+                  {margenGananciaEstimado >= 35 ? (
+                    <>
+                      <Flame size={13} className="text-amber-500 fill-amber-500/20" />
+                      <span>Óptimo</span>
+                    </>
+                  ) : margenGananciaEstimado > 0 ? (
+                    <>
+                      <ThumbsUp size={13} className="text-emerald-500" />
+                      <span>Estable</span>
+                    </>
+                  ) : (
+                    <>
+                      <Info size={13} className="text-slate-400" />
+                      <span>Sin costo</span>
+                    </>
+                  )}
                 </span>
               </div>
               <div className="mt-1 space-y-1.5">
@@ -1421,8 +1458,11 @@ export default function ReportesPage() {
 
           {costoTotalMercanciaVendida === 0 && totalVentas > 0 && (
             <div className="p-3.5 rounded-2xl bg-indigo-50/80 dark:bg-indigo-950/30 border border-indigo-100 dark:border-indigo-900/50 text-xs text-indigo-900 dark:text-indigo-200 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2.5">
-              <span className="text-[11px] leading-relaxed">
-                💡 <strong>Consejo:</strong> Aún no has registrado el costo de compra en algunos de tus productos en <em>Inventario</em>. Diligencia este campo para tener la utilidad exacta en tiempo real.
+              <span className="text-[11px] leading-relaxed flex items-center gap-1.5">
+                <Lightbulb size={15} className="text-amber-500 shrink-0" />
+                <span>
+                  <strong>Consejo:</strong> Aún no has registrado el costo de compra en algunos de tus productos en <em>Inventario</em>. Diligencia este campo para tener la utilidad exacta en tiempo real.
+                </span>
               </span>
               <button
                 type="button"
@@ -1528,8 +1568,9 @@ export default function ReportesPage() {
           {/* 2. Cartera en Riesgo */}
           <div className="p-4 rounded-2xl bg-rose-50/60 dark:bg-rose-950/20 border border-rose-200/60 dark:border-rose-900/40">
             <div className="flex items-center justify-between">
-              <span className="text-[11px] font-bold text-rose-700 dark:text-rose-400 uppercase tracking-wider">
-                🚨 Dinero en Riesgo
+              <span className="text-[11px] font-bold text-rose-700 dark:text-rose-400 uppercase tracking-wider flex items-center gap-1.5">
+                <ShieldAlert size={14} className="text-rose-600 shrink-0" />
+                <span>Dinero en Riesgo</span>
               </span>
               <span className="px-1.5 py-0.5 rounded text-[10px] font-black bg-rose-600 text-white">
                 {analisisCarteraRiesgo.clientesRiesgoCount} morosos
@@ -1577,9 +1618,15 @@ export default function ReportesPage() {
               : 'bg-emerald-50 dark:bg-emerald-950/30 border-emerald-200 dark:border-emerald-900/50 text-emerald-900 dark:text-emerald-200'
         }`}>
           <div className="flex items-center gap-2">
-            <span className="text-base">
-              {analisisCarteraRiesgo.semaforoRecaudo === 'alerta' ? '🚨' : analisisCarteraRiesgo.semaforoRecaudo === 'observacion' ? '⚠️' : '✅'}
-            </span>
+            <div className="shrink-0">
+              {analisisCarteraRiesgo.semaforoRecaudo === 'alerta' ? (
+                <ShieldAlert size={18} className="text-rose-600" />
+              ) : analisisCarteraRiesgo.semaforoRecaudo === 'observacion' ? (
+                <AlertTriangle size={18} className="text-amber-600" />
+              ) : (
+                <CheckCircle2 size={18} className="text-emerald-600" />
+              )}
+            </div>
             <span className="font-semibold leading-tight">
               {analisisCarteraRiesgo.mensajeSemaforo}
             </span>
@@ -1623,7 +1670,7 @@ export default function ReportesPage() {
                 { id: 'semana', label: 'Esta Semana' },
                 { id: 'mes', label: 'Este Mes (Día a Día)' },
                 { id: 'ano', label: 'Este Año' },
-                { id: 'historico', label: '🗓️ Histórico', esProOnly: true }
+                { id: 'historico', label: 'Histórico', esProOnly: true }
               ].map(f => (
                 <button 
                   key={f.id}
@@ -1641,6 +1688,7 @@ export default function ReportesPage() {
                       : 'text-slate-500 hover:text-slate-900 dark:hover:text-slate-300'
                   }`}
                 >
+                  {f.id === 'historico' && <Calendar size={13} className="text-indigo-400" />}
                   <span>{f.label}</span>
                   {f.esProOnly && !esPro && <Crown size={12} className="text-amber-500 fill-current ml-0.5" />}
                 </button>

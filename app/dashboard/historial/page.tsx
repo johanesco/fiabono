@@ -3,8 +3,8 @@ import { useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import { collection, getDocs, query, where } from "firebase/firestore";
-import { db } from "../../../firebase";
-import { Search, X, Clock, MessageCircle, Star, Users, Store, Printer, Edit3, Trash2, Bookmark, ChevronRight, Package, ArrowRight, User, RotateCcw } from 'lucide-react';
+import { db, auth } from "../../../firebase";
+import { Search, X, Clock, MessageCircle, Star, Users, Store, Printer, Edit3, Trash2, Bookmark, ChevronRight, Package, ArrowRight, User, RotateCcw, Smartphone, Calendar, ChevronDown } from 'lucide-react';
 import toast from "react-hot-toast";
 
 import { useAuth } from "../../../hooks/AuthContext";
@@ -27,9 +27,11 @@ export default function HistorialPage() {
   const planActual = datosSesion?.planActual;
   const nombreNegocio = datosSesion?.nombreNegocio;
   const puedeVerReportes = datosSesion?.rol !== 'cajero' || datosSesion?.permisos?.verReportes === true;
-  const puedeSepare = datosSesion?.puedeSepare;
+  const moduloSepareActivo = datosSesion?.moduloSepareActivo !== false;
+  const puedeSepare = (datosSesion?.esPro === true) && (datosSesion?.puedeSepare !== false) && moduloSepareActivo;
   const esAdmin = datosSesion?.rol !== 'cajero';
   const puedeEnviarWhatsApp = datosSesion?.puedeEnviarWhatsApp ?? true;
+  const puedeHacerDevolucion = esAdmin || Boolean(datosSesion?.permisos?.hacerDevoluciones);
 
   const [clientes, setClientes] = useState<Cliente[]>([]);
   const [todosMovimientos, setTodosMovimientos] = useState<Movimiento[]>([]);
@@ -63,6 +65,7 @@ export default function HistorialPage() {
 
   const [modalSuscripcion, setModalSuscripcion] = useState({ visible: false, titulo: "", mensaje: "" });
   const [modalMostrador, setModalMostrador] = useState(false);
+  const [movimientoMostrador, setMovimientoMostrador] = useState<Movimiento | null>(null);
   const [modalDevolucion, setModalDevolucion] = useState<{ isOpen: boolean; venta: Movimiento | null }>({ isOpen: false, venta: null });
 
   const [clienteActivo, setClienteActivo] = useState<Cliente | null>(null);
@@ -177,9 +180,31 @@ export default function HistorialPage() {
     return clientes.find(c => c.id === id)?.nombre || "Cliente Eliminado";
   };
 
-  const abrirHistorialCliente = async (clienteId?: string) => {
+  const reintentarNotaCredito = async (mov: Movimiento) => {
+    const toastId = toast.loading('Reintentando Nota Crédito ante la DIAN...');
+    try {
+      const token = await auth.currentUser?.getIdToken();
+      const res = await fetch('/api/devoluciones/reintentar-nota-credito', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ movimientoDevolucionId: mov.id })
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && data.ok) {
+        toast.success('Nota Crédito emitida correctamente.', { id: toastId });
+      } else {
+        toast.error(data.error || 'No se pudo emitir la Nota Crédito.', { id: toastId, duration: 6000 });
+      }
+      if (cuentaPrincipalId) cargarDatosHistorial(cuentaPrincipalId);
+    } catch {
+      toast.error('Error de conexión al reintentar la Nota Crédito.', { id: toastId });
+    }
+  };
+
+  const abrirHistorialCliente = async (clienteId?: string, mov?: Movimiento) => {
     if (!clienteId) return;
     if (clienteId === 'mostrador') {
+      if (mov) setMovimientoMostrador(mov);
       setModalMostrador(true);
       return;
     }
@@ -323,10 +348,24 @@ Quedamos pendientes para revisar detalles o responder cualquier duda.
     abrirEnlaceWhatsApp(celular || '', texto);
   };
 
-  const directorioFiltrado = clientes.filter(c => 
-    (c.nombre || "").toLowerCase().includes(busquedaDirectorio.toLowerCase()) ||
-    (c.celular || "").toString().includes(busquedaDirectorio)
-  );
+  const normalizarBusqueda = (texto: string) => {
+    return (texto || "")
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .trim();
+  };
+
+  const directorioFiltrado = clientes.filter(c => {
+    const q = normalizarBusqueda(busquedaDirectorio);
+    if (!q) return true;
+    return (
+      normalizarBusqueda(c.nombre).includes(q) ||
+      (c.celular && c.celular.toString().includes(busquedaDirectorio.trim())) ||
+      normalizarBusqueda(c.notas || "").includes(q) ||
+      normalizarBusqueda(c.direccion || "").includes(q)
+    );
+  });
 
   const hoyDate = new Date();
   const diaActualNum = hoyDate.getDay() === 0 ? 6 : hoyDate.getDay() - 1; 
@@ -369,12 +408,24 @@ Quedamos pendientes para revisar detalles o responder cualquier duda.
     const celularCliente = clienteMov?.celular || '';
     const vendedorMov = (mov.registradoPor || (mov as any).vendedor || '').toString();
     
+    const qNorm = normalizarBusqueda(busquedaHistorial);
+    const notasCliente = clienteMov?.notas || '';
+    const direccionCliente = clienteMov?.direccion || '';
+    const detallesMatch = Boolean(
+      Array.isArray(mov.detalles) &&
+      mov.detalles.some((d: any) => normalizarBusqueda(d.descripcion || '').includes(qNorm))
+    );
+    
     const matchBusqueda = 
-      nombreCliente.toLowerCase().includes(busquedaHistorial.toLowerCase()) ||
-      celularCliente.toString().includes(busquedaHistorial) ||
-      vendedorMov.toLowerCase().includes(busquedaHistorial.toLowerCase()) ||
-      Boolean(mov.nombreProducto && mov.nombreProducto.toLowerCase().includes(busquedaHistorial.toLowerCase())) ||
-      Boolean(mov.descripcion && mov.descripcion.toLowerCase().includes(busquedaHistorial.toLowerCase()));
+      !qNorm ||
+      normalizarBusqueda(nombreCliente).includes(qNorm) ||
+      celularCliente.toString().includes(busquedaHistorial.trim()) ||
+      normalizarBusqueda(vendedorMov).includes(qNorm) ||
+      normalizarBusqueda(notasCliente).includes(qNorm) ||
+      normalizarBusqueda(direccionCliente).includes(qNorm) ||
+      Boolean(mov.nombreProducto && normalizarBusqueda(mov.nombreProducto).includes(qNorm)) ||
+      Boolean(mov.descripcion && normalizarBusqueda(mov.descripcion).includes(qNorm)) ||
+      detallesMatch;
 
     if (busquedaHistorial && !matchBusqueda) return false;
     if (filtroTipoHistorial !== 'todos' && mov.tipo !== filtroTipoHistorial) return false;
@@ -421,7 +472,7 @@ Quedamos pendientes para revisar detalles o responder cualquier duda.
               type="text" 
               value={busquedaHistorial} 
               onChange={(e) => setBusquedaHistorial(e.target.value)} 
-              placeholder="Buscar por cliente, celular, vendedor o producto..." 
+              placeholder="Buscar por cliente, notas, celular, vendedor o producto..." 
               className="w-full py-2.5 md:py-2 pl-10 pr-4 bg-white dark:bg-[#020617] border border-slate-200 dark:border-slate-800/80 rounded-xl outline-none focus:border-blue-500 text-sm transition-all shadow-xs dark:text-slate-200 placeholder:text-xs sm:placeholder:text-sm placeholder:text-slate-400" 
             />
           </div>
@@ -445,8 +496,8 @@ Quedamos pendientes para revisar detalles o responder cualquier duda.
                   </option>
                 ))}
               </select>
-              <div className="absolute right-2.5 pointer-events-none text-slate-400 text-[10px]">
-                ▼
+              <div className="absolute right-2.5 pointer-events-none text-slate-400">
+                <ChevronDown size={13} />
               </div>
             </div>
           )}
@@ -484,7 +535,13 @@ Quedamos pendientes para revisar detalles o responder cualquier duda.
                   : 'bg-white dark:bg-[#020617] text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-800/80'
               }`}
             >
-              {tipo === 'ingreso_inventario' ? '📦 INVENTARIO' : (tipo === 'devolucion' ? '↩ DEVOLUCIÓN' : tipo.toUpperCase())}
+              {tipo === 'ingreso_inventario' ? (
+                <span className="inline-flex items-center gap-1"><Package size={11} /> INVENTARIO</span>
+              ) : tipo === 'devolucion' ? (
+                <span className="inline-flex items-center gap-1"><RotateCcw size={11} /> DEVOLUCIÓN</span>
+              ) : (
+                tipo.toUpperCase()
+              )}
             </button>
           ))}
         </div>
@@ -505,7 +562,7 @@ Quedamos pendientes para revisar detalles o responder cualquier duda.
                     setMovimientoInventarioDetalle(mov);
                     return;
                   }
-                  abrirHistorialCliente(mov.clienteId);
+                  abrirHistorialCliente(mov.clienteId, mov);
                 }} 
                 className="p-5 mx-2 my-3 rounded-2xl flex flex-col gap-3 bg-white dark:bg-[#0f172a] border border-slate-100 dark:border-slate-800/60 shadow-sm relative cursor-pointer hover:border-slate-300 dark:hover:border-slate-600 transition-colors active:scale-[0.98]"
               >
@@ -518,8 +575,8 @@ Quedamos pendientes para revisar detalles o responder cualquier duda.
                   <div className="flex flex-col min-w-0 flex-1">
                     {esIngresoInv ? (
                       <div className="flex items-center gap-1.5 min-w-0">
-                        <span className="px-1.5 py-0.5 rounded-md bg-sky-100 text-sky-700 dark:bg-sky-950/50 dark:text-sky-300 text-[10px] font-black shrink-0">
-                          📦 INVENTARIO
+                        <span className="px-1.5 py-0.5 rounded-md bg-sky-100 text-sky-700 dark:bg-sky-950/50 dark:text-sky-300 text-[10px] font-black shrink-0 inline-flex items-center gap-1">
+                          <Package size={11} /> INVENTARIO
                         </span>
                         <p className="font-bold text-base text-slate-900 dark:text-slate-200 truncate">
                           {mov.nombreProducto || 'Recepción de Mercancía'}
@@ -534,8 +591,9 @@ Quedamos pendientes para revisar detalles o responder cualquier duda.
                     
                     <div className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5 mt-2 text-[10px] font-bold uppercase">
                       {mov.registradoPor && (
-                        <span className="text-slate-500 dark:text-slate-400 whitespace-nowrap">
-                          👤 {esIngresoInv ? `Inventariado: ${mov.registradoPor}` : mov.registradoPor}
+                        <span className="text-slate-500 dark:text-slate-400 whitespace-nowrap inline-flex items-center gap-1">
+                          <User size={10} className="text-slate-400" />
+                          <span>{esIngresoInv ? `Inventariado: ${mov.registradoPor}` : mov.registradoPor}</span>
                         </span>
                       )}
                       {mov.registradoPor && <span className="text-slate-300 dark:text-slate-600 whitespace-nowrap">•</span>}
@@ -545,7 +603,7 @@ Quedamos pendientes para revisar detalles o responder cualquier duda.
                     </div>
                   </div>
                   <div className="flex flex-col items-end gap-1.5 shrink-0">
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-1.5">
                       {!esIngresoInv && (
                         <button
                           type="button"
@@ -557,6 +615,32 @@ Quedamos pendientes para revisar detalles o responder cualquier duda.
                           className="p-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-blue-50 dark:hover:bg-blue-500/20 hover:text-blue-600 dark:hover:text-blue-400 transition-colors cursor-pointer"
                         >
                           <Printer size={15} />
+                        </button>
+                      )}
+                      {(mov.tipo === 'venta' || mov.tipo === 'fiado') && mov.detalles && mov.detalles.length > 0 && puedeHacerDevolucion && (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setModalDevolucion({ isOpen: true, venta: mov });
+                          }}
+                          title="Hacer Devolución"
+                          className="p-2 rounded-xl bg-amber-50 hover:bg-amber-100 dark:bg-amber-900/30 dark:hover:bg-amber-900/50 text-amber-600 dark:text-amber-400 border border-amber-200 dark:border-amber-800 transition-colors cursor-pointer"
+                        >
+                          <RotateCcw size={15} />
+                        </button>
+                      )}
+                      {mov.tipo === 'devolucion' && mov.errorNotaCredito && !mov.notaCreditoElectronica && puedeHacerDevolucion && (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            reintentarNotaCredito(mov);
+                          }}
+                          title={`Nota Crédito DIAN pendiente: ${mov.errorNotaCredito}`}
+                          className="px-2.5 py-2 rounded-xl bg-rose-50 hover:bg-rose-100 dark:bg-rose-900/30 text-rose-600 dark:text-rose-400 border border-rose-200 dark:border-rose-800 text-[10px] font-black transition-colors cursor-pointer"
+                        >
+                          Reintentar NC
                         </button>
                       )}
                       {esIngresoInv ? (
@@ -592,15 +676,21 @@ Quedamos pendientes para revisar detalles o responder cualquier duda.
         <TablaHistorial 
           movimientos={historialFiltrado} 
           getNombreCliente={getNombreCliente} 
-          onRowClick={abrirHistorialCliente}
+          onRowClick={(cliId) => abrirHistorialCliente(cliId)}
           onMovimientoClick={(mov) => {
             if (mov.tipo === 'ingreso_inventario') {
               setMovimientoInventarioDetalle(mov);
+            } else if (mov.clienteId === 'mostrador') {
+              setMovimientoMostrador(mov);
+              setModalMostrador(true);
             } else {
-              abrirHistorialCliente(mov.clienteId);
+              abrirHistorialCliente(mov.clienteId, mov);
             }
           }}
           onImprimir={abrirTicketDeMovimiento}
+          onDevolucion={(mov) => setModalDevolucion({ isOpen: true, venta: mov })}
+          puedeHacerDevolucion={puedeHacerDevolucion}
+          onReintentarNC={puedeHacerDevolucion ? reintentarNotaCredito : undefined}
         />
 
         {hayMasMovimientos && (
@@ -648,7 +738,7 @@ Quedamos pendientes para revisar detalles o responder cualquier duda.
                         }
                       }
                     }}
-                    placeholder="Buscar nombre o celular en el directorio..."
+                    placeholder="Buscar por nombre, celular, apodo o notas..."
                     className="w-full p-4 pl-12 bg-slate-50 dark:bg-[#020617] border border-slate-200 dark:border-slate-800 rounded-2xl outline-none focus:border-blue-500 dark:text-white text-base font-medium"
                   />
                 </div>
@@ -658,7 +748,14 @@ Quedamos pendientes para revisar detalles o responder cualquier duda.
                 {directorioFiltrado.map(c => (
                   <div key={c.id} onClick={() => abrirHistorialCliente(c.id)} className={`p-4 rounded-2xl border cursor-pointer flex justify-between items-center transition-all ${clienteActivo?.id === c.id ? 'bg-blue-50 dark:bg-blue-500/10 border-blue-500 dark:border-blue-500/50 shadow-sm' : 'bg-white dark:bg-[#0f172a] border-slate-100 dark:border-slate-800/80 hover:border-blue-300'}`}>
                     <div className="min-w-0 pr-2">
-                      <p className="font-bold text-base text-slate-900 dark:text-slate-100 truncate">{c.nombre}</p>
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <p className="font-bold text-base text-slate-900 dark:text-slate-100 truncate">{c.nombre}</p>
+                        {c.notas && (
+                          <span className="text-[10px] font-medium bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-400 border border-amber-200/60 dark:border-amber-800/40 px-1.5 py-0.5 rounded-md">
+                            {c.notas}
+                          </span>
+                        )}
+                      </div>
                       <p className="text-xs text-slate-500 dark:text-slate-400">{c.celular || "Sin celular"}</p>
                     </div>
                     <div className="text-right shrink-0">
@@ -684,7 +781,14 @@ Quedamos pendientes para revisar detalles o responder cualquier duda.
               <div className="hidden md:flex p-6 bg-slate-900 text-white justify-between items-center shrink-0">
                 <div className="flex items-center gap-3">
                   <div>
-                    <h3 className="text-2xl font-black">{clienteActivo.nombre}</h3>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <h3 className="text-2xl font-black">{clienteActivo.nombre}</h3>
+                      {clienteActivo.notas && (
+                        <span className="text-xs font-medium bg-amber-500/20 text-amber-300 border border-amber-500/30 px-2 py-0.5 rounded-lg">
+                          {clienteActivo.notas}
+                        </span>
+                      )}
+                    </div>
                     <div className="flex items-center gap-2 mt-0.5">
                       <p className="text-slate-400 text-sm">{clienteActivo.celular || "Sin celular registrado"}</p>
                       {clienteActivo.celular && puedeEnviarWhatsApp && (
@@ -772,6 +876,14 @@ Quedamos pendientes para revisar detalles o responder cualquier duda.
                     >
                       Separe
                     </button>
+                  ) : separesCliente.some((s: any) => s.estado === 'activo') ? (
+                    <button 
+                      type="button"
+                      onClick={() => router.push(`/dashboard/separes?tab=activos&busqueda=${encodeURIComponent(clienteActivo.nombre)}`)} 
+                      className="px-3 sm:px-4 py-2 bg-violet-600 hover:bg-violet-700 text-white font-black rounded-xl text-xs uppercase shadow-xs transition active:scale-95 cursor-pointer text-center"
+                    >
+                      Ver Separes
+                    </button>
                   ) : (
                     <div className="hidden xl:block" />
                   )}
@@ -803,12 +915,17 @@ Quedamos pendientes para revisar detalles o responder cualquier duda.
                 {/* Fila 1: Nombre del cliente centrado + badge distinguido + opciones de edición */}
                 <div className="pt-1 px-6 text-center">
                   <span className="inline-flex items-center gap-1 text-[10px] font-black uppercase tracking-widest text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/50 px-2.5 py-0.5 rounded-full mb-1">
-                    👤 CLIENTE
+                    <User size={11} className="shrink-0" /> CLIENTE
                   </span>
                   <div className="flex items-center justify-center gap-2 flex-wrap">
                     <h2 className="text-[26px] sm:text-3xl font-black text-slate-900 dark:text-white tracking-tight leading-tight break-words">
                       {clienteActivo.nombre}
                     </h2>
+                    {clienteActivo.notas && (
+                      <span className="text-xs font-medium bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 border border-amber-200 dark:border-amber-700 px-2 py-0.5 rounded-lg">
+                        {clienteActivo.notas}
+                      </span>
+                    )}
                     {datosSesion?.rol !== 'cajero' && (
                       <div className="inline-flex items-center gap-1 shrink-0">
                         <button
@@ -831,7 +948,14 @@ Quedamos pendientes para revisar detalles o responder cualquier duda.
                     )}
                   </div>
                   <p className="text-slate-500 dark:text-slate-400 text-xs font-semibold mt-1">
-                    {clienteActivo.celular ? `📱 ${clienteActivo.celular}` : "Sin celular registrado"}
+                    {clienteActivo.celular ? (
+                      <span className="inline-flex items-center gap-1">
+                        <Smartphone size={12} className="text-slate-400 shrink-0" />
+                        <span>{clienteActivo.celular}</span>
+                      </span>
+                    ) : (
+                      "Sin celular registrado"
+                    )}
                   </p>
                 </div>
 
@@ -893,14 +1017,21 @@ Quedamos pendientes para revisar detalles o responder cualquier duda.
                   >
                     Abonar
                   </button>
-                  {puedeSepare && (
+                  {puedeSepare ? (
                     <button 
                       onClick={() => router.push(`/dashboard/separe?clienteId=${clienteActivo.id}`)} 
                       className="flex-1 py-2 px-2 bg-violet-600 hover:bg-violet-700 text-white font-black rounded-xl text-xs uppercase shadow-xs transition active:scale-95 cursor-pointer text-center"
                     >
                       Separe
                     </button>
-                  )}
+                  ) : separesCliente.some((s: any) => s.estado === 'activo') ? (
+                    <button 
+                      onClick={() => router.push(`/dashboard/separes?tab=activos&busqueda=${encodeURIComponent(clienteActivo.nombre)}`)} 
+                      className="flex-1 py-2 px-2 bg-violet-600 hover:bg-violet-700 text-white font-black rounded-xl text-xs uppercase shadow-xs transition active:scale-95 cursor-pointer text-center"
+                    >
+                      Ver Separes
+                    </button>
+                  ) : null}
                 </div>
 
                 {/* Fila 4: Botón de WhatsApp con texto visible y claro */}
@@ -982,6 +1113,26 @@ Quedamos pendientes para revisar detalles o responder cualquier duda.
                   );
                 })()}
 
+                {(clienteActivo.notas || clienteActivo.direccion) && (
+                  <div className="p-3.5 bg-amber-50/60 dark:bg-amber-950/20 border border-amber-200/60 dark:border-amber-800/40 rounded-2xl flex items-start gap-3">
+                    <User size={18} className="text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+                    <div className="text-xs space-y-1 min-w-0">
+                      {clienteActivo.notas && (
+                        <div>
+                          <span className="font-bold text-amber-900 dark:text-amber-300 uppercase tracking-wider text-[10px] block">Notas / Referencias / Apodo</span>
+                          <p className="text-slate-700 dark:text-slate-300 font-medium whitespace-pre-wrap">{clienteActivo.notas}</p>
+                        </div>
+                      )}
+                      {clienteActivo.direccion && (
+                        <div>
+                          <span className="font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider text-[10px] block">Dirección</span>
+                          <p className="text-slate-700 dark:text-slate-300 font-medium">{clienteActivo.direccion}</p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+
                 <h4 className="font-bold text-slate-400 uppercase text-xs tracking-wider mb-3 flex items-center gap-2"><Clock size={16}/> Historial Completo</h4>
                 {movimientosCliente.map(mov => (
                   <div key={mov.id} className="p-4 md:p-5 bg-slate-50 dark:bg-[#020617] rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm relative overflow-hidden space-y-2 md:space-y-3">
@@ -992,18 +1143,26 @@ Quedamos pendientes para revisar detalles o responder cualquier duda.
                     
                     <div className="pl-1 md:pl-2">
                       <div className="flex flex-wrap sm:flex-nowrap justify-between items-center gap-1.5 pb-1 md:pb-2 md:border-b md:border-slate-100 dark:border-slate-800/80">
-                        <span className={`text-[10px] md:text-xs font-black uppercase px-2.5 py-0.5 md:px-3 md:py-1 rounded-md md:rounded-lg shrink-0 ${
+                        <span className={`text-[10px] md:text-xs font-black uppercase px-2.5 py-0.5 md:px-3 md:py-1 rounded-md md:rounded-lg shrink-0 inline-flex items-center gap-1 ${
                           mov.tipo === 'devolucion' ? 'bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-300' :
                           mov.tipo === 'fiado' ? 'bg-rose-100 text-rose-700 dark:bg-rose-500/20 dark:text-rose-300' : 
                           (mov.tipo === 'venta' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300' : 'bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-300')
                         }`}>
-                          {mov.tipo === 'devolucion' ? '↩ DEVOLUCIÓN' : mov.tipo}
+                          {mov.tipo === 'devolucion' ? (
+                            <>
+                              <RotateCcw size={11} className="shrink-0" />
+                              <span>DEVOLUCIÓN</span>
+                            </>
+                          ) : (
+                            mov.tipo
+                          )}
                         </span>
                         
                         <div className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[10px] md:text-[11px] font-bold uppercase">
                           {mov.registradoPor && (
-                            <span className="text-slate-500 dark:text-slate-400 whitespace-nowrap">
-                              👤 {mov.registradoPor}
+                            <span className="text-slate-500 dark:text-slate-400 whitespace-nowrap inline-flex items-center gap-1">
+                              <User size={10} className="text-slate-400" />
+                              <span>{mov.registradoPor}</span>
                             </span>
                           )}
                           {mov.registradoPor && <span className="text-slate-300 dark:text-slate-600 whitespace-nowrap">•</span>}
@@ -1069,20 +1228,58 @@ Quedamos pendientes para revisar detalles o responder cualquier duda.
         document.body
       )}
 
-      {/* MODAL INFORMATIVO "VENTA DE MOSTRADOR" */}
+      {/* MODAL INFORMATIVO / ACCIÓN "VENTA DE MOSTRADOR" */}
       {modalMostrador && (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 z-[800] animate-in zoom-in duration-200">
           <div className="bg-white dark:bg-[#0f172a] p-8 rounded-[2.5rem] w-full max-w-sm shadow-2xl text-center border border-slate-100 dark:border-slate-800/60">
-            <div className="w-20 h-20 bg-slate-100 dark:bg-slate-800 text-slate-500 rounded-full flex items-center justify-center mx-auto mb-6 shadow-inner">
-              <Store size={40} />
+            <div className="w-16 h-16 bg-slate-100 dark:bg-slate-800 text-slate-500 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-inner">
+              <Store size={32} />
             </div>
-            <h3 className="text-2xl font-black text-slate-900 dark:text-white mb-2">Consumidor Final</h3>
-            <p className="text-base text-slate-500 dark:text-slate-400 mb-6 leading-relaxed">
-              Este registro corresponde a una venta directa a Consumidor Final. <br/><br/>No está asociada a la cuenta a crédito de ningún cliente en específico, por lo que no genera deudas ni saldos pendientes.
+            <h3 className="text-xl font-black text-slate-900 dark:text-white mb-2">Consumidor Final</h3>
+            <p className="text-xs text-slate-500 dark:text-slate-400 mb-6 leading-relaxed">
+              Venta directa a Consumidor Final (Mostrador). No genera deudas ni saldos pendientes con ningún cliente.
             </p>
-            <button onClick={() => setModalMostrador(false)} className="w-full bg-slate-100 dark:bg-[#020617] hover:bg-slate-200 text-slate-700 dark:text-slate-300 font-black py-4 rounded-2xl transition-colors text-lg border dark:border-slate-800/60">
-              Entendido
-            </button>
+
+            <div className="flex flex-col gap-2.5">
+              {movimientoMostrador && (movimientoMostrador.tipo === 'venta' || movimientoMostrador.tipo === 'fiado') && movimientoMostrador.detalles && movimientoMostrador.detalles.length > 0 && puedeHacerDevolucion && (
+                <button 
+                  type="button"
+                  onClick={() => {
+                    const v = movimientoMostrador;
+                    setModalMostrador(false);
+                    setModalDevolucion({ isOpen: true, venta: v });
+                  }} 
+                  className="w-full bg-amber-500 hover:bg-amber-600 text-white font-black py-3 px-4 rounded-xl transition-colors text-sm flex items-center justify-center gap-2 shadow-sm cursor-pointer"
+                >
+                  <RotateCcw size={16} /> Hacer Devolución
+                </button>
+              )}
+
+              {movimientoMostrador && (
+                <button 
+                  type="button"
+                  onClick={() => {
+                    const v = movimientoMostrador;
+                    setModalMostrador(false);
+                    abrirTicketDeMovimiento(v);
+                  }} 
+                  className="w-full bg-blue-50 dark:bg-blue-950/40 hover:bg-blue-100 dark:hover:bg-blue-900/40 text-blue-600 dark:text-blue-400 font-bold py-3 px-4 rounded-xl transition-colors text-sm flex items-center justify-center gap-2 border border-blue-200 dark:border-blue-800/50 cursor-pointer"
+                >
+                  <Printer size={16} /> Ver Factura / Ticket
+                </button>
+              )}
+
+              <button 
+                type="button"
+                onClick={() => {
+                  setModalMostrador(false);
+                  setMovimientoMostrador(null);
+                }} 
+                className="w-full bg-slate-100 dark:bg-[#020617] hover:bg-slate-200 text-slate-700 dark:text-slate-300 font-bold py-3 px-4 rounded-xl transition-colors text-sm border dark:border-slate-800/60 cursor-pointer"
+              >
+                Cerrar
+              </button>
+            </div>
           </div>
         </div>
       )}
@@ -1129,8 +1326,14 @@ Quedamos pendientes para revisar detalles o responder cualquier duda.
 
       {/* MODAL DETALLE DE INGRESO DE INVENTARIO */}
       {movimientoInventarioDetalle && (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 z-[900] animate-in zoom-in duration-200">
-          <div className="bg-white dark:bg-[#0f172a] p-6 sm:p-8 rounded-[2.5rem] w-full max-w-md shadow-2xl text-left border border-slate-100 dark:border-slate-800/60 relative">
+        <div 
+          onClick={(e) => { if (e.target === e.currentTarget) setMovimientoInventarioDetalle(null); }}
+          className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 z-[900] animate-in zoom-in duration-200"
+        >
+          <div 
+            onClick={(e) => e.stopPropagation()}
+            className="bg-white dark:bg-[#0f172a] p-6 sm:p-8 rounded-[2.5rem] w-full max-w-md shadow-2xl text-left border border-slate-100 dark:border-slate-800/60 relative"
+          >
             <button 
               onClick={() => setMovimientoInventarioDetalle(null)}
               className="absolute top-5 right-5 p-2 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-500 hover:bg-slate-200 dark:hover:bg-slate-700 transition cursor-pointer"
@@ -1143,8 +1346,8 @@ Quedamos pendientes para revisar detalles o responder cualquier duda.
                 <Package size={26} />
               </div>
               <div className="min-w-0">
-                <span className="text-[10px] font-black uppercase tracking-wider text-sky-600 dark:text-sky-400 bg-sky-50 dark:bg-sky-950/40 px-2 py-0.5 rounded-md inline-block">
-                  📦 Entrada de Mercancía
+                <span className="text-[10px] font-black uppercase tracking-wider text-sky-600 dark:text-sky-400 bg-sky-50 dark:bg-sky-950/40 px-2 py-0.5 rounded-md inline-flex items-center gap-1">
+                  <Package size={11} /> Entrada de Mercancía
                 </span>
                 <h3 className="text-xl font-black text-slate-900 dark:text-white mt-0.5 truncate">
                   Detalle de Recepción
@@ -1178,13 +1381,19 @@ Quedamos pendientes para revisar detalles o responder cualquier duda.
                 {movimientoInventarioDetalle.registradoPor && (
                   <div className="flex items-center justify-between">
                     <span className="text-slate-400 font-bold">Inventariado por:</span>
-                    <span className="font-black text-sky-700 dark:text-sky-300">👤 {movimientoInventarioDetalle.registradoPor}</span>
+                    <span className="font-black text-sky-700 dark:text-sky-300 inline-flex items-center gap-1">
+                      <User size={12} className="text-sky-600" />
+                      <span>{movimientoInventarioDetalle.registradoPor}</span>
+                    </span>
                   </div>
                 )}
                 <div className="flex items-center justify-between">
                   <span className="text-slate-400 font-bold">Fecha y Hora:</span>
-                  <span className="font-medium text-slate-700 dark:text-slate-300">
-                    📅 {movimientoInventarioDetalle.fecha?.toDate ? movimientoInventarioDetalle.fecha.toDate().toLocaleDateString('es-CO', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : (movimientoInventarioDetalle.fecha instanceof Date ? movimientoInventarioDetalle.fecha.toLocaleDateString('es-CO', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : 'Hoy')}
+                  <span className="font-medium text-slate-700 dark:text-slate-300 inline-flex items-center gap-1">
+                    <Calendar size={12} className="text-slate-400" />
+                    <span>
+                      {movimientoInventarioDetalle.fecha?.toDate ? movimientoInventarioDetalle.fecha.toDate().toLocaleDateString('es-CO', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : (movimientoInventarioDetalle.fecha instanceof Date ? movimientoInventarioDetalle.fecha.toLocaleDateString('es-CO', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : 'Hoy')}
+                    </span>
                   </span>
                 </div>
               </div>

@@ -1582,15 +1582,15 @@ export default function LandingPage() {
               <ul className="space-y-2.5 text-xs text-slate-600 dark:text-slate-300 font-medium">
                 <li className="flex items-start gap-2">
                   <CheckCircle2 size={15} className="text-blue-600 shrink-0 mt-0.5" />
+                  <span><strong>Modo Visual y Modo Lista:</strong> vende viendo fotos de tus productos o en tabla rápida.</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <CheckCircle2 size={15} className="text-blue-600 shrink-0 mt-0.5" />
                   <span><strong>Vende y fía en 1 toque</strong> con control de cupo por cliente.</span>
                 </li>
                 <li className="flex items-start gap-2">
                   <CheckCircle2 size={15} className="text-blue-600 shrink-0 mt-0.5" />
-                  <span><strong>Historial completo:</strong> ventas, fiados y abonos registrados por cliente.</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <CheckCircle2 size={15} className="text-blue-600 shrink-0 mt-0.5" />
-                  <span><strong>Estados de cuenta por WhatsApp:</strong> cobra deudas formalmente con un toque.</span>
+                  <span><strong>Estados de cuenta por WhatsApp:</strong> cobra deudas formalmente con enlace digital.</span>
                 </li>
                 <li className="flex items-start gap-2">
                   <CheckCircle2 size={15} className="text-blue-600 shrink-0 mt-0.5" />
@@ -1598,7 +1598,7 @@ export default function LandingPage() {
                 </li>
                 <li className="flex items-start gap-2">
                   <CheckCircle2 size={15} className="text-blue-600 shrink-0 mt-0.5" />
-                  <span><strong>Registro del medio de pago:</strong> anota efectivo, transferencia o datáfono para tu control.</span>
+                  <span><strong>Devoluciones y garantías:</strong> anulación con reingreso automático al inventario.</span>
                 </li>
               </ul>
             </div>
@@ -1617,7 +1617,7 @@ export default function LandingPage() {
               <ul className="space-y-2.5 text-xs text-slate-600 dark:text-slate-300 font-medium">
                 <li className="flex items-start gap-2">
                   <CheckCircle2 size={15} className="text-emerald-600 shrink-0 mt-0.5" />
-                  <span><strong>Catálogo completo:</strong> administra productos físicos y servicios.</span>
+                  <span><strong>Catálogo completo:</strong> administra productos físicos y servicios con fotos.</span>
                 </li>
                 <li className="flex items-start gap-2">
                   <CheckCircle2 size={15} className="text-emerald-600 shrink-0 mt-0.5" />
@@ -1683,11 +1683,11 @@ export default function LandingPage() {
               <div className="w-12 h-12 rounded-2xl bg-amber-100 dark:bg-amber-500/20 text-amber-600 dark:text-amber-400 flex items-center justify-center mb-4">
                 <BarChart3 size={24} />
               </div>
-              <h3 className="text-lg font-black text-slate-900 dark:text-white mb-2">Control y Reportes</h3>
+              <h3 className="text-lg font-black text-slate-900 dark:text-white mb-2">Control, Reportes y DIAN</h3>
               <ul className="space-y-2.5 text-xs text-slate-600 dark:text-slate-300 font-medium">
                 <li className="flex items-start gap-2">
                   <CheckCircle2 size={15} className="text-amber-600 shrink-0 mt-0.5" />
-                  <span><strong>Resumen diario y mensual:</strong> cuánto vendiste, cuánto fiaste y cuánto recaudaste.</span>
+                  <span><strong>Resumen diario y arqueo:</strong> desglose exacto entre efectivo físico vs. transferencias.</span>
                 </li>
                 <li className="flex items-start gap-2">
                   <CheckCircle2 size={15} className="text-amber-600 shrink-0 mt-0.5" />
@@ -1695,15 +1695,15 @@ export default function LandingPage() {
                 </li>
                 <li className="flex items-start gap-2">
                   <CheckCircle2 size={15} className="text-amber-600 shrink-0 mt-0.5" />
-                  <span><strong>Control de caja:</strong> desglose por efectivo vs. transferencias.</span>
+                  <span><strong>12 Permisos para colaboradores:</strong> oculta costos, ganancias, teléfonos de clientes y caja.</span>
                 </li>
                 <li className="flex items-start gap-2">
                   <CheckCircle2 size={15} className="text-amber-600 shrink-0 mt-0.5" />
-                  <span><strong>Colaboradores con permisos:</strong> crea cajeros con horarios y vistas restringidas.</span>
+                  <span><strong>Facturación DIAN oficial:</strong> emite facturas electrónicas con CUFE, QR y XML si lo requieres.</span>
                 </li>
                 <li className="flex items-start gap-2">
                   <CheckCircle2 size={15} className="text-amber-600 shrink-0 mt-0.5" />
-                  <span><strong>100% en la Nube:</strong> nunca pierdes información, así cambies o extravíes el celular.</span>
+                  <span><strong>100% en la Nube de Google:</strong> nunca pierdes tu información al cambiar o extraviar tu celular.</span>
                 </li>
               </ul>
             </div>
@@ -1733,7 +1733,7 @@ export default function LandingPage() {
         <div className="flex items-center justify-center gap-2 mb-8">
           <div className="inline-flex items-center gap-2 px-5 py-2.5 rounded-2xl bg-blue-50 dark:bg-blue-500/10 border border-blue-200 dark:border-blue-500/20 text-blue-700 dark:text-blue-300 text-xs sm:text-sm font-black tracking-wide shadow-xs">
             <Sparkles size={16} className="text-amber-500 fill-current shrink-0" />
-            <span>Planes asequibles para Colombia • Tarifas oficiales próximamente disponibles • ¡Prueba 14 días gratis sin tarjeta!</span>
+            <span>Planes flexibles para cada tipo de negocio • Empieza gratis hoy • ¡14 días de prueba completa sin tarjeta!</span>
           </div>
         </div>
 
@@ -1853,10 +1853,10 @@ export default function LandingPage() {
             <div className="mb-6">
               <div className="flex items-baseline gap-2">
                 <span className="text-2xl sm:text-3xl font-black text-white">
-                  Precio Próximamente
+                  Próximamente
                 </span>
               </div>
-              <span className="text-xs text-emerald-100 font-bold block mt-1">Tarifa mensual asequible • 14 días de prueba completa sin costo</span>
+              <span className="text-xs text-emerald-100 font-bold block mt-1">Tarifa accesible por negocio • 14 días de prueba completa sin tarjeta</span>
             </div>
 
             <ul className="flex flex-col gap-3 mb-8 flex-1 text-xs font-bold text-white">
@@ -1898,10 +1898,10 @@ export default function LandingPage() {
             <div className="mb-6">
               <div className="flex items-baseline gap-2">
                 <span className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-white">
-                  Precio Próximamente
+                  Próximamente
                 </span>
               </div>
-              <span className="text-xs text-purple-600 dark:text-purple-400 font-bold block mt-1">Tarifa mensual asequible • 14 días de prueba completa sin costo</span>
+              <span className="text-xs text-purple-600 dark:text-purple-400 font-bold block mt-1">Tarifa accesible por negocio • 14 días de prueba completa sin tarjeta</span>
             </div>
 
             <ul className="flex flex-col gap-3 mb-8 flex-1 text-xs font-bold text-slate-700 dark:text-slate-300">
@@ -2034,6 +2034,30 @@ export default function LandingPage() {
                   <td className="py-3.5 px-4 text-center text-emerald-500 font-bold">✓ Incluido</td>
                   <td className="py-3.5 px-4 text-center text-emerald-500 font-bold">✓ Incluido</td>
                 </tr>
+                <tr className="hover:bg-slate-50 dark:hover:bg-slate-800/30">
+                  <td className="py-3.5 px-4 text-slate-800 dark:text-slate-200 font-bold">Modo Visual POS con fotos de productos y categorías</td>
+                  <td className="py-3.5 px-4 text-center text-emerald-500 font-bold">✓ Incluido</td>
+                  <td className="py-3.5 px-4 text-center text-emerald-500 font-bold">✓ Incluido</td>
+                  <td className="py-3.5 px-4 text-center text-emerald-500 font-bold">✓ Incluido</td>
+                </tr>
+                <tr className="hover:bg-slate-50 dark:hover:bg-slate-800/30">
+                  <td className="py-3.5 px-4 text-slate-800 dark:text-slate-200 font-bold">Devoluciones y garantías con reingreso automático al stock</td>
+                  <td className="py-3.5 px-4 text-center text-emerald-500 font-bold">✓ Incluido</td>
+                  <td className="py-3.5 px-4 text-center text-emerald-500 font-bold">✓ Incluido</td>
+                  <td className="py-3.5 px-4 text-center text-emerald-500 font-bold">✓ Incluido</td>
+                </tr>
+                <tr className="hover:bg-slate-50 dark:hover:bg-slate-800/30">
+                  <td className="py-3.5 px-4 text-slate-800 dark:text-slate-200 font-bold">12 Permisos granulares de colaboradores (ocultar costos/teléfonos/caja)</td>
+                  <td className="py-3.5 px-4 text-center text-slate-300 dark:text-slate-600">—</td>
+                  <td className="py-3.5 px-4 text-center font-bold text-emerald-600">✓ 12 Permisos</td>
+                  <td className="py-3.5 px-4 text-center font-bold text-purple-600">✓ 12 Permisos</td>
+                </tr>
+                <tr className="hover:bg-slate-50 dark:hover:bg-slate-800/30">
+                  <td className="py-3.5 px-4 text-slate-800 dark:text-slate-200 font-bold">Facturación Electrónica DIAN oficial (CUFE, QR y XML)</td>
+                  <td className="py-3.5 px-4 text-center text-slate-300 dark:text-slate-600">—</td>
+                  <td className="py-3.5 px-4 text-center font-bold text-slate-700 dark:text-slate-300">Opcional (con tu RUT)</td>
+                  <td className="py-3.5 px-4 text-center font-bold text-slate-700 dark:text-slate-300">Opcional (con tu RUT)</td>
+                </tr>
 
               </tbody>
             </table>
@@ -2102,7 +2126,7 @@ export default function LandingPage() {
             },
             {
               q: "¿Mis empleados o cajeros pueden ver cuánto dinero gano en total?",
-              a: "No. En el Modo Colaborador tú decides qué permisos otorgarles. Puedes ocultarles las estadísticas de caja, el historial total y los números de teléfono de tus clientes para máxima privacidad y seguridad de tu negocio."
+              a: "No. Cuentas con 12 permisos de seguridad configurables para cada colaborador. Puedes ocultarles las estadísticas y dinero en caja, el costo de adquisición de tus productos, los márgenes de ganancia, los números de celular de tus clientes y bloquearles la edición de precios o descuentos."
             },
             {
               q: "¿Qué tipo de impresora necesito para las facturas y etiquetas QR?",
@@ -2114,7 +2138,7 @@ export default function LandingPage() {
             },
             {
               q: "¿Necesito resolución de la DIAN o trámites tributarios para empezar a usar Fiabono?",
-              a: "No. Puedes comenzar a usar Fiabono de inmediato para el control interno de tus ventas, fiados, abonos e inventario sin requerir resoluciones ni trámites complejos. Más adelante, si las exigencias de tu negocio lo requieren, el sistema podrá incorporar módulos de facturación electrónica sin que pierdas tu información."
+              a: "No es obligatorio para empezar. Puedes comenzar de inmediato 100% libre de trámites para el control interno de tus ventas, fiados, inventario y caja diaria. Y si tu comercio está obligado por ley a facturar electrónicamente, Fiabono ya cuenta con integración oficial para emitir Factura Electrónica avalada por la DIAN con CUFE, código QR y archivo XML, activable directamente desde tu panel."
             },
             {
               q: "¿Tengo que descargar una aplicación pesada de la Play Store o App Store?",

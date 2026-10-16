@@ -463,10 +463,6 @@ export default function InventarioPage() {
   };
 
   const toggleSeleccionProducto = (prod: any) => {
-    if (!tieneStockDisponible(prod)) {
-      toast.error(`"${prod.nombre}" está agotado y no se puede seleccionar para venta, fiado o separe.`);
-      return;
-    }
     setProductosSeleccionados(prev => 
       prev.includes(prod.id) ? prev.filter(item => item !== prod.id) : [...prev, prod.id]
     );
@@ -510,13 +506,15 @@ export default function InventarioPage() {
   const inventarioProcesado = useMemo(() => {
     let resultado = [...inventario];
 
-    // 1. Filtro por texto de búsqueda (nombre, sku, categoría)
+    // 1. Filtro por texto de búsqueda (nombre, sku, código de barras, categoría) insensible a tildes
     if (busqueda.trim()) {
-      const q = busqueda.toLowerCase().trim();
+      const normalizar = (str: string) => (str || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+      const q = normalizar(busqueda.trim());
       resultado = resultado.filter(p =>
-        (p.nombre || '').toLowerCase().includes(q) ||
-        (p.sku || '').toLowerCase().includes(q) ||
-        normalizarCategoria(p.categoria).toLowerCase().includes(q)
+        normalizar(p.nombre || '').includes(q) ||
+        normalizar(p.sku || '').includes(q) ||
+        normalizar(p.codigoBarras || '').includes(q) ||
+        normalizar(normalizarCategoria(p.categoria)).includes(q)
       );
     }
 
@@ -583,16 +581,16 @@ export default function InventarioPage() {
   }, [inventarioProcesado]);
 
   const toggleSeleccionarTodos = () => {
-    if (productosDisponiblesVisibles.length === 0) {
-      toast.error("No hay productos con stock disponible en esta vista.");
+    if (inventarioProcesado.length === 0) {
+      toast.error("No hay productos visibles en esta vista.");
       return;
     }
-    const todosDisponiblesSeleccionados = productosDisponiblesVisibles.every(p => productosSeleccionados.includes(p.id));
-    if (todosDisponiblesSeleccionados) {
+    const todosVisiblesSeleccionados = inventarioProcesado.every(p => productosSeleccionados.includes(p.id));
+    if (todosVisiblesSeleccionados) {
       setProductosSeleccionados([]);
     } else {
-      setProductosSeleccionados(productosDisponiblesVisibles.map(p => p.id));
-      toast.success(`${productosDisponiblesVisibles.length} productos con stock seleccionados`);
+      setProductosSeleccionados(inventarioProcesado.map(p => p.id));
+      toast.success(`${inventarioProcesado.length} productos seleccionados`);
     }
   };
 
@@ -704,9 +702,11 @@ export default function InventarioPage() {
     const esInventariable = tipoProducto === 'producto' && inventariable;
 
     if (!nombre.trim()) erroresNuevos.nombre = 'El nombre del producto es obligatorio.';
-    if (!categoria.trim()) erroresNuevos.categoria = 'Selecciona o agrega una categoría.';
-    else if (!categoriasDisponibles.some(item => item.toLowerCase() === categoria.trim().toLowerCase())) {
-      erroresNuevos.categoria = 'Agrega esta categoría antes de continuar.';
+    const catFinalCarga = categoria.trim() || 'General';
+    if (!categoriasDisponibles.some(item => item.toLowerCase() === catFinalCarga.toLowerCase())) {
+      const nuevasCats = [...new Set([...categoriasDisponibles, catFinalCarga])];
+      setCategoriasDisponibles(nuevasCats);
+      void persistirCategoriasEnFirestore(nuevasCats);
     }
     if (esInventariable && stock.trim() === '') erroresNuevos.stock = 'El stock es obligatorio para productos físicos.';
     if (!precioVenta) erroresNuevos.precio = 'El precio de venta es obligatorio.';
@@ -715,7 +715,7 @@ export default function InventarioPage() {
 
     if (erroresNuevos.nombre || erroresNuevos.categoria || erroresNuevos.stock || erroresNuevos.precio) {
       const primerError = erroresNuevos.nombre || erroresNuevos.precio || erroresNuevos.stock || erroresNuevos.categoria;
-      toast.error(primerError, { icon: '⚠️' });
+      toast.error(primerError);
       return;
     }
 
@@ -738,7 +738,7 @@ export default function InventarioPage() {
 
     const cantAgregada = esInventariable ? Math.max(1, Number(stock) || 1) : 0;
 
-      if (prodExistente) {
+    if (prodExistente) {
       // Si el producto ya existe en inventario, se agrega como existente
       agregarOActualizarProductoEnCarga({
         id: `carga_${prodExistente.id}`,
@@ -750,11 +750,12 @@ export default function InventarioPage() {
         precioVenta: Number(precioVenta.replace(/\D/g, '')) || prodExistente.precioVenta || 0,
         costoCompra: Number(costoCompra.replace(/\D/g, '')) || prodExistente.costoCompra || 0,
         tipoProducto: prodExistente.tipoProducto || tipoProducto,
-        categoria: prodExistente.categoria || categoria || 'General',
+        categoria: catFinalCarga || prodExistente.categoria || 'General',
         inventariable: prodExistente.inventariable !== false,
+        imagen: imagenUrl || prodExistente.imagen || null,
         enCarga: true,
       });
-      toast.success(`📦 "${prodExistente.nombre}" sumado a la cola (+${cantAgregada} un.) • Ver en pestaña "Cola"`, { icon: '📦', duration: 3500 });
+      toast.success(`"${prodExistente.nombre}" sumado a la cola (+${cantAgregada} un.) • Ver en pestaña "Cola"`, { duration: 3500 });
     } else {
       const productoTmp = {
         id: `manual_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
@@ -765,14 +766,14 @@ export default function InventarioPage() {
         precioVenta: Number(precioVenta.replace(/\D/g, '')) || 0,
         costoCompra: Number(costoCompra.replace(/\D/g, '')) || 0,
         tipoProducto,
-        categoria: categoria.trim() || 'General',
+        categoria: catFinalCarga,
         inventariable: esInventariable,
         imagen: imagenUrl || null,
         enCarga: true,
       };
 
-      setProductosEnCarga(prev => [productoTmp, ...prev]);
-      toast.success(`📦 "${nombre.trim()}" encolado (+${cantAgregada} un.) • Ver en pestaña "Cola"`, { icon: '📦', duration: 3500 });
+      agregarOActualizarProductoEnCarga(productoTmp);
+      toast.success(`"${nombre.trim()}" encolado (+${cantAgregada} un.) • Ver en pestaña "Cola"`, { duration: 3500 });
     }
 
     setNombre('');
@@ -786,17 +787,35 @@ export default function InventarioPage() {
   };
 
   const agregarOActualizarProductoEnCarga = (prod: any) => {
+    if (prod.categoria && typeof prod.categoria === 'string') {
+      const catLimpia = prod.categoria.trim();
+      if (catLimpia && !categoriasDisponibles.some(item => item.toLowerCase() === catLimpia.toLowerCase())) {
+        const nuevasCats = [...new Set([...categoriasDisponibles, catLimpia])];
+        setCategoriasDisponibles(nuevasCats);
+        void persistirCategoriasEnFirestore(nuevasCats);
+      }
+    }
+
     setProductosEnCarga(prev => {
-      if (prod.esExistente && prod.productoId) {
-        const index = prev.findIndex(p => p.esExistente && p.productoId === prod.productoId);
-        if (index >= 0) {
-          const copia = [...prev];
-          copia[index] = {
-            ...copia[index],
-            stock: (Number(copia[index].stock) || 0) + (Number(prod.stock) || 1)
-          };
-          return copia;
-        }
+      const skuProd = (prod.sku || '').trim().toLowerCase();
+      const nombreProd = (prod.nombre || '').trim().toLowerCase();
+      const index = prev.findIndex(p =>
+        (prod.esExistente && prod.productoId && p.esExistente && p.productoId === prod.productoId) ||
+        (p.id === prod.id) ||
+        (skuProd && (p.sku || '').trim().toLowerCase() === skuProd) ||
+        (!prod.esExistente && !p.esExistente && nombreProd && (p.nombre || '').trim().toLowerCase() === nombreProd)
+      );
+      if (index >= 0) {
+        const copia = [...prev];
+        copia[index] = {
+          ...copia[index],
+          stock: (Number(copia[index].stock) || 0) + (Number(prod.stock) || 1),
+          precioVenta: Number(prod.precioVenta) > 0 ? Number(prod.precioVenta) : copia[index].precioVenta,
+          costoCompra: Number(prod.costoCompra) > 0 ? Number(prod.costoCompra) : copia[index].costoCompra,
+          categoria: prod.categoria || copia[index].categoria,
+          imagen: prod.imagen || copia[index].imagen,
+        };
+        return copia;
       }
       return [prod, ...prev];
     });
@@ -830,14 +849,49 @@ export default function InventarioPage() {
   };
 
   const crearProductoDesdeFormulario = () => {
-    const skuLimpio = sku.trim() || `SKU-${Math.floor(1000 + Math.random() * 9000)}`;
+    const skuLimpio = (sku.trim() || `SKU-${Math.floor(1000 + Math.random() * 9000)}`).toUpperCase();
+    const skuNormalizado = skuLimpio.replace(/^(SKU|REF|COD)[-_ ]*/i, '');
     const esInventariable = tipoProducto === 'producto' && inventariable;
+    const cantStock = esInventariable ? Math.max(0, Number(stock) || 0) : 0;
+
+    // Verificar si ya existe en el inventario para sumar stock en lugar de duplicar el producto
+    const prodExistente = inventario.find(p => {
+      const pSku = (p.sku || '').trim().toUpperCase();
+      const pBar = (p.codigoBarras || '').trim().toUpperCase();
+      const pSkuNorm = pSku.replace(/^(SKU|REF|COD)[-_ ]*/i, '');
+      const pBarNorm = pBar.replace(/^(SKU|REF|COD)[-_ ]*/i, '');
+
+      return (
+        (sku.trim() && (pSku === skuLimpio || pBar === skuLimpio)) ||
+        (sku.trim() && skuNormalizado && (pSkuNorm === skuNormalizado || pBarNorm === skuNormalizado)) ||
+        (nombre.trim().toLowerCase() === (p.nombre || '').trim().toLowerCase())
+      );
+    });
+
+    if (prodExistente) {
+      return {
+        id: `carga_${prodExistente.id}`,
+        esExistente: true,
+        productoId: prodExistente.id,
+        nombre: prodExistente.nombre,
+        sku: prodExistente.sku || prodExistente.codigoBarras || skuLimpio,
+        stock: cantStock,
+        precioVenta: Number(precioVenta.replace(/\D/g, '')) || prodExistente.precioVenta || 0,
+        costoCompra: Number(costoCompra.replace(/\D/g, '')) || prodExistente.costoCompra || 0,
+        tipoProducto: prodExistente.tipoProducto || tipoProducto,
+        categoria: categoria.trim() || prodExistente.categoria || 'General',
+        inventariable: prodExistente.inventariable !== false,
+        imagen: imagenUrl || prodExistente.imagen || null,
+      };
+    }
+
     return {
       usuarioId: cuentaPrincipalId,
+      esExistente: false,
       nombre: nombre.trim(),
       sku: skuLimpio,
       codigoBarras: skuLimpio,
-      stock: esInventariable ? Math.max(0, Number(stock) || 0) : 0,
+      stock: cantStock,
       precioVenta: Number(precioVenta.replace(/\D/g, '')) || 0,
       costoCompra: Number(costoCompra.replace(/\D/g, '')) || 0,
       tipoProducto,
@@ -854,19 +908,26 @@ export default function InventarioPage() {
 
     const token = await auth.currentUser?.getIdToken();
     if (!token) throw new Error('Sesión inválida.');
-    const respuesta = await fetch('/api/inventario/recibir', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-      body: JSON.stringify({ productos })
-    });
-    const resultado = await respuesta.json();
-    if (!respuesta.ok) throw new Error(resultado.error || 'No se pudo registrar la recepción.');
+
+    let totalProcesados = 0;
+    const TAMANO_LOTE = 200;
+    for (let i = 0; i < productos.length; i += TAMANO_LOTE) {
+      const lote = productos.slice(i, i + TAMANO_LOTE);
+      const respuesta = await fetch('/api/inventario/recibir', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ productos: lote })
+      });
+      const resultado = await respuesta.json();
+      if (!respuesta.ok) throw new Error(resultado.error || 'No se pudo registrar la recepción.');
+      totalProcesados += Number(resultado.actualizados || 0) + Number(resultado.creados || 0);
+    }
 
     setProductosEnCarga([]);
     if (typeof window !== 'undefined') {
       sessionStorage.removeItem(`fiabono_productos_en_carga_${cuentaPrincipalId}`);
     }
-    return Number(resultado.actualizados || 0) + Number(resultado.creados || 0);
+    return totalProcesados;
   };
 
   const guardarProducto = async (cerrarAlFinal: boolean = true) => {
@@ -888,7 +949,9 @@ export default function InventarioPage() {
       if (!categoria.trim()) {
         setCategoria('General');
       } else if (!categoriasDisponibles.some(item => item.toLowerCase() === categoria.trim().toLowerCase())) {
-        setCategoriasDisponibles(prev => [...new Set([...prev, categoria.trim()])]);
+        const nuevasCats = [...new Set([...categoriasDisponibles, categoria.trim()])];
+        setCategoriasDisponibles(nuevasCats);
+        void persistirCategoriasEnFirestore(nuevasCats);
       }
       if (esInventariable && stock.trim() === '') erroresNuevos.stock = 'El stock es obligatorio para productos físicos.';
       if (!precioVenta) erroresNuevos.precio = 'El precio de venta es obligatorio.';
@@ -898,7 +961,7 @@ export default function InventarioPage() {
         if (!hayProductosEnCola || nombre.trim()) {
           setErrores(erroresNuevos);
           const primerError = erroresNuevos.nombre || erroresNuevos.precio || erroresNuevos.stock || erroresNuevos.categoria;
-          toast.error(primerError, { icon: '⚠️' });
+          toast.error(primerError);
           return;
         }
       }
@@ -946,7 +1009,7 @@ export default function InventarioPage() {
         });
         if (!respuestaActualizacion.ok) throw new Error((await respuestaActualizacion.json()).error || 'No se pudo actualizar el producto.');
         setProductoRecienGuardadoId(editandoId);
-        toast.success(`"${nombreGuardar}" actualizado en la lista.`, { icon: '✅' });
+        toast.success(`"${nombreGuardar}" actualizado en la lista.`);
       } else {
         // Guardar todos los productos en la lista unificada
         const productosParaGuardar = [...productosEnCarga];
@@ -954,11 +1017,12 @@ export default function InventarioPage() {
           productosParaGuardar.push(crearProductoDesdeFormulario());
         }
 
+        const nombreReferencia = nombre.trim() || productosParaGuardar[0]?.nombre || 'Producto';
         const totalFinal = await guardarProductosEnCarga(productosParaGuardar);
         if (totalFinal > 1) {
-          toast.success(`¡Se guardaron ${totalFinal} productos en el inventario! 🎉`, { duration: 4000 });
+          toast.success(`¡Se guardaron ${totalFinal} productos en el inventario!`, { duration: 4000 });
         } else if (totalFinal === 1) {
-          toast.success(`"${nombre.trim()}" guardado y visible en la lista.`, { icon: '✨' });
+          toast.success(`"${nombreReferencia}" guardado y visible en la lista.`);
         }
       }
 
@@ -1234,6 +1298,7 @@ export default function InventarioPage() {
 
             for (let i = 0; i < cantidadImprimir; i++) {
               const esHorizontal = anchoMM >= 50 && altoMM <= 28;
+              const catLabel = normalizarCategoria(prod.categoria).toUpperCase();
 
               if (esHorizontal) {
                 htmlEtiquetas += `
@@ -1241,6 +1306,7 @@ export default function InventarioPage() {
                     <div class="qr-col">${qrSvgHtml}</div>
                     <div class="text-col">
                       ${opcionNegocio && datosSesion?.nombreNegocio ? `<div class="negocio">${String(datosSesion.nombreNegocio).toUpperCase()}</div>` : ''}
+                      ${opcionCategoria ? `<div class="negocio">${catLabel}</div>` : ''}
                       ${opcionNombre ? `<div class="nombre">${prod.nombre}</div>` : ''}
                       ${opcionSku ? `<div class="sku">${formatearTextoSKU(prod.sku)}</div>` : ''}
                       ${opcionPrecio ? `<div class="precio">$${(prod.precioVenta || 0).toLocaleString('es-CO')}</div>` : ''}
@@ -1252,6 +1318,7 @@ export default function InventarioPage() {
                   <div class="sticker sticker-vertical">
                     <div class="info-top">
                       ${opcionNegocio && datosSesion?.nombreNegocio ? `<div class="negocio">${String(datosSesion.nombreNegocio).toUpperCase()}</div>` : ''}
+                      ${opcionCategoria ? `<div class="negocio">${catLabel}</div>` : ''}
                       ${opcionNombre ? `<div class="nombre">${prod.nombre}</div>` : ''}
                       ${opcionSku ? `<div class="sku">${formatearTextoSKU(prod.sku)}</div>` : ''}
                     </div>
@@ -1501,6 +1568,7 @@ export default function InventarioPage() {
             esPrimeraPagina = false;
 
             const esFormatoHorizontalAlargado = anchoMM >= 50 && altoMM <= 28;
+            const catTextoPdf = normalizarCategoria(prod.categoria).toUpperCase();
 
             if (esFormatoHorizontalAlargado) {
               const qrTamano = Math.min(altoMM - 3, 20);
@@ -1520,7 +1588,16 @@ export default function InventarioPage() {
                 docPdf.setFont("helvetica", "normal");
                 docPdf.setTextColor(90, 90, 90);
                 docPdf.text(String(datosSesion.nombreNegocio).toUpperCase().substring(0, 18), textoX, curY);
-                curY += 2.8;
+                curY += 2.6;
+                docPdf.setTextColor(0, 0, 0);
+              }
+
+              if (opcionCategoria) {
+                docPdf.setFontSize(5.2);
+                docPdf.setFont("helvetica", "normal");
+                docPdf.setTextColor(90, 90, 90);
+                docPdf.text(catTextoPdf.substring(0, 18), textoX, curY);
+                curY += 2.5;
                 docPdf.setTextColor(0, 0, 0);
               }
 
@@ -1554,7 +1631,16 @@ export default function InventarioPage() {
                 docPdf.setFont("helvetica", "normal");
                 docPdf.setTextColor(90, 90, 90);
                 docPdf.text(String(datosSesion.nombreNegocio).toUpperCase(), centerX, curY, { align: 'center' });
-                curY += (anchoMM <= 32 ? 2.2 : 2.6);
+                curY += (anchoMM <= 32 ? 2.1 : 2.5);
+                docPdf.setTextColor(0, 0, 0);
+              }
+
+              if (opcionCategoria && altoMM >= 25) {
+                docPdf.setFontSize(anchoMM <= 32 ? 4.5 : 5.4);
+                docPdf.setFont("helvetica", "normal");
+                docPdf.setTextColor(90, 90, 90);
+                docPdf.text(catTextoPdf, centerX, curY, { align: 'center' });
+                curY += (anchoMM <= 32 ? 2.0 : 2.4);
                 docPdf.setTextColor(0, 0, 0);
               }
 
@@ -2166,6 +2252,17 @@ export default function InventarioPage() {
           }
         }
 
+        const parsearNumeroExcel = (val: any): number => {
+          if (typeof val === 'number' && Number.isFinite(val)) return Math.round(val);
+          if (val === null || val === undefined) return 0;
+          const texto = String(val).trim();
+          if (!texto) return 0;
+          // Quitar símbolos de moneda y espacios; en Colombia los puntos o comas suelen ser separadores de miles
+          const soloDigitos = texto.replace(/[^\d-]/g, '');
+          const num = Number(soloDigitos);
+          return Number.isFinite(num) ? Math.max(0, num) : 0;
+        };
+
         const productosParseados: any[] = [];
         
         for (let i = headerRowIndex + 1; i < data.length; i++) {
@@ -2175,13 +2272,13 @@ export default function InventarioPage() {
           // Extraer columnas principales (A a G)
           const tipoRaw = String(row[0] || 'Producto').trim();
           const esServicio = tipoRaw.toLowerCase().includes('servicio');
-          const categoriaVal = String(row[1] || 'General').trim() || 'General';
-          const skuVal = String(row[2] || '').trim();
+          const categoriaVal = normalizarCategoria(String(row[1] || 'General'));
+          const skuVal = String(row[2] || '').trim().toUpperCase();
           const nombreVal = String(row[3] || '').trim();
           const invRaw = String(row[4] || (esServicio ? 'No' : 'Si')).trim().toLowerCase();
           const inventariableVal = esServicio ? false : (!invRaw.startsWith('n') && invRaw !== '0');
-          const precioVal = Math.max(0, Number(row[5]) || 0);
-          const stockVal = esServicio || !inventariableVal ? 0 : Math.max(0, Number(row[6]) || 0);
+          const precioVal = parsearNumeroExcel(row[5]);
+          const stockVal = esServicio || !inventariableVal ? 0 : parsearNumeroExcel(row[6]);
 
           // Si no tiene nombre se ignora
           if (!nombreVal) continue;
@@ -2189,8 +2286,9 @@ export default function InventarioPage() {
           // Búsqueda inteligente de duplicados por SKU o por Nombre exacto
           const prodExistente = inventario.find(item => {
             const matchSku = skuVal && item.sku && String(item.sku).trim().toLowerCase() === skuVal.toLowerCase();
+            const matchBar = skuVal && item.codigoBarras && String(item.codigoBarras).trim().toLowerCase() === skuVal.toLowerCase();
             const matchNombre = item.nombre && String(item.nombre).trim().toLowerCase() === nombreVal.toLowerCase();
-            return matchSku || matchNombre;
+            return matchSku || matchBar || matchNombre;
           });
 
           productosParseados.push({
@@ -2242,7 +2340,7 @@ export default function InventarioPage() {
       return toast.error("Error de sesión: No se encontró la cuenta principal.");
     }
     if (!datosSesion?.esPro) {
-      toast.error("La importación masiva desde Excel es exclusiva del Plan PRO Almacén.", { icon: '🔒' });
+      toast.error("La importación masiva desde Excel es exclusiva del Plan PRO Almacén.");
       setModalUpsell({
         visible: true,
         titulo: "Carga Masiva en Excel (Plan PRO)",
@@ -2275,26 +2373,31 @@ export default function InventarioPage() {
 
             batch.update(docRef, {
               nombre: prod.nombre,
-              categoria: prod.categoria,
+              categoria: normalizarCategoria(prod.categoria),
               tipoProducto: prod.tipoProducto,
               inventariable: prod.inventariable,
               stock: prod.tipoProducto === 'servicio' || !prod.inventariable ? 0 : stockFinal,
               precioVenta: prod.precioVenta,
-              fechaModificacion: new Date()
+              fechaActualizacion: new Date()
             });
           } else {
             creados++;
             const docRef = doc(collection(db, "inventario"));
+            const skuGenerado = (prod.sku || `SKU-${docRef.id.slice(0, 6).toUpperCase()}`).trim().toUpperCase();
             batch.set(docRef, {
               usuarioId: cuentaPrincipalId,
               nombre: prod.nombre,
-              categoria: prod.categoria,
-              sku: prod.sku || docRef.id.slice(0, 8).toUpperCase(),
+              categoria: normalizarCategoria(prod.categoria),
+              sku: skuGenerado,
+              codigoBarras: skuGenerado,
               tipoProducto: prod.tipoProducto,
               inventariable: prod.inventariable,
               stock: prod.tipoProducto === 'servicio' || !prod.inventariable ? 0 : prod.stock,
               precioVenta: prod.precioVenta,
-              fechaCreacion: new Date()
+              costoCompra: 0,
+              activo: true,
+              fechaCreacion: new Date(),
+              fechaActualizacion: new Date()
             });
           }
         });
@@ -2302,9 +2405,15 @@ export default function InventarioPage() {
         await batch.commit();
       }
 
+      // Sincronizar nuevas categorías importadas en Firestore
+      const catsImportadas = productosAImportar.map(p => normalizarCategoria(p.categoria)).filter(Boolean);
+      const nuevasCats = [...new Set([...categoriasDisponibles, ...catsImportadas])].sort((a, b) => a.localeCompare(b, 'es'));
+      setCategoriasDisponibles(nuevasCats);
+      void persistirCategoriasEnFirestore(nuevasCats);
+
       const mensaje = actualizados > 0 
-        ? `🎉 ¡${creados} creados y ${actualizados} actualizados con éxito!`
-        : `🎉 ¡${creados} productos importados con éxito a tu inventario!`;
+        ? `¡${creados} creados y ${actualizados} actualizados con éxito!`
+        : `¡${creados} productos importados con éxito a tu inventario!`;
       
       toast.success(mensaje);
       setModalImportarExcel(false);
@@ -2421,12 +2530,12 @@ export default function InventarioPage() {
   };
 
   const crearCategoriaDesdeModal = (nombreRaw: string) => {
-    const val = nombreRaw.trim();
-    if (!val) {
+    const val = normalizarCategoria(nombreRaw);
+    if (!nombreRaw.trim()) {
       toast.error('Ingresa un nombre para la categoría.');
       return;
     }
-    if (categoriasDisponibles.some(c => c.toLowerCase() === val.toLowerCase())) {
+    if (categoriasDisponibles.some(c => normalizarCategoria(c).toLowerCase() === val.toLowerCase())) {
       toast.error(`La categoría "${val}" ya existe.`);
       return;
     }
@@ -2434,12 +2543,13 @@ export default function InventarioPage() {
     setCategoriasDisponibles(nuevaLista);
     persistirCategoriasEnFirestore(nuevaLista);
     setNuevaCatModalInput('');
-    toast.success(`Categoría "${val}" creada`, { icon: '🏷️' });
+    toast.success(`Categoría "${val}" creada`);
   };
 
   const renombrarCategoriaGlobal = async (catVieja: string, catNuevaRaw: string) => {
-    const catNueva = catNuevaRaw.trim();
-    if (!catNueva || catNueva.toLowerCase() === catVieja.toLowerCase()) {
+    const catNueva = normalizarCategoria(catNuevaRaw);
+    const catViejaNorm = normalizarCategoria(catVieja).toLowerCase();
+    if (!catNuevaRaw.trim() || catNueva.toLowerCase() === catViejaNorm) {
       setCategoriaEditandoModal(null);
       setNuevoNombreCatModal('');
       return;
@@ -2447,7 +2557,7 @@ export default function InventarioPage() {
 
     try {
       setGuardandoCatModal(true);
-      const prodsAfectados = inventario.filter(p => (p.categoria || '').trim().toLowerCase() === catVieja.toLowerCase());
+      const prodsAfectados = inventario.filter(p => normalizarCategoria(p.categoria).toLowerCase() === catViejaNorm);
       if (prodsAfectados.length > 0) {
         const chunks = [];
         for (let i = 0; i < prodsAfectados.length; i += 450) {
@@ -2462,24 +2572,25 @@ export default function InventarioPage() {
         }
 
         setInventario(prev => prev.map(p => 
-          (p.categoria || '').trim().toLowerCase() === catVieja.toLowerCase()
+          normalizarCategoria(p.categoria).toLowerCase() === catViejaNorm
             ? { ...p, categoria: catNueva }
             : p
         ));
       }
 
-      const filtrada = categoriasDisponibles.filter(c => c.toLowerCase() !== catVieja.toLowerCase());
+      const filtrada = categoriasDisponibles.filter(c => normalizarCategoria(c).toLowerCase() !== catViejaNorm);
       const nuevaLista = [...new Set([...filtrada, catNueva])].sort((a, b) => a.localeCompare(b, 'es'));
       setCategoriasDisponibles(nuevaLista);
       persistirCategoriasEnFirestore(nuevaLista);
 
-      if (categoria.toLowerCase() === catVieja.toLowerCase()) {
+      if (normalizarCategoria(categoria).toLowerCase() === catViejaNorm) {
         setCategoria(catNueva);
       }
+      setFiltrosCategoria(prev => prev.map(f => f === catViejaNorm ? catNueva.toLowerCase() : f));
 
       setCategoriaEditandoModal(null);
       setNuevoNombreCatModal('');
-      toast.success(`Categoría renombrada a "${catNueva}" (${prodsAfectados.length} productos actualizados)`, { icon: '🏷️' });
+      toast.success(`Categoría renombrada a "${catNueva}" (${prodsAfectados.length} productos actualizados)`);
     } catch (err) {
       console.error("Error renombrando categoría:", err);
       toast.error("No se pudo renombrar la categoría.");
@@ -2489,18 +2600,20 @@ export default function InventarioPage() {
   };
 
   const solicitarEliminarCategoria = (catAEliminar: string) => {
-    if (catAEliminar.toLowerCase() === 'general') {
-      toast.error("La categoría 'General' es la base del catálogo y no se puede eliminar.", { icon: '🛡️' });
+    const catNorm = normalizarCategoria(catAEliminar).toLowerCase();
+    if (catNorm === 'general') {
+      toast.error("La categoría 'General' es la base del catálogo y no se puede eliminar.");
       return;
     }
-    const conteo = inventario.filter(p => (p.categoria || '').trim().toLowerCase() === catAEliminar.toLowerCase()).length;
+    const conteo = inventario.filter(p => normalizarCategoria(p.categoria).toLowerCase() === catNorm).length;
     setCategoriaAEliminarConfirm({ nombre: catAEliminar, conteoProds: conteo });
   };
 
   const ejecutarEliminacionCategoria = async () => {
     if (!categoriaAEliminarConfirm) return;
     const catAEliminar = categoriaAEliminarConfirm.nombre;
-    const prodsAfectados = inventario.filter(p => (p.categoria || '').trim().toLowerCase() === catAEliminar.toLowerCase());
+    const catNorm = normalizarCategoria(catAEliminar).toLowerCase();
+    const prodsAfectados = inventario.filter(p => normalizarCategoria(p.categoria).toLowerCase() === catNorm);
 
     try {
       setGuardandoCatModal(true);
@@ -2518,19 +2631,20 @@ export default function InventarioPage() {
         }
 
         setInventario(prev => prev.map(p => 
-          (p.categoria || '').trim().toLowerCase() === catAEliminar.toLowerCase()
+          normalizarCategoria(p.categoria).toLowerCase() === catNorm
             ? { ...p, categoria: 'General' }
             : p
         ));
       }
 
-      const nuevaLista = categoriasDisponibles.filter(c => c.toLowerCase() !== catAEliminar.toLowerCase());
+      const nuevaLista = categoriasDisponibles.filter(c => normalizarCategoria(c).toLowerCase() !== catNorm);
       setCategoriasDisponibles(nuevaLista);
       persistirCategoriasEnFirestore(nuevaLista);
-      if (categoria.toLowerCase() === catAEliminar.toLowerCase()) {
+      if (normalizarCategoria(categoria).toLowerCase() === catNorm) {
         setCategoria('General');
       }
-      toast.success(`Categoría "${catAEliminar}" eliminada`, { icon: '🗑️' });
+      setFiltrosCategoria(prev => prev.filter(f => f !== catNorm));
+      toast.success(`Categoría "${catAEliminar}" eliminada`);
     } catch (err) {
       console.error("Error eliminando categoría:", err);
       toast.error("No se pudo eliminar la categoría.");
@@ -2548,7 +2662,7 @@ export default function InventarioPage() {
     if (esServicio) {
       return (
         <span className={`inline-flex items-center gap-1 rounded-full bg-indigo-50 text-indigo-700 dark:bg-indigo-500/15 dark:text-indigo-300 ${modo === 'movil' ? 'px-2 py-0.5 text-[10px]' : 'px-2.5 py-1 text-xs'} font-bold border border-indigo-200 dark:border-indigo-800 shrink-0`}>
-          🛠️ {modo === 'movil' ? 'Servicio' : 'Servicio / Ilimitado'}
+          <Sparkles size={modo === 'movil' ? 11 : 13} className="shrink-0" /> {modo === 'movil' ? 'Servicio' : 'Servicio / Ilimitado'}
         </span>
       );
     }
@@ -2602,7 +2716,7 @@ export default function InventarioPage() {
               <span className="hidden sm:inline truncate">Inventario General</span>
             </h2>
             <p className="text-[11px] text-white/80 font-medium hidden lg:block truncate">
-              {esAdmin || puedeEditarInventario ? "Control de stock, precios y catálogo de productos" : "Consulta de catálogo, precios y disponibilidad"}
+              {esAdmin || puedeEditarInventario || puedeIngresarInventario ? "Control de stock, precios y catálogo de productos" : "Consulta de catálogo, precios y disponibilidad"}
             </p>
           </div>
         </div>
@@ -2610,11 +2724,11 @@ export default function InventarioPage() {
         <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
           {esAdmin && (
             <>
-              {/* En Pantallas Muy Anchas (>= 2xl): Botones directos con labels */}
-              <div className="hidden 2xl:flex items-center gap-1.5">
+              {/* En Escritorio / Laptops (>= xl): Botones directos con labels */}
+              <div className="hidden xl:flex items-center gap-1.5">
                 <button 
                   onClick={() => setModalGestionCategorias(true)} 
-                  className="bg-white/20 hover:bg-white/30 px-3 py-2 rounded-xl font-bold text-xs flex items-center gap-1.5 transition-colors backdrop-blur-sm shadow-sm cursor-pointer whitespace-nowrap"
+                  className="bg-white/20 hover:bg-white/30 px-2.5 2xl:px-3 py-2 rounded-xl font-bold text-xs flex items-center gap-1.5 transition-colors backdrop-blur-sm shadow-sm cursor-pointer whitespace-nowrap"
                   title="Administrar categorías del catálogo (crear, renombrar, eliminar)"
                 >
                   <Tag size={15}/> <span>Categorías</span>
@@ -2633,7 +2747,7 @@ export default function InventarioPage() {
                     }
                     setModalExportarExcel(true);
                   }} 
-                  className="bg-white/20 hover:bg-white/30 px-3 py-2 rounded-xl font-bold text-xs flex items-center gap-1.5 transition-colors backdrop-blur-sm shadow-sm cursor-pointer whitespace-nowrap"
+                  className="bg-white/20 hover:bg-white/30 px-2.5 2xl:px-3 py-2 rounded-xl font-bold text-xs flex items-center gap-1.5 transition-colors backdrop-blur-sm shadow-sm cursor-pointer whitespace-nowrap"
                   title="Descargar inventario en archivo Excel .xlsx"
                 >
                   <FileSpreadsheet size={15}/> <span>Exportar Excel</span>
@@ -2654,7 +2768,7 @@ export default function InventarioPage() {
                     setProductosAImportar([]); 
                     setModalImportarExcel(true); 
                   }} 
-                  className="bg-white/20 hover:bg-white/30 px-3 py-2 rounded-xl font-bold text-xs flex items-center gap-1.5 transition-colors backdrop-blur-sm shadow-sm cursor-pointer whitespace-nowrap"
+                  className="bg-white/20 hover:bg-white/30 px-2.5 2xl:px-3 py-2 rounded-xl font-bold text-xs flex items-center gap-1.5 transition-colors backdrop-blur-sm shadow-sm cursor-pointer whitespace-nowrap"
                   title="Cargar productos masivamente desde un archivo Excel"
                 >
                   <Upload size={15}/> <span>Importar Excel</span>
@@ -2674,7 +2788,7 @@ export default function InventarioPage() {
                     }
                     setModalExportarQR(true);
                   }} 
-                  className="bg-white/20 hover:bg-white/30 px-3 py-2 rounded-xl font-bold text-xs flex items-center gap-1.5 transition-colors backdrop-blur-sm shadow-sm cursor-pointer whitespace-nowrap"
+                  className="bg-white/20 hover:bg-white/30 px-2.5 2xl:px-3 py-2 rounded-xl font-bold text-xs flex items-center gap-1.5 transition-colors backdrop-blur-sm shadow-sm cursor-pointer whitespace-nowrap"
                   title="Imprimir o exportar etiquetas con códigos QR"
                 >
                   <Printer size={15}/> <span>Etiquetas QR</span>
@@ -2682,8 +2796,8 @@ export default function InventarioPage() {
                 </button>
               </div>
 
-              {/* Menú Desplegable de Herramientas para pantallas < 2xl (móviles, tablets y laptops) */}
-              <div className="relative 2xl:hidden">
+              {/* Menú Desplegable de Herramientas para pantallas < xl (móviles y tablets) */}
+              <div className="relative xl:hidden">
                 <button 
                   type="button"
                   onClick={() => setMenuHerramientasMovil(!menuHerramientasMovil)}
@@ -2711,7 +2825,7 @@ export default function InventarioPage() {
                       >
                         <div className="flex items-center gap-2">
                           <Tag size={16} className="text-violet-600 dark:text-violet-400"/>
-                          <span>🏷️ Administrar Categorías</span>
+                          <span>Administrar Categorías</span>
                         </div>
                       </button>
 
@@ -2792,7 +2906,7 @@ export default function InventarioPage() {
           )}
 
           {/* Botón Principal: Agregar Productos (Admin o Colaborador con permiso) */}
-          {(esAdmin || puedeEditarInventario) && (
+          {(esAdmin || puedeEditarInventario || puedeIngresarInventario) && (
             <button 
               onClick={() => {
                 if (datosSesion?.esGratis && inventario.length >= 30) {
@@ -3029,7 +3143,7 @@ export default function InventarioPage() {
                     : 'bg-white dark:bg-[#0f172a] text-indigo-700 dark:text-indigo-400 border border-slate-200 dark:border-slate-800 hover:border-indigo-400'
                 }`}
               >
-                <span>🛠️</span> Servicios ({metricas.totalServicios})
+                <Sparkles size={13} /> Servicios ({metricas.totalServicios})
               </button>
             </div>
 
@@ -3211,9 +3325,8 @@ export default function InventarioPage() {
                         <div className="flex items-center gap-2 min-w-0 flex-1">
                           <button 
                             type="button" 
-                            disabled={!disponible}
                             onClick={() => toggleSeleccionProducto(prod)}
-                            className={`transition-colors shrink-0 ${!disponible ? 'opacity-30 cursor-not-allowed text-slate-300' : 'text-slate-400'}`}
+                            className="transition-colors shrink-0 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
                           >
                             {estaSeleccionado ? (
                               <CheckSquare size={18} className="text-emerald-600 dark:text-emerald-400" />
@@ -3272,6 +3385,19 @@ export default function InventarioPage() {
                           >
                             <Receipt size={12} /> <span>Fiar</span>
                           </button>
+                          {moduloSepareActivo && (
+                            <button 
+                              onClick={() => despacharASepare([prod])} 
+                              disabled={!disponible}
+                              className={`inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-black transition-all ${
+                                !disponible 
+                                  ? 'bg-slate-100 text-slate-400 cursor-not-allowed opacity-50' 
+                                  : 'bg-violet-50 hover:bg-violet-600 text-violet-700 hover:text-white active:scale-95 shadow-sm'
+                              }`}
+                            >
+                              <Bookmark size={12} /> <span>Separe</span>
+                            </button>
+                          )}
 
                           {(esAdmin || puedeEditarInventario) && (
                             <div className="flex items-center ml-0.5">
@@ -3305,7 +3431,7 @@ export default function InventarioPage() {
                     <p className="font-bold text-sm">
                       {inventario.length === 0 ? "Tu inventario aún está vacío." : "No se encontraron productos con estos filtros."}
                     </p>
-                    {inventario.length === 0 && (esAdmin || puedeEditarInventario) && (
+                    {inventario.length === 0 && (esAdmin || puedeEditarInventario || puedeIngresarInventario) && (
                       <button 
                         onClick={() => { limpiarFormulario(); setModalProducto(true); }}
                         className="mt-3 inline-flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-black px-4 py-2 rounded-xl text-xs uppercase tracking-wider transition-all shadow-md active:scale-95"
@@ -3332,7 +3458,7 @@ export default function InventarioPage() {
                             className="text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition-colors inline-flex items-center justify-center"
                             title="Seleccionar todos los productos visibles"
                           >
-                            {productosSeleccionados.length > 0 && productosSeleccionados.length === inventarioProcesado.length ? (
+                            {inventarioProcesado.length > 0 && inventarioProcesado.every(p => productosSeleccionados.includes(p.id)) ? (
                               <CheckSquare size={17} className="text-emerald-600 dark:text-emerald-400" />
                             ) : (
                               <Square size={17} />
@@ -3412,14 +3538,9 @@ export default function InventarioPage() {
                             <td className="py-2.5 px-3 w-9 text-center">
                               <button 
                                 type="button" 
-                                disabled={!disponible}
                                 onClick={() => toggleSeleccionProducto(prod)}
-                                className={`transition-colors inline-flex items-center justify-center ${
-                                  !disponible 
-                                    ? 'cursor-not-allowed opacity-30 text-slate-300 dark:text-slate-700' 
-                                    : 'text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'
-                                }`}
-                                title={disponible ? (estaSeleccionado ? "Deseleccionar" : "Seleccionar para venta o fiado") : "Producto agotado (Sin stock)"}
+                                className="transition-colors inline-flex items-center justify-center text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
+                                title={estaSeleccionado ? "Deseleccionar" : "Seleccionar para despacho o etiquetas QR"}
                               >
                                 {estaSeleccionado ? (
                                   <CheckSquare size={17} className="text-emerald-600 dark:text-emerald-400" />
@@ -3537,7 +3658,7 @@ export default function InventarioPage() {
                             <p className="font-bold text-sm">
                               {inventario.length === 0 ? "Tu inventario aún está vacío." : "No se encontraron productos con estos filtros."}
                             </p>
-                            {inventario.length === 0 && (esAdmin || puedeEditarInventario) ? (
+                            {inventario.length === 0 && (esAdmin || puedeEditarInventario || puedeIngresarInventario) ? (
                               <button 
                                 onClick={() => { limpiarFormulario(); setModalProducto(true); }}
                                 className="mt-3 inline-flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-black px-4 py-2 rounded-xl text-xs uppercase tracking-wider transition-all shadow-md active:scale-95"
@@ -3574,9 +3695,9 @@ export default function InventarioPage() {
             </div>
           )}
 
-          {/* BARRA FLOTANTE DE DESPACHO MASIVO (FLOTA SOBRE EL BOTTOMNAV EN MÓVIL) */}
+          {/* BARRA FLOTANTE DE DESPACHO MASIVO Y ETIQUETAS QR (FLOTA SOBRE EL BOTTOMNAV EN MÓVIL) */}
           {productosSeleccionados.length > 0 && (
-            <div className="fixed bottom-20 md:bottom-6 left-1/2 -translate-x-1/2 z-[110] max-w-2xl w-[94%] sm:w-auto bg-slate-900/95 dark:bg-[#020617]/95 backdrop-blur-md text-white p-2.5 sm:p-4 rounded-2xl sm:rounded-3xl shadow-2xl border border-slate-700/60 flex flex-col sm:flex-row items-center justify-between gap-2 sm:gap-4 animate-in slide-in-from-bottom-5 duration-300">
+            <div className="fixed bottom-20 md:bottom-6 left-1/2 -translate-x-1/2 z-[110] max-w-3xl w-[94%] sm:w-auto bg-slate-900/95 dark:bg-[#020617]/95 backdrop-blur-md text-white p-2.5 sm:p-4 rounded-2xl sm:rounded-3xl shadow-2xl border border-slate-700/60 flex flex-col sm:flex-row items-center justify-between gap-2 sm:gap-4 animate-in slide-in-from-bottom-5 duration-300">
               <div className="flex items-center justify-between w-full sm:w-auto gap-2 text-xs sm:text-sm">
                 <span className="bg-emerald-500 text-slate-950 font-black px-2.5 py-1 rounded-full text-[11px] sm:text-xs shrink-0">
                   {productosSeleccionados.length} seleccionados
@@ -3593,31 +3714,51 @@ export default function InventarioPage() {
                 </button>
               </div>
 
-              <div className="flex items-center gap-1.5 sm:gap-2 w-full sm:w-auto justify-end">
+              <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 w-full sm:w-auto justify-end">
                 <button
                   onClick={() => despacharAVenta(productosSeleccionadosObj)}
-                  className="flex-1 sm:flex-none inline-flex items-center justify-center gap-1 bg-emerald-600 hover:bg-emerald-500 text-white font-black px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl text-xs uppercase tracking-wider transition-all shadow-md active:scale-95"
+                  className="flex-1 sm:flex-none inline-flex items-center justify-center gap-1 bg-emerald-600 hover:bg-emerald-500 text-white font-black px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl text-xs uppercase tracking-wider transition-all shadow-md active:scale-95 cursor-pointer"
                 >
-                  <ShoppingCart size={14} /> <span>Vender ({productosSeleccionados.length})</span>
+                  <ShoppingCart size={14} /> <span>Vender ({productosSeleccionadosObj.filter(tieneStockDisponible).length})</span>
                 </button>
                 <button
                   onClick={() => despacharAFiar(productosSeleccionadosObj)}
-                  className="flex-1 sm:flex-none inline-flex items-center justify-center gap-1 bg-rose-600 hover:bg-rose-500 text-white font-black px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl text-xs uppercase tracking-wider transition-all shadow-md active:scale-95"
+                  className="flex-1 sm:flex-none inline-flex items-center justify-center gap-1 bg-rose-600 hover:bg-rose-500 text-white font-black px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl text-xs uppercase tracking-wider transition-all shadow-md active:scale-95 cursor-pointer"
                 >
-                  <Receipt size={14} /> <span>Fiar ({productosSeleccionados.length})</span>
+                  <Receipt size={14} /> <span>Fiar ({productosSeleccionadosObj.filter(tieneStockDisponible).length})</span>
                 </button>
                 {moduloSepareActivo && (
                   <button
                     onClick={() => despacharASepare(productosSeleccionadosObj)}
                     className="flex-1 sm:flex-none inline-flex items-center justify-center gap-1 bg-violet-600 hover:bg-violet-500 text-white font-black px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl text-xs uppercase tracking-wider transition-all shadow-md active:scale-95 cursor-pointer"
                   >
-                    <Bookmark size={14} /> <span>Separar ({productosSeleccionados.length})</span>
+                    <Bookmark size={14} /> <span>Separar ({productosSeleccionadosObj.filter(tieneStockDisponible).length})</span>
                     {!datosSesion?.esPro && <Crown size={12} className="text-amber-300 ml-0.5" />}
+                  </button>
+                )}
+                {esAdmin && (
+                  <button
+                    onClick={() => {
+                      if (!datosSesion?.esPro) {
+                        setModalUpsell({
+                          visible: true,
+                          titulo: "Etiquetas Adhesivas QR para Productos",
+                          mensaje: "Genera e imprime planchas térmicas con Código QR, Nombre y Precio para pegar en tus prendas o estanterías y cobrar en 1 segundo.",
+                          plan: 'pro'
+                        });
+                        return;
+                      }
+                      setOrigenExportacion('seleccionados');
+                      setModalExportarQR(true);
+                    }}
+                    className="flex-1 sm:flex-none inline-flex items-center justify-center gap-1 bg-indigo-600 hover:bg-indigo-500 text-white font-black px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl text-xs uppercase tracking-wider transition-all shadow-md active:scale-95 cursor-pointer"
+                  >
+                    <QrCode size={14} /> <span>QR ({productosSeleccionados.length})</span>
                   </button>
                 )}
                 <button
                   onClick={() => setProductosSeleccionados([])}
-                  className="hidden sm:inline-flex p-2 hover:bg-slate-800 text-slate-400 hover:text-white rounded-xl transition-colors shrink-0"
+                  className="hidden sm:inline-flex p-2 hover:bg-slate-800 text-slate-400 hover:text-white rounded-xl transition-colors shrink-0 cursor-pointer"
                   title="Cancelar selección"
                 >
                   <X size={16} />
@@ -3631,7 +3772,10 @@ export default function InventarioPage() {
 
       {/* MODAL INFORMATIVO Y CONFIRMACIÓN DE EXPORTACIÓN A EXCEL */}
       {esAdmin && modalExportarExcel && (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center p-3 sm:p-4 z-[950] animate-in fade-in duration-200">
+        <div 
+          onClick={(e) => { if (e.target === e.currentTarget) setModalExportarExcel(false); }}
+          className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center p-3 sm:p-4 z-[950] animate-in fade-in duration-200"
+        >
           <div className="bg-white dark:bg-[#0f172a] rounded-[2.5rem] w-full max-w-2xl shadow-2xl border border-slate-100 dark:border-slate-800 animate-in zoom-in-95 duration-200 overflow-hidden flex flex-col max-h-[90dvh]">
             
             {/* Header del Modal */}
@@ -3687,7 +3831,7 @@ export default function InventarioPage() {
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   <div className="p-3.5 bg-slate-50 dark:bg-slate-900/60 rounded-2xl border border-slate-200 dark:border-slate-800">
                     <span className="text-xs font-black text-emerald-600 dark:text-emerald-400 block mb-1">
-                      1️⃣ Edita Precios o Stock
+                      1. Edita Precios o Stock
                     </span>
                     <p className="text-[11px] text-slate-500 dark:text-slate-400">
                       Abre el archivo en tu computador y cambia los valores de tus productos existentes.
@@ -3696,7 +3840,7 @@ export default function InventarioPage() {
 
                   <div className="p-3.5 bg-slate-50 dark:bg-slate-900/60 rounded-2xl border border-slate-200 dark:border-slate-800">
                     <span className="text-xs font-black text-blue-600 dark:text-blue-400 block mb-1">
-                      2️⃣ Agrega Nuevos
+                      2. Agrega Nuevos
                     </span>
                     <p className="text-[11px] text-slate-500 dark:text-slate-400">
                       Escribe nuevos artículos en las filas vacías al final de la tabla usando las listas desplegables.
@@ -3705,7 +3849,7 @@ export default function InventarioPage() {
 
                   <div className="p-3.5 bg-slate-50 dark:bg-slate-900/60 rounded-2xl border border-slate-200 dark:border-slate-800">
                     <span className="text-xs font-black text-purple-600 dark:text-purple-400 block mb-1">
-                      3️⃣ Sube en "Importar"
+                      3. Sube en "Importar"
                     </span>
                     <p className="text-[11px] text-slate-500 dark:text-slate-400">
                       Fiabono sincronizará los viejos y creará los nuevos automáticamente sin duplicados.
@@ -3758,7 +3902,15 @@ export default function InventarioPage() {
 
       {/* MODAL IMPORTAR INVENTARIO DESDE EXCEL */}
       {esAdmin && modalImportarExcel && (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center p-3 sm:p-4 z-[950] animate-in fade-in duration-200">
+        <div 
+          onClick={(e) => {
+            if (e.target === e.currentTarget && !importandoAFirestore) {
+              setModalImportarExcel(false);
+              setProductosAImportar([]);
+            }
+          }}
+          className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center p-3 sm:p-4 z-[950] animate-in fade-in duration-200"
+        >
           <div className="bg-white dark:bg-[#0f172a] rounded-[2.5rem] w-full max-w-3xl shadow-2xl border border-slate-100 dark:border-slate-800 animate-in zoom-in-95 duration-200 overflow-hidden flex flex-col max-h-[90dvh]">
             
             {/* Header del Modal */}
@@ -3857,7 +4009,7 @@ export default function InventarioPage() {
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                       <div className="p-3.5 bg-slate-50 dark:bg-slate-900/60 rounded-2xl border border-slate-200 dark:border-slate-800">
                         <span className="text-xs font-black text-emerald-600 dark:text-emerald-400 block mb-1">
-                          1️⃣ Hoja "Inventario"
+                          1. Hoja "Inventario"
                         </span>
                         <p className="text-[11px] text-slate-500 dark:text-slate-400">
                           Escribe cada producto o servicio a partir de la fila 2 en adelante.
@@ -3866,7 +4018,7 @@ export default function InventarioPage() {
 
                       <div className="p-3.5 bg-slate-50 dark:bg-slate-900/60 rounded-2xl border border-slate-200 dark:border-slate-800">
                         <span className="text-xs font-black text-blue-600 dark:text-blue-400 block mb-1">
-                          2️⃣ Listas Desplegables
+                          2. Listas Desplegables
                         </span>
                         <p className="text-[11px] text-slate-500 dark:text-slate-400">
                           Selecciona <strong>Producto / Servicio</strong> y si es inventariable <strong>Sí / No</strong> con la flechita.
@@ -3875,7 +4027,7 @@ export default function InventarioPage() {
 
                       <div className="p-3.5 bg-slate-50 dark:bg-slate-900/60 rounded-2xl border border-slate-200 dark:border-slate-800">
                         <span className="text-xs font-black text-purple-600 dark:text-purple-400 block mb-1">
-                          3️⃣ Hoja "Datos"
+                          3. Hoja "Datos"
                         </span>
                         <p className="text-[11px] text-slate-500 dark:text-slate-400">
                           Contiene las categorías. Puedes agregar nuevas categorías hacia abajo.
@@ -3926,12 +4078,12 @@ export default function InventarioPage() {
                       <span className="font-bold text-xs text-slate-700 dark:text-slate-200">
                         Total en archivo: <strong>{productosAImportar.length}</strong>
                       </span>
-                      <span className="inline-flex items-center gap-1 bg-emerald-100 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 font-bold px-2 py-0.5 rounded-full text-[11px]">
-                        🟢 {productosAImportar.filter(p => p.accion === 'crear').length} Nuevos
+                      <span className="inline-flex items-center gap-1.5 bg-emerald-100 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 font-bold px-2 py-0.5 rounded-full text-[11px]">
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" /> {productosAImportar.filter(p => p.accion === 'crear').length} Nuevos
                       </span>
                       {productosAImportar.filter(p => p.accion === 'actualizar').length > 0 && (
-                        <span className="inline-flex items-center gap-1 bg-blue-100 dark:bg-blue-500/20 text-blue-700 dark:text-blue-300 font-bold px-2 py-0.5 rounded-full text-[11px]">
-                          🔵 {productosAImportar.filter(p => p.accion === 'actualizar').length} Existentes a actualizar
+                        <span className="inline-flex items-center gap-1.5 bg-blue-100 dark:bg-blue-500/20 text-blue-700 dark:text-blue-300 font-bold px-2 py-0.5 rounded-full text-[11px]">
+                          <span className="w-1.5 h-1.5 rounded-full bg-blue-500" /> {productosAImportar.filter(p => p.accion === 'actualizar').length} Existentes a actualizar
                         </span>
                       )}
                     </div>
@@ -4002,11 +4154,11 @@ export default function InventarioPage() {
                             <td className="p-3">
                               {prod.accion === 'actualizar' ? (
                                 <span className="inline-flex items-center gap-1 bg-blue-100 dark:bg-blue-500/20 text-blue-700 dark:text-blue-300 font-bold px-2 py-0.5 rounded-md text-[10px]">
-                                  🔵 Actualizará
+                                  Actualizará
                                 </span>
                               ) : (
                                 <span className="inline-flex items-center gap-1 bg-emerald-100 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 font-bold px-2 py-0.5 rounded-md text-[10px]">
-                                  🟢 Nuevo
+                                  Nuevo
                                 </span>
                               )}
                             </td>
@@ -4106,13 +4258,16 @@ export default function InventarioPage() {
           setModalEscanerInventario(false);
           if (codigoPrecargado) {
             setSku(codigoPrecargado);
-            toast.success(`Código "${codigoPrecargado}" cargado en el formulario.`, { icon: '🏷️' });
+            toast.success(`Código "${codigoPrecargado}" cargado en el formulario.`);
           }
           setModalProducto(true);
         }}
       />
       {esAdmin && modalExportarQR && (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center p-3 sm:p-4 z-[950] animate-in fade-in duration-200">
+        <div 
+          onClick={(e) => { if (e.target === e.currentTarget) setModalExportarQR(false); }}
+          className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center p-3 sm:p-4 z-[950] animate-in fade-in duration-200"
+        >
           <div className="bg-white dark:bg-[#0f172a] rounded-[2.5rem] w-full max-w-3xl shadow-2xl border border-slate-100 dark:border-slate-800 animate-in zoom-in-95 duration-200 overflow-hidden flex flex-col max-h-[92dvh]">
             
             {/* Header del Modal */}
@@ -4162,7 +4317,7 @@ export default function InventarioPage() {
                     </span>
                     <div className="flex items-center justify-between mb-1">
                       <span className="font-black text-sm text-slate-900 dark:text-white flex items-center gap-1.5">
-                        🏷️ Impresora Térmica (Rollo)
+                        Impresora Térmica (Rollo)
                       </span>
                       <CheckCircle2 size={16} className={tipoImpresoraQR === 'termica' ? "text-emerald-600" : "text-slate-300"} />
                     </div>
@@ -4182,7 +4337,7 @@ export default function InventarioPage() {
                   >
                     <div className="flex items-center justify-between mb-1">
                       <span className="font-black text-sm text-slate-900 dark:text-white flex items-center gap-1.5">
-                        📄 Hoja Carta / A4 (Oficina)
+                        Hoja Carta / A4 (Oficina)
                       </span>
                       <CheckCircle2 size={16} className={tipoImpresoraQR === 'hoja' ? "text-emerald-600" : "text-slate-300"} />
                     </div>
@@ -4310,7 +4465,7 @@ export default function InventarioPage() {
                         }`}
                       >
                         <div className="flex items-center justify-between mb-0.5">
-                          <span className="font-black text-xs text-slate-900 dark:text-white">⚙️ Personalizado</span>
+                          <span className="font-black text-xs text-slate-900 dark:text-white">Personalizado</span>
                         </div>
                         <p className="text-[10px] text-slate-500 dark:text-slate-400">Medida personalizada (mm)</p>
                       </div>
@@ -4479,7 +4634,7 @@ export default function InventarioPage() {
                             : 'bg-white dark:bg-[#0f172a] text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-800'
                         }`}
                       >
-                        📅 Creados hoy
+                        Creados hoy
                       </button>
                       <button
                         type="button"
@@ -4490,7 +4645,7 @@ export default function InventarioPage() {
                             : 'bg-white dark:bg-[#0f172a] text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-800'
                         }`}
                       >
-                        🗓️ Últimos 7 días
+                        Últimos 7 días
                       </button>
                       <button
                         type="button"
@@ -4501,7 +4656,7 @@ export default function InventarioPage() {
                             : 'bg-white dark:bg-[#0f172a] text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-800'
                         }`}
                       >
-                        📆 Desde fecha específica
+                        Desde fecha específica
                       </button>
                     </div>
 
@@ -4537,7 +4692,7 @@ export default function InventarioPage() {
                     }`}
                   >
                     <span className="font-black text-xs text-slate-900 dark:text-white block mb-0.5">
-                      📦 Según Stock
+                      Según Stock
                     </span>
                     <p className="text-[10px] text-slate-500 dark:text-slate-400">1 por unidad disponible</p>
                   </div>
@@ -4552,7 +4707,7 @@ export default function InventarioPage() {
                     }`}
                   >
                     <span className="font-black text-xs text-slate-900 dark:text-white block mb-0.5">
-                      🏷️ 1 por Producto
+                      1 por Producto
                     </span>
                     <p className="text-[10px] text-slate-500 dark:text-slate-400">Vitrinas o exhibidores</p>
                   </div>
@@ -4567,7 +4722,7 @@ export default function InventarioPage() {
                     }`}
                   >
                     <span className="font-black text-xs text-slate-900 dark:text-white block mb-0.5">
-                      🔢 Cantidad Fija
+                      Cantidad Fija
                     </span>
                     <p className="text-[10px] text-slate-500 dark:text-slate-400">Mismo número a todos</p>
                   </div>
@@ -4585,7 +4740,7 @@ export default function InventarioPage() {
                       Personalizado
                     </span>
                     <span className="font-black text-xs text-slate-900 dark:text-white block mb-0.5">
-                      ✨ Selectivo Pro
+                      Selectivo Pro
                     </span>
                     <p className="text-[10px] text-slate-500 dark:text-slate-400">Elegir cantidad por producto</p>
                   </div>
@@ -4643,7 +4798,7 @@ export default function InventarioPage() {
                           }}
                           className="text-[10px] font-black bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-700 px-2.5 py-1 rounded-lg text-slate-700 dark:text-slate-300 hover:bg-slate-100 active:scale-95"
                         >
-                          📦 Todos a stock
+                          Todos a stock
                         </button>
                         <button
                           type="button"
@@ -4654,7 +4809,7 @@ export default function InventarioPage() {
                           }}
                           className="text-[10px] font-black bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-700 px-2.5 py-1 rounded-lg text-slate-700 dark:text-slate-300 hover:bg-slate-100 active:scale-95"
                         >
-                          🏷️ Todos a 1
+                          Todos a 1
                         </button>
                       </div>
                     </div>
@@ -4783,6 +4938,11 @@ export default function InventarioPage() {
                       {formatearTextoSKU(productosParaExportarQR[0]?.sku || "CAM-001")}
                     </span>
                   )}
+                  {opcionCategoria && (
+                    <span className="text-[8px] font-semibold text-slate-400 uppercase tracking-wider leading-none mt-0.5 truncate max-w-full">
+                      {productosParaExportarQR[0]?.categoria || "General"}
+                    </span>
+                  )}
                   <div className="my-1.5 p-1 bg-white border border-slate-200 rounded-lg">
                     <QrCode size={46} className="text-slate-900" />
                   </div>
@@ -4900,7 +5060,7 @@ export default function InventarioPage() {
                     className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] sm:text-xs font-black shadow-md shadow-emerald-600/25 transition active:scale-95 cursor-pointer shrink-0"
                     title="Abrir el escáner de cámara"
                   >
-                    <ScanLine size={14} /> <span>📷 Escanear</span>
+                    <ScanLine size={14} /> <span>Escanear</span>
                   </button>
                 )}
                 
@@ -5018,7 +5178,11 @@ export default function InventarioPage() {
                         placeholder="Ej. Camisa Polo Manga Corta" 
                         className={`w-full py-2 px-3 bg-white dark:bg-[#020617] border rounded-xl outline-none font-bold text-xs sm:text-sm text-slate-900 dark:text-white transition-all shadow-xs ${errores.nombre ? 'border-rose-500 ring-2 ring-rose-500/30 bg-rose-50/20' : 'border-slate-200 dark:border-slate-700 focus:border-emerald-500'}`} 
                       />
-                      {errores.nombre && <p className="text-[10px] text-rose-500 font-bold flex items-center gap-1">⚠️ {errores.nombre}</p>}
+                      {errores.nombre && (
+                        <p className="text-[10px] text-rose-500 font-bold flex items-center gap-1">
+                          <AlertTriangle size={11} className="inline shrink-0" /> {errores.nombre}
+                        </p>
+                      )}
                       
                       {/* Detector compacto de similares */}
                       {!editandoId && nombre.trim().length >= 2 && (
@@ -5031,14 +5195,14 @@ export default function InventarioPage() {
 
                           return (
                             <div className="p-1.5 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/40 rounded-lg flex items-center justify-between gap-1.5 text-[11px] animate-in fade-in duration-150">
-                              <span className="text-amber-800 dark:text-amber-300 font-bold truncate">
-                                ⚠️ Ya existe: "{coincidencias[0].nombre}" (${Number(coincidencias[0].precioVenta || 0).toLocaleString('es-CO')})
+                              <span className="text-amber-800 dark:text-amber-300 font-bold truncate flex items-center gap-1">
+                                <AlertTriangle size={11} className="inline shrink-0" /> Ya existe: "{coincidencias[0].nombre}" (${Number(coincidencias[0].precioVenta || 0).toLocaleString('es-CO')})
                               </span>
                               <button
                                 type="button"
                                 onClick={() => {
                                   abrirEdicion(coincidencias[0]);
-                                  toast.success(`Cargado "${coincidencias[0].nombre}"`, { icon: '✏️' });
+                                  toast.success(`Cargado "${coincidencias[0].nombre}"`);
                                 }}
                                 className="px-2 py-0.5 bg-amber-500 hover:bg-amber-600 text-white font-bold rounded text-[10px] shrink-0 transition cursor-pointer"
                               >
@@ -5590,7 +5754,7 @@ export default function InventarioPage() {
                       className="w-full py-3 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-black rounded-xl text-xs sm:text-sm flex items-center justify-center gap-1.5 shadow-lg shadow-emerald-600/25 transition active:scale-95 cursor-pointer"
                     >
                       {guardando ? 'Guardando en inventario...' : (
-                        <>✓ Guardar Todo en Inventario ({productosEnCarga.reduce((acc, it) => acc + (Number(it.stock) || 0), 0)} un.)</>
+                        <>Guardar Todo en Inventario ({productosEnCarga.reduce((acc, it) => acc + (Number(it.stock) || 0), 0)} un.)</>
                       )}
                     </button>
                   </div>
@@ -5641,7 +5805,10 @@ export default function InventarioPage() {
 
       {/* MODAL CONFIRMAR ELIMINACIÓN DE PRODUCTO */}
       {esAdmin && productoAEliminar && (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 z-[960] animate-in fade-in duration-200">
+        <div 
+          onClick={(e) => { if (e.target === e.currentTarget && !eliminandoProducto) setProductoAEliminar(null); }}
+          className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 z-[960] animate-in fade-in duration-200"
+        >
           <div className="bg-white dark:bg-[#0f172a] rounded-[2.5rem] w-full max-w-md shadow-2xl border border-slate-100 dark:border-slate-800 p-6 md:p-8 animate-in zoom-in-95 duration-200">
             <div className="w-16 h-16 bg-rose-100 dark:bg-rose-500/20 text-rose-600 dark:text-rose-400 rounded-3xl flex items-center justify-center mx-auto mb-4 shadow-inner">
               <Trash2 size={30} />
@@ -5721,7 +5888,16 @@ export default function InventarioPage() {
 
       {/* MODAL DEDICADO DE GESTIÓN DE CATEGORÍAS (Portal z-[1000] para quedar siempre al frente de todo) */}
       {modalGestionCategorias && mounted && createPortal(
-        <div className="fixed inset-0 z-[1000] flex items-center justify-center p-3 sm:p-4 bg-slate-950/80 backdrop-blur-sm animate-in fade-in duration-150">
+        <div 
+          onClick={(e) => {
+            if (e.target === e.currentTarget) {
+              setModalGestionCategorias(false);
+              setCategoriaEditandoModal(null);
+              setNuevoNombreCatModal('');
+            }
+          }}
+          className="fixed inset-0 z-[1000] flex items-center justify-center p-3 sm:p-4 bg-slate-950/80 backdrop-blur-sm animate-in fade-in duration-150"
+        >
           <div className="bg-white dark:bg-[#0f172a] w-full max-w-lg rounded-3xl border border-slate-200 dark:border-slate-800 shadow-2xl overflow-hidden flex flex-col max-h-[90vh] animate-in zoom-in-95 duration-150">
             {/* Cabecera */}
             <div className="p-4 sm:p-5 border-b border-slate-100 dark:border-slate-800/80 flex items-center justify-between gap-3 bg-gradient-to-r from-violet-500/10 via-purple-500/5 to-transparent">
@@ -5824,7 +6000,7 @@ export default function InventarioPage() {
 
                 return listaFiltrada.map((cat) => {
                   const conteoProds = inventario.filter(
-                    (p) => (p.categoria || '').trim().toLowerCase() === cat.toLowerCase()
+                    (p) => normalizarCategoria(p.categoria) === normalizarCategoria(cat)
                   ).length;
                   const esGeneral = cat.toLowerCase() === 'general';
                   const estaEditando = categoriaEditandoModal === cat;
@@ -5855,7 +6031,7 @@ export default function InventarioPage() {
                             onClick={() => renombrarCategoriaGlobal(cat, nuevoNombreCatModal)}
                             className="px-2.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white rounded-lg text-xs font-bold transition cursor-pointer"
                           >
-                            ✓ Guardar
+                            Guardar
                           </button>
                           <button
                             type="button"
@@ -5873,7 +6049,7 @@ export default function InventarioPage() {
                         <>
                           <div className="flex items-center gap-2.5 min-w-0">
                             <span className="w-7 h-7 rounded-lg bg-violet-100 dark:bg-violet-950/60 text-violet-700 dark:text-violet-300 flex items-center justify-center text-xs shrink-0 font-black">
-                              🏷️
+                              <Tag size={13} className="text-violet-600 dark:text-violet-400" />
                             </span>
                             <div className="min-w-0">
                               <p className="text-xs sm:text-sm font-bold text-slate-800 dark:text-slate-100 truncate flex items-center gap-1.5">
@@ -5945,7 +6121,10 @@ export default function InventarioPage() {
 
       {/* MODAL DE CONFIRMACIÓN PROPIO PARA ELIMINAR CATEGORÍA (CERO MENSAJES DEL SISTEMA) */}
       {categoriaAEliminarConfirm && mounted && createPortal(
-        <div className="fixed inset-0 z-[1010] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md animate-in fade-in duration-150">
+        <div 
+          onClick={(e) => { if (e.target === e.currentTarget && !guardandoCatModal) setCategoriaAEliminarConfirm(null); }}
+          className="fixed inset-0 z-[1010] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md animate-in fade-in duration-150"
+        >
           <div className="bg-white dark:bg-[#0f172a] w-full max-w-md rounded-3xl border border-slate-200 dark:border-slate-800 shadow-2xl p-6 text-center animate-in zoom-in-95 duration-150">
             <div className="w-16 h-16 rounded-3xl bg-rose-50 dark:bg-rose-500/10 text-rose-500 flex items-center justify-center mx-auto mb-4 border border-rose-100 dark:border-rose-900/40 shadow-inner">
               <Trash2 size={30} />
@@ -5961,7 +6140,7 @@ export default function InventarioPage() {
                   Esta categoría tiene <strong className="text-slate-900 dark:text-white">{categoriaAEliminarConfirm.conteoProds} producto(s) asignados</strong>.
                 </p>
                 <div className="p-3 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/60 rounded-2xl text-[11px] text-amber-800 dark:text-amber-300 font-medium text-left">
-                  🛡️ <strong>Protección de catálogo:</strong> Para no dejar productos huérfanos, todos se reasignarán automáticamente a la categoría base <strong>"General"</strong>.
+                  <strong>Protección de catálogo:</strong> Para no dejar productos huérfanos, todos se reasignarán automáticamente a la categoría base <strong>"General"</strong>.
                 </div>
               </div>
             ) : (
@@ -6002,7 +6181,7 @@ export default function InventarioPage() {
                 <Camera size={17} className="text-violet-400" />
                 <span className="font-bold text-xs sm:text-sm">Foto del Producto</span>
                 <span className="text-[10px] bg-slate-800 text-slate-300 px-2 py-0.5 rounded-full font-medium">
-                  {facingMode === 'environment' ? '📷 Trasera' : '🤳 Frontal'}
+                  {facingMode === 'environment' ? 'Trasera' : 'Frontal'}
                 </span>
               </div>
               <div className="flex items-center gap-2">

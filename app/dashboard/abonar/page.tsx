@@ -54,6 +54,8 @@ function AbonarContenido() {
   
   const [nombreNuevo, setNombreNuevo] = useState("");
   const [celularNuevo, setCelularNuevo] = useState("");
+  const [direccionNuevo, setDireccionNuevo] = useState("");
+  const [notasNuevo, setNotasNuevo] = useState("");
   const [guardandoCliente, setGuardandoCliente] = useState(false);
 
   // Sonido de éxito al registrar abono
@@ -158,14 +160,32 @@ function AbonarContenido() {
     try {
       const token = await auth.currentUser?.getIdToken();
       if (!token) throw new Error('Sesión inválida.');
-      const respuesta = await fetch('/api/clientes/crear', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ nombre: nombreNuevo, celular: celularNuevo }) });
+      const respuesta = await fetch('/api/clientes/crear', { 
+        method: 'POST', 
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, 
+        body: JSON.stringify({ 
+          nombre: nombreNuevo.trim(), 
+          celular: celularNuevo.trim(),
+          direccion: direccionNuevo.trim(),
+          notas: notasNuevo.trim()
+        }) 
+      });
       const resultado = await respuesta.json();
       if (!respuesta.ok) throw new Error(resultado.error || 'No se pudo crear el cliente.');
       const nuevoObj = resultado.cliente;
-      setModalNuevoCliente(false); setNombreNuevo(""); setCelularNuevo(""); setBusquedaRegistro("");
+      setModalNuevoCliente(false); 
+      setNombreNuevo(""); 
+      setCelularNuevo(""); 
+      setDireccionNuevo("");
+      setNotasNuevo("");
+      setBusquedaRegistro("");
       await cargarDatosGlobales(cuentaPrincipalId!);
       setClienteTransaccion(nuevoObj); 
-    } catch (error) { toast.error("Error al guardar cliente."); } finally { setGuardandoCliente(false); }
+    } catch (error: any) { 
+      toast.error(error?.message || "Error al guardar cliente."); 
+    } finally { 
+      setGuardandoCliente(false); 
+    }
   };
 
   const formatearMonedaInput = (valor: string) => {
@@ -227,6 +247,13 @@ function AbonarContenido() {
         if (!respuestaAbonoSepare.ok) throw new Error(resAbonoSepare.error || 'No se pudo registrar el abono.');
 
         const nuevoSaldoPendiente = resAbonoSepare.nuevoSaldoPendiente;
+        const nuevoMontoPagado = resAbonoSepare.nuevoMontoPagado;
+
+        setSeparesCliente(prev => prev.map(s => s.id === separeSeleccionado.id ? {
+          ...s,
+          saldoPendiente: nuevoSaldoPendiente,
+          montoPagado: nuevoMontoPagado
+        } : s));
 
         reproducirSonidoExito();
 
@@ -438,10 +465,24 @@ Estamos atentos para cualquier consulta.
     abrirEnlaceWhatsApp(celularLimpio, agregarMediosPagoAlEstado(texto, datosSesion?.mediosPago, nombreNegocio || 'nuestra tienda', deudaActual));
   };
 
-  const clientesFiltradosRegistro = clientes.filter(c => 
-    c.nombre?.toLowerCase().includes(busquedaRegistro.toLowerCase()) ||
-    c.celular?.includes(busquedaRegistro)
-  );
+  const normalizarBusqueda = (texto: string) => {
+    return (texto || "")
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .trim();
+  };
+
+  const clientesFiltradosRegistro = clientes.filter(c => {
+    const query = normalizarBusqueda(busquedaRegistro);
+    if (!query) return false;
+    return (
+      normalizarBusqueda(c.nombre).includes(query) ||
+      (c.celular && c.celular.includes(busquedaRegistro.trim())) ||
+      normalizarBusqueda(c.notas || "").includes(query) ||
+      normalizarBusqueda(c.direccion || "").includes(query)
+    );
+  });
 
   const puedeAbonar: boolean = datosSesion?.puedeAbonar ?? true;
 
@@ -503,7 +544,14 @@ Estamos atentos para cualquier consulta.
                 {clienteTransaccion ? (
                   <div className="py-2 px-3 sm:py-2.5 sm:px-3.5 bg-blue-50 dark:bg-blue-500/10 rounded-xl border border-blue-200 flex justify-between items-center shadow-sm">
                     <div className="flex flex-col min-w-0 mr-2">
-                      <span className="font-black text-slate-900 dark:text-blue-300 text-sm sm:text-base truncate">{clienteTransaccion.nombre}</span>
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span className="font-black text-slate-900 dark:text-blue-300 text-sm sm:text-base truncate">{clienteTransaccion.nombre}</span>
+                        {clienteTransaccion.notas && (
+                          <span className="text-[10px] font-medium bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 border border-amber-200 dark:border-amber-700 px-1.5 py-0.5 rounded-md">
+                            {clienteTransaccion.notas}
+                          </span>
+                        )}
+                      </div>
                       <span className={`text-[11px] font-bold uppercase tracking-wider ${clienteTransaccion.deudaTotal > 0 ? 'text-rose-500' : 'text-emerald-500'}`}>
                         {clienteTransaccion.deudaTotal > 0 ? 'Deuda actual:' : 'Saldo a favor:'} ${Math.abs(clienteTransaccion.deudaTotal).toLocaleString('es-CO')}
                       </span>
@@ -531,7 +579,7 @@ Estamos atentos para cualquier consulta.
                           }
                         }
                       }}
-                      placeholder="Buscar por nombre o celular..."
+                      placeholder="Buscar por nombre, celular, apodo o notas..."
                       className="w-full pl-9 pr-3 py-2 sm:py-2.5 bg-white dark:bg-[#0f172a] border border-blue-200 dark:border-blue-800 rounded-xl text-xs sm:text-sm font-bold outline-none focus:border-blue-500 transition-colors shadow-sm text-slate-900 dark:!text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 placeholder:font-normal"
                     />
                     
@@ -541,8 +589,15 @@ Estamos atentos para cualquier consulta.
                           {clientesFiltradosRegistro.map(c => (
                             <div key={c.id} onClick={() => { setClienteTransaccion(c); setBusquedaRegistro(""); setMostrarResultadosBuscador(false); }} className="p-2.5 border-b border-slate-100 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer flex justify-between items-center text-xs sm:text-sm">
                               <div>
-                                <span className="font-bold text-slate-800 dark:text-slate-200 block">{c.nombre}</span>
-                                {c.celular && <span className="text-[10px] text-slate-400">{c.celular}</span>}
+                                <div className="flex items-center gap-1.5 flex-wrap">
+                                  <span className="font-bold text-slate-800 dark:text-slate-200">{c.nombre}</span>
+                                  {c.notas && (
+                                    <span className="text-[10px] font-medium bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-400 border border-amber-200/60 dark:border-amber-800/40 px-1.5 py-0.5 rounded-md">
+                                      {c.notas}
+                                    </span>
+                                  )}
+                                </div>
+                                {c.celular && <span className="text-[10px] text-slate-400 block">{c.celular}</span>}
                                 <span className={`text-[10px] font-black ${Number(c.deudaTotal || 0) > 0 ? 'text-rose-500' : Number(c.deudaTotal || 0) < 0 ? 'text-emerald-600' : 'text-slate-400'}`}>
                                   {Number(c.deudaTotal || 0) > 0 ? `Debe $${Number(c.deudaTotal).toLocaleString('es-CO')}` : Number(c.deudaTotal || 0) < 0 ? `A favor $${Math.abs(Number(c.deudaTotal)).toLocaleString('es-CO')}` : 'Al día'}
                                 </span>
@@ -892,16 +947,79 @@ Estamos atentos para cualquier consulta.
 
       {/* MODAL NUEVO CLIENTE (Con detección de Teléfono) */}
       {modalNuevoCliente && (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 z-[950]">
-          <div className="bg-white dark:bg-[#0f172a] p-8 rounded-[2.5rem] w-full max-w-md shadow-2xl border border-slate-100 animate-in zoom-in-95 duration-200">
-            <h3 className="text-3xl font-black text-slate-900 mb-6 flex items-center gap-2"><UserCog size={28}/> Crear Cliente</h3>
-            <div className="flex flex-col gap-4 mb-8">
-              <input type="text" value={nombreNuevo} onChange={(e) => setNombreNuevo(e.target.value)} placeholder="Nombre completo" className="w-full p-5 bg-slate-50 border rounded-2xl outline-none focus:border-blue-500 font-bold text-lg" />
-              <input type="tel" value={celularNuevo} onChange={(e) => setCelularNuevo(e.target.value)} placeholder="WhatsApp (Opcional)" className="w-full p-5 bg-slate-50 border rounded-2xl outline-none focus:border-blue-500 font-bold text-lg" />
+        <div 
+          onClick={(e) => { if (e.target === e.currentTarget) setModalNuevoCliente(false); }}
+          className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 z-[950] animate-in fade-in duration-200"
+        >
+          <div className="bg-white dark:bg-[#0f172a] p-6 sm:p-8 rounded-3xl sm:rounded-[2.5rem] w-full max-w-md shadow-2xl border border-slate-100 dark:border-slate-800 animate-in zoom-in-95 duration-200 relative">
+            <button 
+              onClick={() => setModalNuevoCliente(false)}
+              className="absolute top-5 right-5 p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition-colors"
+            >
+              <X size={20} />
+            </button>
+            <h3 className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-white mb-6 flex items-center gap-2">
+              <UserCog size={28} className="text-blue-600 dark:text-blue-400" /> Crear Cliente
+            </h3>
+            <div className="flex flex-col gap-3.5 mb-6">
+              <div>
+                <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-1">Nombre Completo *</label>
+                <input 
+                  type="text" 
+                  value={nombreNuevo} 
+                  onChange={(e) => setNombreNuevo(e.target.value)} 
+                  placeholder="Ej: Juan Pérez" 
+                  className="w-full p-3.5 sm:p-4 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl outline-none focus:border-blue-500 font-bold text-base text-slate-900 dark:text-white" 
+                  autoFocus
+                />
+              </div>
+              <div>
+                <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-1">WhatsApp / Celular (Opcional)</label>
+                <input 
+                  type="tel" 
+                  value={celularNuevo} 
+                  onChange={(e) => setCelularNuevo(e.target.value)} 
+                  placeholder="Ej: 3001234567" 
+                  className="w-full p-3.5 sm:p-4 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl outline-none focus:border-blue-500 font-bold text-base text-slate-900 dark:text-white" 
+                />
+              </div>
+              <div>
+                <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-1">Dirección (Opcional)</label>
+                <input 
+                  type="text" 
+                  value={direccionNuevo} 
+                  onChange={(e) => setDireccionNuevo(e.target.value)} 
+                  placeholder="Ej: Calle 10 # 5-20" 
+                  className="w-full p-3.5 sm:p-4 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl outline-none focus:border-blue-500 font-bold text-base text-slate-900 dark:text-white" 
+                />
+              </div>
+              <div>
+                <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-1">Notas / Referencia / Apodo (Opcional)</label>
+                <input 
+                  type="text" 
+                  value={notasNuevo} 
+                  onChange={(e) => setNotasNuevo(e.target.value)} 
+                  placeholder="Ej: Apodo (Cachaco), parentesco, referencia..." 
+                  className="w-full p-3.5 sm:p-4 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl outline-none focus:border-blue-500 font-bold text-base text-slate-900 dark:text-white" 
+                />
+              </div>
             </div>
-            <div className="grid grid-cols-2 gap-4">
-              <button onClick={() => setModalNuevoCliente(false)} className="bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold py-4 rounded-2xl text-lg">Cancelar</button>
-              <button onClick={guardarClienteNuevo} disabled={guardandoCliente} className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 rounded-2xl shadow-lg flex justify-center items-center gap-2 text-lg">Guardar <CheckCircle2 size={20}/></button>
+            <div className="grid grid-cols-2 gap-3 sm:gap-4">
+              <button 
+                type="button"
+                onClick={() => setModalNuevoCliente(false)} 
+                className="bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold py-3.5 rounded-xl text-base transition-colors"
+              >
+                Cancelar
+              </button>
+              <button 
+                type="button"
+                onClick={guardarClienteNuevo} 
+                disabled={guardandoCliente} 
+                className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3.5 rounded-xl shadow-lg flex justify-center items-center gap-2 text-base disabled:opacity-50 transition-colors"
+              >
+                {guardandoCliente ? "Guardando..." : "Guardar"} <CheckCircle2 size={18}/>
+              </button>
             </div>
           </div>
         </div>
@@ -921,8 +1039,26 @@ Estamos atentos para cualquier consulta.
               {modalExito.ticketDatos?.devuelta && modalExito.ticketDatos.devuelta > 0 && (
                 <p className="text-emerald-600 font-bold bg-emerald-50 p-2 rounded-lg">Entregar devuelta / cambio: ${modalExito.ticketDatos.devuelta.toLocaleString('es-CO')}</p>
               )}
-              <p className="text-sm mt-2">Nuevo saldo: <strong>${Math.abs(modalExito.cliente.deudaTotal).toLocaleString('es-CO')}</strong> {(modalExito.cliente.deudaTotal < 0) && "(A favor)"}</p>
+              {modalExito.esSepare ? (
+                <p className="text-sm mt-2">
+                  Saldo restante del Separe: <strong className={modalExito.saldoRestanteSepare === 0 ? "text-emerald-600" : "text-violet-600"}>
+                    ${(modalExito.saldoRestanteSepare ?? 0).toLocaleString('es-CO')}
+                  </strong>
+                  {modalExito.saldoRestanteSepare === 0 && " (100% Pagado)"}
+                </p>
+              ) : (
+                <p className="text-sm mt-2">Nuevo saldo: <strong>${Math.abs(modalExito.cliente.deudaTotal).toLocaleString('es-CO')}</strong> {(modalExito.cliente.deudaTotal < 0) && "(A favor)"}</p>
+              )}
             </div>
+
+            {modalExito.esSepare && modalExito.saldoRestanteSepare === 0 && (
+              <button
+                onClick={() => router.push('/dashboard/separes')}
+                className="w-full mb-3 bg-emerald-600 hover:bg-emerald-700 text-white font-black py-4 rounded-2xl shadow-lg flex justify-center items-center gap-2 text-base transition-transform active:scale-95 cursor-pointer"
+              >
+                <CheckCircle2 size={20} /> Ir a Entregar Separe (100% Pagado)
+              </button>
+            )}
             
             {modalExito.ticketDatos && (
               <button

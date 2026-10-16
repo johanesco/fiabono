@@ -9,7 +9,7 @@ import {
   Tag, AlertCircle, Printer, Image as ImageIcon, Banknote, 
   Smartphone, CreditCard, Zap, Trash2, UserCog, RotateCcw, 
   Upload, Package, Store, Check, FileText, Percent, Eye,
-  QrCode, Receipt, Crown, LayoutGrid, List, ShoppingCart, ChevronDown
+  QrCode, Receipt, Crown, LayoutGrid, List, ShoppingCart, ChevronDown, ArrowRightLeft
 } from 'lucide-react';
 import toast from "react-hot-toast";
 import { useAuth } from "@/hooks/AuthContext";
@@ -46,10 +46,15 @@ function SepareContenido() {
 
   // Protección estricta: La creación de nuevos separes requiere Plan PRO y permiso
   useEffect(() => {
+    if (datosSesion && datosSesion.moduloSepareActivo === false) {
+      toast.error("El módulo Plan Separe está deshabilitado en Ajustes.");
+      router.replace('/dashboard/separes');
+      return;
+    }
+
     if (datosSesion && !datosSesion.esPro) {
       toast.error("La creación de nuevos Planes Separe está disponible exclusivamente en el Plan PRO.", {
-        duration: 5000,
-        icon: "👑"
+        duration: 5000
       });
       router.replace('/dashboard/separes');
       return;
@@ -182,11 +187,19 @@ function SepareContenido() {
   const [modalNuevoCliente, setModalNuevoCliente] = useState(false);
   const [nombreNuevo, setNombreNuevo] = useState("");
   const [celularNuevo, setCelularNuevo] = useState("");
+  const [direccionNuevo, setDireccionNuevo] = useState("");
+  const [notasNuevo, setNotasNuevo] = useState("");
   const [guardandoCliente, setGuardandoCliente] = useState(false);
 
+  const normalizarBusquedaCli = (str: string) =>
+    (str || "").toString().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+
+  const qCliNorm = normalizarBusquedaCli(busquedaCliente);
   const clientesFiltrados = (clientes || []).filter((c: any) =>
-    (c.nombre || "").toLowerCase().includes(busquedaCliente.toLowerCase()) ||
-    (c.celular || "").toString().includes(busquedaCliente)
+    normalizarBusquedaCli(c.nombre || "").includes(qCliNorm) ||
+    normalizarBusquedaCli(c.notas || "").includes(qCliNorm) ||
+    normalizarBusquedaCli(c.direccion || "").includes(qCliNorm) ||
+    (c.celular || "").toString().includes(busquedaCliente.trim())
   );
 
   // Inventario de la base de datos
@@ -689,7 +702,16 @@ function SepareContenido() {
     try {
       const token = await auth.currentUser?.getIdToken();
       if (!token) throw new Error('Sesión inválida.');
-      const respuesta = await fetch('/api/clientes/crear', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ nombre: nombreNuevo, celular: celularNuevo }) });
+      const respuesta = await fetch('/api/clientes/crear', { 
+        method: 'POST', 
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, 
+        body: JSON.stringify({ 
+          nombre: nombreNuevo.trim(), 
+          celular: celularNuevo.trim(),
+          direccion: direccionNuevo.trim(),
+          notas: notasNuevo.trim()
+        }) 
+      });
       const resultado = await respuesta.json();
       if (!respuesta.ok) throw new Error(resultado.error || 'No se pudo crear el cliente.');
       const docRef = { id: resultado.id };
@@ -697,6 +719,8 @@ function SepareContenido() {
         id: docRef.id,
         nombre: nombreNuevo.trim(),
         celular: celularNuevo.trim(),
+        direccion: direccionNuevo.trim(),
+        notas: notasNuevo.trim(),
         deudaTotal: 0,
         usuarioId: cuentaPrincipalId
       };
@@ -705,10 +729,12 @@ function SepareContenido() {
       setModalNuevoCliente(false);
       setNombreNuevo("");
       setCelularNuevo("");
+      setDireccionNuevo("");
+      setNotasNuevo("");
       toast.success("Cliente registrado con éxito");
-    } catch (e) {
+    } catch (e: any) {
       console.error(e);
-      toast.error("Error al registrar cliente");
+      toast.error(e?.message || "Error al registrar cliente");
     } finally {
       setGuardandoCliente(false);
     }
@@ -2102,7 +2128,7 @@ Estamos atentos para cualquier consulta.
           Tu cuenta se encuentra en el <strong className="text-slate-900 dark:text-white">Plan {datosSesion.planActual === 'comercio' ? 'Comercio' : 'Gratuito'}</strong>. La creación de nuevos apartados requiere el <strong className="text-violet-600 dark:text-violet-400">Plan PRO</strong>.
           <br /><br />
           <span className="inline-block p-3 rounded-xl bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/60 text-amber-800 dark:text-amber-300 text-xs font-medium text-left">
-            🔒 <strong>Modo Liquidación Activo:</strong> Tus apartados anteriores se mantienen intactos en el módulo de Separes para que puedas seguir registrando abonos o entregándolos sin inconvenientes.
+            <strong>Modo Liquidación Activo:</strong> Tus apartados anteriores se mantienen intactos en el módulo de Separes para que puedas seguir registrando abonos o entregándolos sin inconvenientes.
           </span>
         </p>
         <div className="flex flex-col sm:flex-row gap-3 w-full">
@@ -2412,20 +2438,20 @@ Estamos atentos para cualquier consulta.
                                     <div className="mt-1 flex items-center gap-1.5 flex-wrap">
                                       {!esInv ? (
                                         <span className="text-[10px] font-bold text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-500/20 px-2 py-0.5 rounded-full inline-flex items-center gap-1">
-                                          🛠️ Servicio / Ilimitado
+                                          Servicio / Ilimitado
                                         </span>
                                       ) : estaAgotado ? (
                                         <span className="text-[10px] font-bold text-rose-700 dark:text-rose-400 bg-rose-100 dark:bg-rose-500/20 px-2.5 py-0.5 rounded-full inline-flex items-center gap-1">
-                                          🚫 Agotado ({cantEnOtras > 0 ? `${cantEnOtras} en tu lista` : '0 disponibles'})
+                                          Agotado ({cantEnOtras > 0 ? `${cantEnOtras} en tu lista` : '0 disponibles'})
                                         </span>
                                       ) : stockDisp <= 5 ? (
                                         <span className="text-[10px] font-bold text-amber-700 dark:text-amber-300 bg-amber-100 dark:bg-amber-500/20 px-2.5 py-0.5 rounded-full inline-flex items-center gap-1">
                                           <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse"></span>
-                                          ⚡ ¡Solo quedan {stockDisp}!
+                                          ¡Solo quedan {stockDisp}!
                                         </span>
                                       ) : (
                                         <span className="text-[10px] font-medium text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-500/10 px-2.5 py-0.5 rounded-full inline-flex items-center gap-1">
-                                          ✓ {stockDisp} disponibles
+                                          {stockDisp} disponibles
                                         </span>
                                       )}
                                     </div>
@@ -2705,14 +2731,14 @@ Estamos atentos para cualquier consulta.
                             onClick={() => manejarTraslado('vender')} 
                             className="flex-1 py-1.5 text-[9px] sm:text-[10px] font-black rounded-lg border border-emerald-300 dark:border-emerald-800 text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/30 hover:bg-emerald-100 dark:hover:bg-emerald-900/50 flex items-center justify-center gap-1 transition-colors cursor-pointer"
                         >
-                            🔄 Mover a Vender
+                            <ArrowRightLeft size={12} /> Mover a Vender
                         </button>
                         <button 
                             type="button"
                             onClick={() => manejarTraslado('fiar')} 
                             className="flex-1 py-1.5 text-[9px] sm:text-[10px] font-black rounded-lg border border-rose-300 dark:border-rose-800 text-rose-700 dark:text-rose-400 bg-rose-50 dark:bg-rose-950/30 hover:bg-rose-100 dark:hover:bg-rose-900/50 flex items-center justify-center gap-1 transition-colors cursor-pointer"
                         >
-                            🔄 Mover a Fiar
+                            <ArrowRightLeft size={12} /> Mover a Fiar
                         </button>
                     </div>
                 );
@@ -2777,8 +2803,15 @@ Estamos atentos para cualquier consulta.
                           className="p-2 border-b border-slate-100 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer flex justify-between items-center text-xs"
                         >
                           <div>
-                            <span className="font-bold text-slate-800 dark:text-slate-200 block">{c.nombre}</span>
-                            {c.celular && <span className="text-[10px] text-slate-400">{c.celular}</span>}
+                            <span className="font-bold text-slate-800 dark:text-slate-200 flex items-center gap-1.5 flex-wrap">
+                              <span>{c.nombre}</span>
+                              {c.notas && (
+                                <span className="text-[10px] font-bold px-1.5 py-0.2 rounded bg-amber-500/10 text-amber-700 dark:text-amber-300 border border-amber-500/20 truncate max-w-[140px]" title={c.notas}>
+                                  {c.notas}
+                                </span>
+                              )}
+                            </span>
+                            {c.celular && <span className="text-[10px] text-slate-400 block">{c.celular}</span>}
                             <span className={`text-[10px] font-black ${Number(c.deudaTotal || 0) > 0 ? 'text-rose-500' : Number(c.deudaTotal || 0) < 0 ? 'text-emerald-600' : 'text-slate-400'}`}>{Number(c.deudaTotal || 0) > 0 ? `Debe $${Number(c.deudaTotal).toLocaleString('es-CO')}` : Number(c.deudaTotal || 0) < 0 ? `A favor $${Math.abs(Number(c.deudaTotal)).toLocaleString('es-CO')}` : 'Al día'}</span>
                           </div>
                           <ChevronRight size={13} className="text-slate-400" />
@@ -3019,7 +3052,8 @@ Estamos atentos para cualquier consulta.
                 : 'bg-slate-300 dark:bg-slate-800 text-slate-500 opacity-60 cursor-not-allowed'
             } text-white font-black py-3 sm:py-3.5 px-4 rounded-xl sm:rounded-2xl shadow-lg flex items-center justify-center gap-2 text-sm sm:text-base transition-transform cursor-pointer`}
           >
-            <span>{totalSepare > 0 ? 'Siguiente: Cliente y Abono ➔' : 'Sin artículos'}</span>
+            <span>{totalSepare > 0 ? 'Siguiente: Cliente y Abono' : 'Sin artículos'}</span>
+            {totalSepare > 0 && <ChevronRight size={16} />}
           </button>
         </div>
       )}
@@ -3158,32 +3192,72 @@ Estamos atentos para cualquier consulta.
 
       {/* MODAL NUEVO CLIENTE RÁPIDO */}
       {modalNuevoCliente && (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 z-[210]">
-          <div className="bg-white dark:bg-[#0f172a] p-6 sm:p-8 rounded-3xl w-full max-w-md shadow-2xl border border-slate-100 dark:border-slate-800 space-y-4">
-            <h3 className="text-xl font-black text-slate-900 dark:text-white flex items-center gap-2">
-              <UserCog size={22} className="text-violet-600" /> Registrar Cliente
-            </h3>
-            <div className="space-y-3">
-              <input
-                type="text"
-                value={nombreNuevo}
-                onChange={(e) => setNombreNuevo(e.target.value)}
-                placeholder="Nombre completo"
-                className="w-full p-4 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl font-bold text-sm text-slate-900 dark:text-white outline-none focus:border-violet-500"
-              />
-              <input
-                type="tel"
-                value={celularNuevo}
-                onChange={(e) => setCelularNuevo(e.target.value)}
-                placeholder="WhatsApp (Opcional)"
-                className="w-full p-4 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl font-bold text-sm text-slate-900 dark:text-white outline-none focus:border-violet-500"
-              />
+        <div 
+          onClick={(e) => { if (e.target === e.currentTarget) setModalNuevoCliente(false); }}
+          className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 z-[210]"
+        >
+          <div className="bg-white dark:bg-[#0f172a] p-6 sm:p-7 rounded-[2.5rem] w-full max-w-md shadow-2xl border border-slate-100 dark:border-slate-800 space-y-4 animate-in zoom-in-95 duration-200">
+            <div className="flex items-center justify-between pb-1">
+              <h3 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white flex items-center gap-2">
+                <UserCog size={24} className="text-violet-600" /> Registrar Cliente
+              </h3>
+              <button 
+                type="button" 
+                onClick={() => setModalNuevoCliente(false)}
+                className="p-1.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-400 hover:text-slate-700 dark:hover:text-white transition-colors cursor-pointer"
+              >
+                <X size={18} />
+              </button>
             </div>
+
+            <div className="space-y-3">
+              <div>
+                <label className="text-xs font-bold text-slate-600 dark:text-slate-300 block mb-1">Nombre Completo *</label>
+                <input
+                  type="text"
+                  value={nombreNuevo}
+                  onChange={(e) => setNombreNuevo(e.target.value)}
+                  placeholder="Ej: Doña Carmen, Andrés..."
+                  className="w-full p-3.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl font-bold text-sm text-slate-900 dark:text-white outline-none focus:border-violet-500"
+                />
+              </div>
+              <div>
+                <label className="text-xs font-bold text-slate-600 dark:text-slate-300 block mb-1">Celular (WhatsApp)</label>
+                <input
+                  type="tel"
+                  value={celularNuevo}
+                  onChange={(e) => setCelularNuevo(e.target.value)}
+                  placeholder="Ej: 3101234567"
+                  className="w-full p-3.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl font-bold text-sm text-slate-900 dark:text-white outline-none focus:border-violet-500"
+                />
+              </div>
+              <div>
+                <label className="text-xs font-bold text-slate-600 dark:text-slate-300 block mb-1">Dirección o Referencia</label>
+                <input
+                  type="text"
+                  value={direccionNuevo}
+                  onChange={(e) => setDireccionNuevo(e.target.value)}
+                  placeholder="Ej: Carrera 5 # 12-30"
+                  className="w-full p-3.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl font-bold text-sm text-slate-900 dark:text-white outline-none focus:border-violet-500"
+                />
+              </div>
+              <div>
+                <label className="text-xs font-bold text-slate-600 dark:text-slate-300 block mb-1">Notas / Referencia / Apodo</label>
+                <textarea
+                  rows={2}
+                  value={notasNuevo}
+                  onChange={(e) => setNotasNuevo(e.target.value)}
+                  placeholder="Ej: Apodo (Cachaco), parentesco, notas..."
+                  className="w-full p-3 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl font-medium text-xs text-slate-900 dark:text-white outline-none focus:border-violet-500 resize-none"
+                />
+              </div>
+            </div>
+
             <div className="grid grid-cols-2 gap-3 pt-2">
               <button
                 type="button"
                 onClick={() => setModalNuevoCliente(false)}
-                className="bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-700 dark:text-slate-300 font-bold py-3.5 rounded-xl text-sm"
+                className="bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold py-3.5 rounded-xl text-sm transition-colors cursor-pointer"
               >
                 Cancelar
               </button>
@@ -3191,7 +3265,7 @@ Estamos atentos para cualquier consulta.
                 type="button"
                 onClick={guardarNuevoCliente}
                 disabled={guardandoCliente}
-                className="bg-violet-600 hover:bg-violet-700 text-white font-bold py-3.5 rounded-xl shadow-md text-sm"
+                className="bg-violet-600 hover:bg-violet-700 text-white font-bold py-3.5 rounded-xl shadow-md text-sm transition-all active:scale-95 disabled:opacity-50 cursor-pointer"
               >
                 {guardandoCliente ? "Guardando..." : "Guardar"}
               </button>

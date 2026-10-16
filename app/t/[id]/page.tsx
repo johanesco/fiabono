@@ -61,6 +61,7 @@ export default function PaginaTicketPublico() {
             descuentoValor: movData.descuentoValor,
             montoDescuento: movData.montoDescuento,
             saldoFavorAplicado: movData.montoPagadoConSaldoFavor,
+            facturaElectronica: movData.facturaElectronica
           });
           setCargando(false);
           return;

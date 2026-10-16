@@ -275,11 +275,14 @@ export default function EscanerInventarioModal({
       if (matchCarga) {
         return {
           id: matchCarga.productoId || matchCarga.id,
+          esExistente: Boolean(matchCarga.esExistente),
+          productoId: matchCarga.productoId,
           nombre: matchCarga.nombre,
           sku: matchCarga.sku,
           codigoBarras: matchCarga.sku,
           stock: matchCarga.stockActual ?? matchCarga.stock,
           precioVenta: matchCarga.precioVenta,
+          costoCompra: matchCarga.costoCompra,
           tipoProducto: matchCarga.tipoProducto || 'producto',
           categoria: matchCarga.categoria || 'General',
           inventariable: matchCarga.inventariable !== false
@@ -334,12 +337,13 @@ export default function EscanerInventarioModal({
     return null;
   };
 
-  // SUMAR PRODUCTO EXISTENTE AL FORMULARIO
+  // SUMAR PRODUCTO EXISTENTE O EN COLA AL FORMULARIO
   const agregarProductoExistenteAlFormulario = (prodData: any, cantidad: number) => {
+    const esExistenteEnCatalogo = prodData.esExistente !== undefined ? Boolean(prodData.esExistente) : true;
     const item: ItemCargaInventario = {
-      id: `carga_${prodData.id}`,
-      esExistente: true,
-      productoId: prodData.id,
+      id: esExistenteEnCatalogo ? `carga_${prodData.id}` : prodData.id,
+      esExistente: esExistenteEnCatalogo,
+      productoId: esExistenteEnCatalogo ? (prodData.productoId || prodData.id) : undefined,
       nombre: prodData.nombre,
       sku: prodData.sku || prodData.codigoBarras || '',
       stock: cantidad,
@@ -354,7 +358,7 @@ export default function EscanerInventarioModal({
     onAgregarOActualizarProducto(item);
     dispararFlash();
     reproducirSonidoExito();
-    toast.success(`Sumado al formulario: +${cantidad} a "${prodData.nombre}"`, { icon: '📦' });
+    toast.success(`Sumado al formulario: +${cantidad} a "${prodData.nombre}"`);
   };
 
   const manejarCodigoEscaneado = async (codigo: string) => {
@@ -443,7 +447,7 @@ export default function EscanerInventarioModal({
       toast.error("Ingresa un precio de venta mayor a $0.");
       return;
     }
-    const cantInicial = parseInt(nuevoStock) || 1;
+    const cantInicial = Math.max(1, parseInt(nuevoStock) || 1);
     const catFinal = nuevaCategoria.trim() || 'General';
     const codigoGuardar = codigoNoRegistrado.trim().toUpperCase();
 
@@ -451,56 +455,13 @@ export default function EscanerInventarioModal({
     procesandoRef.current = true;
 
     try {
-      const token = await auth.currentUser?.getIdToken();
-      if (!token) throw new Error('Sesión inválida.');
-      const respuesta = await fetch('/api/inventario/recibir', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({
-          productos: [{
-            nombre: nuevoNombre.trim(),
-            sku: codigoGuardar,
-            codigoBarras: codigoGuardar,
-            stock: cantInicial,
-            precioVenta: precioLimpio,
-            costoCompra: costoLimpio,
-            tipoProducto: 'producto',
-            categoria: catFinal,
-            inventariable: true
-          }]
-        })
-      });
-      const resultado = await respuesta.json();
-      if (!respuesta.ok) throw new Error(resultado.error || 'No se pudo crear el producto.');
-      const nuevoId = resultado.idsCreados?.[0] || `prod_${Date.now()}`;
-
-      // 2. Registrar en la memoria del escáner para que si se escanea nuevamente, lo detecte como EXISTENTE
-      const prodCreadoMemoria = {
-        id: nuevoId,
-        nombre: nuevoNombre.trim(),
-        sku: codigoGuardar,
-        codigoBarras: codigoGuardar,
-        stock: cantInicial,
-        precioVenta: precioLimpio,
-        costoCompra: costoLimpio,
-        tipoProducto: 'producto',
-        categoria: catFinal,
-        inventariable: true
-      };
-
-      if (inventario) {
-        inventario.push(prodCreadoMemoria);
-      }
-
-      // 3. Crear item para la lista / formulario
       const nuevoItem: ItemCargaInventario = {
-        id: `carga_${nuevoId}`,
-        esExistente: true,
-        productoId: nuevoId,
+        id: `manual_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+        esExistente: false,
         nombre: nuevoNombre.trim(),
         sku: codigoGuardar,
-        stock: Math.max(1, cantInicial),
-        stockActual: cantInicial,
+        stock: cantInicial,
+        stockActual: 0,
         precioVenta: precioLimpio,
         costoCompra: costoLimpio,
         categoria: catFinal,
@@ -512,8 +473,7 @@ export default function EscanerInventarioModal({
 
       dispararFlash();
       reproducirSonidoExito();
-      toast.success(`¡"${nuevoNombre.trim()}" guardado en base de datos (+${cantInicial} un.)!`, { 
-        icon: '✨', 
+      toast.success(`"${nuevoNombre.trim()}" sumado a la cola (+${cantInicial} un.)`, { 
         duration: 3500 
       });
 
@@ -525,8 +485,8 @@ export default function EscanerInventarioModal({
       setMostrarDropdownCategorias(false);
       setCodigoNoRegistrado(null);
     } catch (err: any) {
-      console.error("Error al guardar producto en Firestore:", err);
-      toast.error("Error al guardar en base de datos. Intenta nuevamente.");
+      console.error("Error al agregar producto a la cola:", err);
+      toast.error("Error al agregar a la lista. Intenta nuevamente.");
     } finally {
       procesandoRef.current = false;
       setProcesando(false);
@@ -689,7 +649,7 @@ export default function EscanerInventarioModal({
                     disabled={procesando}
                     className="flex-[2] py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl shadow-lg transition-colors flex items-center justify-center gap-2 disabled:opacity-50 cursor-pointer text-xs"
                   >
-                    {procesando ? 'Sumando...' : '➕ Sumar al Formulario'}
+                    {procesando ? 'Sumando...' : <><Plus size={14} /> Sumar al Formulario</>}
                   </button>
                 </div>
               </div>
@@ -894,7 +854,7 @@ export default function EscanerInventarioModal({
                 <div>
                   <div className="flex items-center justify-between mb-1">
                     <label className="text-xs font-bold text-indigo-300 flex items-center gap-1">
-                      <span>💰 Costo de Compra ($)</span>
+                      <span>Costo de Compra ($)</span>
                     </label>
                     <span className="text-[10px] text-slate-400 font-medium">Exclusivo Admin (Opcional)</span>
                   </div>
@@ -989,7 +949,7 @@ export default function EscanerInventarioModal({
                 onClick={agregarNuevoProductoAlFormulario}
                 className="w-full py-3.5 bg-emerald-600 hover:bg-emerald-500 text-white font-black rounded-2xl shadow-lg shadow-emerald-600/20 text-sm flex items-center justify-center gap-2 cursor-pointer active:scale-95 transition-all"
               >
-                <Plus size={16} /> ⚡ Sumar al Formulario y Seguir Escaneando
+                <Zap size={16} /> Sumar al Formulario y Seguir Escaneando
               </button>
 
               <div className="flex gap-2">

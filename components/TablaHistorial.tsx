@@ -1,6 +1,6 @@
 "use client";
 import { Movimiento } from "../types";
-import { Printer } from "lucide-react";
+import { Printer, RotateCcw, Package, User } from "lucide-react";
 
 interface TablaHistorialProps {
   movimientos: Movimiento[];
@@ -8,9 +8,12 @@ interface TablaHistorialProps {
   onRowClick?: (clienteId?: string, tipo?: string) => void;
   onMovimientoClick?: (mov: Movimiento) => void;
   onImprimir?: (mov: Movimiento) => void;
+  onDevolucion?: (mov: Movimiento) => void;
+  puedeHacerDevolucion?: boolean;
+  onReintentarNC?: (mov: Movimiento) => void;
 }
 
-export default function TablaHistorial({ movimientos, getNombreCliente, onRowClick, onMovimientoClick, onImprimir }: TablaHistorialProps) {
+export default function TablaHistorial({ movimientos, getNombreCliente, onRowClick, onMovimientoClick, onImprimir, onDevolucion, puedeHacerDevolucion, onReintentarNC }: TablaHistorialProps) {
   return (
     <div className="hidden md:block w-full bg-white dark:bg-[#0f172a] rounded-2xl border border-slate-100 dark:border-slate-800/60 shadow-sm overflow-x-auto">
       <table className="w-full text-left border-collapse">
@@ -21,7 +24,7 @@ export default function TablaHistorial({ movimientos, getNombreCliente, onRowCli
             <th className="py-2.5 px-2.5 sm:px-3 lg:px-4 font-black text-slate-500 uppercase text-[10px] sm:text-[11px] tracking-wider">Descripción</th>
             <th className="py-2.5 px-2.5 sm:px-3 lg:px-4 font-black text-slate-500 uppercase text-[10px] sm:text-[11px] tracking-wider">Tipo</th>
             <th className="py-2.5 px-2.5 sm:px-3 lg:px-4 font-black text-slate-500 uppercase text-[10px] sm:text-[11px] tracking-wider text-right whitespace-nowrap">Monto</th>
-            <th className="py-2.5 px-2.5 sm:px-3 lg:px-4 font-black text-slate-500 uppercase text-[10px] sm:text-[11px] tracking-wider text-center w-12">Doc</th>
+            <th className="py-2.5 px-2.5 sm:px-3 lg:px-4 font-black text-slate-500 uppercase text-[10px] sm:text-[11px] tracking-wider text-center min-w-[70px]">Acciones</th>
           </tr>
         </thead>
         <tbody>
@@ -52,15 +55,17 @@ export default function TablaHistorial({ movimientos, getNombreCliente, onRowCli
                     </span>
                   </div>
                   {mov.registradoPor && (
-                    <div className="text-[9.5px] sm:text-[10px] font-medium text-slate-400/90 truncate max-w-[100px] sm:max-w-[140px]">
-                      👤 {esIngresoInv ? `Recibido: ${mov.registradoPor}` : mov.registradoPor}
+                    <div className="text-[9.5px] sm:text-[10px] font-medium text-slate-400/90 truncate max-w-[100px] sm:max-w-[140px] flex items-center gap-0.5">
+                      <User size={10} className="shrink-0 text-slate-400" />
+                      <span className="truncate">{esIngresoInv ? `Recibido: ${mov.registradoPor}` : mov.registradoPor}</span>
                     </div>
                   )}
                 </td>
                 <td className="py-2.5 px-2.5 sm:px-3 lg:px-4 font-bold text-xs sm:text-sm text-slate-800 dark:text-slate-200">
                   {esIngresoInv ? (
                     <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-lg bg-sky-100 text-sky-800 dark:bg-sky-950/50 dark:text-sky-300 text-[10px] sm:text-[11px] font-black">
-                      📦 Entrada
+                      <Package size={12} className="shrink-0" />
+                      <span>Entrada</span>
                     </span>
                   ) : (
                     <span 
@@ -84,7 +89,7 @@ export default function TablaHistorial({ movimientos, getNombreCliente, onRowCli
                   </div>
                 </td>
                 <td className="py-2.5 px-2.5 sm:px-3 lg:px-4 whitespace-nowrap">
-                  <span className={`px-1.5 sm:px-2 py-0.5 rounded-md text-[9.5px] sm:text-[10.5px] font-black uppercase ${
+                  <span className={`px-1.5 sm:px-2 py-0.5 rounded-md text-[9.5px] sm:text-[10.5px] font-black uppercase inline-flex items-center gap-1 ${
                     esIngresoInv ? 'bg-sky-100 text-sky-700 dark:bg-sky-950/40 dark:text-sky-300' :
                     mov.tipo === 'devolucion' ? 'bg-amber-100 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300' :
                     mov.tipo === 'egreso' ? 'bg-amber-100 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300' :
@@ -93,11 +98,25 @@ export default function TablaHistorial({ movimientos, getNombreCliente, onRowCli
                     mov.tipo === 'fiado' ? 'bg-rose-100 text-rose-600 dark:bg-rose-950/40 dark:text-rose-300' : 
                     mov.tipo === 'venta' ? 'bg-emerald-100 text-emerald-600 dark:bg-emerald-950/40 dark:text-emerald-300' : 'bg-blue-100 text-blue-600 dark:bg-blue-950/40 dark:text-blue-300'
                   }`}>
-                    {esIngresoInv ? '📦 INV' :
-                     mov.tipo === 'devolucion' ? '↩ DEVOLUCIÓN' :
-                     mov.tipo === 'egreso' ? 'EGRESO' :
-                     mov.tipo === 'entrega_separe' ? 'ENTREGA' :
-                     (mov.separeId || mov.descripcion?.toLowerCase().includes('separe') ? '✦ SEPARE' : mov.tipo)}
+                    {esIngresoInv ? (
+                      <>
+                        <Package size={11} className="shrink-0" />
+                        <span>INV</span>
+                      </>
+                    ) : mov.tipo === 'devolucion' ? (
+                      <>
+                        <RotateCcw size={11} className="shrink-0" />
+                        <span>DEVOLUCIÓN</span>
+                      </>
+                    ) : mov.tipo === 'egreso' ? (
+                      'EGRESO'
+                    ) : mov.tipo === 'entrega_separe' ? (
+                      'ENTREGA'
+                    ) : (mov.separeId || mov.descripcion?.toLowerCase().includes('separe')) ? (
+                      'SEPARE'
+                    ) : (
+                      mov.tipo
+                    )}
                   </span>
                 </td>
                 <td className={`py-2.5 px-2.5 sm:px-3 lg:px-4 font-black text-right text-xs sm:text-sm lg:text-base whitespace-nowrap ${
@@ -111,19 +130,42 @@ export default function TablaHistorial({ movimientos, getNombreCliente, onRowCli
                 }`}>
                   {esIngresoInv ? `+${(mov as any).cantidadAgregada || 1} un.` : `${mov.tipo === 'fiado' || mov.tipo === 'egreso' || mov.tipo === 'devolucion' ? '-' : '+'}$${mov.monto.toLocaleString('es-CO')}`}
                 </td>
-                <td className="py-2.5 px-2.5 sm:px-3 lg:px-4 text-center w-12" onClick={(e) => e.stopPropagation()}>
-                  {!esIngresoInv && onImprimir ? (
-                    <button
-                      type="button"
-                      onClick={() => onImprimir(mov)}
-                      title="Imprimir Factura / Ticket"
-                      className="p-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-blue-50 dark:hover:bg-blue-500/20 hover:text-blue-600 dark:hover:text-blue-400 transition-colors mx-auto inline-flex items-center justify-center cursor-pointer"
-                    >
-                      <Printer size={14} />
-                    </button>
-                  ) : (
-                    <span className="text-slate-300 dark:text-slate-600 text-xs">—</span>
-                  )}
+                <td className="py-2.5 px-2.5 sm:px-3 lg:px-4 text-center whitespace-nowrap min-w-[70px]" onClick={(e) => e.stopPropagation()}>
+                  <div className="flex items-center justify-center gap-1.5">
+                    {!esIngresoInv && onImprimir && (
+                      <button
+                        type="button"
+                        onClick={() => onImprimir(mov)}
+                        title="Imprimir Factura / Ticket"
+                        className="p-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-blue-50 dark:hover:bg-blue-500/20 hover:text-blue-600 dark:hover:text-blue-400 transition-colors inline-flex items-center justify-center cursor-pointer"
+                      >
+                        <Printer size={14} />
+                      </button>
+                    )}
+                    {(mov.tipo === 'venta' || mov.tipo === 'fiado') && mov.detalles && mov.detalles.length > 0 && onDevolucion && (puedeHacerDevolucion !== false) && (
+                      <button
+                        type="button"
+                        onClick={() => onDevolucion(mov)}
+                        title="Hacer Devolución"
+                        className="p-1.5 rounded-lg bg-amber-50 hover:bg-amber-100 dark:bg-amber-900/30 dark:hover:bg-amber-900/50 text-amber-600 dark:text-amber-400 border border-amber-200 dark:border-amber-800/60 transition-colors inline-flex items-center justify-center cursor-pointer"
+                      >
+                        <RotateCcw size={13} />
+                      </button>
+                    )}
+                    {mov.tipo === 'devolucion' && mov.errorNotaCredito && !mov.notaCreditoElectronica && onReintentarNC && (
+                      <button
+                        type="button"
+                        onClick={() => onReintentarNC(mov)}
+                        title={`Nota Crédito DIAN pendiente: ${mov.errorNotaCredito}. Clic para reintentar`}
+                        className="px-2 py-1 rounded-lg bg-rose-50 hover:bg-rose-100 dark:bg-rose-900/30 dark:hover:bg-rose-900/50 text-rose-600 dark:text-rose-400 border border-rose-200 dark:border-rose-800/60 text-[10px] font-black whitespace-nowrap transition-colors cursor-pointer"
+                      >
+                        Reintentar NC
+                      </button>
+                    )}
+                    {esIngresoInv && (
+                      <span className="text-slate-300 dark:text-slate-600 text-xs">—</span>
+                    )}
+                  </div>
                 </td>
               </tr>
             );

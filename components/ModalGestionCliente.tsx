@@ -244,7 +244,10 @@ export default function ModalGestionCliente({
     };
 
     const modalJSX = (
-      <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-3 sm:p-4 z-[999999] animate-in fade-in duration-200 overflow-y-auto">
+      <div 
+        onClick={(e) => { if (e.target === e.currentTarget && !procesando) onClose(); }}
+        className="fixed inset-0 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-3 sm:p-4 z-[999999] animate-in fade-in duration-200 overflow-y-auto"
+      >
         <div className="bg-white dark:bg-[#0f172a] rounded-[2.5rem] w-full max-w-md shadow-2xl border border-slate-100 dark:border-slate-800/80 overflow-hidden flex flex-col my-auto max-h-[92vh]">
         
         {/* ENCABEZADO */}
@@ -318,11 +321,11 @@ export default function ModalGestionCliente({
             </div>
 
             <div>
-              <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1.5">Notas / Referencias</label>
+              <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1.5">Notas / Referencia / Apodo</label>
               <textarea
                 value={notas}
                 onChange={(e) => setNotas(e.target.value)}
-                placeholder="Notas útiles para futuras ventas (opcional)"
+                placeholder="Ej: Apodo (Cachaco), parentesco (Hermana de Juan), referencia..."
                 rows={3}
                 className="w-full p-4 bg-slate-50 dark:bg-[#020617] border border-slate-200 dark:border-slate-800 rounded-2xl outline-none focus:border-blue-500 dark:text-white font-medium text-base transition-colors resize-none"
               />

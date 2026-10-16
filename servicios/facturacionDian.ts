@@ -131,10 +131,23 @@ export function construirPayloadFacturaUbl21({
   const montoDescuento = Number(movimiento.montoDescuento || 0);
   const valorIva = Number(movimiento.valorIva || 0);
 
-  // Fecha y hora actual
+  // Fecha y hora oficial en zona horaria Colombia (America/Bogota - UTC-5)
   const ahora = new Date();
-  const fechaStr = ahora.toISOString().slice(0, 10); // 'YYYY-MM-DD'
-  const horaStr = ahora.toTimeString().slice(0, 8);  // 'HH:mm:ss'
+  const colombiaFormatter = new Intl.DateTimeFormat('es-CO', {
+    timeZone: 'America/Bogota',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false
+  });
+  const partes = colombiaFormatter.formatToParts(ahora);
+  const pMap: Record<string, string> = {};
+  partes.forEach(p => { pMap[p.type] = p.value; });
+  const fechaStr = `${pMap.year}-${pMap.month}-${pMap.day}`;
+  const horaStr = `${pMap.hour || '12'}:${pMap.minute || '00'}:${pMap.second || '00'}`;
 
   // Mapear líneas de artículos
   const detalles = movimiento.detalles || [];
@@ -305,6 +318,256 @@ export async function emitirFacturaDian(params: ParametrosEmisionFactura): Promi
     return {
       success: false,
       error: err?.message || 'Error de conexión con el servicio de facturación electrónica.'
+    };
+  }
+}
+
+export interface ParametrosEmisionNotaCredito {
+  movimientoDevolucion: Partial<Movimiento> & { id: string; monto: number };
+  movimientoFacturaOriginal: Partial<Movimiento> & { facturaElectronica: DatosFacturaElectronica };
+  cliente?: Partial<Cliente> | null;
+  resolucion?: string;
+  prefijo?: string;
+  consecutivo?: number;
+  ambiente?: 'sandbox' | 'produccion';
+  tokenOverride?: string;
+  motivo?: 'devolucion' | 'anulacion';
+  descripcionMotivo?: string;
+}
+
+/**
+ * Construye el payload JSON para Nota Crédito Electrónica según MATIAS API.
+ */
+export function construirPayloadNotaCreditoUbl21({
+  movimientoDevolucion,
+  movimientoFacturaOriginal,
+  cliente,
+  resolucion = '18763005880468',
+  prefijo = 'NC',
+  consecutivo = 1,
+  motivo = 'devolucion',
+  descripcionMotivo
+}: {
+  movimientoDevolucion: Partial<Movimiento> & { id: string; monto: number };
+  movimientoFacturaOriginal: Partial<Movimiento> & { facturaElectronica: DatosFacturaElectronica };
+  cliente?: Partial<Cliente> | null;
+  resolucion?: string;
+  prefijo?: string;
+  consecutivo?: number;
+  motivo?: 'devolucion' | 'anulacion';
+  descripcionMotivo?: string;
+}) {
+  const feOriginal = movimientoFacturaOriginal.facturaElectronica;
+  const numeroFacturaOriginal = feOriginal.numeroFactura || 'FEV1';
+  const cufeOriginal = feOriginal.cufe || '';
+
+  let fechaFacturaOriginalStr = '';
+  if (feOriginal.fechaEmision) {
+    fechaFacturaOriginalStr = feOriginal.fechaEmision.split('T')[0];
+  } else if (movimientoFacturaOriginal.fecha) {
+    const fObj = new Date(movimientoFacturaOriginal.fecha?.toDate ? movimientoFacturaOriginal.fecha.toDate() : movimientoFacturaOriginal.fecha);
+    fechaFacturaOriginalStr = !isNaN(fObj.getTime()) ? fObj.toISOString().split('T')[0] : '';
+  }
+  if (!fechaFacturaOriginalStr) {
+    fechaFacturaOriginalStr = new Date().toISOString().split('T')[0];
+  }
+
+  const customer = construirClienteDian(cliente, movimientoFacturaOriginal.clienteNombre || movimientoDevolucion.clienteNombre);
+  const totalDevuelto = Number(movimientoDevolucion.monto || 0);
+
+  const ahora = new Date();
+  const colombiaFormatter = new Intl.DateTimeFormat('es-CO', {
+    timeZone: 'America/Bogota',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false
+  });
+  const partes = colombiaFormatter.formatToParts(ahora);
+  const pMap: Record<string, string> = {};
+  partes.forEach(p => { pMap[p.type] = p.value; });
+  const fechaStr = `${pMap.year}-${pMap.month}-${pMap.day}`;
+  const horaStr = `${pMap.hour || '12'}:${pMap.minute || '00'}:${pMap.second || '00'}`;
+
+  const articulos = (movimientoDevolucion.articulosDevueltos && movimientoDevolucion.articulosDevueltos.length > 0)
+    ? movimientoDevolucion.articulosDevueltos
+    : (movimientoDevolucion.detalles || []);
+
+  let lines: any[] = [];
+  if (articulos.length > 0) {
+    lines = articulos.map((art: any, index: number) => {
+      const cantidad = Math.max(1, Number(art.cantidad || 1));
+      const valorUnitario = Number(art.valorUnitario || (art.subtotal ? art.subtotal / cantidad : (art.valor ? art.valor / cantidad : 0)));
+      const lineExtension = valorUnitario * cantidad;
+
+      return {
+        quantity_units_id: 70,
+        invoiced_quantity: String(cantidad),
+        base_quantity: '1',
+        price_amount: valorUnitario.toFixed(2),
+        line_extension_amount: lineExtension.toFixed(2),
+        description: art.descripcion?.trim() || `Artículo devuelto #${index + 1}`,
+        code: `DEV-${index + 1}`,
+        type_item_identifications_id: 4,
+        free_of_charge_indicator: false
+      };
+    });
+  } else {
+    lines = [{
+      quantity_units_id: 70,
+      invoiced_quantity: '1',
+      base_quantity: '1',
+      price_amount: totalDevuelto.toFixed(2),
+      line_extension_amount: totalDevuelto.toFixed(2),
+      description: movimientoDevolucion.descripcion?.trim() || 'Devolución de mercancía',
+      code: 'DEV-001',
+      type_item_identifications_id: 4,
+      free_of_charge_indicator: false
+    }];
+  }
+
+  const payableAmount = totalDevuelto.toFixed(2);
+  const esAnulacion = motivo === 'anulacion';
+
+  const payload: any = {
+    resolution_number: resolucion,
+    prefix: prefijo,
+    document_number: consecutivo,
+    date: fechaStr,
+    time: horaStr,
+    notes: (descripcionMotivo || (esAnulacion ? 'Anulación de factura electrónica' : 'Devolución de parte de los bienes')).slice(0, 100),
+    operation_type_id: 12,
+    type_document_id: 5,
+    graphic_representation: 1,
+    send_email: (customer.email && customer.email !== 'consumidorfinal@fiabono.com') ? 1 : 0,
+    currency_id: 272,
+    customer,
+    payments: [{
+      payment_method_id: 1,
+      means_payment_id: 10,
+      value_paid: payableAmount,
+      payment_due_date: fechaStr
+    }],
+    discrepancy_response: {
+      reference_id: numeroFacturaOriginal,
+      response_id: esAnulacion ? "2" : "1",
+      description: esAnulacion ? "Anulacion de factura electronica" : "Devolucion de parte de los bienes y/o no aceptacion parcial del servicio"
+    },
+    billing_reference: {
+      number: numeroFacturaOriginal,
+      date: fechaFacturaOriginalStr,
+      uuid: cufeOriginal
+    },
+    legal_monetary_totals: {
+      line_extension_amount: payableAmount,
+      tax_exclusive_amount: payableAmount,
+      tax_inclusive_amount: payableAmount,
+      payable_amount: payableAmount
+    },
+    lines
+  };
+
+  return payload;
+}
+
+/**
+ * Envía una Nota Crédito Electrónica a MATIAS API para anulación o devolución ante la DIAN.
+ */
+export async function emitirNotaCreditoDian(params: ParametrosEmisionNotaCredito): Promise<RespuestaEmisionDian> {
+  const ambiente = params.ambiente || 'sandbox';
+  const baseUrl = ambiente === 'produccion'
+    ? (process.env.MATIAS_API_URL_PROD || 'https://api-v2.matias-api.com')
+    : (process.env.MATIAS_API_URL_SANDBOX || 'https://sandbox-api.matias-api.com');
+
+  const token = params.tokenOverride || (
+    ambiente === 'produccion'
+      ? process.env.MATIAS_API_TOKEN_PROD
+      : process.env.MATIAS_API_TOKEN_SANDBOX
+  );
+
+  if (!token) {
+    return {
+      success: false,
+      error: `Token de MATIAS API (${ambiente}) no configurado.`
+    };
+  }
+
+  const prefijo = params.prefijo || (ambiente === 'produccion' ? 'NC' : 'NCFE');
+  const resolucion = params.resolucion || '18760000001';
+  const consecutivo = params.consecutivo || 1;
+
+  const payload = construirPayloadNotaCreditoUbl21({
+    movimientoDevolucion: params.movimientoDevolucion,
+    movimientoFacturaOriginal: params.movimientoFacturaOriginal,
+    cliente: params.cliente,
+    resolucion,
+    prefijo,
+    consecutivo,
+    motivo: params.motivo,
+    descripcionMotivo: params.descripcionMotivo
+  });
+
+  try {
+    const res = await fetch(`${baseUrl}/api/ubl2.1/notes/credit`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json',
+        'Accept': 'application/json'
+      },
+      body: JSON.stringify(payload)
+    });
+
+    const data = await res.json().catch(() => null);
+
+    if (!res.ok || !data) {
+      const mensaje = data?.message || `Error del servidor DIAN en Nota Crédito (HTTP ${res.status})`;
+      return {
+        success: false,
+        error: mensaje,
+        detallesError: data?.errors || data
+      };
+    }
+
+    if (data.success || data.XmlDocumentKey || data.response?.XmlDocumentKey) {
+      const cude = data.XmlDocumentKey || data.response?.XmlDocumentKey || data.uuid;
+      const qrUrl = data.qr?.url || data.qr?.qrDian || (typeof data.qr === 'string' ? data.qr : undefined);
+      const pdfUrl = data.pdf?.url || (typeof data.pdf === 'string' ? data.pdf : undefined);
+      const numeroNota = `${prefijo}${consecutivo}`;
+
+      const datos: DatosFacturaElectronica = {
+        estado: 'emitida',
+        tipoDocumento: 'nota_credito',
+        cufe: cude,
+        cude: cude,
+        qr: qrUrl,
+        numeroFactura: numeroNota,
+        numeroNotaCredito: numeroNota,
+        facturaReferenciada: params.movimientoFacturaOriginal.facturaElectronica.numeroFactura,
+        prefijo,
+        fechaEmision: new Date().toISOString(),
+        urlPdf: pdfUrl,
+        ambiente
+      };
+
+      return {
+        success: true,
+        datos
+      };
+    }
+
+    return {
+      success: false,
+      error: data.message || 'La DIAN no devolvió aprobación para la Nota Crédito.',
+      detallesError: data
+    };
+  } catch (err: any) {
+    return {
+      success: false,
+      error: err?.message || 'Error de conexión con el servicio de Nota Crédito DIAN.'
     };
   }
 }

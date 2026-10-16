@@ -18,7 +18,7 @@ export async function POST(request: Request) {
     }
 
     // Verificación de seguridad: solo el SuperAdmin Master (Johan) puede generar estos enlaces
-    if (decodedToken.email !== 'johanescobar1@gmail.com') {
+    if (decodedToken.email?.toLowerCase().trim() !== 'johanescobar1@gmail.com') {
       return NextResponse.json({ error: 'Acceso restringido únicamente al SuperAdmin Master.' }, { status: 403 });
     }
 

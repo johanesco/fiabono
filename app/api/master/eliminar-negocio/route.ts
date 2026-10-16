@@ -43,7 +43,7 @@ export async function POST(request: Request) {
     }
 
     // Verificación de seguridad estricta: solo el SuperAdmin Master (Johan)
-    if (decodedToken.email !== 'johanescobar1@gmail.com') {
+    if (decodedToken.email?.toLowerCase().trim() !== 'johanescobar1@gmail.com') {
       return NextResponse.json({ error: 'Acceso denegado. Solo el SuperAdmin Master puede ejecutar purgas.' }, { status: 403 });
     }
 
@@ -68,7 +68,7 @@ export async function POST(request: Request) {
     }
 
     const targetData = targetUserSnap.data() || {};
-    if (targetData.email === 'johanescobar1@gmail.com') {
+    if (targetData.email?.toLowerCase().trim() === 'johanescobar1@gmail.com') {
       return NextResponse.json({ error: 'Accion bloqueada: Esta cuenta esta protegida permanentemente.' }, { status: 403 });
     }
 
@@ -97,11 +97,15 @@ export async function POST(request: Request) {
     // 2. Eliminar colecciones asociadas en cascada
     const coleccionesAsociadas = [
       'inventario',
+      'productos',
       'clientes',
       'movimientos',
       'separes',
       'ordenes_pendientes',
-      'caja_mostrador'
+      'caja_mostrador',
+      'categorias',
+      'cierres_caja',
+      'controles_devolucion'
     ];
 
     for (const colName of coleccionesAsociadas) {

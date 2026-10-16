@@ -1,10 +1,10 @@
 "use client";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import { collection, addDoc, getDocs, query, where, onSnapshot } from "firebase/firestore";
 import { auth, db } from "../../../firebase";
-import { Search, ShoppingBag, Banknote, Users, CheckCircle2, ChevronRight, X, MessageCircle, UserCog, ShoppingCart, Star, Clock, Store, Printer, Edit3, Trash2, Receipt, Bookmark, Sparkles, RotateCcw, AlertTriangle } from 'lucide-react';
+import { Search, ShoppingBag, Banknote, Users, CheckCircle2, ChevronRight, X, MessageCircle, UserCog, ShoppingCart, Star, Clock, Store, Printer, Edit3, Trash2, Receipt, Bookmark, Sparkles, RotateCcw, AlertTriangle, Crown, User, Phone, ArrowLeft } from 'lucide-react';
 import toast from "react-hot-toast";
 import { useAuth } from "../../../hooks/AuthContext";
 import TicketFacturaModal, { DatosFacturaProps } from "@/components/TicketFacturaModal";
@@ -27,7 +27,8 @@ export default function InicioPage() {
   const puedeVerDirectorio = datosSesion?.rol !== 'cajero' || datosSesion?.permisos?.verDirectorio === true;
   const puedeAbonar: boolean = datosSesion?.puedeAbonar ?? true;
   const moduloSepareActivo: boolean = datosSesion?.moduloSepareActivo !== false;
-  const puedePlanSepare = (datosSesion?.tipoUsuario === 'principal' || datosSesion?.permisos?.planSepare === true) && moduloSepareActivo;
+  const [separesActivosTotal, setSeparesActivosTotal] = useState(0);
+  const puedePlanSepare = (datosSesion?.tipoUsuario === 'principal' || datosSesion?.permisos?.planSepare === true) && (moduloSepareActivo || separesActivosTotal > 0);
   const puedeSepare: boolean = datosSesion?.esPro === true && datosSesion?.puedeSepare !== false && moduloSepareActivo;
   const puedeEnviarWhatsApp = datosSesion?.puedeEnviarWhatsApp ?? true;
 
@@ -43,6 +44,8 @@ export default function InicioPage() {
   const [verTodosClientes, setVerTodosClientes] = useState(false);
   const [nombreNuevo, setNombreNuevo] = useState("");
   const [celularNuevo, setCelularNuevo] = useState("");
+  const [direccionNueva, setDireccionNueva] = useState("");
+  const [notasNuevas, setNotasNuevas] = useState("");
   const [guardandoCliente, setGuardandoCliente] = useState(false);
   const [modalSuscripcion, setModalSuscripcion] = useState({ visible: false, titulo: "", mensaje: "" });
   const [modalTicketFactura, setModalTicketFactura] = useState<{ visible: boolean; datos: DatosFacturaProps | null }>({ visible: false, datos: null });
@@ -67,6 +70,24 @@ export default function InicioPage() {
       setMostrarBotonTour(!yaCompletado);
     }
   }, []);
+
+  // Listener para contar separes activos en tiempo real (mantiene visible el módulo si hay apartados pendientes)
+  useEffect(() => {
+    const tienePermisoSepare = datosSesion?.tipoUsuario === 'principal' || datosSesion?.permisos?.planSepare === true;
+    if (!cuentaPrincipalId || !tienePermisoSepare) {
+      setSeparesActivosTotal(0);
+      return;
+    }
+    const q = query(
+      collection(db, "separes"),
+      where("usuarioId", "==", cuentaPrincipalId),
+      where("estado", "==", "activo")
+    );
+    const unsub = onSnapshot(q, (snap) => {
+      setSeparesActivosTotal(snap.size);
+    }, (e) => console.error("Error contando separes en inicio:", e));
+    return () => unsub();
+  }, [cuentaPrincipalId, datosSesion?.tipoUsuario, datosSesion?.permisos?.planSepare]);
 
   const handleGestionClienteSuccess = (clienteActualizado?: any, fueEliminado?: boolean) => {
     if (fueEliminado) {
@@ -102,7 +123,8 @@ export default function InicioPage() {
       referenciaPago: mov.referenciaPago,
       subtotal: mov.subtotal,
       valorIva: mov.valorIva,
-      porcentajeIva: mov.porcentajeIva
+      porcentajeIva: mov.porcentajeIva,
+      facturaElectronica: mov.facturaElectronica
     };
 
     setModalTicketFactura({ visible: true, datos: datosTicket });
@@ -192,12 +214,30 @@ export default function InicioPage() {
     try {
       const token = await auth.currentUser?.getIdToken();
       if (!token) throw new Error('Sesión inválida.');
-      const respuesta = await fetch('/api/clientes/crear', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ nombre: nombreNuevo, celular: celularNuevo }) });
-      if (!respuesta.ok) throw new Error((await respuesta.json()).error || 'No se pudo crear el cliente.');
-      setModalNuevoCliente(false); setNombreNuevo(""); setCelularNuevo("");
+      const respuesta = await fetch('/api/clientes/crear', { 
+        method: 'POST', 
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, 
+        body: JSON.stringify({ 
+          nombre: nombreNuevo.trim(), 
+          celular: celularNuevo.trim(),
+          direccion: direccionNueva.trim(),
+          notas: notasNuevas.trim()
+        }) 
+      });
+      const data = await respuesta.json();
+      if (!respuesta.ok) throw new Error(data.error || 'No se pudo crear el cliente.');
+      setModalNuevoCliente(false); 
+      setNombreNuevo(""); 
+      setCelularNuevo("");
+      setDireccionNueva("");
+      setNotasNuevas("");
       await cargarDatosGlobales(cuentaPrincipalId!);
       toast.success("Cliente guardado con éxito");
-    } catch (error) { toast.error("Error al guardar cliente."); } finally { setGuardandoCliente(false); }
+    } catch (error: any) { 
+      toast.error(error?.message || "Error al guardar cliente."); 
+    } finally { 
+      setGuardandoCliente(false); 
+    }
   };
 
   const normalizarMensajeWhatsApp = (texto: string) => {
@@ -298,14 +338,54 @@ Quedamos pendientes para revisar detalles o responder cualquier duda.
     abrirEnlaceWhatsApp(celular || '', texto);
   };
 
+  const buscadorHomeRef = useRef<HTMLElement | null>(null);
+
+  const normalizarBusqueda = (str: string) =>
+    (str || "").toString().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+
+  const qHomeNorm = normalizarBusqueda(busqueda);
   const clientesFiltrados = clientes.filter(c =>
-    (c.nombre || "").toLowerCase().includes(busqueda.toLowerCase()) ||
-    (c.celular || "").toString().includes(busqueda)
+    normalizarBusqueda(c.nombre || "").includes(qHomeNorm) ||
+    normalizarBusqueda(c.notas || "").includes(qHomeNorm) ||
+    normalizarBusqueda(c.direccion || "").includes(qHomeNorm) ||
+    (c.celular || "").toString().includes(busqueda.trim())
   );
+
+  const qDirNorm = normalizarBusqueda(busquedaDirectorio);
   const directorioFiltrado = clientes.filter(c => 
-    (c.nombre || "").toLowerCase().includes(busquedaDirectorio.toLowerCase()) ||
-    (c.celular || "").toString().includes(busquedaDirectorio)
+    normalizarBusqueda(c.nombre || "").includes(qDirNorm) ||
+    normalizarBusqueda(c.notas || "").includes(qDirNorm) ||
+    normalizarBusqueda(c.direccion || "").includes(qDirNorm) ||
+    (c.celular || "").toString().includes(busquedaDirectorio.trim())
   );
+
+  // Cerrar desplegable de búsqueda en Home al hacer clic fuera y cerrar Directorio con Escape
+  useEffect(() => {
+    const handlePointerDown = (e: MouseEvent) => {
+      if (buscadorHomeRef.current && !buscadorHomeRef.current.contains(e.target as Node)) {
+        if (busqueda.length > 0) setBusqueda("");
+      }
+    };
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        if (modalNuevoCliente || modalTicketFactura.visible || modalDevolucion.isOpen || modalGestionCliente.visible || modalSuscripcion.visible) {
+          return;
+        }
+        if (verTodosClientes || clienteActivo) {
+          setVerTodosClientes(false);
+          setClienteActivo(null);
+        } else if (busqueda.length > 0) {
+          setBusqueda("");
+        }
+      }
+    };
+    document.addEventListener('mousedown', handlePointerDown);
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('mousedown', handlePointerDown);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [busqueda, verTodosClientes, clienteActivo, modalNuevoCliente, modalTicketFactura.visible, modalDevolucion.isOpen, modalGestionCliente.visible, modalSuscripcion.visible]);
 
   const getSaludo = () => {
     const hora = new Date().getHours();
@@ -354,7 +434,7 @@ Quedamos pendientes para revisar detalles o responder cualquier duda.
         </header>
 
         {/* BUSCADOR */}
-        <section className="relative z-20">
+        <section ref={buscadorHomeRef} className="relative z-20">
           <div className="relative shadow-sm rounded-[2rem]">
             <Search className="absolute left-4 sm:left-5 md:left-4 top-1/2 -translate-y-1/2 text-slate-400 w-5 h-5 sm:w-7 sm:h-7 md:w-5 md:h-5" />
             {/* Input más compacto en escritorio: md:p-3 lg:p-4 */}
@@ -374,9 +454,19 @@ Quedamos pendientes para revisar detalles o responder cualquier duda.
                   }
                 }
               }}
-              placeholder="Buscar cliente registrado..."
-              className="w-full text-lg sm:text-xl md:text-base lg:text-lg p-5 sm:p-6 md:p-3 lg:p-4 pl-12 sm:pl-16 md:pl-12 lg:pl-12 bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-800/60 rounded-[2rem] md:rounded-2xl lg:rounded-3xl focus:border-blue-500 dark:focus:border-blue-400 outline-none shadow-sm dark:shadow-none transition-all placeholder:text-slate-400 dark:placeholder:text-slate-500 font-medium"
+              placeholder="Buscar cliente por nombre o celular..."
+              className="w-full text-lg sm:text-xl md:text-base lg:text-lg p-5 sm:p-6 md:p-3 lg:p-4 pl-12 sm:pl-16 md:pl-12 lg:pl-12 pr-12 bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-800/60 rounded-[2rem] md:rounded-2xl lg:rounded-3xl focus:border-blue-500 dark:focus:border-blue-400 outline-none shadow-sm dark:shadow-none transition-all placeholder:text-slate-400 dark:placeholder:text-slate-500 font-medium"
             />
+            {busqueda.length > 0 && (
+              <button
+                type="button"
+                onClick={() => setBusqueda("")}
+                className="absolute right-4 top-1/2 -translate-y-1/2 p-1.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-400 hover:text-slate-700 dark:hover:text-white transition-colors cursor-pointer"
+                aria-label="Limpiar búsqueda"
+              >
+                <X size={16} />
+              </button>
+            )}
           </div>
 
           {busqueda.length > 0 && (
@@ -388,8 +478,18 @@ Quedamos pendientes para revisar detalles o responder cualquier duda.
                     cargarMovimientosClienteDirecto(c.id); 
                     setBusqueda(""); 
                     setVerTodosClientes(true);
-                  }} className="p-5 hover:bg-slate-50 dark:hover:bg-[#1e293b] rounded-2xl cursor-pointer flex justify-between items-center transition-colors mb-2 gap-2">
-                    <span className="font-bold text-slate-800 dark:text-slate-200 text-xl md:text-lg truncate min-w-0 flex-1">{c.nombre}</span>
+                  }} className="p-4 sm:p-5 hover:bg-slate-50 dark:hover:bg-[#1e293b] rounded-2xl cursor-pointer flex justify-between items-center transition-colors mb-1.5 gap-2">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <p className="font-bold text-slate-800 dark:text-slate-200 text-lg md:text-base truncate">{c.nombre}</p>
+                        {c.notas && (
+                          <span className="text-[11px] font-bold px-2 py-0.5 rounded-md bg-amber-500/10 text-amber-700 dark:text-amber-300 border border-amber-500/20 truncate max-w-[200px]" title={c.notas}>
+                            {c.notas}
+                          </span>
+                        )}
+                      </div>
+                      {c.celular && <p className="text-xs text-slate-400 dark:text-slate-500 font-medium">{c.celular}</p>}
+                    </div>
                     <span className={`text-base md:text-sm font-black tracking-tight shrink-0 whitespace-nowrap ${c.deudaTotal === 0 ? 'text-slate-400 dark:text-slate-500' : (c.deudaTotal < 0 ? 'text-emerald-500 dark:text-emerald-400' : 'text-rose-500 dark:text-rose-400')}`}>
                       {c.deudaTotal === 0 ? '$0 (Al día)' : (c.deudaTotal < 0 ? `A favor: $${Math.abs(c.deudaTotal).toLocaleString('es-CO')}` : `Deuda: $${c.deudaTotal.toLocaleString('es-CO')}`)}
                     </span>
@@ -398,7 +498,7 @@ Quedamos pendientes para revisar detalles o responder cualquier duda.
               ) : (
                 <div className="p-8 text-center text-slate-500 dark:text-slate-400">
                   <p className="mb-6 text-xl md:text-lg">"{busqueda}" no está en tu directorio.</p>
-                  <button onClick={() => { setNombreNuevo(busqueda); setModalNuevoCliente(true); setBusqueda(""); }} className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-4 md:py-3 px-8 rounded-2xl text-lg md:text-base transition-colors flex items-center justify-center gap-2 mx-auto shadow-md">
+                  <button onClick={() => { setNombreNuevo(busqueda); setModalNuevoCliente(true); setBusqueda(""); }} className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-4 md:py-3 px-8 rounded-2xl text-lg md:text-base transition-colors flex items-center justify-center gap-2 mx-auto shadow-md cursor-pointer">
                     <UserCog size={24} className="md:w-5 md:h-5" /> Crear Cliente
                   </button>
                 </div>
@@ -491,7 +591,7 @@ Quedamos pendientes para revisar detalles o responder cualquier duda.
                     >
                       {btn.esProOnly && (
                         <span className="absolute top-2 right-2 bg-amber-400 text-slate-900 text-[9px] font-black uppercase px-1.5 py-0.5 rounded-full flex items-center gap-0.5 shadow-sm">
-                          👑 PRO
+                          <Crown size={11} /> PRO
                         </span>
                       )}
                       <Icono className="mb-1 sm:mb-2 opacity-90 shrink-0 w-6 h-6 sm:w-8 sm:h-8 lg:w-10 lg:h-10" />
@@ -527,8 +627,17 @@ Quedamos pendientes para revisar detalles o responder cualquier duda.
 
       {/* --- MODAL DIRECTORIO DE CLIENTES CON PANTALLA DIVIDIDA (IDÉNTICO A HISTORIAL / FOTO 1) --- */}
       {(verTodosClientes || clienteActivo) && mounted && createPortal(
-        <div className="fixed inset-0 bg-black/70 dark:bg-black/85 backdrop-blur-md flex items-end md:items-center justify-center p-0 md:p-6 z-[99999] overflow-hidden">
-          <div className="bg-white dark:bg-[#0f172a] rounded-t-[2.5rem] md:rounded-[2.5rem] w-full h-[96vh] md:h-[90vh] md:max-w-7xl shadow-2xl flex flex-col md:flex-row overflow-hidden border border-slate-100 dark:border-slate-800/60 animate-in slide-in-from-bottom-8 md:zoom-in-95 duration-300">
+        <div
+          onClick={() => {
+            setVerTodosClientes(false);
+            setClienteActivo(null);
+          }}
+          className="fixed inset-0 bg-black/70 dark:bg-black/85 backdrop-blur-md flex items-end md:items-center justify-center p-0 md:p-6 z-[99999] overflow-hidden"
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="bg-white dark:bg-[#0f172a] rounded-t-[2.5rem] md:rounded-[2.5rem] w-full h-[96vh] md:h-[90vh] md:max-w-7xl shadow-2xl flex flex-col md:flex-row overflow-hidden border border-slate-100 dark:border-slate-800/60 animate-in slide-in-from-bottom-8 md:zoom-in-95 duration-300"
+          >
             
             {/* PANEL IZQUIERDO: DIRECTORIO (SOLO ESCRITORIO O SI NO HAY CLIENTE EN MÓVIL) */}
             <div className={`w-full md:w-5/12 flex flex-col border-r border-slate-100 dark:border-slate-800 h-full bg-slate-50/50 dark:bg-[#020617]/50 ${clienteActivo ? 'hidden md:flex' : 'flex'}`}>
@@ -564,8 +673,18 @@ Quedamos pendientes para revisar detalles o responder cualquier duda.
                       }
                     }}
                     placeholder="Buscar nombre o celular en el directorio..."
-                    className="w-full p-4 pl-12 bg-slate-50 dark:bg-[#020617] border border-slate-200 dark:border-slate-800 rounded-2xl outline-none focus:border-blue-500 dark:text-white text-base font-medium"
+                    className="w-full p-4 pl-12 pr-11 bg-slate-50 dark:bg-[#020617] border border-slate-200 dark:border-slate-800 rounded-2xl outline-none focus:border-blue-500 dark:text-white text-base font-medium"
                   />
+                  {busquedaDirectorio.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => setBusquedaDirectorio("")}
+                      className="absolute right-3.5 top-1/2 -translate-y-1/2 p-1.5 rounded-full bg-slate-200/70 dark:bg-slate-800 text-slate-500 hover:text-slate-800 dark:hover:text-white transition-colors cursor-pointer"
+                      aria-label="Limpiar filtro"
+                    >
+                      <X size={15} />
+                    </button>
+                  )}
                 </div>
               </div>
 
@@ -580,7 +699,14 @@ Quedamos pendientes para revisar detalles o responder cualquier duda.
                     className={`p-4 rounded-2xl border cursor-pointer flex justify-between items-center transition-all ${clienteActivo?.id === c.id ? 'bg-blue-50 dark:bg-blue-500/10 border-blue-500 dark:border-blue-500/50 shadow-sm' : 'bg-white dark:bg-[#0f172a] border-slate-100 dark:border-slate-800/80 hover:border-blue-300'}`}
                   >
                     <div className="min-w-0 pr-2">
-                      <p className="font-bold text-base text-slate-900 dark:text-slate-100 truncate">{c.nombre}</p>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <p className="font-bold text-base text-slate-900 dark:text-slate-100 truncate">{c.nombre}</p>
+                        {c.notas && (
+                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-amber-500/10 text-amber-700 dark:text-amber-300 border border-amber-500/20 truncate max-w-[160px]" title={c.notas}>
+                            {c.notas}
+                          </span>
+                        )}
+                      </div>
                       <p className="text-xs text-slate-500 dark:text-slate-400">{c.celular || "Sin celular"}</p>
                     </div>
                     <div className="text-right shrink-0">
@@ -610,44 +736,95 @@ Quedamos pendientes para revisar detalles o responder cualquier duda.
               <div className="flex-1 flex flex-col h-full bg-white dark:bg-[#0f172a] overflow-hidden">
                 
                 {/* HEADER ESCRITORIO */}
-                <div className="hidden md:flex p-6 bg-slate-900 text-white justify-between items-center shrink-0">
-                  <div className="flex items-center gap-3">
-                    <div>
-                      <h3 className="text-2xl font-black">{clienteActivo.nombre}</h3>
-                      <div className="flex items-center gap-2 mt-0.5">
-                        <p className="text-slate-400 text-sm">{clienteActivo.celular || "Sin celular registrado"}</p>
+                {(() => {
+                  const deudaFiado = clienteActivo.deudaTotal || 0;
+                  const saldoSeparesActivos = separesCliente
+                    .filter((s: any) => s.estado === 'activo')
+                    .reduce((acc: number, s: any) => acc + (s.saldoPendiente || 0), 0);
+                  const tieneSaldoAFavor = deudaFiado < 0;
+                  const totalCompromiso = tieneSaldoAFavor ? Math.abs(deudaFiado) : (deudaFiado + saldoSeparesActivos);
+
+                  return (
+                    <div className="hidden md:flex p-6 bg-slate-900 text-white justify-between items-center shrink-0 gap-4">
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div className="min-w-0">
+                          <h3 className="text-2xl font-black truncate">{clienteActivo.nombre}</h3>
+                          <div className="flex items-center gap-2 mt-0.5">
+                            <p className="text-slate-400 text-sm flex items-center gap-1.5">
+                              {clienteActivo.celular ? (
+                                <>
+                                  <Phone size={13} className="text-slate-400 shrink-0" />
+                                  <span>{clienteActivo.celular}</span>
+                                </>
+                              ) : (
+                                "Sin celular registrado"
+                              )}
+                            </p>
+                          </div>
+                        </div>
+                        {datosSesion?.rol !== 'cajero' && (
+                          <div className="flex items-center gap-1.5 ml-2 shrink-0">
+                            <button
+                              type="button"
+                              onClick={() => setModalGestionCliente({ visible: true, modo: 'editar', cliente: clienteActivo })}
+                              title="Modificar Cliente"
+                              className="p-2 rounded-xl bg-slate-800 hover:bg-blue-600/80 text-slate-300 hover:text-white transition-colors cursor-pointer"
+                            >
+                              <Edit3 size={16} />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setModalGestionCliente({ visible: true, modo: 'eliminar', cliente: clienteActivo })}
+                              title="Eliminar Cliente"
+                              className="p-2 rounded-xl bg-slate-800 hover:bg-rose-600/80 text-slate-300 hover:text-white transition-colors cursor-pointer"
+                            >
+                              <Trash2 size={16} />
+                            </button>
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="flex items-center gap-4 shrink-0">
+                        <div className="text-right">
+                          <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded mb-1 inline-block ${
+                            tieneSaldoAFavor ? 'bg-emerald-500/20 text-emerald-300' : 'text-slate-400'
+                          }`}>
+                            {tieneSaldoAFavor ? 'Saldo a favor' : (saldoSeparesActivos > 0 ? 'Saldo Total Pendiente' : 'Saldo Actual')}
+                          </span>
+                          <span className={`text-3xl font-black block ${
+                            !tieneSaldoAFavor && totalCompromiso === 0
+                              ? 'text-slate-300'
+                              : (tieneSaldoAFavor ? 'text-emerald-400' : 'text-rose-400')
+                          }`}>
+                            ${totalCompromiso.toLocaleString('es-CO')}
+                          </span>
+                          {saldoSeparesActivos > 0 && (
+                            <div className="flex items-center justify-end gap-2 text-[11px] font-bold text-slate-400 mt-0.5">
+                              {tieneSaldoAFavor ? (
+                                <span className="text-emerald-400">A favor: ${Math.abs(deudaFiado).toLocaleString('es-CO')}</span>
+                              ) : (
+                                <span>Fiados: ${deudaFiado.toLocaleString('es-CO')}</span>
+                              )}
+                              <span>•</span>
+                              <span className="text-violet-400">Separes: ${saldoSeparesActivos.toLocaleString('es-CO')}</span>
+                            </div>
+                          )}
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setVerTodosClientes(false);
+                            setClienteActivo(null);
+                          }}
+                          title="Cerrar directorio (Esc)"
+                          className="p-2 rounded-full bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white transition-colors cursor-pointer"
+                        >
+                          <X size={20} />
+                        </button>
                       </div>
                     </div>
-                    {datosSesion?.rol !== 'cajero' && (
-                      <div className="flex items-center gap-1.5 ml-2">
-                        <button
-                          type="button"
-                          onClick={() => setModalGestionCliente({ visible: true, modo: 'editar', cliente: clienteActivo })}
-                          title="Modificar Cliente"
-                          className="p-2 rounded-xl bg-slate-800 hover:bg-blue-600/80 text-slate-300 hover:text-white transition-colors cursor-pointer"
-                        >
-                          <Edit3 size={16} />
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setModalGestionCliente({ visible: true, modo: 'eliminar', cliente: clienteActivo })}
-                          title="Eliminar Cliente"
-                          className="p-2 rounded-xl bg-slate-800 hover:bg-rose-600/80 text-slate-300 hover:text-white transition-colors cursor-pointer"
-                        >
-                          <Trash2 size={16} />
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                  <div className="text-right">
-                    <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded mb-1 inline-block ${(clienteActivo.deudaTotal || 0) < 0 ? 'bg-emerald-500/20 text-emerald-300' : 'text-slate-400'}`}>
-                      {(clienteActivo.deudaTotal || 0) < 0 ? ' Saldo a favor' : 'Saldo Actual'}
-                    </span>
-                    <span className={`text-3xl font-black block ${clienteActivo.deudaTotal === 0 ? 'text-slate-300' : ((clienteActivo.deudaTotal || 0) < 0 ? 'text-emerald-400' : 'text-rose-400')}`}>
-                      ${Math.abs(clienteActivo.deudaTotal || 0).toLocaleString('es-CO')}
-                    </span>
-                  </div>
-                </div>
+                  );
+                })()}
 
                 {/* BARRA DE ACCIONES RÁPIDAS Y WHATSAPP (SOLO ESCRITORIO / TABLET) */}
                 <div className="hidden md:flex flex-col xl:flex-row xl:items-center xl:justify-between gap-2.5 px-6 py-3 bg-slate-50 dark:bg-[#020617] border-b border-slate-200 dark:border-slate-800 shrink-0">
@@ -681,6 +858,14 @@ Quedamos pendientes para revisar detalles o responder cualquier duda.
                       >
                         Separe
                       </button>
+                    ) : separesCliente.some(s => s.estado === 'activo') ? (
+                      <button 
+                        type="button"
+                        onClick={() => router.push(`/dashboard/separes?tab=activos&busqueda=${encodeURIComponent(clienteActivo.nombre)}`)} 
+                        className="px-3 sm:px-4 py-2 bg-violet-600 hover:bg-violet-700 text-white font-black rounded-xl text-xs uppercase shadow-xs transition active:scale-95 cursor-pointer text-center"
+                      >
+                        Ver Separes
+                      </button>
                     ) : (
                       <div className="hidden xl:block" />
                     )}
@@ -700,6 +885,19 @@ Quedamos pendientes para revisar detalles o responder cualquier duda.
 
                 {/* HEADER MÓVIL OPTIMIZADO (Nombre centrado y prominente, saldo destacado, acciones claras) */}
                 <div className="md:hidden bg-slate-50 dark:bg-[#020617] border-b border-slate-200 dark:border-slate-800 shrink-0 px-4 py-3 space-y-2.5 relative">
+                  {/* Botón volver a la lista (solo en móvil cuando el directorio está activo) */}
+                  {verTodosClientes && (
+                    <button
+                      type="button"
+                      onClick={() => setClienteActivo(null)}
+                      className="absolute top-3 left-3 px-2.5 py-1.5 rounded-full bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 shadow-xs border border-slate-200 dark:border-slate-700 transition cursor-pointer z-10 flex items-center gap-1 text-xs font-bold"
+                      aria-label="Volver a la lista"
+                    >
+                      <ArrowLeft size={14} />
+                      <span>Lista</span>
+                    </button>
+                  )}
+
                   {/* Botón cerrar en esquina superior derecha */}
                   <button 
                     onClick={() => {
@@ -713,9 +911,9 @@ Quedamos pendientes para revisar detalles o responder cualquier duda.
                   </button>
 
                   {/* Fila 1: Nombre del cliente centrado + badge distinguido + opciones de edición */}
-                  <div className="pt-1 px-6 text-center">
+                  <div className="pt-1 px-14 text-center">
                     <span className="inline-flex items-center gap-1 text-[10px] font-black uppercase tracking-widest text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/50 px-2.5 py-0.5 rounded-full mb-1">
-                      👤 CLIENTE
+                      <User size={11} /> CLIENTE
                     </span>
                     <div className="flex items-center justify-center gap-2 flex-wrap">
                       <h2 className="text-[26px] sm:text-3xl font-black text-slate-900 dark:text-white tracking-tight leading-tight break-words">
@@ -742,31 +940,44 @@ Quedamos pendientes para revisar detalles o responder cualquier duda.
                         </div>
                       )}
                     </div>
-                    <p className="text-slate-500 dark:text-slate-400 text-xs font-semibold mt-1">
-                      {clienteActivo.celular ? `📱 ${clienteActivo.celular}` : "Sin celular registrado"}
+                    <p className="text-slate-500 dark:text-slate-400 text-xs font-semibold mt-1 flex items-center justify-center gap-1">
+                      {clienteActivo.celular ? (
+                        <>
+                          <Phone size={12} className="shrink-0" />
+                          <span>{clienteActivo.celular}</span>
+                        </>
+                      ) : (
+                        "Sin celular registrado"
+                      )}
                     </p>
                   </div>
 
                   {/* Fila 2: Saldo Destacado en tarjeta compacta */}
                   {(() => {
+                    const deudaFiado = clienteActivo.deudaTotal || 0;
                     const saldoSeparesActivos = separesCliente
                       .filter((s: any) => s.estado === 'activo')
                       .reduce((acc: number, s: any) => acc + (s.saldoPendiente || 0), 0);
-                    const totalCompromiso = (clienteActivo.deudaTotal || 0) + saldoSeparesActivos;
+                    const tieneSaldoAFavor = deudaFiado < 0;
+                    const totalCompromiso = tieneSaldoAFavor ? Math.abs(deudaFiado) : (deudaFiado + saldoSeparesActivos);
 
                     return (
                       <div className="flex items-center justify-between p-2.5 rounded-xl bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-800 shadow-xs">
                         <div>
                           <span className={`text-[10px] font-black uppercase tracking-wider block ${
-                            (clienteActivo.deudaTotal || 0) < 0 
+                            tieneSaldoAFavor 
                               ? 'text-emerald-600 dark:text-emerald-400' 
                               : (totalCompromiso === 0 ? 'text-slate-400' : 'text-slate-500 dark:text-slate-400')
                           }`}>
-                            {(clienteActivo.deudaTotal || 0) < 0 ? 'Saldo a Favor' : (totalCompromiso === 0 ? 'Estado' : (saldoSeparesActivos > 0 ? 'Saldo Total Pendiente' : 'Saldo Actual'))}
+                            {tieneSaldoAFavor ? 'Saldo a Favor' : (totalCompromiso === 0 ? 'Estado' : (saldoSeparesActivos > 0 ? 'Saldo Total Pendiente' : 'Saldo Actual'))}
                           </span>
                           {saldoSeparesActivos > 0 && (
                             <div className="flex items-center gap-2 text-[10px] font-bold text-slate-400 mt-0.5">
-                              <span>Fiados: ${(clienteActivo.deudaTotal || 0).toLocaleString('es-CO')}</span>
+                              {tieneSaldoAFavor ? (
+                                <span className="text-emerald-600 dark:text-emerald-400">A favor: ${Math.abs(deudaFiado).toLocaleString('es-CO')}</span>
+                              ) : (
+                                <span>Fiados: ${deudaFiado.toLocaleString('es-CO')}</span>
+                              )}
                               <span>•</span>
                               <span className="text-violet-600 dark:text-violet-400">Separes: ${saldoSeparesActivos.toLocaleString('es-CO')}</span>
                             </div>
@@ -774,11 +985,11 @@ Quedamos pendientes para revisar detalles o responder cualquier duda.
                         </div>
                         <div className="text-right">
                           <span className={`text-xl font-black ${
-                            totalCompromiso === 0 
+                            !tieneSaldoAFavor && totalCompromiso === 0 
                               ? 'text-slate-400' 
-                              : ((clienteActivo.deudaTotal || 0) < 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400')
+                              : (tieneSaldoAFavor ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400')
                           }`}>
-                            {totalCompromiso === 0 ? 'Al Día' : `$${Math.abs(totalCompromiso).toLocaleString('es-CO')}`}
+                            {!tieneSaldoAFavor && totalCompromiso === 0 ? 'Al Día' : `$${totalCompromiso.toLocaleString('es-CO')}`}
                           </span>
                         </div>
                       </div>
@@ -805,14 +1016,21 @@ Quedamos pendientes para revisar detalles o responder cualquier duda.
                     >
                       Abonar
                     </button>
-                    {puedeSepare && (
+                    {puedeSepare ? (
                       <button 
                         onClick={() => router.push(`/dashboard/separe?clienteId=${clienteActivo.id}`)} 
                         className="flex-1 py-2 px-2 bg-violet-600 hover:bg-violet-700 text-white font-black rounded-xl text-xs uppercase shadow-xs transition active:scale-95 cursor-pointer text-center"
                       >
                         Separe
                       </button>
-                    )}
+                    ) : separesCliente.some(s => s.estado === 'activo') ? (
+                      <button 
+                        onClick={() => router.push(`/dashboard/separes?tab=activos&busqueda=${encodeURIComponent(clienteActivo.nombre)}`)} 
+                        className="flex-1 py-2 px-2 bg-violet-600 hover:bg-violet-700 text-white font-black rounded-xl text-xs uppercase shadow-xs transition active:scale-95 cursor-pointer text-center"
+                      >
+                        Ver Separes
+                      </button>
+                    ) : null}
                   </div>
 
                   {/* Fila 4: Botón de WhatsApp con texto visible y claro */}
@@ -830,6 +1048,31 @@ Quedamos pendientes para revisar detalles o responder cualquier duda.
 
                 {/* HISTORIAL INTERNO DEL PERFIL */}
                 <div className="bg-white dark:bg-[#0f172a] p-4 md:p-6 pb-32 md:pb-10 flex-1 overflow-y-auto space-y-4">
+                  {/* CAJA DE NOTAS / REFERENCIAS DEL CLIENTE (IDÉNTICO A CLIENTES & CARTERA) */}
+                  {(clienteActivo.notas || clienteActivo.direccion) && (
+                    <div className="p-3.5 bg-amber-50/70 dark:bg-amber-950/20 border border-amber-200/60 dark:border-amber-900/40 rounded-2xl space-y-1.5 text-left">
+                      {clienteActivo.notas && (
+                        <div>
+                          <span className="text-[10px] font-black uppercase tracking-wider text-amber-800 dark:text-amber-400 block mb-0.5">
+                            Notas / Referencias:
+                          </span>
+                          <p className="text-xs sm:text-sm font-semibold text-slate-800 dark:text-slate-200 whitespace-pre-wrap">
+                            {clienteActivo.notas}
+                          </p>
+                        </div>
+                      )}
+                      {clienteActivo.direccion && (
+                        <div className={clienteActivo.notas ? "pt-1.5 border-t border-amber-200/50 dark:border-amber-900/30" : ""}>
+                          <span className="text-[10px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400 block mb-0.5">
+                            Dirección:
+                          </span>
+                          <p className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+                            {clienteActivo.direccion}
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  )}
                   {/* SECCIÓN DE PLANES SEPARE DEL CLIENTE (SOLO SI TIENE ACTIVOS ANCLADOS) */}
                   {(() => {
                     const separesActivosCliente = separesCliente.filter(s => s.estado === 'activo');
@@ -843,7 +1086,7 @@ Quedamos pendientes para revisar detalles o responder cualquier duda.
                           </h4>
                           <button
                             onClick={() => router.push(`/dashboard/separes?tab=activos&busqueda=${encodeURIComponent(clienteActivo.nombre)}`)}
-                            className="text-[11px] font-bold text-violet-600 dark:text-violet-400 hover:underline flex items-center gap-0.5"
+                            className="text-[11px] font-bold text-violet-600 dark:text-violet-400 hover:underline flex items-center gap-0.5 cursor-pointer"
                           >
                             Ver en separes <ChevronRight size={13} />
                           </button>
@@ -914,14 +1157,15 @@ Quedamos pendientes para revisar detalles o responder cualquier duda.
                         <div className="pl-1 md:pl-2">
                           <div className="flex flex-wrap sm:flex-nowrap justify-between items-center gap-1.5 pb-1 md:pb-2 md:border-b md:border-slate-100 dark:border-slate-800/80">
                             <div className="flex items-center gap-2">
-                              <span className={`text-[10px] md:text-xs font-black uppercase px-2.5 py-0.5 md:px-3 md:py-1 rounded-md md:rounded-lg shrink-0 ${
+                              <span className={`text-[10px] md:text-xs font-black uppercase px-2.5 py-0.5 md:px-3 md:py-1 rounded-md md:rounded-lg shrink-0 inline-flex items-center gap-1 ${
                                 esDevolucion || esDevolucionSepare
                                   ? 'bg-amber-100 text-amber-800 dark:bg-amber-500/20 dark:text-amber-300'
                                   : (esEgreso
                                     ? 'bg-orange-100 text-orange-800 dark:bg-orange-500/20 dark:text-orange-300'
                                     : (mov.tipo === 'fiado' ? 'bg-rose-100 text-rose-700 dark:bg-rose-500/20 dark:text-rose-300' : (mov.tipo === 'venta' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300' : 'bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-300')))
                               }`}>
-                                {esDevolucion ? '↩ DEVOLUCIÓN' : (esDevolucionSepare ? '↩ DEV. SEPARE' : (esEgreso ? 'EGRESO' : mov.tipo))}
+                                {(esDevolucion || esDevolucionSepare) && <RotateCcw size={10} />}
+                                {esDevolucion ? 'DEVOLUCIÓN' : (esDevolucionSepare ? 'DEV. SEPARE' : (esEgreso ? 'EGRESO' : mov.tipo))}
                               </span>
 
                               {tieneDevolucion && (
@@ -933,8 +1177,8 @@ Quedamos pendientes para revisar detalles o responder cualquier duda.
                             
                             <div className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[10px] md:text-[11px] font-bold uppercase">
                               {mov.registradoPor && (
-                                <span className="text-slate-500 dark:text-slate-400 whitespace-nowrap">
-                                  👤 {mov.registradoPor}
+                                <span className="text-slate-500 dark:text-slate-400 whitespace-nowrap inline-flex items-center gap-1">
+                                  <User size={10} /> {mov.registradoPor}
                                 </span>
                               )}
                               {mov.registradoPor && <span className="text-slate-300 dark:text-slate-600 whitespace-nowrap">•</span>}
@@ -1011,7 +1255,18 @@ Quedamos pendientes para revisar detalles o responder cualquier duda.
                 </div>
               </div>
             ) : (
-              <div className="hidden md:flex flex-1 flex-col items-center justify-center p-12 text-center text-slate-400">
+              <div className="hidden md:flex flex-1 flex-col items-center justify-center p-12 text-center text-slate-400 relative">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setVerTodosClientes(false);
+                    setClienteActivo(null);
+                  }}
+                  title="Cerrar directorio (Esc)"
+                  className="absolute top-6 right-6 p-2 rounded-full bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-500 dark:text-slate-400 transition-colors cursor-pointer"
+                >
+                  <X size={20} />
+                </button>
                 <Users size={48} className="text-slate-300 dark:text-slate-700 mb-4 stroke-1" />
                 <p className="text-base font-bold text-slate-600 dark:text-slate-300 mb-1">Selecciona un cliente</p>
                 <p className="text-xs text-slate-400">Haz clic en cualquier cliente de la lista para ver su perfil e historial de movimientos.</p>
@@ -1025,16 +1280,89 @@ Quedamos pendientes para revisar detalles o responder cualquier duda.
 
       {/* --- MODALES PEQUEÑOS (NUEVO CLIENTE / SUSCRIPCIÓN) --- */}
       {modalNuevoCliente && mounted && createPortal(
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 z-[999999]">
-          <div className="bg-white dark:bg-[#0f172a] p-8 rounded-[2.5rem] w-full max-w-md shadow-2xl border border-slate-100 dark:border-slate-800/60 animate-in zoom-in-95 duration-200">
-            <h3 className="text-3xl font-black text-slate-900 dark:text-white mb-6 flex items-center gap-2"><UserCog size={28} /> Registrar Cliente</h3>
-            <div className="flex flex-col gap-4 mb-8">
-              <input type="text" value={nombreNuevo} onChange={(e) => setNombreNuevo(e.target.value)} placeholder="Nombre completo" className="w-full p-5 bg-slate-50 dark:bg-[#020617] border border-slate-200 dark:border-slate-800 rounded-2xl font-bold text-lg dark:text-white" />
-              <input type="tel" value={celularNuevo} onChange={(e) => setCelularNuevo(e.target.value)} placeholder="WhatsApp (Opcional)" className="w-full p-5 bg-slate-50 dark:bg-[#020617] border border-slate-200 dark:border-slate-800 rounded-2xl font-bold text-lg dark:text-white" />
+        <div
+          onClick={() => setModalNuevoCliente(false)}
+          className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 z-[999999]"
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="bg-white dark:bg-[#0f172a] p-6 sm:p-7 rounded-[2.5rem] w-full max-w-md shadow-2xl border border-slate-100 dark:border-slate-800/60 animate-in zoom-in-95 duration-200"
+          >
+            <div className="flex items-center justify-between mb-5">
+              <h3 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white flex items-center gap-2">
+                <UserCog size={24} className="text-emerald-500" /> Registrar Cliente
+              </h3>
+              <button 
+                type="button" 
+                onClick={() => setModalNuevoCliente(false)}
+                className="p-1.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-400 hover:text-slate-700 dark:hover:text-white transition-colors cursor-pointer"
+              >
+                <X size={18} />
+              </button>
             </div>
-            <div className="grid grid-cols-2 gap-4">
-              <button onClick={() => setModalNuevoCliente(false)} className="bg-slate-100 dark:bg-[#020617] hover:bg-slate-200 text-slate-700 dark:text-slate-300 font-bold py-4 rounded-2xl text-lg cursor-pointer">Cancelar</button>
-              <button onClick={guardarClienteNuevo} disabled={guardandoCliente} className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-4 rounded-2xl shadow-lg flex justify-center items-center gap-2 text-lg cursor-pointer">Guardar <CheckCircle2 size={20} /></button>
+
+            <div className="flex flex-col gap-3.5 mb-6">
+              <div>
+                <label className="text-xs font-bold text-slate-600 dark:text-slate-300 block mb-1">Nombre Completo *</label>
+                <input 
+                  type="text" 
+                  value={nombreNuevo} 
+                  onChange={(e) => setNombreNuevo(e.target.value)} 
+                  placeholder="Ej: Don Albeiro, Carlos Pérez..." 
+                  className="w-full p-3.5 bg-slate-50 dark:bg-[#020617] border border-slate-200 dark:border-slate-800 rounded-2xl font-bold text-sm dark:text-white outline-none focus:border-emerald-500" 
+                />
+              </div>
+
+              <div>
+                <label className="text-xs font-bold text-slate-600 dark:text-slate-300 block mb-1">Celular (WhatsApp)</label>
+                <input 
+                  type="tel" 
+                  value={celularNuevo} 
+                  onChange={(e) => setCelularNuevo(e.target.value)} 
+                  placeholder="Ej: 3101234567" 
+                  className="w-full p-3.5 bg-slate-50 dark:bg-[#020617] border border-slate-200 dark:border-slate-800 rounded-2xl font-bold text-sm dark:text-white outline-none focus:border-emerald-500" 
+                />
+              </div>
+
+              <div>
+                <label className="text-xs font-bold text-slate-600 dark:text-slate-300 block mb-1">Dirección o Referencia</label>
+                <input 
+                  type="text" 
+                  value={direccionNueva} 
+                  onChange={(e) => setDireccionNueva(e.target.value)} 
+                  placeholder="Ej: Calle 10 # 5-20 / Frente al parque" 
+                  className="w-full p-3.5 bg-slate-50 dark:bg-[#020617] border border-slate-200 dark:border-slate-800 rounded-2xl font-bold text-sm dark:text-white outline-none focus:border-emerald-500" 
+                />
+              </div>
+
+              <div>
+                <label className="text-xs font-bold text-slate-600 dark:text-slate-300 block mb-1">Notas / Referencia / Apodo</label>
+                <textarea 
+                  rows={2}
+                  value={notasNuevas} 
+                  onChange={(e) => setNotasNuevas(e.target.value)} 
+                  placeholder="Ej: Apodo (Cachaco), parentesco, notas útiles..." 
+                  className="w-full p-3 bg-slate-50 dark:bg-[#020617] border border-slate-200 dark:border-slate-800 rounded-2xl font-medium text-xs dark:text-white outline-none focus:border-emerald-500 resize-none" 
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <button 
+                type="button" 
+                onClick={() => setModalNuevoCliente(false)} 
+                className="bg-slate-100 dark:bg-[#020617] hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 font-bold py-3.5 rounded-2xl text-sm transition-colors cursor-pointer"
+              >
+                Cancelar
+              </button>
+              <button 
+                type="button" 
+                onClick={guardarClienteNuevo} 
+                disabled={guardandoCliente} 
+                className="bg-emerald-600 hover:bg-emerald-700 text-white font-black py-3.5 rounded-2xl shadow-lg flex justify-center items-center gap-2 text-sm transition-all active:scale-95 disabled:opacity-50 cursor-pointer"
+              >
+                Guardar <CheckCircle2 size={18} />
+              </button>
             </div>
           </div>
         </div>,
@@ -1057,6 +1385,15 @@ Quedamos pendientes para revisar detalles o responder cualquier duda.
         isOpen={modalTicketFactura.visible}
         onClose={() => setModalTicketFactura({ visible: false, datos: null })}
         datos={modalTicketFactura.datos}
+        onFacturaEmitida={(fInfo) => {
+          setModalTicketFactura((prev) => prev.datos ? ({
+            ...prev,
+            datos: { ...prev.datos, facturaElectronica: fInfo }
+          }) : prev);
+          if (clienteActivo) {
+            cargarMovimientosClienteDirecto(clienteActivo.id);
+          }
+        }}
       />
 
       {/* MODAL DE MODIFICAR / ELIMINAR CLIENTE */}

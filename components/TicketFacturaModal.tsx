@@ -55,9 +55,10 @@ interface TicketFacturaModalProps {
   isOpen: boolean;
   onClose: () => void;
   datos: DatosFacturaProps | null;
+  onFacturaEmitida?: (facturaElectronica: import("@/types").DatosFacturaElectronica) => void;
 }
 
-export default function TicketFacturaModal({ isOpen, onClose, datos }: TicketFacturaModalProps) {
+export default function TicketFacturaModal({ isOpen, onClose, datos, onFacturaEmitida }: TicketFacturaModalProps) {
   const { datosSesion } = useAuth() || {};
   const puedeEnviarWhatsApp = datosSesion?.puedeEnviarWhatsApp ?? true;
   const ticketRef = useRef<HTMLDivElement>(null);
@@ -76,6 +77,10 @@ export default function TicketFacturaModal({ isOpen, onClose, datos }: TicketFac
   }, [datos?.facturaElectronica, datos?.idTransaccion]);
 
   const emitirFacturaDianDirecta = async () => {
+    if (facturaDianLocal?.cufe) {
+      toast.error(`Esta venta ya fue emitida ante la DIAN (${facturaDianLocal.numeroFactura || 'Completada'}).`);
+      return;
+    }
     if (!datos?.idTransaccion || emitiendoDian) return;
     setEmitiendoDian(true);
     try {
@@ -99,6 +104,10 @@ export default function TicketFacturaModal({ isOpen, onClose, datos }: TicketFac
       const resJson = await res.json();
       if (res.ok && resJson.success && resJson.facturaElectronica) {
         setFacturaDianLocal(resJson.facturaElectronica);
+        if (datos) {
+          datos.facturaElectronica = resJson.facturaElectronica;
+        }
+        onFacturaEmitida?.(resJson.facturaElectronica);
         toast.success("Factura electronica emitida exitosamente ante la DIAN.");
       } else {
         toast.error(resJson.error || "No se pudo emitir la factura electronica.");
@@ -355,10 +364,14 @@ Estamos atentos para cualquier consulta.`;
         }
       }
 
+      const feHeader = facturaDianLocal?.numeroFactura 
+        ? `\n*FACTURA ELECTRONICA DIAN: ${facturaDianLocal.numeroFactura}*`
+        : "";
+
       resultado = `¡Hola, *${nombreCliente}*! Gracias por tu compra en *${nombreNegocio}*.
 
 ===================
-*COMPROBANTE DE VENTA*
+*COMPROBANTE DE VENTA*${feHeader}
 ===================
 
 ${detalleTexto.trim()}
@@ -473,9 +486,9 @@ Estamos atentos para cualquier consulta.
 
         toast.dismiss(toastId);
         if (copiado) {
-          toast.success("📸 ¡Foto copiada! En WhatsApp Web solo presiona Ctrl + V para pegarla.", { duration: 6000 });
+          toast.success("¡Foto copiada! En WhatsApp Web solo presiona Ctrl + V para pegarla.", { duration: 6000 });
         } else {
-          toast.success("📸 Imagen descargada. Puedes arrastrarla a WhatsApp Web.", { duration: 6000 });
+          toast.success("Imagen descargada. Puedes arrastrarla a WhatsApp Web.", { duration: 6000 });
         }
       }
     } catch (error: any) {
@@ -732,7 +745,10 @@ Estamos atentos para cualquier consulta.
       `}</style>
 
       {/* MODAL EN PANTALLA (SIEMPRE EN PRIMER PLANO ABSOLUTO) */}
-      <div className="ticket-print-portal fixed inset-0 bg-slate-900/80 backdrop-blur-md flex items-center justify-center p-2 sm:p-4 z-[999999] animate-in fade-in duration-200">
+      <div 
+        onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+        className="ticket-print-portal fixed inset-0 bg-slate-900/80 backdrop-blur-md flex items-center justify-center p-2 sm:p-4 z-[999999] animate-in fade-in duration-200"
+      >
         <div className="ticket-print-modal-card bg-white dark:bg-[#0f172a] rounded-3xl sm:rounded-2xl w-full max-w-md lg:max-w-lg shadow-2xl border border-slate-100 dark:border-slate-800 flex flex-col h-[85dvh] sm:h-auto sm:max-h-[96vh] overflow-hidden my-auto">
           
           {/* HEADER DEL MODAL */}
@@ -766,7 +782,7 @@ Estamos atentos para cualquier consulta.
                 facturaDianLocal?.cufe ? (
                   <div className="w-full py-2 px-3 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/60 font-bold rounded-xl flex items-center justify-center gap-1.5 text-xs">
                     <FileText size={14} className="shrink-0 text-emerald-600 dark:text-emerald-400" />
-                    <span>Factura DIAN: {facturaDianLocal.numeroFactura || "Emitida"}</span>
+                    <span>DIAN: {facturaDianLocal.numeroFactura || "Emitida"}</span>
                   </div>
                 ) : (
                   <button
@@ -843,8 +859,11 @@ Estamos atentos para cualquier consulta.
                 {/* Botón Factura Electrónica DIAN en escritorio */}
                 {datos.tipo === 'venta' && datos.idTransaccion && (
                   facturaDianLocal?.cufe ? (
-                    <div className="py-2.5 px-3 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/60 font-bold rounded-xl flex items-center gap-1.5 text-xs">
-                      <FileText size={15} className="shrink-0 text-emerald-600 dark:text-emerald-400" />
+                    <div 
+                      className="py-2.5 px-3 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/60 font-bold rounded-xl flex items-center gap-1.5 text-xs whitespace-nowrap shrink-0" 
+                      title={`Factura Electrónica ${facturaDianLocal.numeroFactura || 'Emitida'} emitida ante la DIAN`}
+                    >
+                      <FileText size={14} className="shrink-0 text-emerald-600 dark:text-emerald-400" />
                       <span>DIAN: {facturaDianLocal.numeroFactura || "Emitida"}</span>
                     </div>
                   ) : (

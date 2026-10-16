@@ -31,7 +31,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const puedeAbonar = esAdmin || (datosSesion?.permisos?.abonar === true);
   const moduloSepareActivo = datosSesion?.moduloSepareActivo !== false;
   const puedeSepare = (datosSesion?.puedeSepare ?? (datosSesion?.esPro === true)) && moduloSepareActivo;
-  const puedeGestionarSepares = (esAdmin || datosSesion?.permisos?.planSepare === true) && moduloSepareActivo;
+  const puedeGestionarSepares = (esAdmin || datosSesion?.permisos?.planSepare === true) && (moduloSepareActivo || separesActivosCount > 0);
   const puedeVerCartera = esAdmin || (datosSesion?.puedeVerCartera === true) || (datosSesion?.permisos?.verCartera === true);
   const puedeVerReportes = esAdmin || (datosSesion?.puedeVerReportes === true) || (datosSesion?.permisos?.verReportes === true);
   const esMaster = Boolean(
@@ -105,7 +105,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   // Listener para contar separes activos en tiempo real
   useEffect(() => {
-    if (!cuentaPrincipalId || !puedeSepare) {
+    const tienePermisoSepare = esAdmin || datosSesion?.permisos?.planSepare === true;
+    if (!cuentaPrincipalId || !tienePermisoSepare) {
       setSeparesActivosCount(0);
       return;
     }
@@ -118,7 +119,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       setSeparesActivosCount(snap.size);
     }, (e) => console.error("Error contando separes:", e));
     return () => unsub();
-  }, [cuentaPrincipalId, puedeSepare]);
+  }, [cuentaPrincipalId, esAdmin, datosSesion?.permisos?.planSepare]);
 
   // Adaptabilidad Inteligente: en tablets inicia colapsado, en pantallas grandes (1280px+) puede iniciar expandido
   useEffect(() => {

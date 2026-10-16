@@ -3,7 +3,7 @@ import { useState, useEffect, Suspense, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { collection, addDoc, getDocs, getDoc, query, doc, updateDoc, where, increment, writeBatch } from "firebase/firestore";
 import { auth, db } from "../../../firebase";
-import { Search, ShoppingBag, CheckCircle2, ChevronRight, X, AlertCircle, UserCog, Plus, Minus, ArrowLeft, ArrowRight, MessageCircle, Package, QrCode, Volume2, Printer, ChevronDown, ChevronUp, Tag, Receipt, Pause, FolderOpen, User, UserPlus, Trash2, LayoutGrid, List, ShoppingCart } from 'lucide-react';
+import { Search, ShoppingBag, CheckCircle2, ChevronRight, X, AlertCircle, UserCog, Plus, Minus, ArrowLeft, ArrowRight, MessageCircle, Package, QrCode, Volume2, Printer, ChevronDown, ChevronUp, Tag, Receipt, Pause, FolderOpen, User, UserPlus, Trash2, LayoutGrid, List, ShoppingCart, ArrowRightLeft, Bookmark } from 'lucide-react';
 import { useAuth } from "@/hooks/AuthContext";
 import toast from "react-hot-toast";
 import { notificar } from "@/utils/notificaciones";
@@ -35,6 +35,8 @@ function FiarContenido() {
     const puedeAplicarDescuentos = esAdmin || (datosSesion?.permisos?.aplicarDescuentos === true);
     const puedeEnviarWhatsApp = datosSesion?.puedeEnviarWhatsApp ?? true;
     const puedeVentaLibre = esAdmin || (datosSesion?.permisos?.ventaLibre === true);
+    const moduloSepareActivo = datosSesion?.moduloSepareActivo !== false;
+    const puedePlanSepare = (datosSesion?.esPro === true) && moduloSepareActivo && (esAdmin || datosSesion?.permisos?.planSepare === true);
 
     const [vendedorActivo, setVendedorActivo] = useState(nombreUsuario || "Vendedor");
     const [listaVendedores, setListaVendedores] = useState<string[]>([]);
@@ -509,6 +511,8 @@ function FiarContenido() {
 
     const [nombreNuevo, setNombreNuevo] = useState("");
     const [celularNuevo, setCelularNuevo] = useState("");
+    const [direccionNuevo, setDireccionNuevo] = useState("");
+    const [notasNuevo, setNotasNuevo] = useState("");
     const [guardandoCliente, setGuardandoCliente] = useState(false);
     const [origenRuta, setOrigenRuta] = useState<string>('/dashboard/inicio');
 
@@ -1249,16 +1253,34 @@ function FiarContenido() {
         try {
             const token = await auth.currentUser?.getIdToken();
             if (!token) throw new Error('Sesión inválida.');
-            const respuesta = await fetch('/api/clientes/crear', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ nombre: nombreNuevo, celular: celularNuevo }) });
+            const respuesta = await fetch('/api/clientes/crear', { 
+                method: 'POST', 
+                headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, 
+                body: JSON.stringify({ 
+                    nombre: nombreNuevo.trim(), 
+                    celular: celularNuevo.trim(),
+                    direccion: direccionNuevo.trim(),
+                    notas: notasNuevo.trim()
+                }) 
+            });
             const resultado = await respuesta.json();
             if (!respuesta.ok) throw new Error(resultado.error || 'No se pudo crear el cliente.');
             const nuevoObj = resultado.cliente;
-            setModalNuevoCliente(false); setNombreNuevo(""); setCelularNuevo(""); setBusquedaRegistro("");
+            setModalNuevoCliente(false); 
+            setNombreNuevo(""); 
+            setCelularNuevo(""); 
+            setDireccionNuevo("");
+            setNotasNuevo("");
+            setBusquedaRegistro("");
             await cargarDatosGlobales(cuentaPrincipalId!);
             setClienteTransaccion(nuevoObj);
             setMostrarResultadosBuscador(false);
             setModalFaltaCliente(false);
-        } catch (error) { toast.error("Error al guardar cliente."); } finally { setGuardandoCliente(false); }
+        } catch (error: any) { 
+            toast.error(error?.message || "Error al guardar cliente."); 
+        } finally { 
+            setGuardandoCliente(false); 
+        }
     };
 
     const formatearMonedaInput = (valor: string) => {
@@ -1711,9 +1733,15 @@ Estamos atentos para cualquier consulta.
         return () => window.removeEventListener('resize', handleResize);
     }, [filasRegistro]);
 
+    const normalizarBusquedaCli = (str: string) =>
+        (str || "").toString().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+
+    const qBusqRegNorm = normalizarBusquedaCli(busquedaRegistro);
     const clientesFiltradosRegistro = clientes.filter(c =>
-        (c.nombre || "").toLowerCase().includes(busquedaRegistro.toLowerCase()) ||
-        (c.celular || "").toString().includes(busquedaRegistro)
+        normalizarBusquedaCli(c.nombre || "").includes(qBusqRegNorm) ||
+        normalizarBusquedaCli(c.notas || "").includes(qBusqRegNorm) ||
+        normalizarBusquedaCli(c.direccion || "").includes(qBusqRegNorm) ||
+        (c.celular || "").toString().includes(busquedaRegistro.trim())
     );
 
     return (
@@ -1952,7 +1980,7 @@ Estamos atentos para cualquier consulta.
                                                                     key={p.id}
                                                                     onClick={() => {
                                                                         if (estaAgotado) {
-                                                                            toast.error(`⚠️ "${p.nombre}" no tiene existencias disponibles.`, { duration: 2000, position: 'bottom-center', icon: '🚫' });
+                                                                            toast.error(`"${p.nombre}" no tiene existencias disponibles.`, { duration: 2000, position: 'bottom-center' });
                                                                             return;
                                                                         }
                                                                         const nuevas = [...filasRegistro];
@@ -1986,20 +2014,20 @@ Estamos atentos para cualquier consulta.
                                                                         <div className="mt-1 flex items-center gap-1.5 flex-wrap">
                                                                             {!esInv ? (
                                                                                 <span className="text-[10px] font-bold text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-500/20 px-2 py-0.5 rounded-full inline-flex items-center gap-1">
-                                                                                    🛠️ Servicio / Ilimitado
+                                                                                    Servicio / Ilimitado
                                                                                 </span>
                                                                             ) : estaAgotado ? (
                                                                                 <span className="text-[10px] font-bold text-rose-700 dark:text-rose-400 bg-rose-100 dark:bg-rose-500/20 px-2.5 py-0.5 rounded-full inline-flex items-center gap-1">
-                                                                                    🚫 Agotado ({cantEnOtras > 0 ? `${cantEnOtras} en tu lista` : '0 disponibles'})
+                                                                                    Agotado ({cantEnOtras > 0 ? `${cantEnOtras} en tu lista` : '0 disponibles'})
                                                                                 </span>
                                                                             ) : stockDisp <= 5 ? (
                                                                                 <span className="text-[10px] font-bold text-amber-700 dark:text-amber-300 bg-amber-100 dark:bg-amber-500/20 px-2.5 py-0.5 rounded-full inline-flex items-center gap-1">
                                                                                     <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse"></span>
-                                                                                    ⚡ ¡Solo quedan {stockDisp}!
+                                                                                    Solo quedan {stockDisp}
                                                                                 </span>
                                                                             ) : (
                                                                                 <span className="text-[10px] font-medium text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-500/10 px-2.5 py-0.5 rounded-full inline-flex items-center gap-1">
-                                                                                    ✓ {stockDisp} disponibles
+                                                                                    Disponibles: {stockDisp}
                                                                                 </span>
                                                                             )}
                                                                         </div>
@@ -2200,17 +2228,21 @@ Estamos atentos para cualquier consulta.
                                     <button 
                                         type="button"
                                         onClick={() => manejarTraslado('vender')} 
-                                        className="flex-1 py-1.5 text-[9px] sm:text-[10px] font-black rounded-lg border border-emerald-300 dark:border-emerald-800 text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/30 hover:bg-emerald-100 dark:hover:bg-emerald-900/50 flex items-center justify-center gap-1 transition-colors cursor-pointer"
+                                        className="flex-1 py-1.5 text-[9px] sm:text-[10px] font-black rounded-lg border border-emerald-300 dark:border-emerald-800 text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/30 hover:bg-emerald-100 dark:hover:bg-emerald-900/50 flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
                                     >
-                                        🔄 Mover a Vender
+                                        <ArrowRightLeft size={12} />
+                                        <span>Mover a Vender</span>
                                     </button>
-                                    <button 
-                                        type="button"
-                                        onClick={() => manejarTraslado('separe')} 
-                                        className="flex-1 py-1.5 text-[9px] sm:text-[10px] font-black rounded-lg border border-purple-300 dark:border-purple-800 text-purple-700 dark:text-purple-400 bg-purple-50 dark:bg-purple-950/30 hover:bg-purple-100 dark:hover:bg-purple-900/50 flex items-center justify-center gap-1 transition-colors cursor-pointer"
-                                    >
-                                        🔄 Mover a Separe
-                                    </button>
+                                    {puedePlanSepare && (
+                                        <button 
+                                            type="button"
+                                            onClick={() => manejarTraslado('separe')} 
+                                            className="flex-1 py-1.5 text-[9px] sm:text-[10px] font-black rounded-lg border border-purple-300 dark:border-purple-800 text-purple-700 dark:text-purple-400 bg-purple-50 dark:bg-purple-950/30 hover:bg-purple-100 dark:hover:bg-purple-900/50 flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+                                        >
+                                            <Bookmark size={12} />
+                                            <span>Mover a Separe</span>
+                                        </button>
+                                    )}
                                 </div>
                             );
                         })()}
@@ -2227,7 +2259,13 @@ Estamos atentos para cualquier consulta.
                                 <div className="py-1.5 px-2.5 bg-rose-50 dark:bg-rose-500/10 rounded-xl border border-rose-200 dark:border-rose-800/50 flex justify-between items-center shadow-sm">
                                     <div className="flex flex-col min-w-0 mr-2">
                                         <span className="font-black text-slate-900 dark:text-rose-300 text-xs truncate">{clienteTransaccion.nombre}</span>
-                                        <span className="text-[10px] text-rose-600 font-bold block">Deuda actual: ${clienteTransaccion.deudaTotal?.toLocaleString('es-CO') || 0}</span>
+                                        <span className={`text-[10px] font-bold block ${Number(clienteTransaccion.deudaTotal || 0) < 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600'}`}>
+                                            {Number(clienteTransaccion.deudaTotal || 0) > 0 
+                                                ? `Deuda actual: $${Number(clienteTransaccion.deudaTotal).toLocaleString('es-CO')}` 
+                                                : Number(clienteTransaccion.deudaTotal || 0) < 0 
+                                                    ? `Saldo a favor: $${Math.abs(Number(clienteTransaccion.deudaTotal)).toLocaleString('es-CO')}` 
+                                                    : 'Al día'}
+                                        </span>
                                     </div>
                                     <button onClick={() => setClienteTransaccion(null)} className="text-rose-500 shrink-0 hover:bg-rose-100 p-0.5 rounded-full"><X size={13} /></button>
                                 </div>
@@ -2262,7 +2300,20 @@ Estamos atentos para cualquier consulta.
                                             <div className="max-h-40 overflow-y-auto">
                                                 {clientesFiltradosRegistro.map(c => (
                                                     <div key={c.id} onClick={() => { setClienteTransaccion(c); setBusquedaRegistro(""); setMostrarResultadosBuscador(false); }} className="p-2.5 border-b border-slate-100 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer flex justify-between text-xs">
-                                                        <span className="min-w-0 mr-2"><span className="font-bold text-slate-800 dark:text-slate-200 block truncate">{c.nombre}</span><span className={`text-[10px] font-black ${Number(c.deudaTotal || 0) > 0 ? 'text-rose-500' : Number(c.deudaTotal || 0) < 0 ? 'text-emerald-600' : 'text-slate-400'}`}>{Number(c.deudaTotal || 0) > 0 ? `Debe $${Number(c.deudaTotal).toLocaleString('es-CO')}` : Number(c.deudaTotal || 0) < 0 ? `A favor $${Math.abs(Number(c.deudaTotal)).toLocaleString('es-CO')}` : 'Al día'}</span></span><ChevronRight size={14} className="text-slate-400" />
+                                                        <span className="min-w-0 mr-2">
+                                                            <span className="font-bold text-slate-800 dark:text-slate-200 truncate flex items-center gap-1.5 flex-wrap">
+                                                                <span>{c.nombre}</span>
+                                                                {c.notas && (
+                                                                    <span className="text-[10px] font-bold px-1.5 py-0.2 rounded bg-amber-500/10 text-amber-700 dark:text-amber-300 border border-amber-500/20 truncate max-w-[140px]" title={c.notas}>
+                                                                        {c.notas}
+                                                                    </span>
+                                                                )}
+                                                            </span>
+                                                            <span className={`text-[10px] font-black ${Number(c.deudaTotal || 0) > 0 ? 'text-rose-500' : Number(c.deudaTotal || 0) < 0 ? 'text-emerald-600' : 'text-slate-400'}`}>
+                                                                {Number(c.deudaTotal || 0) > 0 ? `Debe $${Number(c.deudaTotal).toLocaleString('es-CO')}` : Number(c.deudaTotal || 0) < 0 ? `A favor $${Math.abs(Number(c.deudaTotal)).toLocaleString('es-CO')}` : 'Al día'}
+                                                            </span>
+                                                        </span>
+                                                        <ChevronRight size={14} className="text-slate-400 shrink-0" />
                                                     </div>
                                                 ))}
                                                 {!clientesFiltradosRegistro.some(c => c.nombre.toLowerCase() === busquedaRegistro.toLowerCase()) && (
@@ -2542,40 +2593,80 @@ Estamos atentos para cualquier consulta.
             )}
 
             {modalNuevoCliente && (
-                <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 z-[950]">
-                    <div className="bg-white dark:bg-[#0f172a] p-8 rounded-[2.5rem] w-full max-w-md shadow-2xl border border-slate-100 dark:border-slate-800 animate-in zoom-in-95 duration-200">
-                        <h3 className="text-3xl font-black text-slate-900 dark:text-white mb-6 flex items-center gap-2">
-                            <UserCog size={28} className="text-rose-500" /> Crear Cliente
-                        </h3>
-                        <div className="flex flex-col gap-4 mb-8">
-                            <input 
-                                type="text" 
-                                value={nombreNuevo} 
-                                onChange={(e) => setNombreNuevo(e.target.value)} 
-                                placeholder="Nombre completo" 
-                                className="w-full p-5 bg-slate-50 dark:bg-[#020617] border border-slate-200 dark:border-slate-700 rounded-2xl outline-none focus:border-rose-500 font-bold text-lg text-slate-900 dark:text-white" 
-                            />
-                            <input 
-                                type="tel" 
-                                value={celularNuevo} 
-                                onChange={(e) => setCelularNuevo(e.target.value)} 
-                                placeholder="WhatsApp (Opcional)" 
-                                className="w-full p-5 bg-slate-50 dark:bg-[#020617] border border-slate-200 dark:border-slate-700 rounded-2xl outline-none focus:border-rose-500 font-bold text-lg text-slate-900 dark:text-white" 
-                            />
+                <div 
+                    onClick={(e) => { if (e.target === e.currentTarget) setModalNuevoCliente(false); }}
+                    className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 z-[950]"
+                >
+                    <div className="bg-white dark:bg-[#0f172a] p-6 sm:p-7 rounded-[2.5rem] w-full max-w-md shadow-2xl border border-slate-100 dark:border-slate-800 animate-in zoom-in-95 duration-200">
+                        <div className="flex items-center justify-between mb-5">
+                            <h3 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white flex items-center gap-2">
+                                <UserCog size={24} className="text-rose-500" /> Crear Cliente
+                            </h3>
+                            <button 
+                                type="button" 
+                                onClick={() => setModalNuevoCliente(false)}
+                                className="p-1.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-400 hover:text-slate-700 dark:hover:text-white transition-colors cursor-pointer"
+                            >
+                                <X size={18} />
+                            </button>
                         </div>
-                        <div className="grid grid-cols-2 gap-4">
+
+                        <div className="flex flex-col gap-3.5 mb-6">
+                            <div>
+                                <label className="text-xs font-bold text-slate-600 dark:text-slate-300 block mb-1">Nombre Completo *</label>
+                                <input 
+                                    type="text" 
+                                    value={nombreNuevo} 
+                                    onChange={(e) => setNombreNuevo(e.target.value)} 
+                                    placeholder="Ej: Doña Carmen, Andrés..." 
+                                    className="w-full p-3.5 bg-slate-50 dark:bg-[#020617] border border-slate-200 dark:border-slate-700 rounded-2xl outline-none focus:border-rose-500 font-bold text-sm text-slate-900 dark:text-white" 
+                                />
+                            </div>
+                            <div>
+                                <label className="text-xs font-bold text-slate-600 dark:text-slate-300 block mb-1">Celular (WhatsApp)</label>
+                                <input 
+                                    type="tel" 
+                                    value={celularNuevo} 
+                                    onChange={(e) => setCelularNuevo(e.target.value)} 
+                                    placeholder="Ej: 3101234567" 
+                                    className="w-full p-3.5 bg-slate-50 dark:bg-[#020617] border border-slate-200 dark:border-slate-700 rounded-2xl outline-none focus:border-rose-500 font-bold text-sm text-slate-900 dark:text-white" 
+                                />
+                            </div>
+                            <div>
+                                <label className="text-xs font-bold text-slate-600 dark:text-slate-300 block mb-1">Dirección o Referencia</label>
+                                <input 
+                                    type="text" 
+                                    value={direccionNuevo} 
+                                    onChange={(e) => setDireccionNuevo(e.target.value)} 
+                                    placeholder="Ej: Carrera 5 # 12-30" 
+                                    className="w-full p-3.5 bg-slate-50 dark:bg-[#020617] border border-slate-200 dark:border-slate-700 rounded-2xl outline-none focus:border-rose-500 font-bold text-sm text-slate-900 dark:text-white" 
+                                />
+                            </div>
+                            <div>
+                                <label className="text-xs font-bold text-slate-600 dark:text-slate-300 block mb-1">Notas / Referencia / Apodo</label>
+                                <textarea 
+                                    rows={2} 
+                                    value={notasNuevo} 
+                                    onChange={(e) => setNotasNuevo(e.target.value)} 
+                                    placeholder="Ej: Apodo (Cachaco), parentesco, notas..." 
+                                    className="w-full p-3 bg-slate-50 dark:bg-[#020617] border border-slate-200 dark:border-slate-700 rounded-2xl outline-none focus:border-rose-500 font-medium text-xs text-slate-900 dark:text-white resize-none" 
+                                />
+                            </div>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-3">
                             <button 
                                 onClick={() => setModalNuevoCliente(false)} 
-                                className="bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold py-4 rounded-2xl text-lg transition-colors cursor-pointer"
+                                className="bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold py-3.5 rounded-2xl text-sm transition-colors cursor-pointer"
                             >
                                 Cancelar
                             </button>
                             <button 
                                 onClick={guardarClienteNuevo} 
                                 disabled={guardandoCliente} 
-                                className="bg-rose-600 hover:bg-rose-700 text-white font-bold py-4 rounded-2xl shadow-lg flex justify-center items-center gap-2 text-lg transition-transform active:scale-95 cursor-pointer"
+                                className="bg-rose-600 hover:bg-rose-700 text-white font-bold py-3.5 rounded-2xl shadow-lg flex justify-center items-center gap-2 text-sm transition-transform active:scale-95 disabled:opacity-50 cursor-pointer"
                             >
-                                Guardar <CheckCircle2 size={20} />
+                                Guardar <CheckCircle2 size={18} />
                             </button>
                         </div>
                     </div>

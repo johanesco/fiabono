@@ -40,6 +40,7 @@ function SeparesContenido() {
   const puedeAbonar = esAdmin || (datosSesion?.permisos?.abonar === true);
   const puedeEnviarWhatsApp = datosSesion?.puedeEnviarWhatsApp ?? true;
   const tienePermisoSepare = esAdmin || (datosSesion?.permisos?.planSepare === true);
+  const moduloSepareActivo = datosSesion?.moduloSepareActivo !== false;
 
   // Protección de acceso
   useEffect(() => {
@@ -226,12 +227,15 @@ function SeparesContenido() {
 
     if (!busqueda.trim()) return true;
 
-    const qLower = busqueda.toLowerCase();
-    const clienteMatch = (sep.clienteNombre || "").toLowerCase().includes(qLower);
-    const celularMatch = (sep.clienteCelular || "").toString().includes(qLower);
-    const itemsMatch = (sep.items || []).some((it: any) => (it.descripcion || "").toLowerCase().includes(qLower));
+    const normalizar = (texto: string) => (texto || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
+    const qNorm = normalizar(busqueda);
+    const clienteMatch = normalizar(sep.clienteNombre).includes(qNorm);
+    const celularMatch = (sep.clienteCelular || "").toString().includes(busqueda.trim());
+    const notasClienteMatch = normalizar(sep.clienteNotas || "").includes(qNorm);
+    const notasSepareMatch = normalizar(sep.notas || "").includes(qNorm);
+    const itemsMatch = (sep.items || []).some((it: any) => normalizar(it.descripcion).includes(qNorm));
 
-    return clienteMatch || celularMatch || itemsMatch;
+    return clienteMatch || celularMatch || notasClienteMatch || notasSepareMatch || itemsMatch;
   });
 
   // Helpers de fecha y vencimiento
@@ -461,8 +465,8 @@ Estamos atentos para cualquier consulta.
     if (!separeSeleccionado) return;
     if (isDeliveringRef.current || procesandoEntrega) return;
 
-    if (!esAdmin && !puedeVentaDirecta) {
-      toast.error("Solo el administrador o usuarios con permiso de venta directa pueden confirmar entregas de Plan Separe.");
+    if (!esAdmin && !puedeVentaDirecta && !tienePermisoSepare && !puedeAbonar) {
+      toast.error("No tienes permisos para confirmar entregas de Plan Separe.");
       return;
     }
 
@@ -712,31 +716,61 @@ Gracias por contactarnos.`;
             </div>
           </div>
 
-          <button
-            onClick={() => {
-              if (!datosSesion?.esPro) {
-                toast.error("La creación de nuevos apartados requiere el Plan PRO.", { icon: "👑" });
-                setModalSuscripcionOpen(true);
-                return;
-              }
-              router.push('/dashboard/separe');
-            }}
-            className="bg-white text-violet-800 hover:bg-violet-50 font-black text-xs sm:text-sm px-4 py-2.5 rounded-xl shadow-md transition-transform transform active:scale-95 flex items-center justify-center gap-2 cursor-pointer shrink-0"
-          >
-            <Plus size={16} />
-            <span>Nuevo Plan Separe</span>
-            {!datosSesion?.esPro && (
-              <span className="bg-amber-100 text-amber-800 text-[10px] font-black px-1.5 py-0.5 rounded-md uppercase tracking-wider">PRO</span>
-            )}
-          </button>
+          {moduloSepareActivo && (
+            <button
+              onClick={() => {
+                if (!datosSesion?.esPro) {
+                  toast.error("La creación de nuevos apartados requiere el Plan PRO.");
+                  setModalSuscripcionOpen(true);
+                  return;
+                }
+                router.push('/dashboard/separe');
+              }}
+              className="bg-white text-violet-800 hover:bg-violet-50 font-black text-xs sm:text-sm px-4 py-2.5 rounded-xl shadow-md transition-transform transform active:scale-95 flex items-center justify-center gap-2 cursor-pointer shrink-0"
+            >
+              <Plus size={16} />
+              <span>Nuevo Plan Separe</span>
+              {!datosSesion?.esPro && (
+                <span className="bg-amber-100 text-amber-800 text-[10px] font-black px-1.5 py-0.5 rounded-md uppercase tracking-wider">PRO</span>
+              )}
+            </button>
+          )}
         </div>
       </div>
 
       {/* CONTENEDOR DE FILTROS Y CONTENIDO */}
       <div className="max-w-7xl w-full mx-auto p-3 sm:p-6 space-y-4 flex-1 pb-24">
 
-        {/* BANNER MODO LIQUIDACIÓN PARA PLANES NO-PRO */}
-        {!datosSesion?.esPro && (
+        {/* BANNER MODO LIQUIDACIÓN CUANDO MÓDULO ESTÁ DESHABILITADO O NO-PRO */}
+        {!moduloSepareActivo ? (
+          <div className="bg-gradient-to-r from-amber-50 to-amber-100/60 dark:from-amber-950/40 dark:to-amber-900/20 border border-amber-200 dark:border-amber-800/60 rounded-2xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-amber-900 dark:text-amber-200 shadow-sm animate-in fade-in duration-300">
+            <div className="flex items-start gap-3">
+              <div className="p-2 bg-amber-200/60 dark:bg-amber-800/50 rounded-xl text-amber-800 dark:text-amber-200 shrink-0">
+                <AlertTriangle size={20} />
+              </div>
+              <div>
+                <h4 className="font-black text-sm text-amber-950 dark:text-amber-100 flex items-center gap-2">
+                  <span>Módulo Deshabilitado en Ajustes</span>
+                  <span className="text-[10px] uppercase tracking-wider font-extrabold px-2 py-0.5 rounded-full bg-amber-200/80 dark:bg-amber-800/70 text-amber-900 dark:text-amber-100">
+                    Modo Gestión de Activos
+                  </span>
+                </h4>
+                <p className="text-xs text-amber-800/90 dark:text-amber-300/90 mt-0.5 leading-relaxed">
+                  Has desactivado la creación de nuevos apartados en Ajustes. Puedes seguir consultando el historial, registrando abonos y entregando los separes activos previamente guardados sin inconvenientes.
+                </p>
+              </div>
+            </div>
+            {esAdmin && (
+              <button
+                onClick={() => router.push('/dashboard/perfil')}
+                className="shrink-0 w-full sm:w-auto bg-amber-600 hover:bg-amber-700 text-white font-black text-xs px-4 py-2 rounded-xl shadow-md transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+              >
+                <span>Ir a Ajustes</span>
+                <ChevronRight size={14} />
+              </button>
+            )}
+          </div>
+        ) : !datosSesion?.esPro ? (
           <div className="bg-gradient-to-r from-amber-50 to-amber-100/60 dark:from-amber-950/40 dark:to-amber-900/20 border border-amber-200 dark:border-amber-800/60 rounded-2xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-amber-900 dark:text-amber-200 shadow-sm animate-in fade-in duration-300">
             <div className="flex items-start gap-3">
               <div className="p-2 bg-amber-200/60 dark:bg-amber-800/50 rounded-xl text-amber-800 dark:text-amber-200 shrink-0">
@@ -762,7 +796,7 @@ Gracias por contactarnos.`;
               <ChevronRight size={14} />
             </button>
           </div>
-        )}
+        ) : null}
 
         {/* BARRA DE TABS Y BUSCADOR */}
         <div className="flex flex-col sm:flex-row gap-3 items-stretch sm:items-center justify-between">
@@ -843,11 +877,11 @@ Gracias por contactarnos.`;
                 {busqueda ? "Intenta con otro término de búsqueda" : "Crea tu primer Plan Separe para reservar productos y recibir abonos progresivos."}
               </p>
             </div>
-            {!busqueda && tabActiva === 'activos' && (
+            {!busqueda && tabActiva === 'activos' && moduloSepareActivo && (
               <button
                 onClick={() => {
                   if (!datosSesion?.esPro) {
-                    toast.error("La creación de nuevos apartados requiere el Plan PRO.", { icon: "👑" });
+                    toast.error("La creación de nuevos apartados requiere el Plan PRO.");
                     setModalSuscripcionOpen(true);
                     return;
                   }
@@ -1036,7 +1070,7 @@ Gracias por contactarnos.`;
                         </button>
                       ) : (
                         <div className="flex-1 bg-slate-100 dark:bg-slate-800 text-slate-400 font-bold text-[11px] py-2 rounded-xl text-center">
-                          🔒 Abonos restringidos
+                          Abonos restringidos
                         </div>
                       )
                     )}

@@ -97,51 +97,77 @@ export async function POST(request: Request) {
     const tokenOverride = adminData?.matiasTokenCustom || body.tokenOverride || undefined;
 
     // 3. Obtener e incrementar consecutivamente el número de factura de forma atómica
+    // 3. Emisión con Auto-Recuperación de Consecutivo:
+    // Si un número de factura ya fue validado previamente en MATIAS/DIAN,
+    // el sistema incrementa automáticamente y reintenta con el siguiente número disponible.
     const userRef = adminDb.collection('usuarios').doc(cuentaPrincipalId);
-    const consecutivo = await adminDb.runTransaction(async (transaction) => {
-      const userDoc = await transaction.get(userRef);
-      const userData = userDoc.data() || {};
-      const campoConsecutivo = ambiente === 'produccion'
-        ? 'consecutivoFacturaDianProd'
-        : 'consecutivoFacturaDianSandbox';
+    const campoConsecutivo = ambiente === 'produccion'
+      ? 'consecutivoFacturaDianProd'
+      : 'consecutivoFacturaDianSandbox';
+    const tieneTokenPropio = Boolean(adminData?.matiasTokenCustom);
 
-      // Base: en Sandbox ya emitimos 1 y 2 en pruebas de verificación
-      const actual = typeof userData[campoConsecutivo] === 'number'
-        ? userData[campoConsecutivo]
-        : (ambiente === 'sandbox' ? 2 : 0);
+    let resultadoFinal: any = null;
+    const maxReintentos = 10;
 
-      const siguiente = actual + 1;
-      transaction.update(userRef, { [campoConsecutivo]: siguiente });
-      return siguiente;
-    });
+    for (let intento = 0; intento < maxReintentos; intento++) {
+      const consecutivo = await adminDb.runTransaction(async (transaction) => {
+        const userDoc = await transaction.get(userRef);
+        const userData = userDoc.data() || {};
 
-    // 4. Emitir a MATIAS API
-    const resultado = await emitirFacturaDian({
-      movimiento: movData,
-      cliente,
-      resolucion,
-      prefijo,
-      consecutivo,
-      ambiente,
-      tokenOverride
-    });
+        let actual = typeof userData[campoConsecutivo] === 'number'
+          ? userData[campoConsecutivo]
+          : (ambiente === 'sandbox' && !tieneTokenPropio ? 5 : 0);
 
-    if (resultado.success && resultado.datos) {
-      // Guardar en Firestore el resultado oficial con CUFE y QR
-      await movRef.update({
-        facturaElectronica: resultado.datos
+        const siguiente = actual + 1;
+        transaction.update(userRef, { [campoConsecutivo]: siguiente });
+        return siguiente;
       });
 
-      return NextResponse.json({
-        success: true,
-        facturaElectronica: resultado.datos
+      // 4. Emitir a MATIAS API
+      const resultado = await emitirFacturaDian({
+        movimiento: movData,
+        cliente,
+        resolucion,
+        prefijo,
+        consecutivo,
+        ambiente,
+        tokenOverride
       });
+
+      if (resultado.success && resultado.datos) {
+        // Guardar en Firestore el resultado oficial con CUFE y QR
+        await movRef.update({
+          facturaElectronica: resultado.datos
+        });
+
+        return NextResponse.json({
+          success: true,
+          facturaElectronica: resultado.datos
+        });
+      }
+
+      // Detectar si el error fue por número de factura ya usado en DIAN/MATIAS
+      const errorMsg = (resultado.error || '').toLowerCase();
+      const esConsecutivoDuplicado = 
+        errorMsg.includes('ya se encuentra validado') ||
+        errorMsg.includes('ya existe') ||
+        errorMsg.includes('duplicado') ||
+        errorMsg.includes('documento (factura electrónica) con numero');
+
+      if (esConsecutivoDuplicado) {
+        console.warn(`[DIAN Auto-Recover] Consecutivo ${prefijo}${consecutivo} ya fue validado en MATIAS. Avanzando automáticamente al siguiente... (Intento ${intento + 1}/${maxReintentos})`);
+        continue;
+      }
+
+      // Si es otro tipo de error (ej. token incorrecto o datos fiscales inválidos), terminar
+      resultadoFinal = resultado;
+      break;
     }
 
     return NextResponse.json({
       success: false,
-      error: resultado.error || 'No se pudo emitir la factura en la DIAN.',
-      detalles: resultado.detallesError
+      error: resultadoFinal?.error || 'No se pudo emitir la factura en la DIAN.',
+      detalles: resultadoFinal?.detallesError
     }, { status: 422 });
 
   } catch (error: any) {

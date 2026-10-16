@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getAdminAuth, getAdminDb } from '@/lib/firebase-admin';
+import { emitirYGuardarNotaCredito } from '@/lib/notaCreditoServidor';
 
 export async function POST(request: Request) {
   try {
@@ -91,12 +92,23 @@ export async function POST(request: Request) {
         efectivo = totalDevolver;
       }
 
+      // Firestore exige TODAS las lecturas antes de la primera escritura.
+      // Se agrupan cantidades por producto (un mismo producto puede repetirse).
+      const cantidadPorProducto = new Map<string, number>();
       for (const articulo of articulosValidados) {
         if (!articulo.productoId) continue;
-        const productoRef = adminDb.collection('inventario').doc(articulo.productoId);
-        const productoSnap = await transaction.get(productoRef);
+        cantidadPorProducto.set(articulo.productoId, (cantidadPorProducto.get(articulo.productoId) || 0) + articulo.cantidad);
+      }
+      const productosLeidos = await Promise.all(
+        Array.from(cantidadPorProducto.entries()).map(async ([productoId, cantidad]) => {
+          const productoRef = adminDb.collection('inventario').doc(productoId);
+          const productoSnap = await transaction.get(productoRef);
+          return { productoRef, productoSnap, cantidad };
+        })
+      );
+      for (const { productoRef, productoSnap, cantidad } of productosLeidos) {
         if (productoSnap.exists && productoSnap.data()?.usuarioId === cuentaPrincipalId) {
-          transaction.update(productoRef, { stock: Number(productoSnap.data()?.stock || 0) + articulo.cantidad });
+          transaction.update(productoRef, { stock: Number(productoSnap.data()?.stock || 0) + cantidad });
         }
       }
 
@@ -126,10 +138,45 @@ export async function POST(request: Request) {
         saldoResultante: nuevoSaldo ?? null,
         esPublico: true
       });
-      return { movimientoId: movimientoRef.id, nuevoSaldoCliente: nuevoSaldo, totalDevolver, articulosDevueltos: articulosValidados };
+      return { 
+        movimientoId: movimientoRef.id, 
+        nuevoSaldoCliente: nuevoSaldo, 
+        totalDevolver, 
+        articulosDevueltos: articulosValidados,
+        origenFacturaElectronica: origen.facturaElectronica || null,
+        origenClienteId: origen.clienteId || null,
+        origenClienteNombre: origen.clienteNombre || null,
+        origenFecha: origen.fecha || null
+      };
     });
 
-    return NextResponse.json({ ok: true, ...resultado });
+    let notaCreditoDian = null;
+    let errorNotaCredito: string | null = null;
+
+    if (resultado.origenFacturaElectronica?.cufe) {
+      const r = await emitirYGuardarNotaCredito({
+        adminDb,
+        cuentaPrincipalId,
+        usuario,
+        movimientoDevolucionId: resultado.movimientoId,
+        movimientoOrigenId: origenId,
+        totalDevolver: resultado.totalDevolver,
+        articulosDevueltos: resultado.articulosDevueltos,
+        origenClienteId: resultado.origenClienteId,
+        origenClienteNombre: resultado.origenClienteNombre,
+        origenFecha: resultado.origenFecha,
+        origenFacturaElectronica: resultado.origenFacturaElectronica
+      });
+      notaCreditoDian = r.datos;
+      errorNotaCredito = r.error;
+    }
+
+    return NextResponse.json({ 
+      ok: true, 
+      ...resultado, 
+      notaCreditoDian, 
+      errorNotaCredito 
+    });
   } catch (error: any) {
     const mensajes: Record<string, { status: number; text: string }> = {
       ORIGEN_NO_EXISTE: { status: 404, text: 'La venta original no existe.' },

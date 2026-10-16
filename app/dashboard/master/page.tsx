@@ -182,6 +182,37 @@ export default function MasterPage() {
     }
   };
 
+  // Manejo de tecla Escape para cerrar cualquier modal abierto de forma intuitiva
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        if (modalConfigPagos && !guardandoMediosPago) setModalConfigPagos(false);
+        if (modalWhatsApp.visible) setModalWhatsApp(prev => ({ ...prev, visible: false }));
+        if (modalNota.visible && !modalNota.guardando) setModalNota({ visible: false, usuario: null, texto: "", guardando: false });
+        if (modalCajeros.visible) setModalCajeros({ visible: false, cajeros: [], cargando: false, nombreAdmin: '' });
+        if (modalPlan.visible) setModalPlan({ visible: false, usuario: null });
+        if (modalBono) setModalBono(false);
+        if (modalAnuncio) setModalAnuncio(false);
+        if (modalResetPass.visible && !modalResetPass.generando && !modalResetPass.enviandoCorreo) setModalResetPass(prev => ({ ...prev, visible: false, usuario: null, linkGenerado: "" }));
+        if (modalEliminar.visible && !modalEliminar.eliminando) setModalEliminar({ visible: false, usuario: null, confirmacionTexto: '', eliminando: false, error: null });
+        if (modalDian.visible && !modalDian.guardando) setModalDian(prev => ({ ...prev, visible: false, usuario: null }));
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [
+    modalConfigPagos, guardandoMediosPago, 
+    modalWhatsApp.visible, 
+    modalNota.visible, modalNota.guardando, 
+    modalCajeros.visible, 
+    modalPlan.visible, 
+    modalBono, 
+    modalAnuncio, 
+    modalResetPass.visible, modalResetPass.generando, modalResetPass.enviandoCorreo, 
+    modalEliminar.visible, modalEliminar.eliminando, 
+    modalDian.visible, modalDian.guardando
+  ]);
+
   useEffect(() => {
     // PROTECCIÓN ULTRA ESTRICTA: Solo el email de login real johanescobar1@gmail.com
     const emailLogin = auth.currentUser?.email?.toLowerCase().trim();
@@ -571,6 +602,7 @@ export default function MasterPage() {
       await updateDoc(doc(db, "usuarios", u.id), {
         plan: planFinal,
         planVence: nuevaFecha,
+        proximoPlan: null,
         cicloPlan: diasAdicionales >= 365 ? 'anual' : 'mensual'
       });
       toast.success(`+${diasAdicionales} dias acreditados exitosamente a ${nombreNeg}.`);
@@ -598,6 +630,7 @@ export default function MasterPage() {
         await updateDoc(doc(db, "usuarios", u.id), {
           plan: 'gratis',
           planVence: null,
+          proximoPlan: null,
           cicloPlan: 'mensual'
         });
 
@@ -1078,7 +1111,12 @@ export default function MasterPage() {
     }
   };
 
-  if (cargando || !datosSesion || datosSesion.correoNegocio !== 'johanescobar1@gmail.com') {
+  const emailLogin = auth.currentUser?.email?.toLowerCase().trim();
+  const esMasterValido = (emailLogin === 'johanescobar1@gmail.com' || 
+    datosSesion?.correoNegocio?.toLowerCase().trim() === 'johanescobar1@gmail.com' || 
+    datosSesion?.datosUsuarioOriginales?.email?.toLowerCase().trim() === 'johanescobar1@gmail.com');
+
+  if (cargando || !datosSesion || !esMasterValido) {
     return (
       <div className={`flex items-center justify-center min-h-[70vh] ${modoOscuro ? 'bg-[#070b14] text-white' : 'bg-slate-50 text-slate-900'}`}>
         <div className="flex flex-col items-center gap-3">
@@ -1946,8 +1984,14 @@ export default function MasterPage() {
 
         {/* MODAL CONFIGURACIÓN DE MEDIOS DE PAGO */}
         {modalConfigPagos && (
-          <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4 z-[9999] animate-in fade-in">
-            <div className={`${theme.modalBg} rounded-[2rem] sm:rounded-[2.5rem] p-5 sm:p-7 w-full max-w-md border space-y-4 sm:space-y-5 max-h-[90dvh] overflow-y-auto overscroll-contain shadow-2xl`}>
+          <div 
+            onClick={(e) => { if (e.target === e.currentTarget && !guardandoMediosPago) setModalConfigPagos(false); }}
+            className="fixed inset-0 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4 z-[9999] animate-in fade-in cursor-pointer"
+          >
+            <div 
+              onClick={(e) => e.stopPropagation()}
+              className={`${theme.modalBg} rounded-[2rem] sm:rounded-[2.5rem] p-5 sm:p-7 w-full max-w-md border space-y-4 sm:space-y-5 max-h-[90dvh] overflow-y-auto overscroll-contain shadow-2xl cursor-default`}
+            >
               <div className="flex justify-between items-start">
                 <div>
                   <h3 className={`text-xl font-black ${theme.textMain} flex items-center gap-2`}>
@@ -2064,8 +2108,14 @@ export default function MasterPage() {
 
         {/* MODAL CRM WHATSAPP CONTEXTUAL */}
         {modalWhatsApp.visible && modalWhatsApp.usuario && (
-          <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4 z-[9999] animate-in fade-in">
-            <div className={`${theme.modalBg} rounded-[2rem] sm:rounded-[2.5rem] p-5 sm:p-7 w-full max-w-lg border space-y-4 sm:space-y-5 max-h-[90dvh] overflow-y-auto overscroll-contain shadow-2xl`}>
+          <div 
+            onClick={(e) => { if (e.target === e.currentTarget) setModalWhatsApp(prev => ({ ...prev, visible: false })); }}
+            className="fixed inset-0 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4 z-[9999] animate-in fade-in cursor-pointer"
+          >
+            <div 
+              onClick={(e) => e.stopPropagation()}
+              className={`${theme.modalBg} rounded-[2rem] sm:rounded-[2.5rem] p-5 sm:p-7 w-full max-w-lg border space-y-4 sm:space-y-5 max-h-[90dvh] overflow-y-auto overscroll-contain shadow-2xl cursor-default`}
+            >
               <div className="flex justify-between items-start">
                 <div>
                   <h3 className={`text-xl font-black ${theme.textMain} flex items-center gap-2`}>
@@ -2247,8 +2297,14 @@ export default function MasterPage() {
 
         {/* MODAL NOTAS MASTER (NOTAS PRIVADAS DE JOHAN) */}
         {modalNota.visible && modalNota.usuario && (
-          <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4 z-[9999] animate-in fade-in">
-            <div className={`${theme.modalBg} rounded-[2rem] sm:rounded-[2.5rem] p-5 sm:p-7 w-full max-w-md border space-y-4 max-h-[90dvh] overflow-y-auto overscroll-contain shadow-2xl`}>
+          <div 
+            onClick={(e) => { if (e.target === e.currentTarget && !modalNota.guardando) setModalNota({ visible: false, usuario: null, texto: "", guardando: false }); }}
+            className="fixed inset-0 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4 z-[9999] animate-in fade-in cursor-pointer"
+          >
+            <div 
+              onClick={(e) => e.stopPropagation()}
+              className={`${theme.modalBg} rounded-[2rem] sm:rounded-[2.5rem] p-5 sm:p-7 w-full max-w-md border space-y-4 max-h-[90dvh] overflow-y-auto overscroll-contain shadow-2xl cursor-default`}
+            >
               <div className="flex justify-between items-start">
                 <div>
                   <h3 className={`text-xl font-black ${theme.textMain} flex items-center gap-2`}>
@@ -2300,8 +2356,14 @@ export default function MasterPage() {
 
         {/* MODAL VER CAJEROS / COLABORADORES */}
         {modalCajeros.visible && (
-          <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4 z-[9999] animate-in fade-in">
-            <div className={`${theme.modalBg} rounded-[2rem] sm:rounded-[2.5rem] p-5 sm:p-7 w-full max-w-md border space-y-4 max-h-[90dvh] overflow-y-auto overscroll-contain shadow-2xl`}>
+          <div 
+            onClick={(e) => { if (e.target === e.currentTarget) setModalCajeros({ visible: false, cajeros: [], cargando: false, nombreAdmin: '' }); }}
+            className="fixed inset-0 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4 z-[9999] animate-in fade-in cursor-pointer"
+          >
+            <div 
+              onClick={(e) => e.stopPropagation()}
+              className={`${theme.modalBg} rounded-[2rem] sm:rounded-[2.5rem] p-5 sm:p-7 w-full max-w-md border space-y-4 max-h-[90dvh] overflow-y-auto overscroll-contain shadow-2xl cursor-default`}
+            >
               <div className="flex justify-between items-center">
                 <div>
                   <h3 className={`text-xl font-black ${theme.textMain}`}>Colaboradores Activos</h3>
@@ -2358,8 +2420,14 @@ export default function MasterPage() {
 
         {/* MODAL GESTIONAR / FORZAR PLAN */}
         {modalPlan.visible && modalPlan.usuario && (
-          <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4 z-[9999] animate-in fade-in">
-            <div className={`${theme.modalBg} rounded-[2rem] sm:rounded-[2.5rem] p-5 sm:p-7 w-full max-w-sm border space-y-4 max-h-[90dvh] overflow-y-auto overscroll-contain shadow-2xl`}>
+          <div 
+            onClick={(e) => { if (e.target === e.currentTarget) setModalPlan({ visible: false, usuario: null }); }}
+            className="fixed inset-0 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4 z-[9999] animate-in fade-in cursor-pointer"
+          >
+            <div 
+              onClick={(e) => e.stopPropagation()}
+              className={`${theme.modalBg} rounded-[2rem] sm:rounded-[2.5rem] p-5 sm:p-7 w-full max-w-sm border space-y-4 max-h-[90dvh] overflow-y-auto overscroll-contain shadow-2xl cursor-default`}
+            >
               <div className="flex justify-between items-center">
                 <h3 className={`text-xl font-black ${theme.textMain}`}>Gestionar Plan</h3>
                 <button 
@@ -2436,8 +2504,14 @@ export default function MasterPage() {
 
         {/* MODAL CREAR BONO */}
         {modalBono && (
-          <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4 z-[9999] animate-in fade-in">
-            <div className={`${theme.modalBg} rounded-[2rem] sm:rounded-[2.5rem] p-5 sm:p-7 w-full max-w-sm border space-y-4 max-h-[90dvh] overflow-y-auto overscroll-contain shadow-2xl`}>
+          <div 
+            onClick={(e) => { if (e.target === e.currentTarget) setModalBono(false); }}
+            className="fixed inset-0 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4 z-[9999] animate-in fade-in cursor-pointer"
+          >
+            <div 
+              onClick={(e) => e.stopPropagation()}
+              className={`${theme.modalBg} rounded-[2rem] sm:rounded-[2.5rem] p-5 sm:p-7 w-full max-w-sm border space-y-4 max-h-[90dvh] overflow-y-auto overscroll-contain shadow-2xl cursor-default`}
+            >
               <div className="flex justify-between items-center">
                 <h3 className={`text-xl font-black ${theme.textMain}`}>Nuevo Codigo Promocional</h3>
                 <button 
@@ -2527,8 +2601,14 @@ export default function MasterPage() {
 
         {/* MODAL CREAR ANUNCIO */}
         {modalAnuncio && (
-          <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4 z-[9999] animate-in fade-in">
-            <div className={`${theme.modalBg} rounded-[2rem] sm:rounded-[2.5rem] p-5 sm:p-7 w-full max-w-sm border space-y-3.5 max-h-[90dvh] overflow-y-auto overscroll-contain shadow-2xl`}>
+          <div 
+            onClick={(e) => { if (e.target === e.currentTarget) setModalAnuncio(false); }}
+            className="fixed inset-0 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4 z-[9999] animate-in fade-in cursor-pointer"
+          >
+            <div 
+              onClick={(e) => e.stopPropagation()}
+              className={`${theme.modalBg} rounded-[2rem] sm:rounded-[2.5rem] p-5 sm:p-7 w-full max-w-sm border space-y-3.5 max-h-[90dvh] overflow-y-auto overscroll-contain shadow-2xl cursor-default`}
+            >
               <div className="flex justify-between items-center">
                 <h3 className={`text-xl font-black ${theme.textMain}`}>Nuevo Anuncio</h3>
                 <button 
@@ -2603,8 +2683,14 @@ export default function MasterPage() {
 
         {/* MODAL MASTER: RESTABLECER CONTRASEÑA O GENERAR ENLACE OFICIAL */}
         {modalResetPass.visible && modalResetPass.usuario && (
-          <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4 z-[9999] animate-in fade-in">
-            <div className={`${theme.modalBg} rounded-[2rem] sm:rounded-[2.5rem] p-5 sm:p-7 w-full max-w-lg border space-y-4 sm:space-y-5 shadow-2xl relative max-h-[90dvh] overflow-y-auto overscroll-contain`}>
+          <div 
+            onClick={(e) => { if (e.target === e.currentTarget && !modalResetPass.generando && !modalResetPass.enviandoCorreo) setModalResetPass(prev => ({ ...prev, visible: false, usuario: null, linkGenerado: "" })); }}
+            className="fixed inset-0 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4 z-[9999] animate-in fade-in cursor-pointer"
+          >
+            <div 
+              onClick={(e) => e.stopPropagation()}
+              className={`${theme.modalBg} rounded-[2rem] sm:rounded-[2.5rem] p-5 sm:p-7 w-full max-w-lg border space-y-4 sm:space-y-5 shadow-2xl relative max-h-[90dvh] overflow-y-auto overscroll-contain cursor-default`}
+            >
               <div className="flex justify-between items-start">
                 <div>
                   <h3 className={`text-xl font-black ${theme.textMain} flex items-center gap-2`}>
@@ -2759,8 +2845,14 @@ export default function MasterPage() {
 
         {/* MODAL ELIMINAR NEGOCIO DEFINITIVAMENTE (PURGA EN CASCADA) */}
         {modalEliminar.visible && modalEliminar.usuario && (
-          <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4 z-[9999] animate-in fade-in">
-            <div className={`${theme.modalBg} rounded-[2rem] sm:rounded-[2.5rem] p-5 sm:p-7 w-full max-w-lg border border-rose-500/30 space-y-4 max-h-[90dvh] overflow-y-auto overscroll-contain shadow-2xl`}>
+          <div 
+            onClick={(e) => { if (e.target === e.currentTarget && !modalEliminar.eliminando) setModalEliminar({ visible: false, usuario: null, confirmacionTexto: '', eliminando: false, error: null }); }}
+            className="fixed inset-0 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4 z-[9999] animate-in fade-in cursor-pointer"
+          >
+            <div 
+              onClick={(e) => e.stopPropagation()}
+              className={`${theme.modalBg} rounded-[2rem] sm:rounded-[2.5rem] p-5 sm:p-7 w-full max-w-lg border border-rose-500/30 space-y-4 max-h-[90dvh] overflow-y-auto overscroll-contain shadow-2xl cursor-default`}
+            >
               <div className="flex justify-between items-center pb-2 border-b border-rose-500/20">
                 <div className="flex items-center gap-2">
                   <div className="p-2 rounded-xl bg-rose-500/20 text-rose-500">
@@ -2866,8 +2958,14 @@ export default function MasterPage() {
 
         {/* MODAL MASTER: GESTIONAR FACTURACIÓN ELECTRÓNICA DIAN */}
         {modalDian.visible && modalDian.usuario && (
-          <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4 z-[9999] animate-in fade-in">
-            <div className={`${theme.modalBg} rounded-[2rem] sm:rounded-[2.5rem] p-5 sm:p-7 w-full max-w-xl border space-y-4 max-h-[90dvh] overflow-y-auto overscroll-contain shadow-2xl relative`}>
+          <div 
+            onClick={(e) => { if (e.target === e.currentTarget && !modalDian.guardando) setModalDian(prev => ({ ...prev, visible: false, usuario: null })); }}
+            className="fixed inset-0 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4 z-[9999] animate-in fade-in cursor-pointer"
+          >
+            <div 
+              onClick={(e) => e.stopPropagation()}
+              className={`${theme.modalBg} rounded-[2rem] sm:rounded-[2.5rem] p-5 sm:p-7 w-full max-w-xl border space-y-4 max-h-[90dvh] overflow-y-auto overscroll-contain shadow-2xl relative cursor-default`}
+            >
               <div className="flex justify-between items-start">
                 <div>
                   <h3 className={`text-xl font-black ${theme.textMain} flex items-center gap-2`}>

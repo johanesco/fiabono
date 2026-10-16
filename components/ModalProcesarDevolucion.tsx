@@ -43,8 +43,24 @@ export default function ModalProcesarDevolucion({
 
       const fetchDevoluciones = async () => {
         try {
+          const uid = ventaOrigen.usuarioId || auth.currentUser?.uid;
+          if (!uid) return;
+
+          // Primero consultar control directo de devolución si existe (O(1) y permitido por reglas)
+          const { doc, getDoc } = await import('firebase/firestore');
+          const ctrlSnap = await getDoc(doc(db, "controles_devolucion", ventaOrigen.id));
+          if (ctrlSnap.exists()) {
+            const cd = ctrlSnap.data()?.cantidadesPorDetalle || {};
+            const mapa: Record<number, number> = {};
+            Object.entries(cd).forEach(([idx, c]) => { mapa[Number(idx)] = Number(c) || 0; });
+            setYaDevueltos(mapa);
+            return;
+          }
+
+          // Fallback con filtro de usuarioId para cumplir reglas de seguridad
           const qM = query(
             collection(db, "movimientos"),
+            where("usuarioId", "==", uid),
             where("movimientoOrigenId", "==", ventaOrigen.id),
             where("tipo", "==", "devolucion")
           );
@@ -66,7 +82,7 @@ export default function ModalProcesarDevolucion({
           });
           setYaDevueltos(mapaDevueltos);
         } catch (e) {
-          console.error(e);
+          console.error("Error al cargar artículos devueltos:", e);
         }
       };
       fetchDevoluciones();
@@ -190,13 +206,23 @@ export default function ModalProcesarDevolucion({
       const res = await respuesta.json();
       if (!respuesta.ok) throw new Error(res.error || 'No se pudo registrar la devolución.');
 
-      toast.success("Devolución hecha con éxito");
+      if (res.notaCreditoDian?.numeroFactura || res.notaCreditoDian?.numeroNotaCredito) {
+        const numNC = res.notaCreditoDian.numeroNotaCredito || res.notaCreditoDian.numeroFactura;
+        toast.success(`Devolución y Nota Crédito DIAN (${numNC}) emitidas con éxito.`);
+      } else if (res.errorNotaCredito) {
+        toast.success("Devolución hecha en tienda.");
+        toast.error(`Alerta DIAN: ${res.errorNotaCredito}`, { duration: 6000 });
+      } else {
+        toast.success("Devolución hecha con éxito");
+      }
+
       onSuccess({
         idTransaccion: res.movimientoId,
         saldoNuevo: res.nuevoSaldoCliente,
         totalDevolver,
         articulosDevueltos,
-        metodoDevolucion
+        metodoDevolucion,
+        facturaElectronica: res.notaCreditoDian
       });
       onClose();
     } catch (error) {
@@ -210,8 +236,14 @@ export default function ModalProcesarDevolucion({
   if (!isOpen || !ventaOrigen) return null;
 
   const modal = (
-    <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center p-2 sm:p-4 z-[9999998] animate-in zoom-in-95 duration-200">
-      <div className="bg-white dark:bg-[#0f172a] rounded-[2rem] w-full max-w-lg shadow-2xl flex flex-col max-h-[calc(100dvh-1rem)] sm:max-h-[90vh] overflow-hidden border border-slate-100 dark:border-slate-800">
+    <div 
+      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+      className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center p-2 sm:p-4 z-[9999998] animate-in zoom-in-95 duration-200"
+    >
+      <div 
+        onClick={(e) => e.stopPropagation()}
+        className="bg-white dark:bg-[#0f172a] rounded-[2rem] w-full max-w-lg shadow-2xl flex flex-col max-h-[calc(100dvh-1rem)] sm:max-h-[90vh] overflow-hidden border border-slate-100 dark:border-slate-800"
+      >
         
         {/* HEADER */}
         <div className="p-5 sm:p-6 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between shrink-0 bg-slate-50 dark:bg-slate-900/50">

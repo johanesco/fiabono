@@ -21,7 +21,9 @@ export async function POST(request: Request) {
 
     const body = await request.json();
     const productos = Array.isArray(body.productos) ? body.productos : [];
-    if (!productos.length || productos.length > 100) return NextResponse.json({ error: 'Lote de inventario inválido.' }, { status: 400 });
+    if (!productos.length || productos.length > 200) return NextResponse.json({ error: 'Lote de inventario inválido (máximo 200 productos por envío).' }, { status: 400 });
+
+    const puedeEditarPrecios = esAdmin || usuario.permisos?.editarInventario === true || usuario.permisos?.editarPrecios === true;
 
     const resultado = await adminDb.runTransaction(async (transaction) => {
       let actualizados = 0;
@@ -46,10 +48,28 @@ export async function POST(request: Request) {
         const productoActual = snap.data() as any;
         const stockActual = Number(productoActual.stock || 0);
         if (!Number.isFinite(stockActual) || stockActual < 0) throw new Error('STOCK_INVALIDO');
-        const cantidad = Number(producto.stock);
+        const cantidad = Math.round(Number(producto.stock));
         if (!Number.isInteger(cantidad) || cantidad < 0) throw new Error('CANTIDAD_INVALIDA');
         const cantidadAplicada = productoActual.inventariable === false || productoActual.tipoProducto === 'servicio' ? 0 : cantidad;
-        transaction.update(ref, { stock: stockActual + cantidadAplicada, fechaActualizacion: new Date() });
+
+        const camposActualizados: Record<string, any> = {
+          stock: stockActual + cantidadAplicada,
+          fechaActualizacion: new Date()
+        };
+        if (puedeEditarPrecios && Number(producto.precioVenta) > 0) {
+          camposActualizados.precioVenta = Number(producto.precioVenta);
+        }
+        if (esAdmin && Number(producto.costoCompra) > 0) {
+          camposActualizados.costoCompra = Number(producto.costoCompra);
+        }
+        if (typeof producto.categoria === 'string' && producto.categoria.trim()) {
+          camposActualizados.categoria = producto.categoria.trim();
+        }
+        if (producto.imagen) {
+          camposActualizados.imagen = producto.imagen;
+        }
+
+        transaction.update(ref, camposActualizados);
         if (cantidadAplicada > 0) movimientos.push({ productoId: producto.productoId, nombre: productoActual.nombre || producto.nombre || 'Producto', cantidad: cantidadAplicada });
         actualizados++;
       }
@@ -57,25 +77,27 @@ export async function POST(request: Request) {
       // 3. CREACIÓN DE NUEVOS PRODUCTOS
       for (const producto of productos) {
         if (producto.esExistente) continue; // Ya procesado en el bloque anterior
-        const cantidad = Number(producto.stock);
+        const cantidad = Math.round(Number(producto.stock));
         if (!Number.isInteger(cantidad) || cantidad < 0) throw new Error('CANTIDAD_INVALIDA');
         const esInventariable = producto.inventariable !== false && producto.tipoProducto !== 'servicio';
 
         if (!producto.nombre || typeof producto.nombre !== 'string' || !producto.nombre.trim()) throw new Error('PRODUCTO_INVALIDO');
         const productoRef = adminDb.collection('inventario').doc();
         const cantidadInicial = esInventariable ? cantidad : 0;
+        const skuGenerado = (producto.sku || `SKU-${productoRef.id.slice(-6).toUpperCase()}`).trim().toUpperCase();
         transaction.create(productoRef, {
           usuarioId: cuentaPrincipalId,
           nombre: producto.nombre.trim(),
-          sku: producto.sku || `SKU-${productoRef.id.slice(-6).toUpperCase()}`,
-          codigoBarras: producto.codigoBarras || producto.sku || null,
+          sku: skuGenerado,
+          codigoBarras: producto.codigoBarras || skuGenerado,
           stock: cantidadInicial,
           precioVenta: Number(producto.precioVenta) || 0,
-          costoCompra: Number(producto.costoCompra) || 0,
+          costoCompra: esAdmin ? (Number(producto.costoCompra) || 0) : 0,
           tipoProducto: producto.tipoProducto || 'producto',
-          categoria: producto.categoria || 'General',
+          categoria: (producto.categoria || 'General').trim(),
           inventariable: esInventariable,
           imagen: producto.imagen || null,
+          activo: true,
           fechaCreacion: new Date(),
           fechaActualizacion: new Date()
         });

@@ -36,7 +36,8 @@ function VenderContenido() {
   const puedeAplicarDescuentos = esAdmin || (datosSesion?.permisos?.aplicarDescuentos === true);
   const puedeEnviarWhatsApp = datosSesion?.puedeEnviarWhatsApp ?? true;
   const puedeVentaLibre = esAdmin || (datosSesion?.permisos?.ventaLibre === true);
-  const puedePlanSepare = esAdmin || (datosSesion?.permisos?.planSepare === true);
+  const moduloSepareActivo = datosSesion?.moduloSepareActivo !== false;
+  const puedePlanSepare = (datosSesion?.esPro === true) && moduloSepareActivo && (esAdmin || datosSesion?.permisos?.planSepare === true);
 
   const [vendedorActivo, setVendedorActivo] = useState(nombreUsuario || "Vendedor");
   const [listaVendedores, setListaVendedores] = useState<string[]>([]);
@@ -145,7 +146,9 @@ function VenderContenido() {
   const isSubmittingVentaRef = useRef(false);
 
   // Estados para Facturación Electrónica DIAN
-  const [emitirFacturaElectronica, setEmitirFacturaElectronica] = useState<boolean>(datosSesion?.facturaDianPorDefecto ?? false);
+  const [emitirFacturaElectronica, setEmitirFacturaElectronica] = useState<boolean>(
+    datosSesion?.facturacionDianHabilitada === true && (datosSesion?.facturaDianPorDefecto ?? false)
+  );
   const [tipoDocumentoFE, setTipoDocumentoFE] = useState<'CC' | 'NIT' | 'CE'>('CC');
   const [numeroDocumentoFE, setNumeroDocumentoFE] = useState('');
   const [emailFE, setEmailFE] = useState('');
@@ -154,10 +157,12 @@ function VenderContenido() {
   const [modalBloqueoDian, setModalBloqueoDian] = useState(false);
 
   useEffect(() => {
-    if (datosSesion?.facturaDianPorDefecto !== undefined) {
+    if (datosSesion?.facturacionDianHabilitada !== true) {
+      setEmitirFacturaElectronica(false);
+    } else if (datosSesion?.facturaDianPorDefecto !== undefined) {
       setEmitirFacturaElectronica(datosSesion.facturaDianPorDefecto);
     }
-  }, [datosSesion?.facturaDianPorDefecto]);
+  }, [datosSesion?.facturacionDianHabilitada, datosSesion?.facturaDianPorDefecto]);
 
   useEffect(() => {
     if (clienteTransaccion) {
@@ -601,6 +606,8 @@ function VenderContenido() {
 
   const [nombreNuevo, setNombreNuevo] = useState("");
   const [celularNuevo, setCelularNuevo] = useState("");
+  const [direccionNuevo, setDireccionNuevo] = useState("");
+  const [notasNuevo, setNotasNuevo] = useState("");
   const [guardandoCliente, setGuardandoCliente] = useState(false);
 
   const [busquedaProductoIndex, setBusquedaProductoIndex] = useState<number | null>(null);
@@ -915,15 +922,33 @@ function VenderContenido() {
     try {
       const token = await auth.currentUser?.getIdToken();
       if (!token) throw new Error('Sesión inválida.');
-      const respuesta = await fetch('/api/clientes/crear', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ nombre: nombreNuevo, celular: celularNuevo }) });
+      const respuesta = await fetch('/api/clientes/crear', { 
+        method: 'POST', 
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, 
+        body: JSON.stringify({ 
+          nombre: nombreNuevo.trim(), 
+          celular: celularNuevo.trim(),
+          direccion: direccionNuevo.trim(),
+          notas: notasNuevo.trim()
+        }) 
+      });
       const resultado = await respuesta.json();
       if (!respuesta.ok) throw new Error(resultado.error || 'No se pudo crear el cliente.');
       const nuevoObj = resultado.cliente;
-      setModalNuevoCliente(false); setNombreNuevo(""); setCelularNuevo(""); setBusquedaRegistro("");
+      setModalNuevoCliente(false); 
+      setNombreNuevo(""); 
+      setCelularNuevo(""); 
+      setDireccionNuevo("");
+      setNotasNuevo("");
+      setBusquedaRegistro("");
       await cargarDatosGlobales(cuentaPrincipalId!);
       setClienteTransaccion(nuevoObj); 
       setMostrarResultadosBuscador(false);
-    } catch (error) { toast.error("Error al guardar cliente."); } finally { setGuardandoCliente(false); }
+    } catch (error: any) { 
+      toast.error(error?.message || "Error al guardar cliente."); 
+    } finally { 
+      setGuardandoCliente(false); 
+    }
   };
 
   const formatearMonedaInput = (valor: string) => {
@@ -1066,9 +1091,10 @@ function VenderContenido() {
     }
 
     const pagadoRaw = pagoCliente.replace(/\D/g, '');
-    const pagadoNum = pagadoRaw === "" 
-      ? totalNetoACobrar 
-      : parseFloat(pagadoRaw);
+    if (pagadoRaw === "" && totalNetoACobrar > 0) {
+      return toast.error('Indica con cuánto paga el cliente: escribe el monto, toca "Exacto" o escribe 0 si va todo fiado.');
+    }
+    const pagadoNum = pagadoRaw === "" ? 0 : parseFloat(pagadoRaw);
 
     const esFiadoCompleto = pagadoRaw !== "" && pagadoNum === 0 && montoSaldoFavorAplicado === 0;
 
@@ -1144,20 +1170,14 @@ function VenderContenido() {
     }
 
     const pagadoRaw = pagoCliente.replace(/\D/g, '');
-    const pagadoNum = pagadoRaw === "" 
-      ? totalNetoACobrar 
-      : parseFloat(pagadoRaw);
-
+    const pagadoNum = pagadoRaw === "" ? 0 : parseFloat(pagadoRaw);
     const faltanteNeto = Math.max(0, totalNetoACobrar - pagadoNum);
 
     if (faltanteNeto > 0) {
-      if (!clienteTransaccion) {
-        toast.error("Selecciona un cliente arriba para poder registrar una venta fiada.");
-        return;
-      }
       setModalConfirmarFiado(true);
       return;
     }
+
     ejecutarVentaFinal();
   };
 
@@ -1210,9 +1230,7 @@ function VenderContenido() {
       }
 
       const pagadoRaw = pagoCliente.replace(/\D/g, '');
-      const pagadoNum = pagadoRaw === "" 
-        ? totalNetoACobrar 
-        : parseFloat(pagadoRaw);
+      const pagadoNum = pagadoRaw === "" ? 0 : parseFloat(pagadoRaw);
 
       const efectivoRealRecibido = pagadoNum >= totalNetoACobrar ? totalNetoACobrar : pagadoNum;
       const montoTotalNoCubierto = Math.max(0, totalFilasRegistro - efectivoRealRecibido);
@@ -1317,14 +1335,17 @@ function VenderContenido() {
       if (clienteTransaccion?.id && clienteTransaccion.id !== 'mostrador' && (numeroDocumentoFE.trim() || emailFE.trim() || razonSocialFE.trim())) {
         try {
           const cliDocRef = doc(db, 'clientes', clienteTransaccion.id);
-          await updateDoc(cliDocRef, {
-            tipoDocumento: tipoDocumentoFE,
-            numeroDocumento: numeroDocumentoFE.trim(),
-            email: emailFE.trim(),
-            razonSocial: razonSocialFE.trim()
-          });
+          const datosFiscalesActualizar: Record<string, any> = {};
+          if (tipoDocumentoFE) datosFiscalesActualizar.tipoDocumento = tipoDocumentoFE;
+          if (numeroDocumentoFE.trim()) datosFiscalesActualizar.numeroDocumento = numeroDocumentoFE.trim();
+          if (emailFE.trim()) datosFiscalesActualizar.email = emailFE.trim();
+          if (razonSocialFE.trim()) datosFiscalesActualizar.razonSocial = razonSocialFE.trim();
+
+          if (Object.keys(datosFiscalesActualizar).length > 0) {
+            await updateDoc(cliDocRef, datosFiscalesActualizar);
+          }
         } catch (e) {
-          console.error('Error al guardar datos fiscales del cliente:', e);
+          // No bloquear el flujo de venta si las reglas locales de Firestore aún no están desplegadas en la nube
         }
       }
 
@@ -1609,9 +1630,15 @@ Estamos atentos para cualquier consulta.
   }, [filasRegistro, metodoPago]);
 
 
+  const normalizarBusquedaCli = (str: string) =>
+    (str || "").toString().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+
+  const qBusqRegNorm = normalizarBusquedaCli(busquedaRegistro);
   const clientesFiltradosRegistro = clientes.filter(c => 
-    (c.nombre || "").toLowerCase().includes(busquedaRegistro.toLowerCase()) ||
-    (c.celular || "").toString().includes(busquedaRegistro)
+    normalizarBusquedaCli(c.nombre || "").includes(qBusqRegNorm) ||
+    normalizarBusquedaCli(c.notas || "").includes(qBusqRegNorm) ||
+    normalizarBusquedaCli(c.direccion || "").includes(qBusqRegNorm) ||
+    (c.celular || "").toString().includes(busquedaRegistro.trim())
   );
 
   const agregarProductoVisual = (producto: any) => {
@@ -2207,7 +2234,14 @@ Estamos atentos para cualquier consulta.
                     {clientesFiltradosRegistro.map(c => (
                       <div key={c.id} onClick={() => { setClienteTransaccion(c); setBusquedaRegistro(""); setMostrarResultadosBuscador(false); }} className="p-2.5 border-b border-slate-100 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer flex justify-between items-center text-xs min-w-0">
                         <span className="min-w-0 mr-2">
-                          <span className="font-bold text-slate-800 dark:text-slate-200 truncate block">{c.nombre}</span>
+                          <span className="font-bold text-slate-800 dark:text-slate-200 truncate flex items-center gap-1.5 flex-wrap">
+                            <span>{c.nombre}</span>
+                            {c.notas && (
+                              <span className="text-[10px] font-bold px-1.5 py-0.2 rounded bg-amber-500/10 text-amber-700 dark:text-amber-300 border border-amber-500/20 truncate max-w-[140px]" title={c.notas}>
+                                {c.notas}
+                              </span>
+                            )}
+                          </span>
                           <span className={`text-[10px] font-black ${Number(c.deudaTotal || 0) > 0 ? 'text-rose-500' : Number(c.deudaTotal || 0) < 0 ? 'text-blue-600 dark:text-blue-400' : 'text-slate-400'}`}>
                             {Number(c.deudaTotal || 0) > 0 ? `Debe $${Number(c.deudaTotal).toLocaleString('es-CO')}` : Number(c.deudaTotal || 0) < 0 ? `A favor $${Math.abs(Number(c.deudaTotal)).toLocaleString('es-CO')}` : 'Al día'}
                           </span>
@@ -2482,79 +2516,68 @@ Estamos atentos para cualquier consulta.
           </div>
         )}
 
-        {/* 4. RECUADRO FACTURACIÓN ELECTRÓNICA DIAN */}
-        <div className={`flex flex-col p-2.5 rounded-xl transition-all duration-200 border ${
-          emitirFacturaElectronica
-            ? 'bg-emerald-50/30 dark:bg-emerald-950/20 border-emerald-300 dark:border-emerald-800/60 shadow-2xs gap-1.5'
-            : 'bg-slate-50/80 dark:bg-slate-900/40 border-slate-200 dark:border-slate-800 shadow-2xs'
-        }`}>
-          <div className="flex justify-between items-center">
-            <label 
-              onClick={() => {
-                if (datosSesion?.facturacionDianHabilitada !== true) {
-                  setModalBloqueoDian(true);
-                  return;
-                }
-                const nuevo = !emitirFacturaElectronica;
-                setEmitirFacturaElectronica(nuevo);
-                if (nuevo && !numeroDocumentoFE.trim()) {
-                  setModalDatosDian(true);
-                }
-              }} 
-              className="text-[10px] font-black uppercase tracking-wider text-slate-700 dark:text-slate-300 flex items-center gap-1.5 cursor-pointer select-none"
-            >
-              <FileText size={13} className={emitirFacturaElectronica ? "text-emerald-600 dark:text-emerald-400" : "text-slate-400"} />
-              <span>Factura Electrónica DIAN</span>
-              {datosSesion?.facturacionDianHabilitada !== true && (
-                <span className="text-[8.5px] px-1.5 py-0.2 rounded-full font-bold bg-amber-500/15 text-amber-700 dark:text-amber-400 border border-amber-500/30">
-                  Plan Pro DIAN
-                </span>
-              )}
-            </label>
-            <button
-              type="button"
-              onClick={() => {
-                if (datosSesion?.facturacionDianHabilitada !== true) {
-                  setModalBloqueoDian(true);
-                  return;
-                }
-                const nuevo = !emitirFacturaElectronica;
-                setEmitirFacturaElectronica(nuevo);
-                if (nuevo && !numeroDocumentoFE.trim()) {
-                  setModalDatosDian(true);
-                }
-              }}
-              className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
-                emitirFacturaElectronica ? 'bg-emerald-600' : 'bg-slate-300 dark:bg-slate-700'
-              }`}
-            >
-              <span
-                className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-md ring-0 transition duration-200 ease-in-out ${
-                  emitirFacturaElectronica ? 'translate-x-4' : 'translate-x-0'
-                }`}
-              />
-            </button>
-          </div>
-
-          {emitirFacturaElectronica && (
-            <div className="flex items-center justify-between bg-white dark:bg-slate-900/90 border border-slate-200 dark:border-slate-700/80 px-2.5 py-1.5 rounded-lg text-[11px] animate-in fade-in duration-150">
-              <div className="flex items-center gap-1.5 min-w-0">
-                <CheckCircle2 size={12} className="text-emerald-600 dark:text-emerald-400 shrink-0" />
-                <span className="truncate font-semibold text-slate-800 dark:text-slate-200">
-                  {numeroDocumentoFE.trim() ? `${tipoDocumentoFE} ${numeroDocumentoFE} • ${razonSocialFE || 'Sin razón social'}` : 'Consumidor Final (222222222222)'}
-                </span>
-              </div>
+        {/* 4. RECUADRO FACTURACIÓN ELECTRÓNICA DIAN (Solo visible si está habilitada en los ajustes del negocio) */}
+        {datosSesion?.facturacionDianHabilitada === true && (
+          <div className={`flex flex-col p-2.5 rounded-xl transition-all duration-200 border ${
+            emitirFacturaElectronica
+              ? 'bg-emerald-50/30 dark:bg-emerald-950/20 border-emerald-300 dark:border-emerald-800/60 shadow-2xs gap-1.5'
+              : 'bg-slate-50/80 dark:bg-slate-900/40 border-slate-200 dark:border-slate-800 shadow-2xs'
+          }`}>
+            <div className="flex justify-between items-center">
+              <label 
+                onClick={() => {
+                  const nuevo = !emitirFacturaElectronica;
+                  setEmitirFacturaElectronica(nuevo);
+                  if (nuevo && !numeroDocumentoFE.trim()) {
+                    setModalDatosDian(true);
+                  }
+                }} 
+                className="text-[10px] font-black uppercase tracking-wider text-slate-700 dark:text-slate-300 flex items-center gap-1.5 cursor-pointer select-none"
+              >
+                <FileText size={13} className={emitirFacturaElectronica ? "text-emerald-600 dark:text-emerald-400" : "text-slate-400"} />
+                <span>Factura Electrónica DIAN</span>
+              </label>
               <button
                 type="button"
-                onClick={() => setModalDatosDian(true)}
-                className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-700 dark:text-emerald-300 hover:text-emerald-800 bg-emerald-50 dark:bg-emerald-950/60 hover:bg-emerald-100 dark:hover:bg-emerald-900/60 px-2 py-0.5 rounded-md border border-emerald-200 dark:border-emerald-800 shrink-0 cursor-pointer transition-all ml-1.5"
+                onClick={() => {
+                  const nuevo = !emitirFacturaElectronica;
+                  setEmitirFacturaElectronica(nuevo);
+                  if (nuevo && !numeroDocumentoFE.trim()) {
+                    setModalDatosDian(true);
+                  }
+                }}
+                className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                  emitirFacturaElectronica ? 'bg-emerald-600' : 'bg-slate-300 dark:bg-slate-700'
+                }`}
               >
-                <Edit3 size={10} />
-                <span>{numeroDocumentoFE.trim() ? 'Editar' : 'Personalizar'}</span>
+                <span
+                  className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-md ring-0 transition duration-200 ease-in-out ${
+                    emitirFacturaElectronica ? 'translate-x-4' : 'translate-x-0'
+                  }`}
+                />
               </button>
             </div>
-          )}
-        </div>
+
+            {emitirFacturaElectronica && (
+              <div className="flex items-center justify-between bg-white dark:bg-slate-900/90 border border-slate-200 dark:border-slate-700/80 px-2.5 py-1.5 rounded-lg text-[11px] animate-in fade-in duration-150">
+                <div className="flex items-center gap-1.5 min-w-0">
+                  <CheckCircle2 size={12} className="text-emerald-600 dark:text-emerald-400 shrink-0" />
+                  <span className="truncate font-semibold text-slate-800 dark:text-slate-200">
+                    {numeroDocumentoFE.trim() ? `${tipoDocumentoFE} ${numeroDocumentoFE} • ${razonSocialFE || 'Sin razón social'}` : 'Consumidor Final (222222222222)'}
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setModalDatosDian(true)}
+                  className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-700 dark:text-emerald-300 hover:text-emerald-800 bg-emerald-50 dark:bg-emerald-950/60 hover:bg-emerald-100 dark:hover:bg-emerald-900/60 px-2 py-0.5 rounded-md border border-emerald-200 dark:border-emerald-800 shrink-0 cursor-pointer transition-all ml-1.5"
+                >
+                  <Edit3 size={10} />
+                  <span>{numeroDocumentoFE.trim() ? 'Editar' : 'Personalizar'}</span>
+                </button>
+              </div>
+            )}
+          </div>
+        )}
 
         {/* EN MÓVIL: DESGLOSE DE COBRO JUSTO ARRIBA DEL BOTÓN FINAL (PUNTO 5) */}
         {esModal && (
@@ -2598,10 +2621,10 @@ Estamos atentos para cualquier consulta.
                 if (totalNetoACobrar === 0 && montoSaldoFavorAplicado > 0) {
                   textoBoton = "Cobrar con Saldo a Favor";
                   bgBoton = "bg-blue-600 hover:bg-blue-700";
-                } else if (pagadoRaw !== "" && pagadoNum === 0 && totalNetoACobrar > 0) {
+                } else if (clienteTransaccion && (pagadoRaw === "" || pagadoNum === 0) && totalNetoACobrar > 0) {
                   textoBoton = `Fiar Total $${totalNetoACobrar.toLocaleString('es-CO')}`;
                   bgBoton = "bg-rose-600 hover:bg-rose-700";
-                } else if (pagadoNum > 0 && pagadoNum < totalNetoACobrar) {
+                } else if (clienteTransaccion && pagadoNum > 0 && pagadoNum < totalNetoACobrar) {
                   textoBoton = `Cobrar y Fiar Restante`;
                   bgBoton = "bg-emerald-600 hover:bg-emerald-700";
                 }
@@ -3207,10 +3230,10 @@ Estamos atentos para cualquier consulta.
                 if (totalNetoACobrar === 0 && montoSaldoFavorAplicado > 0) {
                   textoBoton = "Cobrar con Saldo a Favor";
                   bgBoton = "bg-blue-600 hover:bg-blue-700";
-                } else if (pagadoRaw !== "" && pagadoNum === 0 && totalNetoACobrar > 0) {
+                } else if (clienteTransaccion && (pagadoRaw === "" || pagadoNum === 0) && totalNetoACobrar > 0) {
                   textoBoton = "Fiar Total";
                   bgBoton = "bg-rose-600 hover:bg-rose-700";
-                } else if (pagadoNum > 0 && pagadoNum < totalNetoACobrar) {
+                } else if (clienteTransaccion && pagadoNum > 0 && pagadoNum < totalNetoACobrar) {
                   textoBoton = "Vender y Fiar";
                   bgBoton = "bg-emerald-600 hover:bg-emerald-700";
                 }
@@ -3455,8 +3478,21 @@ Estamos atentos para cualquier consulta.
                         {busquedaRegistro.length > 0 && (
                           <div className="absolute bottom-full left-0 right-0 mb-2 bg-white dark:bg-[#1e293b] border dark:border-slate-700 rounded-2xl shadow-xl z-50 overflow-hidden max-h-48 overflow-y-auto">
                             {clientesFiltradosRegistro.map(c => (
-                              <div key={c.id} onClick={() => { setClienteTransaccion(c); setBusquedaRegistro(""); setMostrarResultadosBuscador(false); }} className="p-4 border-b dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer flex justify-between items-center min-w-0">
-                                <span className="font-bold text-slate-800 dark:text-slate-200 truncate mr-2 min-w-0">{c.nombre}</span><ChevronRight size={18} className="text-slate-400 shrink-0"/>
+                              <div key={c.id} onClick={() => { setClienteTransaccion(c); setBusquedaRegistro(""); setMostrarResultadosBuscador(false); }} className="p-3.5 border-b dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer flex justify-between items-center min-w-0">
+                                <div className="min-w-0 mr-2">
+                                  <div className="font-bold text-slate-800 dark:text-slate-200 truncate flex items-center gap-1.5 flex-wrap">
+                                    <span>{c.nombre}</span>
+                                    {c.notas && (
+                                      <span className="text-[10px] font-bold px-1.5 py-0.2 rounded bg-amber-500/10 text-amber-700 dark:text-amber-300 border border-amber-500/20 truncate max-w-[140px]" title={c.notas}>
+                                        {c.notas}
+                                      </span>
+                                    )}
+                                  </div>
+                                  <span className={`text-[10px] font-black ${Number(c.deudaTotal || 0) > 0 ? 'text-rose-500' : Number(c.deudaTotal || 0) < 0 ? 'text-blue-600 dark:text-blue-400' : 'text-slate-400'}`}>
+                                    {Number(c.deudaTotal || 0) > 0 ? `Debe $${Number(c.deudaTotal).toLocaleString('es-CO')}` : Number(c.deudaTotal || 0) < 0 ? `A favor $${Math.abs(Number(c.deudaTotal)).toLocaleString('es-CO')}` : 'Al día'}
+                                  </span>
+                                </div>
+                                <ChevronRight size={18} className="text-slate-400 shrink-0"/>
                               </div>
                             ))}
                             {!clientesFiltradosRegistro.some(c => c.nombre.toLowerCase() === busquedaRegistro.toLowerCase()) && (
@@ -3517,17 +3553,46 @@ Estamos atentos para cualquier consulta.
 
       {/* MODAL NUEVO CLIENTE */}
       {modalNuevoCliente && (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 z-[950]">
-          <div className="bg-white dark:bg-[#0f172a] p-8 rounded-[2.5rem] w-full max-w-md shadow-2xl border border-slate-100 dark:border-slate-800 animate-in zoom-in-95 duration-200">
-            <h3 className="text-3xl font-black text-slate-900 dark:text-white mb-6 flex items-center gap-2"><UserCog size={28}/> Crear Cliente</h3>
-            <div className="flex flex-col gap-4 mb-8">
-              {/* MODAL CREAR CLIENTE BLINDADO */}
-              <input type="text" value={nombreNuevo} onChange={(e) => setNombreNuevo(e.target.value)} placeholder="Nombre completo" className="w-full p-5 bg-slate-50 dark:bg-[#020617] border border-slate-200 dark:border-slate-700 rounded-2xl outline-none focus:border-emerald-500 font-bold text-lg text-slate-900 dark:!text-white placeholder-slate-400 dark:placeholder-slate-500" />
-              <input type="tel" value={celularNuevo} onChange={(e) => setCelularNuevo(e.target.value)} placeholder="WhatsApp (Opcional)" className="w-full p-5 bg-slate-50 dark:bg-[#020617] border border-slate-200 dark:border-slate-700 rounded-2xl outline-none focus:border-emerald-500 font-bold text-lg text-slate-900 dark:!text-white placeholder-slate-400 dark:placeholder-slate-500" />
+        <div 
+          onClick={(e) => { if (e.target === e.currentTarget) setModalNuevoCliente(false); }}
+          className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 z-[950]"
+        >
+          <div className="bg-white dark:bg-[#0f172a] p-6 sm:p-7 rounded-[2.5rem] w-full max-w-md shadow-2xl border border-slate-100 dark:border-slate-800 animate-in zoom-in-95 duration-200">
+            <div className="flex items-center justify-between mb-5">
+              <h3 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white flex items-center gap-2">
+                <UserCog size={24} className="text-emerald-500"/> Crear Cliente
+              </h3>
+              <button 
+                type="button" 
+                onClick={() => setModalNuevoCliente(false)}
+                className="p-1.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-400 hover:text-slate-700 dark:hover:text-white transition-colors cursor-pointer"
+              >
+                <X size={18} />
+              </button>
             </div>
-            <div className="grid grid-cols-2 gap-4">
-              <button onClick={() => setModalNuevoCliente(false)} className="bg-slate-100 dark:bg-[#020617] hover:bg-slate-200 dark:hover:bg-[#1e293b] text-slate-700 dark:text-slate-300 font-bold py-4 rounded-2xl text-lg">Cancelar</button>
-              <button onClick={guardarClienteNuevo} disabled={guardandoCliente} className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-4 rounded-2xl shadow-lg flex justify-center items-center gap-2 text-lg">Guardar <CheckCircle2 size={20}/></button>
+
+            <div className="flex flex-col gap-3.5 mb-6">
+              <div>
+                <label className="text-xs font-bold text-slate-600 dark:text-slate-300 block mb-1">Nombre Completo *</label>
+                <input type="text" value={nombreNuevo} onChange={(e) => setNombreNuevo(e.target.value)} placeholder="Ej: Doña Carmen, Andrés..." className="w-full p-3.5 bg-slate-50 dark:bg-[#020617] border border-slate-200 dark:border-slate-700 rounded-2xl outline-none focus:border-emerald-500 font-bold text-sm text-slate-900 dark:!text-white" />
+              </div>
+              <div>
+                <label className="text-xs font-bold text-slate-600 dark:text-slate-300 block mb-1">Celular (WhatsApp)</label>
+                <input type="tel" value={celularNuevo} onChange={(e) => setCelularNuevo(e.target.value)} placeholder="Ej: 3101234567" className="w-full p-3.5 bg-slate-50 dark:bg-[#020617] border border-slate-200 dark:border-slate-700 rounded-2xl outline-none focus:border-emerald-500 font-bold text-sm text-slate-900 dark:!text-white" />
+              </div>
+              <div>
+                <label className="text-xs font-bold text-slate-600 dark:text-slate-300 block mb-1">Dirección o Referencia</label>
+                <input type="text" value={direccionNuevo} onChange={(e) => setDireccionNuevo(e.target.value)} placeholder="Ej: Carrera 5 # 12-30" className="w-full p-3.5 bg-slate-50 dark:bg-[#020617] border border-slate-200 dark:border-slate-700 rounded-2xl outline-none focus:border-emerald-500 font-bold text-sm text-slate-900 dark:!text-white" />
+              </div>
+              <div>
+                <label className="text-xs font-bold text-slate-600 dark:text-slate-300 block mb-1">Notas / Referencia / Apodo</label>
+                <textarea rows={2} value={notasNuevo} onChange={(e) => setNotasNuevo(e.target.value)} placeholder="Ej: Apodo (Cachaco), parentesco, notas..." className="w-full p-3 bg-slate-50 dark:bg-[#020617] border border-slate-200 dark:border-slate-700 rounded-2xl outline-none focus:border-emerald-500 font-medium text-xs text-slate-900 dark:!text-white resize-none" />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <button onClick={() => setModalNuevoCliente(false)} className="bg-slate-100 dark:bg-[#020617] hover:bg-slate-200 dark:hover:bg-[#1e293b] text-slate-700 dark:text-slate-300 font-bold py-3.5 rounded-2xl text-sm transition-colors cursor-pointer">Cancelar</button>
+              <button onClick={guardarClienteNuevo} disabled={guardandoCliente} className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3.5 rounded-2xl shadow-lg flex justify-center items-center gap-2 text-sm transition-all active:scale-95 disabled:opacity-50 cursor-pointer">Guardar <CheckCircle2 size={18}/></button>
             </div>
           </div>
         </div>

@@ -319,7 +319,7 @@ export default function ModalExportarReporte({
       const nombreSaneado = (negocioNombre || 'negocio').replace(/[^a-zA-Z0-9]/g, '_').toLowerCase();
       const fechaStr = hoy.toISOString().split('T')[0];
       descargarArchivoBlob(blob, `reporte_contable_${nombreSaneado}_${fechaStr}.xlsx`);
-      toast.success("Excel Contable generado con éxito ✨");
+      toast.success("Excel Contable generado con éxito.");
     } catch (e: any) {
       console.error("Error al exportar Excel:", e);
       toast.error("No se pudo generar el archivo Excel.");
@@ -340,7 +340,7 @@ export default function ModalExportarReporte({
       const nombreSaneado = (negocioNombre || 'negocio').replace(/[^a-zA-Z0-9]/g, '_').toLowerCase();
       const fechaStr = hoy.toISOString().split('T')[0];
       descargarArchivoBlob(blob, `reporte_ejecutivo_${nombreSaneado}_${fechaStr}.pdf`);
-      toast.success("Reporte PDF Ejecutivo generado con éxito ✨");
+      toast.success("Reporte PDF Ejecutivo generado con éxito.");
     } catch (e: any) {
       console.error("Error al exportar PDF:", e);
       toast.error("No se pudo generar el reporte PDF.");
@@ -350,7 +350,10 @@ export default function ModalExportarReporte({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/70 backdrop-blur-md animate-fadeIn">
+    <div 
+      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+      className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/70 backdrop-blur-md animate-fadeIn"
+    >
       <div 
         className="bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-800 rounded-[2.5rem] w-full max-w-2xl max-h-[92vh] flex flex-col shadow-2xl overflow-hidden relative"
         onClick={(e) => e.stopPropagation()}

@@ -1390,7 +1390,7 @@ Muchas gracias por tu compra. Estamos atentos para cualquier consulta.
       
       // Si la orden ya fue procesada (doble click, etc.), avisar al admin que ya estaba aprobada
       if (respuestaAprobacion?.status === 409 && resAtomo?.error?.includes('ya fue procesada')) {
-        toast.success('Esta orden ya había sido aprobada anteriormente.', { icon: 'ℹ️', duration: 4000 });
+        toast.success('Esta orden ya había sido aprobada anteriormente.', { duration: 4000 });
         setProcesandoId(null);
         return;
       }
@@ -2163,7 +2163,12 @@ Muchas gracias por tu compra. Estamos atentos para cualquier consulta.
       {modalEdicion.visible && modalEdicion.orden && (
         <div 
           onKeyDown={registrarActividadModal}
-          onClick={registrarActividadModal}
+          onClick={(e) => {
+            registrarActividadModal();
+            if (e.target === e.currentTarget) {
+              cerrarModalEdicion(true);
+            }
+          }}
           className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center p-0 md:p-4 z-[999] animate-in fade-in duration-200 overflow-y-auto"
         >
           <div className="bg-white dark:bg-[#0f172a] rounded-none md:rounded-[2.5rem] w-full max-w-7xl shadow-2xl border border-slate-100 dark:border-slate-800 my-auto animate-in zoom-in-95 duration-200 h-[100dvh] md:h-[92dvh] max-h-[100dvh] flex flex-col overflow-hidden">
@@ -2725,10 +2730,15 @@ Muchas gracias por tu compra. Estamos atentos para cualquier consulta.
                             </div>
                           )}
                           {clientes
-                            .filter(c => 
-                              (c.nombre || '').toLowerCase().includes((modalEdicion.busquedaCliente || '').toLowerCase()) ||
-                              (c.celular || '').toString().includes(modalEdicion.busquedaCliente || '')
-                            )
+                            .filter(c => {
+                              const q = (modalEdicion.busquedaCliente || '').toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
+                              if (!q) return true;
+                              const nom = (c.nombre || '').toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
+                              const cel = (c.celular || '').toString();
+                              const not = (c.notas || '').toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
+                              const dir = (c.direccion || '').toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
+                              return nom.includes(q) || cel.includes(modalEdicion.busquedaCliente?.trim() || '') || not.includes(q) || dir.includes(q);
+                            })
                             .map(c => (
                               <div
                                 key={c.id}
@@ -2742,7 +2752,14 @@ Muchas gracias por tu compra. Estamos atentos para cualquier consulta.
                                 })}
                                 className="p-1.5 text-xs font-bold text-slate-800 dark:text-slate-200 hover:bg-violet-50 dark:hover:bg-slate-800 rounded-lg cursor-pointer flex justify-between items-center"
                               >
-                                <span>{c.nombre}</span>
+                                <div className="flex items-center gap-1.5 flex-wrap">
+                                  <span>{c.nombre}</span>
+                                  {c.notas && (
+                                    <span className="text-[9px] font-medium bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-400 border border-amber-200/60 dark:border-amber-800/40 px-1 py-0.2 rounded">
+                                      {c.notas}
+                                    </span>
+                                  )}
+                                </div>
                                 <span className="text-[10px] text-slate-400">{c.celular || ''}</span>
                               </div>
                             ))}
@@ -3050,7 +3067,10 @@ Muchas gracias por tu compra. Estamos atentos para cualquier consulta.
 
       {/* MODAL DE MOTIVO DE RECHAZO */}
       {modalRechazo.visible && (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 z-[999] animate-in fade-in duration-200">
+        <div 
+          onClick={(e) => { if (e.target === e.currentTarget) setModalRechazo({ visible: false, orden: null, motivo: "" }); }}
+          className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 z-[999] animate-in fade-in duration-200"
+        >
           <div className="bg-white dark:bg-[#0f172a] p-6 rounded-[2rem] w-full max-w-md shadow-2xl border border-slate-100 dark:border-slate-800 animate-in zoom-in-95 duration-200">
             <div className="w-14 h-14 bg-rose-100 dark:bg-rose-500/20 text-rose-600 rounded-full flex items-center justify-center mx-auto mb-4">
               <XCircle size={28} />
@@ -3088,7 +3108,10 @@ Muchas gracias por tu compra. Estamos atentos para cualquier consulta.
 
       {/* MODAL DE ÉXITO INTEGRAL TRAS APROBACIÓN (WHATSAPP + IMPRIMIR TICKET) */}
       {modalExitoAprobacion.visible && modalExitoAprobacion.orden && (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 z-[1000] animate-in fade-in duration-200">
+        <div 
+          onClick={(e) => { if (e.target === e.currentTarget) setModalExitoAprobacion({ visible: false, orden: null, ticketDatos: null }); }}
+          className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 z-[1000] animate-in fade-in duration-200"
+        >
           <div className="bg-white dark:bg-[#0f172a] p-6 sm:p-8 rounded-[2.5rem] w-full max-w-sm shadow-2xl text-center border border-slate-100 dark:border-slate-800 animate-in zoom-in-95 duration-200">
             <div className="w-20 h-20 bg-emerald-100 dark:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 rounded-full flex items-center justify-center mx-auto mb-4 shadow-inner">
               <CheckCircle2 size={44} />
@@ -3160,7 +3183,10 @@ Muchas gracias por tu compra. Estamos atentos para cualquier consulta.
 
       {/* MODAL DE CONFIRMACIÓN TRAS GUARDAR CAMBIOS SIN APROBAR (CON DETALLE DE CAMBIOS REALIZADOS) */}
       {modalConfirmacionGuardado.visible && (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 z-[1000] animate-in fade-in duration-200">
+        <div 
+          onClick={(e) => { if (e.target === e.currentTarget) setModalConfirmacionGuardado({ visible: false, ordenId: "", colaborador: "", total: 0, cambios: [] }); }}
+          className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 z-[1000] animate-in fade-in duration-200"
+        >
           <div className="bg-white dark:bg-[#0f172a] p-6 sm:p-7 rounded-[2.5rem] w-full max-w-md shadow-2xl border border-slate-100 dark:border-slate-800 animate-in zoom-in-95 duration-200 flex flex-col">
             <div className="w-14 h-14 bg-amber-100 dark:bg-amber-500/20 text-amber-600 dark:text-amber-400 rounded-full flex items-center justify-center mx-auto mb-3 shadow-inner">
               <CheckCircle2 size={32} />
@@ -3209,43 +3235,12 @@ Muchas gracias por tu compra. Estamos atentos para cualquier consulta.
         </div>
       )}
 
-      {/* LIGHTBOX PARA VER FOTO EN DETALLE EN EDICION */}
-      {fotoLightboxEdicion && (
-        <div className="fixed inset-0 bg-black/95 backdrop-blur-md flex items-center justify-center p-4 z-[1050] animate-in fade-in duration-200">
-          <div className="relative max-w-2xl w-full flex flex-col items-center space-y-3">
-            <div className="w-full flex justify-between items-center text-white px-2">
-              <span className="text-xs font-bold flex items-center gap-1.5 text-violet-300">
-                <Eye size={15} /> Vista previa del artículo
-              </span>
-              <button
-                type="button"
-                onClick={() => setFotoLightboxEdicion(null)}
-                className="p-2 bg-white/10 hover:bg-white/20 rounded-full text-white transition-colors cursor-pointer"
-              >
-                <X size={18} />
-              </button>
-            </div>
-            <div className="w-full max-h-[75vh] overflow-hidden rounded-3xl border border-white/20 shadow-2xl bg-black flex items-center justify-center">
-              <img
-                src={fotoLightboxEdicion}
-                alt="Foto ampliada"
-                className="max-w-full max-h-[75vh] object-contain"
-              />
-            </div>
-            <button
-              type="button"
-              onClick={() => setFotoLightboxEdicion(null)}
-              className="px-5 py-2 bg-white text-slate-900 font-bold rounded-xl text-xs hover:bg-slate-200 transition-colors shadow-lg cursor-pointer"
-            >
-              Cerrar Vista Previa
-            </button>
-          </div>
-        </div>
-      )}
-
       {/* MODAL DE CÁMARA EN VIVO PARA EDICIÓN */}
       {modalCamaraEdicion && (
-        <div className="fixed inset-0 z-[1100] bg-black/90 backdrop-blur-md flex items-center justify-center p-3 animate-in fade-in duration-200">
+        <div 
+          onClick={(e) => { if (e.target === e.currentTarget) cerrarCamaraEdicion(); }}
+          className="fixed inset-0 z-[1100] bg-black/90 backdrop-blur-md flex items-center justify-center p-3 animate-in fade-in duration-200"
+        >
           <div className="relative w-full max-w-lg bg-slate-950 rounded-3xl overflow-hidden border border-slate-800 shadow-2xl flex flex-col">
             
             {/* Header del visor */}
@@ -3373,7 +3368,10 @@ Muchas gracias por tu compra. Estamos atentos para cualquier consulta.
 
       {/* MODAL DE ERROR ESTÉTICO DE STOCK AL APROBAR */}
       {modalErrorStock.visible && modalErrorStock.orden && (
-        <div className="fixed inset-0 z-[1600] bg-slate-950/70 backdrop-blur-md flex items-center justify-center p-4 animate-in fade-in duration-200">
+        <div 
+          onClick={(e) => { if (e.target === e.currentTarget) setModalErrorStock({ visible: false, orden: null, mensaje: "" }); }}
+          className="fixed inset-0 z-[1600] bg-slate-950/70 backdrop-blur-md flex items-center justify-center p-4 animate-in fade-in duration-200"
+        >
           <div className="bg-white dark:bg-slate-900 border border-amber-200 dark:border-amber-900/40 rounded-3xl max-w-md w-full p-6 shadow-2xl relative flex flex-col items-center text-center animate-in zoom-in-95 duration-200">
             {/* Botón cerrar esquina */}
             <button

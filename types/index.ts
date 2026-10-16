@@ -240,13 +240,19 @@ export interface Movimiento {
   montoAmortizadoCartera?: number;
   esPublico?: boolean;
   facturaElectronica?: DatosFacturaElectronica;
+  notaCreditoElectronica?: DatosFacturaElectronica;
+  errorNotaCredito?: string | null;
 }
 
 export interface DatosFacturaElectronica {
   estado: 'emitida' | 'error' | 'pendiente';
+  tipoDocumento?: 'factura' | 'nota_credito';
   cufe?: string;
+  cude?: string;
   qr?: string;
   numeroFactura?: string;
+  numeroNotaCredito?: string;
+  facturaReferenciada?: string;
   prefijo?: string;
   fechaEmision?: string;
   urlPdf?: string;

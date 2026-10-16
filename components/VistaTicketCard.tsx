@@ -1,6 +1,7 @@
 "use client";
 import React from "react";
 import Image from "next/image";
+import { QRCodeSVG } from "qrcode.react";
 import { DetalleFacturaItem, DatosFacturaProps } from "./TicketFacturaModal";
 
 interface VistaTicketCardProps {
@@ -507,26 +508,57 @@ export default function VistaTicketCard({ datos, ticketRef }: VistaTicketCardPro
               </>
             )}
 
-          {/* Bloque Factura Electrónica DIAN */}
-          {datos.facturaElectronica?.cufe && (
-            <>
-              <SeccionDivider tipo="suave" />
-              <div className="bg-slate-100 rounded-md p-2 my-1 text-left border border-slate-200">
-                <div className="flex justify-between items-center text-[10px] font-black uppercase text-slate-900">
-                  <span>Factura Electronica DIAN</span>
-                  <span>{datos.facturaElectronica.numeroFactura || "SETT"}</span>
-                </div>
-                <p className="text-[8px] font-mono text-slate-700 break-all mt-1 leading-tight">
-                  CUFE: {datos.facturaElectronica.cufe}
-                </p>
-                {datos.facturaElectronica.urlPdf && (
-                  <p className="text-[8.5px] font-bold text-slate-900 mt-1 underline">
-                    Documento electronico validado
+          {/* Bloque Factura Electrónica DIAN o Nota Crédito DIAN */}
+          {datos.facturaElectronica?.cufe && (() => {
+            const esNC = datos.tipo === 'devolucion' || datos.facturaElectronica.tipoDocumento === 'nota_credito';
+            const qrValor = datos.facturaElectronica.qr || 
+              (datos.facturaElectronica.ambiente === 'produccion'
+                ? `https://catalogo-vpfe.dian.gov.co/document/searchqr?documentkey=${datos.facturaElectronica.cufe}`
+                : `https://catalogo-vpfe-hab.dian.gov.co/document/searchqr?documentkey=${datos.facturaElectronica.cufe}`);
+
+            return (
+              <>
+                <SeccionDivider tipo="suave" />
+                <div className="bg-slate-50 rounded-md p-2.5 my-1 text-center border border-slate-200">
+                  <div className="flex justify-between items-center text-[10px] font-black uppercase text-slate-900 pb-1 border-b border-slate-200">
+                    <span>{esNC ? "Nota Credito DIAN" : "Factura Electronica DIAN"}</span>
+                    <span>{datos.facturaElectronica.numeroFactura || (esNC ? "NC" : "FEV")}</span>
+                  </div>
+
+                  {qrValor && (
+                    <div className="flex flex-col items-center justify-center my-2">
+                      <div className="p-1.5 bg-white rounded border border-slate-300 inline-block shadow-xs">
+                        <QRCodeSVG 
+                          value={qrValor}
+                          size={105}
+                          level="M"
+                          fgColor="#000000"
+                          bgColor="#ffffff"
+                        />
+                      </div>
+                      <span className="text-[7px] font-mono font-bold text-slate-500 mt-1 uppercase tracking-wider">
+                        Validar en catalogo DIAN
+                      </span>
+                    </div>
+                  )}
+
+                  <p className="text-[7.5px] font-mono text-slate-700 break-all leading-tight text-left mt-1">
+                    <strong className="text-slate-900 font-bold">{esNC ? "CUDE:" : "CUFE:"}</strong> {datos.facturaElectronica.cufe}
                   </p>
-                )}
-              </div>
-            </>
-          )}
+                  {datos.facturaElectronica.facturaReferenciada && (
+                    <p className="text-[7.5px] font-mono text-slate-600 text-left mt-0.5">
+                      Afecta Factura: {datos.facturaElectronica.facturaReferenciada}
+                    </p>
+                  )}
+                  {datos.facturaElectronica.urlPdf && (
+                    <p className="text-[8px] font-bold text-slate-800 mt-1 text-left">
+                      Documento electronico validado y firmado
+                    </p>
+                  )}
+                </div>
+              </>
+            );
+          })()}
         </div>
       </div>
 
