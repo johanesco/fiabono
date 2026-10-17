@@ -13,7 +13,7 @@ import {
   Receipt, ShoppingBag, BarChart3, Clock, TrendingUp,
   Flame, BadgePercent, Check, ArrowUpRight, Calculator,
   Sparkle, Shield, PartyPopper, Briefcase, Building2, Phone, Bookmark, Menu,
-  Tag, Gift, Banknote, CreditCard, ShoppingCart, User, Mail, KeyRound, Send
+  Tag, Gift, Banknote, CreditCard, ShoppingCart, User, Mail, KeyRound, Send, Camera, ScanLine
 } from 'lucide-react';
 import LogoFiabono, { IsotipoFiabono } from "@/components/LogoFiabono";
 
@@ -657,8 +657,8 @@ export default function LandingPage() {
       
       {/* 1. TOP ANNOUNCEMENT BANNER */}
       <div className="bg-gradient-to-r from-emerald-600 via-teal-600 to-slate-900 text-white text-[11px] sm:text-xs font-black py-2 px-4 text-center flex items-center justify-center gap-2">
-        <span>🇨🇴 El software POS colombiano para tiendas de barrio, almacenes de ropa y negocios</span>
-        <span className="hidden sm:inline-block bg-white/20 px-2 py-0.5 rounded-full text-[10px] uppercase font-bold">14 días de prueba gratis</span>
+        <span>🇨🇴 El software POS para Almacenes y Tiendas en Colombia</span>
+        <span className="hidden sm:inline-block bg-white/20 px-2 py-0.5 rounded-full text-[10px] uppercase font-bold">Vende, Fía, Abona y Separa desde tu celular • 14 días gratis</span>
       </div>
 
       {/* 2. HEADER NAVEGACIÓN GLASSOVERLAY */}
@@ -767,15 +767,15 @@ export default function LandingPage() {
         <div className="flex flex-col items-center text-center max-w-4xl mx-auto">
           {/* Badge superior SEO */}
           <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 font-black text-xs uppercase tracking-widest mb-6 border border-emerald-200/60 dark:border-emerald-500/20 shadow-sm animate-in fade-in slide-in-from-bottom-2 duration-300">
-            <Store size={14} className="text-emerald-600" /> Software POS para Tiendas, Tiendas de Barrio & Almacenes
+            <Store size={14} className="text-emerald-600" /> Especial para Almacenes y Tiendas en Colombia
           </div>
 
           <h1 className="text-4xl sm:text-6xl md:text-7xl font-black tracking-tight text-slate-900 dark:text-white mb-6 leading-[1.1] sm:leading-[1.06]">
-            Deja de perder plata en cuadernos y cuentas <span className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-500">embolatadas</span>.
+            Para Almacenes y Tiendas: <span className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-500">Vende, Fía, Abona y Separa</span> sin perder plata ni enredarte.
           </h1>
 
           <p className="text-base sm:text-xl text-slate-600 dark:text-slate-300 max-w-3xl mx-auto mb-6 font-medium leading-relaxed">
-            El sistema POS colombiano más fácil para <strong>tiendas de barrio, minimarkets y almacenes de ropa</strong>. Vende rápido, envía comprobantes por WhatsApp, escanea productos con la cámara del celular y aparta mercancía con <strong>Plan Separe con foto</strong>.
+            Control total en tu mostrador sin gastar en computadores ni pistolas costosas: <strong>usa la cámara de tu celular como lector de códigos de barras y QR</strong> para registrar inventario y cobrar en 1 segundo. Notifica <strong>ventas, fiados, abonos y Plan Separe con fotos directamente por WhatsApp</strong>, con estados de cuenta claros que evitan malas cuentas, discusiones y malos entendidos con tus clientes.
           </p>
 
           {/* Chips Interactivos de Nicho en el Hero (Quick Discovery) */}
@@ -834,6 +834,57 @@ export default function LandingPage() {
             </div>
             <div className="flex items-center gap-1.5 bg-purple-50 dark:bg-purple-500/10 text-purple-700 dark:text-purple-300 px-3 py-1.5 rounded-full border border-purple-200/50">
               <ShieldCheck size={15} className="text-purple-500" /> Cuentas seguras en la nube
+            </div>
+          </div>
+
+          {/* 4 Acciones Clave de Mostrador (Hook Visual Inmediato) */}
+          <div className="mt-10 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5 w-full text-left">
+            <div className="bg-white dark:bg-[#0f172a] p-4 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-sm hover:border-emerald-400 transition-colors">
+              <div className="w-9 h-9 rounded-xl bg-emerald-100 dark:bg-emerald-500/20 text-emerald-600 flex items-center justify-center mb-2.5">
+                <ShoppingCart size={18} />
+              </div>
+              <h4 className="font-black text-sm text-slate-900 dark:text-white flex items-center gap-1.5">
+                1. Vende & Fía en 1 toque
+              </h4>
+              <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1 leading-snug">
+                Cobro rápido en efectivo, transferencias o datáfono. Asigna cupos de fiado para no sobreendeudar a tus clientes.
+              </p>
+            </div>
+
+            <div className="bg-white dark:bg-[#0f172a] p-4 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-sm hover:border-purple-400 transition-colors">
+              <div className="w-9 h-9 rounded-xl bg-purple-100 dark:bg-purple-500/20 text-purple-600 flex items-center justify-center mb-2.5">
+                <Shirt size={18} />
+              </div>
+              <h4 className="font-black text-sm text-slate-900 dark:text-white flex items-center gap-1.5">
+                2. Plan Separe con Fotos
+              </h4>
+              <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1 leading-snug">
+                Aparta prendas con foto real, fija fecha límite y registra abonos. Cero mercancía estancada ni vestidos embolatados.
+              </p>
+            </div>
+
+            <div className="bg-white dark:bg-[#0f172a] p-4 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-sm hover:border-blue-400 transition-colors">
+              <div className="w-9 h-9 rounded-xl bg-blue-100 dark:bg-blue-500/20 text-blue-600 flex items-center justify-center mb-2.5">
+                <MessageCircle size={18} />
+              </div>
+              <h4 className="font-black text-sm text-slate-900 dark:text-white flex items-center gap-1.5">
+                3. Recibos por WhatsApp
+              </h4>
+              <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1 leading-snug">
+                Envía comprobantes de venta, abonos y estados de cuenta al instante. Formalidad que evita malas cuentas y reclamos.
+              </p>
+            </div>
+
+            <div className="bg-white dark:bg-[#0f172a] p-4 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-sm hover:border-amber-400 transition-colors">
+              <div className="w-9 h-9 rounded-xl bg-amber-100 dark:bg-amber-500/20 text-amber-600 flex items-center justify-center mb-2.5">
+                <Camera size={18} />
+              </div>
+              <h4 className="font-black text-sm text-slate-900 dark:text-white flex items-center gap-1.5">
+                4. Celular como Escáner
+              </h4>
+              <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1 leading-snug">
+                Usa la cámara de tu teléfono para escanear códigos de barras y QR. Registra inventario y cobra sin comprar lectores.
+              </p>
             </div>
           </div>
         </div>
@@ -962,12 +1013,12 @@ export default function LandingPage() {
 
               <div className="lg:col-span-5 space-y-3 text-left">
                 <span className="text-xs font-black uppercase text-emerald-600 tracking-wider">Flujo de mostrador rápido</span>
-                <h4 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white">Así de simple cobras en tu mostrador</h4>
+                <h4 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white">Cobra en 1 segundo con la cámara de tu celular</h4>
                 <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400 leading-relaxed font-medium">
-                  Buscas productos por nombre o escaneas con la cámara del celular. Eliges si pagan en <strong>Efectivo, Transferencia (Nequi/Daviplata) o Datáfono</strong>, anotas cuánto te dieron y el sistema calcula la devuelta en tiempo real.
+                  Convierte cualquier celular en un potente punto de venta: <strong>usa la cámara integrada para escanear códigos de barras o QR</strong>, o selecciona productos con sus fotos en el catálogo visual. Registras pagos en <strong>Efectivo, Transferencia o Datáfono</strong>, y el sistema calcula la devuelta exacta al instante.
                 </p>
                 <div className="bg-emerald-50 dark:bg-emerald-500/10 p-3 rounded-xl text-xs font-bold text-emerald-700 dark:text-emerald-300 border border-emerald-100 dark:border-emerald-500/20">
-                  ✓ Si el cliente no paga completo, el sistema convierte automáticamente el saldo en fiado a su cuenta.
+                  ✓ Si el cliente abona una parte y fía el resto, el saldo pendiente queda registrado automáticamente a su nombre.
                 </div>
               </div>
             </div>
@@ -1027,13 +1078,13 @@ export default function LandingPage() {
               </div>
 
               <div className="lg:col-span-5 space-y-3 text-left">
-                <span className="text-xs font-black uppercase text-emerald-600 tracking-wider">El recibo que tus clientes aman</span>
-                <h4 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white">Envío directo al WhatsApp de tu cliente</h4>
+                <span className="text-xs font-black uppercase text-emerald-600 tracking-wider">Cero malas cuentas ni confusiones</span>
+                <h4 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white">Notifica comprobantes y estados de cuenta por WhatsApp</h4>
                 <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400 leading-relaxed font-medium">
-                  Al terminar una venta o abonar una deuda, tocas <strong>"Enviar a WhatsApp"</strong> y se abre el chat de tu cliente con el recibo listo. Incluye el enlace digital seguro donde tu cliente puede descargar la factura en foto en cualquier momento.
+                  Al registrar una venta, fiado, abono o Plan Separe, tocas <strong>"Enviar a WhatsApp"</strong> y tu cliente recibe de inmediato su comprobante digital con fecha, saldo y productos detallados. La claridad total evita malos entendidos, cobros incómodos y cuentas embolatadas.
                 </p>
                 <div className="bg-emerald-50 dark:bg-emerald-500/10 p-3 rounded-xl text-xs font-bold text-emerald-700 dark:text-emerald-300 border border-emerald-100 dark:border-emerald-500/20">
-                  📱 Funciona tanto para ventas de contado como para comprobantes de fiados y abonos.
+                  📱 Funciona para ventas de contado, deudas fiadas, abonos recibidos y planes separe.
                 </div>
               </div>
             </div>
