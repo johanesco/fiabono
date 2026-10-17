@@ -13,7 +13,7 @@ import {
   Receipt, ShoppingBag, BarChart3, Clock, TrendingUp,
   Flame, BadgePercent, Check, ArrowUpRight, Calculator,
   Sparkle, Shield, PartyPopper, Briefcase, Building2, Phone, Bookmark, Menu,
-  Tag, Gift, Banknote, CreditCard, ShoppingCart, User, Mail, KeyRound, Send, Camera, ScanLine
+  Tag, Gift, Banknote, CreditCard, ShoppingCart, User, Mail, KeyRound, Send, Camera, ScanLine, Laptop, Tablet
 } from 'lucide-react';
 import LogoFiabono, { IsotipoFiabono } from "@/components/LogoFiabono";
 
@@ -658,7 +658,7 @@ export default function LandingPage() {
       {/* 1. TOP ANNOUNCEMENT BANNER */}
       <div className="bg-gradient-to-r from-emerald-600 via-teal-600 to-slate-900 text-white text-[11px] sm:text-xs font-black py-2 px-4 text-center flex items-center justify-center gap-2">
         <span>🇨🇴 El software POS para Almacenes y Tiendas en Colombia</span>
-        <span className="hidden sm:inline-block bg-white/20 px-2 py-0.5 rounded-full text-[10px] uppercase font-bold">Vende, Fía, Abona y Separa desde tu celular • 14 días gratis</span>
+        <span className="hidden sm:inline-block bg-white/20 px-2 py-0.5 rounded-full text-[10px] uppercase font-bold">Desde tu celular, tablet o computador • 14 días gratis</span>
       </div>
 
       {/* 2. HEADER NAVEGACIÓN GLASSOVERLAY */}
@@ -775,7 +775,7 @@ export default function LandingPage() {
           </h1>
 
           <p className="text-base sm:text-xl text-slate-600 dark:text-slate-300 max-w-3xl mx-auto mb-6 font-medium leading-relaxed">
-            Control total en tu mostrador sin gastar en computadores ni pistolas costosas: <strong>usa la cámara de tu celular como lector de códigos de barras y QR</strong> para registrar inventario y cobrar en 1 segundo. Notifica <strong>ventas, fiados, abonos y Plan Separe con fotos directamente por WhatsApp</strong>, con estados de cuenta claros que evitan malas cuentas, discusiones y malos entendidos con tus clientes.
+            Control total en tu mostrador <strong>desde tu celular, tablet o computador</strong> sin gastar en equipos costosos: usa la cámara de tu dispositivo para <strong>escanear códigos de barras y QR</strong>, registrar inventario y cobrar en 1 segundo. Notifica <strong>ventas, fiados, abonos y Plan Separe con fotos directamente por WhatsApp</strong>, con estados de cuenta claros que evitan malas cuentas, discusiones y malos entendidos con tus clientes.
           </p>
 
           {/* Chips Interactivos de Nicho en el Hero (Quick Discovery) */}
@@ -830,7 +830,7 @@ export default function LandingPage() {
               <CheckCircle2 size={15} className="text-emerald-500" /> Sin tarjeta de crédito
             </div>
             <div className="flex items-center gap-1.5 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 px-3 py-1.5 rounded-full border border-slate-200 dark:border-slate-700">
-              <Smartphone size={15} className="text-emerald-600" /> Web + App móvil ligera (sin gastar memoria)
+              <Laptop size={15} className="text-emerald-600" /> Celular, tablet o computador (Web + PWA ligera)
             </div>
             <div className="flex items-center gap-1.5 bg-purple-50 dark:bg-purple-500/10 text-purple-700 dark:text-purple-300 px-3 py-1.5 rounded-full border border-purple-200/50">
               <ShieldCheck size={15} className="text-purple-500" /> Cuentas seguras en la nube
@@ -880,10 +880,10 @@ export default function LandingPage() {
                 <Camera size={18} />
               </div>
               <h4 className="font-black text-sm text-slate-900 dark:text-white flex items-center gap-1.5">
-                4. Celular como Escáner
+                4. Celular, Tablet o PC
               </h4>
               <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1 leading-snug">
-                Usa la cámara de tu teléfono para escanear códigos de barras y QR. Registra inventario y cobra sin comprar lectores.
+                Úsalo en tu celular, tablet o computador. Usa la cámara de tu dispositivo para escanear códigos de barras y QR.
               </p>
             </div>
           </div>
