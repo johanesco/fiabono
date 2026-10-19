@@ -78,6 +78,37 @@ export default function LandingPage() {
     setFaqAbierto(faqAbierto === index ? null : index);
   };
 
+  // Detección de scroll inteligente para Isla Flotante de Conversión y Barra de Lectura
+  const [mostrarBarraFlotante, setMostrarBarraFlotante] = useState(false);
+  const [progresoLectura, setProgresoLectura] = useState(0);
+
+  useEffect(() => {
+    let ticking = false;
+    const manejarScroll = () => {
+      if (!ticking) {
+        window.requestAnimationFrame(() => {
+          const scrollY = window.scrollY;
+          const alturaTotal = document.documentElement.scrollHeight - window.innerHeight;
+          
+          if (alturaTotal > 0) {
+            const porcentaje = Math.min(100, Math.max(0, (scrollY / alturaTotal) * 100));
+            setProgresoLectura(porcentaje);
+          }
+
+          // Aparece pasado el Hero (480px) y se oculta cerca del final antes del footer
+          const cercaDelFinal = alturaTotal > 0 && scrollY > (alturaTotal - 380);
+          setMostrarBarraFlotante(scrollY > 480 && !cercaDelFinal);
+          ticking = false;
+        });
+        ticking = true;
+      }
+    };
+
+    window.addEventListener('scroll', manejarScroll, { passive: true });
+    manejarScroll();
+    return () => window.removeEventListener('scroll', manejarScroll);
+  }, []);
+
   // Auto-apertura de modal si viene con ?login=1 o ?recuperar=1
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -662,7 +693,7 @@ export default function LandingPage() {
       </div>
 
       {/* 2. HEADER NAVEGACIÓN GLASSOVERLAY */}
-      <header className="sticky top-0 bg-white/85 dark:bg-[#0f172a]/85 backdrop-blur-2xl border-b border-slate-200/60 dark:border-slate-800/60 z-[500] px-3 sm:px-8 py-2.5 sm:py-3.5 transition-all shadow-sm">
+      <header className="sticky top-0 relative bg-white/85 dark:bg-[#0f172a]/85 backdrop-blur-2xl border-b border-slate-200/60 dark:border-slate-800/60 z-[500] px-3 sm:px-8 py-2.5 sm:py-3.5 transition-all shadow-sm">
         <div className="max-w-7xl mx-auto flex justify-between items-center gap-2">
           <div className="flex items-center gap-2 cursor-pointer shrink-0" onClick={() => { setMenuMovilAbierto(false); window.scrollTo({ top: 0, behavior: 'smooth' }); }}>
             <span className="sm:hidden"><IsotipoFiabono size={34} /></span>
@@ -758,6 +789,12 @@ export default function LandingPage() {
             </div>
           </div>
         )}
+
+        {/* Barra ultra-fina de progreso de lectura interactiva */}
+        <div 
+          className="absolute bottom-0 left-0 h-[2px] bg-gradient-to-r from-emerald-500 via-teal-400 to-blue-500 transition-all duration-150 ease-out z-[501]"
+          style={{ width: `${progresoLectura}%` }}
+        />
       </header>
 
       {/* 3. HERO SECTION DE ALTO IMPACTO EMOCIONAL */}
@@ -2315,19 +2352,55 @@ export default function LandingPage() {
         </div>
       </footer>
 
-      {/* 13. FLOATING MOBILE STICKY BAR PARA MÁXIMA CONVERSIÓN */}
-      <div className="md:hidden w-full bg-white/95 dark:bg-[#0f172a]/95 backdrop-blur-lg border-t border-slate-200 dark:border-slate-800 p-3 flex items-center justify-between gap-3 shadow-lg">
-        <div>
-          <p className="text-xs font-black text-slate-900 dark:text-white">Prueba Fiabono Gratis</p>
-          <p className="text-[10px] text-emerald-600 font-bold">Sin tarjeta de crédito</p>
+      {/* 13. ISLA FLOTANTE DE CONVERSIÓN INTELIGENTE (DESKTOP & MOBILE) */}
+      <div 
+        className={`fixed z-[450] transition-all duration-500 ease-out ${
+          mostrarBarraFlotante && !modalLandingInfo.visible && !modalGoogleOnboarding && !modalLegal.visible
+            ? 'opacity-100 translate-y-0 pointer-events-auto' 
+            : 'opacity-0 translate-y-10 pointer-events-none'
+        } bottom-3 sm:bottom-6 inset-x-3 sm:inset-x-auto sm:left-1/2 sm:-translate-x-1/2 sm:max-w-xl w-auto`}
+      >
+        <div className="bg-white/90 dark:bg-[#0f172a]/90 backdrop-blur-2xl border border-slate-200/90 dark:border-slate-800/90 rounded-2xl sm:rounded-full p-2.5 sm:p-2 sm:pl-4 sm:pr-2.5 shadow-2xl shadow-emerald-950/20 dark:shadow-black/60 flex items-center justify-between gap-3 sm:gap-4 ring-1 ring-black/5 dark:ring-white/5">
+          {/* Lado izquierdo: Badge informativo */}
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className="w-8 h-8 rounded-xl sm:rounded-full bg-gradient-to-tr from-emerald-500 to-teal-600 text-white flex items-center justify-center shrink-0 shadow-md shadow-emerald-500/30">
+              <Sparkles size={16} className="fill-current" />
+            </div>
+            <div className="min-w-0">
+              <div className="flex items-center gap-1.5">
+                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse shrink-0"></span>
+                <p className="text-xs font-black text-slate-900 dark:text-white truncate">
+                  Fiabono POS
+                </p>
+                <span className="hidden sm:inline-block text-[10px] uppercase font-black text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-500/10 px-2 py-0.2 rounded-full border border-emerald-200/60 dark:border-emerald-500/20">
+                  14 días gratis
+                </span>
+              </div>
+              <p className="text-[10px] text-slate-500 dark:text-slate-400 font-medium truncate">
+                Sin tarjeta • Cancela cuando quieras
+              </p>
+            </div>
+          </div>
+
+          {/* Lado derecho: Acciones Desktop / Botón CTA */}
+          <div className="flex items-center gap-2 shrink-0">
+            <button
+              type="button"
+              onClick={() => document.getElementById('planes')?.scrollIntoView({ behavior: 'smooth' })}
+              className="hidden md:inline-flex text-[11px] font-bold text-slate-600 dark:text-slate-300 hover:text-emerald-600 dark:hover:text-emerald-400 px-2.5 py-1.5 transition-colors cursor-pointer"
+            >
+              Ver Planes
+            </button>
+            <button
+              type="button"
+              onClick={() => abrirRegistroConPlan('gratis')}
+              className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs sm:text-xs font-black py-2.5 px-4 sm:px-5 rounded-xl sm:rounded-full shadow-lg shadow-emerald-600/30 active:scale-95 transition-all flex items-center gap-1.5 shrink-0 cursor-pointer whitespace-nowrap"
+            >
+              <span>Empezar Gratis</span>
+              <ArrowRight size={14} className="shrink-0" />
+            </button>
+          </div>
         </div>
-        <button
-          type="button"
-          onClick={() => abrirRegistroConPlan('gratis')}
-          className="bg-emerald-600 text-white font-black text-xs py-2.5 px-4 rounded-xl shadow-md shadow-emerald-600/30 active:scale-95 cursor-pointer"
-        >
-          Crear Cuenta
-        </button>
       </div>
 
       {/* 14. MODAL DE LOGIN / REGISTRO */}
