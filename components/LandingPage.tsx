@@ -2362,42 +2362,42 @@ export default function LandingPage() {
       >
         <div className="bg-white/90 dark:bg-[#0f172a]/90 backdrop-blur-2xl border border-slate-200/90 dark:border-slate-800/90 rounded-2xl sm:rounded-full p-2.5 sm:p-2 sm:pl-4 sm:pr-2.5 shadow-2xl shadow-emerald-950/20 dark:shadow-black/60 flex items-center justify-between gap-3 sm:gap-4 ring-1 ring-black/5 dark:ring-white/5">
           {/* Lado izquierdo: Badge informativo */}
-          <div className="flex items-center gap-2.5 min-w-0">
-            <div className="w-8 h-8 rounded-xl sm:rounded-full bg-gradient-to-tr from-emerald-500 to-teal-600 text-white flex items-center justify-center shrink-0 shadow-md shadow-emerald-500/30">
-              <Sparkles size={16} className="fill-current" />
+          <div className="flex items-center gap-2 sm:gap-2.5 min-w-0">
+            <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-xl sm:rounded-full bg-gradient-to-tr from-emerald-500 to-teal-600 text-white flex items-center justify-center shrink-0 shadow-md shadow-emerald-500/30">
+              <Sparkles size={15} className="fill-current" />
             </div>
             <div className="min-w-0">
               <div className="flex items-center gap-1.5">
-                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse shrink-0"></span>
-                <p className="text-xs font-black text-slate-900 dark:text-white truncate">
+                <span className="w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full bg-emerald-500 animate-pulse shrink-0"></span>
+                <p className="text-[11px] sm:text-xs font-black text-slate-900 dark:text-white truncate">
                   Fiabono POS
                 </p>
                 <span className="hidden sm:inline-block text-[10px] uppercase font-black text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-500/10 px-2 py-0.2 rounded-full border border-emerald-200/60 dark:border-emerald-500/20">
                   14 días gratis
                 </span>
               </div>
-              <p className="text-[10px] text-slate-500 dark:text-slate-400 font-medium truncate">
+              <p className="text-[9px] sm:text-[10px] text-slate-500 dark:text-slate-400 font-medium truncate">
                 Sin tarjeta • Cancela cuando quieras
               </p>
             </div>
           </div>
 
-          {/* Lado derecho: Acciones Desktop / Botón CTA */}
-          <div className="flex items-center gap-2 shrink-0">
+          {/* Lado derecho: Acciones / Botones */}
+          <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
             <button
               type="button"
               onClick={() => document.getElementById('planes')?.scrollIntoView({ behavior: 'smooth' })}
-              className="hidden md:inline-flex text-[11px] font-bold text-slate-600 dark:text-slate-300 hover:text-emerald-600 dark:hover:text-emerald-400 px-2.5 py-1.5 transition-colors cursor-pointer"
+              className="inline-flex items-center text-[10px] sm:text-[11px] font-bold text-slate-700 dark:text-slate-200 hover:text-emerald-600 dark:hover:text-emerald-400 bg-slate-100 hover:bg-slate-200/80 dark:bg-slate-800 dark:hover:bg-slate-700/80 px-2 sm:px-3 py-1.5 sm:py-2 rounded-lg sm:rounded-full transition-all cursor-pointer whitespace-nowrap active:scale-95"
             >
-              Ver Planes
+              Planes
             </button>
             <button
               type="button"
               onClick={() => abrirRegistroConPlan('gratis')}
-              className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs sm:text-xs font-black py-2.5 px-4 sm:px-5 rounded-xl sm:rounded-full shadow-lg shadow-emerald-600/30 active:scale-95 transition-all flex items-center gap-1.5 shrink-0 cursor-pointer whitespace-nowrap"
+              className="bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] sm:text-xs font-black py-1.5 sm:py-2.5 px-3 sm:px-5 rounded-lg sm:rounded-full shadow-lg shadow-emerald-600/30 active:scale-95 transition-all flex items-center gap-1 sm:gap-1.5 shrink-0 cursor-pointer whitespace-nowrap"
             >
               <span>Empezar Gratis</span>
-              <ArrowRight size={14} className="shrink-0" />
+              <ArrowRight size={13} className="shrink-0" />
             </button>
           </div>
         </div>
