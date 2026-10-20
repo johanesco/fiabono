@@ -137,12 +137,12 @@ export default function VistaTicketCard({ datos, ticketRef }: VistaTicketCardPro
   };
 
   const getTituloTipo = () => {
-    if (datos.tipo === "venta") return "COMPROBANTE DE VENTA";
-    if (datos.tipo === "fiado") return "COMPROBANTE DE FIADO";
+    if (datos.tipo === "venta") return "FACTURA DE VENTA";
+    if (datos.tipo === "fiado") return "FACTURA FIADO / CRÉDITO";
     if (datos.tipo === "abono") return "COMPROBANTE DE ABONO";
-    if (datos.tipo === "separe") return "PLAN SEPARE";
-    if (datos.tipo === "abono_separe") return "ABONO A PLAN SEPARE";
-    if (datos.tipo === "entrega_separe") return "ENTREGA DE PLAN SEPARE";
+    if (datos.tipo === "separe") return "FACTURA PLAN SEPARE";
+    if (datos.tipo === "abono_separe") return "COMPROBANTE ABONO SEPARE";
+    if (datos.tipo === "entrega_separe") return "COMPROBANTE ENTREGA SEPARE";
     if (datos.tipo === "egreso") return "EGRESO";
     if (datos.tipo === "devolucion") return "DEVOLUCIÓN";
     return "COMPROBANTE DE CAJA";
@@ -345,7 +345,7 @@ export default function VistaTicketCard({ datos, ticketRef }: VistaTicketCardPro
         )}
         {datos.idTransaccion && (
           <FilaMeta
-            label="Ticket #:"
+            label={datos.tipo === "venta" || datos.tipo === "fiado" || datos.tipo === "separe" ? "Factura #:" : "Comprobante #:"}
             valor={datos.idTransaccion.slice(0, 8).toUpperCase()}
           />
         )}

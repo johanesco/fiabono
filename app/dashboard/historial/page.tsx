@@ -37,7 +37,7 @@ export default function HistorialPage() {
   const [todosMovimientos, setTodosMovimientos] = useState<Movimiento[]>([]);
   const [busquedaHistorial, setBusquedaHistorial] = useState("");
   const [filtroTiempoHistorial, setFiltroTiempoHistorial] = useState<'hoy' | 'semana' | 'mes' | 'todos'>('hoy');
-  const [filtroTipoHistorial, setFiltroTipoHistorial] = useState<'todos' | 'venta' | 'abono' | 'fiado' | 'devolucion' | 'ingreso_inventario'>('todos');
+  const [filtroTipoHistorial, setFiltroTipoHistorial] = useState<'todos' | 'venta' | 'abono' | 'separe' | 'fiado' | 'devolucion' | 'ingreso_inventario'>('todos');
   const [filtroVendedorHistorial, setFiltroVendedorHistorial] = useState<string>('todos');
   
   const [movimientoInventarioDetalle, setMovimientoInventarioDetalle] = useState<Movimiento | null>(null);
@@ -428,7 +428,18 @@ Quedamos pendientes para revisar detalles o responder cualquier duda.
       detallesMatch;
 
     if (busquedaHistorial && !matchBusqueda) return false;
-    if (filtroTipoHistorial !== 'todos' && mov.tipo !== filtroTipoHistorial) return false;
+    const esSepareMov = Boolean((mov as any).idSepareOrigen || (mov as any).separeId) || 
+                        mov.tipo === 'entrega_separe' || 
+                        mov.subtipo?.includes('separe') || 
+                        Boolean(mov.descripcion && mov.descripcion.toLowerCase().includes('separe'));
+
+    if (filtroTipoHistorial === 'separe') {
+      if (!esSepareMov) return false;
+    } else if (filtroTipoHistorial === 'abono') {
+      if (mov.tipo !== 'abono' || esSepareMov) return false;
+    } else if (filtroTipoHistorial !== 'todos' && mov.tipo !== filtroTipoHistorial) {
+      return false;
+    }
 
     // Filtro desplegable por vendedor (Admin o usuario con permisos)
     if (filtroVendedorHistorial !== 'todos') {
@@ -521,7 +532,7 @@ Quedamos pendientes para revisar detalles o responder cualquier duda.
         
         {/* FILA INFERIOR: FILTRO DE TIPOS */}
         <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 w-full">
-          {(puedeGestionarInventario ? ['todos', 'venta', 'abono', 'fiado', 'devolucion', 'ingreso_inventario'] : ['todos', 'venta', 'abono', 'fiado', 'devolucion']).map((tipo) => (
+          {(puedeGestionarInventario ? ['todos', 'venta', 'abono', 'separe', 'fiado', 'devolucion', 'ingreso_inventario'] : ['todos', 'venta', 'abono', 'separe', 'fiado', 'devolucion']).map((tipo) => (
             <button 
               key={tipo} 
               onClick={() => setFiltroTipoHistorial(tipo as any)} 
@@ -553,6 +564,12 @@ Quedamos pendientes para revisar detalles o responder cualquier duda.
         <div className="md:hidden">
           {historialFiltrado.map((mov) => {
             const esIngresoInv = mov.tipo === 'ingreso_inventario';
+            const esSepare = Boolean((mov as any).idSepareOrigen || (mov as any).separeId) || 
+                             mov.tipo === 'entrega_separe' || 
+                             mov.subtipo?.includes('separe') || 
+                             Boolean(mov.descripcion && mov.descripcion.toLowerCase().includes('separe'));
+            const esAbonoSepare = (mov.tipo === 'abono' && esSepare) || mov.subtipo === 'abono_inicial_separe';
+            const esEntregaSepare = mov.tipo === 'entrega_separe';
 
             return (
               <div 
@@ -611,7 +628,7 @@ Quedamos pendientes para revisar detalles o responder cualquier duda.
                             e.stopPropagation();
                             abrirTicketDeMovimiento(mov);
                           }}
-                          title="Imprimir Factura / Ticket"
+                          title="Imprimir Factura"
                           className="p-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-blue-50 dark:hover:bg-blue-500/20 hover:text-blue-600 dark:hover:text-blue-400 transition-colors cursor-pointer"
                         >
                           <Printer size={15} />
@@ -1203,7 +1220,7 @@ Quedamos pendientes para revisar detalles o responder cualquier duda.
                           <button
                             type="button"
                             onClick={() => abrirTicketDeMovimiento(mov)}
-                            title="Imprimir Factura / Ticket"
+                            title="Imprimir Factura"
                             className="p-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:text-blue-600 transition-colors cursor-pointer"
                           >
                             <Printer size={15} />
@@ -1265,7 +1282,7 @@ Quedamos pendientes para revisar detalles o responder cualquier duda.
                   }} 
                   className="w-full bg-blue-50 dark:bg-blue-950/40 hover:bg-blue-100 dark:hover:bg-blue-900/40 text-blue-600 dark:text-blue-400 font-bold py-3 px-4 rounded-xl transition-colors text-sm flex items-center justify-center gap-2 border border-blue-200 dark:border-blue-800/50 cursor-pointer"
                 >
-                  <Printer size={16} /> Ver Factura / Ticket
+                  <Printer size={16} /> Ver Factura
                 </button>
               )}
 

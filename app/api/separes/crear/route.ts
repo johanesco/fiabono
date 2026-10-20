@@ -108,6 +108,23 @@ export async function POST(request: Request) {
           ...(typeof body.referenciaPago === 'string' && body.referenciaPago.trim() ? { referenciaPago: body.referenciaPago.trim() } : {}),
           idSepareOrigen: separeRef.id
         });
+      } else {
+        const movimientoRef = adminDb.collection('movimientos').doc();
+        movimientoAbonoId = movimientoRef.id;
+        transaction.create(movimientoRef, {
+          clienteId: separeData.clienteId,
+          clienteNombre: clienteSnap.data()?.nombre || separeData.clienteNombre || 'Cliente',
+          usuarioId: cuentaPrincipalId,
+          tipo: 'abono',
+          subtipo: 'apertura_separe_sin_abono',
+          monto: 0,
+          descripcion: `Apertura Plan Separe (Sin abono inicial) - ${clienteSnap.data()?.nombre || 'Cliente'}`,
+          detalles: separeData.items,
+          fecha: new Date(),
+          registradoPor: usuario.nombreUsuario || decodedToken.email || 'Usuario',
+          metodoPago: 'separe',
+          idSepareOrigen: separeRef.id
+        });
       }
       return { separeId: separeRef.id, movimientoAbonoId };
     });

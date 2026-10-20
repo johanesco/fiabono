@@ -2914,7 +2914,7 @@ export default function PerfilPage() {
                     </div>
 
                     <div>
-                      <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1.5">Mensaje de Despedida en el Recibo (Opcional)</label>
+                      <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1.5">Mensaje de Despedida en la Factura (Opcional)</label>
                       <input type="text" value={mensajePieTicket} onChange={(e) => setMensajePieTicket(e.target.value)} placeholder="Ej. ¡Gracias por su compra! Vuelva pronto." className="w-full p-4 bg-slate-50 dark:bg-[#020617] border border-slate-200 dark:border-slate-800/80 rounded-2xl outline-none focus:border-blue-500 dark:focus:border-blue-400 font-bold text-base text-slate-900 dark:text-white placeholder-slate-400" />
                     </div>
 
@@ -3100,7 +3100,7 @@ export default function PerfilPage() {
                       </div>
 
                       <div className="min-w-0 md:col-span-2">
-                        <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1 flex items-center gap-1.5"><Receipt size={13} className="text-blue-500" /> Pie de Ticket</p>
+                        <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1 flex items-center gap-1.5"><Receipt size={13} className="text-blue-500" /> Pie de Factura</p>
                         <p className="font-bold text-slate-800 dark:text-slate-200 text-base truncate">{mensajePieTicket || "¡GRACIAS POR SU COMPRA!"}</p>
                       </div>
 

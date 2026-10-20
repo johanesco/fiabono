@@ -1234,7 +1234,7 @@ Quedamos pendientes para revisar detalles o responder cualquier duda.
                                 <button
                                   type="button"
                                   onClick={() => abrirTicketDeMovimiento(mov, clienteActivo)}
-                                  title="Imprimir Factura / Ticket"
+                                  title="Imprimir Factura"
                                   className="p-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:text-blue-600 transition-colors cursor-pointer"
                                 >
                                   <Printer size={14} />

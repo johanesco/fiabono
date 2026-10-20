@@ -1065,7 +1065,7 @@ Estamos atentos para cualquier consulta.
                 onClick={() => setModalTicketFactura({ visible: true, datos: modalExito.ticketDatos })}
                 className="w-full mb-3 bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 rounded-2xl shadow-lg flex justify-center items-center gap-2 text-lg transition-transform active:scale-95"
               >
-                <Printer size={22} /> Imprimir Factura / Ticket
+                <Printer size={22} /> Imprimir Factura
               </button>
             )}
 

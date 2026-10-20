@@ -30,6 +30,12 @@ export default function TablaHistorial({ movimientos, getNombreCliente, onRowCli
         <tbody>
           {movimientos.map((mov) => {
             const esIngresoInv = mov.tipo === 'ingreso_inventario';
+            const esSepare = Boolean((mov as any).idSepareOrigen || (mov as any).separeId) || 
+                             mov.tipo === 'entrega_separe' || 
+                             mov.subtipo?.includes('separe') || 
+                             Boolean(mov.descripcion && mov.descripcion.toLowerCase().includes('separe'));
+            const esAbonoSepare = (mov.tipo === 'abono' && esSepare) || mov.subtipo === 'abono_inicial_separe';
+            const esEntregaSepare = mov.tipo === 'entrega_separe';
 
             return (
               <tr 
@@ -136,7 +142,7 @@ export default function TablaHistorial({ movimientos, getNombreCliente, onRowCli
                       <button
                         type="button"
                         onClick={() => onImprimir(mov)}
-                        title="Imprimir Factura / Ticket"
+                        title="Imprimir Factura"
                         className="p-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-blue-50 dark:hover:bg-blue-500/20 hover:text-blue-600 dark:hover:text-blue-400 transition-colors inline-flex items-center justify-center cursor-pointer"
                       >
                         <Printer size={14} />

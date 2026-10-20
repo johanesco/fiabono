@@ -2278,7 +2278,7 @@ Gracias por contactarnos.`;
                 onClick={() => setModalTicketFactura({ visible: true, datos: modalExitoAbono.ticketDatos })}
                 className="w-full bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 font-bold py-3 rounded-xl transition-all flex items-center justify-center gap-2 text-xs cursor-pointer"
               >
-                <Printer size={16} /> Ver / Imprimir Ticket de Abono
+                <Printer size={16} /> Ver / Imprimir Factura de Abono
               </button>
 
               <button
@@ -2334,7 +2334,7 @@ Gracias por contactarnos.`;
                 onClick={() => setModalTicketFactura({ visible: true, datos: modalExitoEntrega.ticketDatos })}
                 className="w-full bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 font-bold py-3 rounded-xl transition-all flex items-center justify-center gap-2 text-xs cursor-pointer"
               >
-                <Printer size={16} /> Ver / Imprimir Ticket de Entrega
+                <Printer size={16} /> Ver / Imprimir Factura de Entrega
               </button>
 
               <button
@@ -3012,7 +3012,7 @@ Gracias por contactarnos.`;
                 onClick={() => setModalTicketFactura({ visible: true, datos: modalExitoEntregaParcial.ticketDatos })}
                 className="w-full bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 font-bold py-3 rounded-xl transition-all flex items-center justify-center gap-2 text-xs cursor-pointer"
               >
-                <Printer size={16} /> Ver / Imprimir Ticket de Entrega Parcial
+                <Printer size={16} /> Ver / Imprimir Factura de Entrega Parcial
               </button>
 
               <button

@@ -144,7 +144,7 @@ function ClientesContenido() {
   // Modal Historial / Ficha del Cliente
   const [clienteFicha, setClienteFicha] = useState<any | null>(null);
   // Filtro de movimientos en historial: 'todos' | 'venta' | 'fiado' | 'abono'
-  const [filtroTipoMov, setFiltroTipoMov] = useState<'todos' | 'venta' | 'fiado' | 'abono'>('todos');
+  const [filtroTipoMov, setFiltroTipoMov] = useState<'todos' | 'venta' | 'fiado' | 'abono' | 'separe'>('todos');
 
   // Detección de dispositivo tablet táctil (iPad u otras tablets táctiles en horizontal)
   const [esTabletTactil, setEsTabletTactil] = useState(false);
@@ -761,7 +761,11 @@ Quedamos pendientes para revisar detalles o responder cualquier duda.
     const todosMovs = cliente.movimientosHistorial || [];
     const movimientosFiltrados = filtroTipoMov === 'todos' 
       ? todosMovs 
-      : todosMovs.filter((m: Movimiento) => m.tipo === filtroTipoMov);
+      : filtroTipoMov === 'separe'
+        ? todosMovs.filter((m: any) => Boolean(m.idSepareOrigen || m.separeId) || m.tipo === 'entrega_separe' || m.subtipo?.includes('separe') || (m.descripcion && m.descripcion.toLowerCase().includes('separe')))
+        : filtroTipoMov === 'abono'
+          ? todosMovs.filter((m: any) => m.tipo === 'abono' && !(Boolean(m.idSepareOrigen || m.separeId) || m.subtipo?.includes('separe') || (m.descripcion && m.descripcion.toLowerCase().includes('separe'))))
+          : todosMovs.filter((m: Movimiento) => m.tipo === filtroTipoMov);
 
     // Renderizador común de tarjetas de movimientos
     const renderListaMovimientos = (movs: Movimiento[]) => {
@@ -786,6 +790,12 @@ Quedamos pendientes para revisar detalles o responder cualquier duda.
               : '';
             const tieneDevolucion = (mov as any).tieneDevolucion;
             const esVentaOFiado = mov.tipo === 'venta' || mov.tipo === 'fiado';
+            const esSepare = Boolean((mov as any).idSepareOrigen || (mov as any).separeId) || 
+                             mov.tipo === 'entrega_separe' || 
+                             mov.subtipo?.includes('separe') || 
+                             Boolean(mov.descripcion && mov.descripcion.toLowerCase().includes('separe'));
+            const esAbonoSepare = (mov.tipo === 'abono' && esSepare) || mov.subtipo === 'abono_inicial_separe';
+            const esEntregaSepare = mov.tipo === 'entrega_separe';
 
             return (
               <div 
@@ -795,6 +805,7 @@ Quedamos pendientes para revisar detalles o responder cualquier duda.
                 {/* Barra lateral de color según el tipo */}
                 <div className={`absolute left-0 top-0 bottom-0 w-1.5 ${
                   mov.tipo === 'devolucion' ? 'bg-amber-500' :
+                  esSepare ? 'bg-violet-600' :
                   mov.tipo === 'fiado' ? 'bg-rose-500' : (mov.tipo === 'venta' ? 'bg-emerald-500' : 'bg-blue-500')
                 }`} />
                 
@@ -804,13 +815,24 @@ Quedamos pendientes para revisar detalles o responder cualquier duda.
                         <span className={`text-[9px] sm:text-[10px] font-black uppercase px-2 py-0.5 rounded-md shrink-0 ${
                         mov.tipo === 'devolucion'
                           ? 'bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-300'
+                          : esEntregaSepare
+                          ? 'bg-violet-100 text-violet-700 dark:bg-violet-950/60 dark:text-violet-300'
+                          : esAbonoSepare
+                          ? 'bg-violet-100 text-violet-700 dark:bg-violet-950/60 dark:text-violet-300'
                           : mov.tipo === 'fiado' 
                           ? 'bg-rose-100 text-rose-700 dark:bg-rose-500/20 dark:text-rose-300' 
                           : (mov.tipo === 'venta' 
                             ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300' 
                             : 'bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-300')
                       }`}>
-                        {mov.tipo === 'devolucion' ? '↩ DEVOLUCIÓN' : mov.tipo}
+                        {mov.tipo === 'devolucion' ? '↩ DEVOLUCIÓN' :
+                         esEntregaSepare ? '📦 SEPARE ENTREGADO' :
+                         esAbonoSepare ? (
+                           mov.subtipo === 'abono_inicial_separe' ? '🔖 SEPARE INICIAL' :
+                           (mov.subtipo === 'apertura_separe_sin_abono' || mov.monto === 0 ? '🔖 NUEVO SEPARE' : '🔖 ABONO SEPARE')
+                         ) :
+                         mov.tipo === 'abono' ? 'ABONO CUENTA' :
+                         mov.tipo}
                       </span>
                       
                       {tieneDevolucion && (
@@ -893,16 +915,17 @@ Quedamos pendientes para revisar detalles o responder cualquier duda.
                       <button
                         type="button"
                         onClick={() => abrirTicketDeMovimiento(mov, cliente)}
-                        title="Imprimir Factura / Ticket"
+                        title="Imprimir Factura"
                         className="p-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:text-blue-600 transition-colors cursor-pointer"
                       >
                         <Printer size={15} />
                       </button>
-                      <span className={`text-base sm:text-lg ${
+                      <span className={`text-base sm:text-lg font-black ${
                         mov.tipo === 'devolucion' ? 'text-amber-500' :
+                        esSepare ? 'text-violet-600 dark:text-violet-400' :
                         mov.tipo === 'fiado' ? 'text-rose-500' : (mov.tipo === 'venta' ? 'text-emerald-500' : 'text-blue-500')
                       }`}>
-                        {mov.tipo === 'fiado' || mov.tipo === 'devolucion' ? '-' : '+'}${Math.round(mov.monto || 0).toLocaleString('es-CO')}
+                        {esEntregaSepare ? 'Entregado' : (mov.subtipo === 'apertura_separe_sin_abono' || (mov.monto === 0 && esSepare) ? 'Reservado ($0)' : `${mov.tipo === 'fiado' || mov.tipo === 'devolucion' ? '-' : '+'}\${Math.round(mov.monto || 0).toLocaleString('es-CO')}`)}
                       </span>
                     </div>
                   </div>
@@ -949,6 +972,17 @@ Quedamos pendientes para revisar detalles o responder cualquier duda.
           }`}
         >
           Abonos
+        </button>
+        <button
+          type="button"
+          onClick={() => setFiltroTipoMov('separe')}
+          className={`px-2 py-1 rounded-lg transition cursor-pointer ${
+            filtroTipoMov === 'separe'
+              ? 'bg-violet-600 text-white shadow-xs'
+              : 'text-slate-500 hover:text-violet-600 dark:text-slate-400'
+          }`}
+        >
+          Separes
         </button>
         <button
           type="button"

@@ -2139,7 +2139,7 @@ Muchas gracias por tu compra. Estamos atentos para cualquier consulta.
                           onClick={() => abrirFacturaDeOrdenAprobada(ord)}
                           className="flex-1 py-2.5 px-3 bg-blue-600 hover:bg-blue-700 active:scale-95 text-white font-bold rounded-xl text-xs transition-all flex items-center justify-center gap-1.5 shadow-sm cursor-pointer"
                         >
-                          <Printer size={14} /> Ver Factura / Ticket
+                          <Printer size={14} /> Ver Factura
                         </button>
                         <button
                           type="button"
@@ -3164,7 +3164,7 @@ Muchas gracias por tu compra. Estamos atentos para cualquier consulta.
                   className="w-full py-3.5 px-4 bg-blue-600 hover:bg-blue-700 active:scale-95 text-white font-black rounded-2xl text-sm shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer"
                 >
                   <Printer size={18} />
-                  <span>Imprimir Factura / Ticket</span>
+                  <span>Imprimir Factura</span>
                 </button>
               )}
 
