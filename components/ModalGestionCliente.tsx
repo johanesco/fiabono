@@ -107,12 +107,12 @@ export default function ModalGestionCliente({
     const tag = (tagTexto ?? nuevaEtiqueta).trim();
     if (!tag) return;
     if (tag.length > 25) {
-      toast.error("La categoría no debe superar 25 caracteres.");
+      toast.error("La etiqueta no debe superar 25 caracteres.");
       return;
     }
     const existe = etiquetas.some(e => e.toLowerCase() === tag.toLowerCase());
     if (existe) {
-      toast.error(`La categoría "${tag}" ya está asignada.`);
+      toast.error(`La etiqueta "${tag}" ya está asignada.`);
       return;
     }
     setEtiquetas(prev => [...prev, tag]);
@@ -481,10 +481,10 @@ export default function ModalGestionCliente({
               />
             </div>
 
-            {/* CATEGORÍAS / ETIQUETAS PERSONALIZADAS */}
+            {/* ETIQUETAS PERSONALIZADAS */}
             <div className="space-y-2">
               <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
-                <Tag size={14} className="text-violet-500" /> Categorías / Etiquetas Personalizadas
+                <Tag size={14} className="text-violet-500" /> Etiquetas Personalizadas
               </label>
 
               {/* Lista de etiquetas actuales */}
@@ -501,7 +501,7 @@ export default function ModalGestionCliente({
                         type="button"
                         onClick={() => handleEliminarEtiqueta(idx)}
                         className="hover:text-rose-500 transition cursor-pointer p-0.5 rounded-full"
-                        title="Quitar categoría"
+                        title="Quitar etiqueta"
                       >
                         <X size={12} />
                       </button>
@@ -775,10 +775,10 @@ export default function ModalGestionCliente({
 
               {JSON.stringify(Array.isArray(cliente.etiquetas) ? [...cliente.etiquetas].sort() : []) !== JSON.stringify([...etiquetas].sort()) && (
                 <div className="pt-2 border-t border-slate-200/60 dark:border-slate-800/60">
-                  <span className="text-[10px] uppercase font-bold text-slate-400 block mb-0.5">Categorías / Etiquetas</span>
+                  <span className="text-[10px] uppercase font-bold text-slate-400 block mb-0.5">Etiquetas</span>
                   <div className="flex flex-wrap gap-1 mt-1">
                     {etiquetas.length === 0 ? (
-                      <span className="text-slate-400 italic text-[11px]">(Sin categorías)</span>
+                      <span className="text-slate-400 italic text-[11px]">(Sin etiquetas)</span>
                     ) : (
                       etiquetas.map((t, i) => (
                         <span key={i} className="px-2 py-0.5 text-[10px] font-bold rounded-md bg-violet-100 text-violet-700 dark:bg-violet-950/60 dark:text-violet-300">

@@ -668,15 +668,15 @@ Quedamos pendientes para revisar detalles o responder cualquier duda.
     await ejecutarCreacionCliente();
   };
 
-  // 8. Acción: Asignar categoría en lote a clientes seleccionados
+  // 8. Acción: Asignar etiqueta en lote a clientes seleccionados
   const handleGuardarCategoriaMasiva = async () => {
     const cat = nuevaCatNombre.trim();
     if (!cat) {
-      toast.error("Ingresa el nombre de la categoría.");
+      toast.error("Ingresa el nombre de la etiqueta.");
       return;
     }
     if (clientesAsignarCat.length === 0) {
-      toast.error("Selecciona al menos un cliente para asignarle esta categoría.");
+      toast.error("Selecciona al menos un cliente para asignarle esta etiqueta.");
       return;
     }
 
@@ -693,22 +693,22 @@ Quedamos pendientes para revisar detalles o responder cualquier duda.
       });
 
       await Promise.all(promises);
-      toast.success(`Categoría "${cat}" asignada a ${clientesAsignarCat.length} cliente(s) ✨`);
+      toast.success(`Etiqueta "${cat}" asignada a ${clientesAsignarCat.length} cliente(s) ✨`);
       setModalCategoriasAbierto(false);
       setNuevaCatNombre("");
       setClientesAsignarCat([]);
       setEtiquetaFiltro(cat);
     } catch (err) {
-      console.error("Error asignando categoría:", err);
-      toast.error("Hubo un error al asignar la categoría.");
+      console.error("Error asignando etiqueta:", err);
+      toast.error("Hubo un error al asignar la etiqueta.");
     } finally {
       setGuardandoCategorias(false);
     }
   };
 
-  // 9. Acción: Desvincular una categoría de todos los clientes
+  // 9. Acción: Desvincular una etiqueta de todos los clientes
   const handleEliminarCategoriaGlobal = async (nombreCategoria: string) => {
-    if (!confirm(`¿Deseas desvincular la categoría "${nombreCategoria}" de todos los clientes?`)) return;
+    if (!confirm(`¿Deseas desvincular la etiqueta "${nombreCategoria}" de todos los clientes?`)) return;
 
     setGuardandoCategorias(true);
     try {
@@ -721,10 +721,10 @@ Quedamos pendientes para revisar detalles o responder cualquier duda.
       if (etiquetaFiltro?.toLowerCase() === nombreCategoria.toLowerCase()) {
         setEtiquetaFiltro(null);
       }
-      toast.success(`Categoría "${nombreCategoria}" desvinculada.`);
+      toast.success(`Etiqueta "${nombreCategoria}" desvinculada.`);
     } catch (err) {
-      console.error("Error al desvincular categoría global:", err);
-      toast.error("No se pudo desvincular la categoría.");
+      console.error("Error al desvincular etiqueta global:", err);
+      toast.error("No se pudo desvincular la etiqueta.");
     } finally {
       setGuardandoCategorias(false);
     }
@@ -1089,10 +1089,10 @@ Quedamos pendientes para revisar detalles o responder cualquier duda.
                     type="button"
                     onClick={() => setModalGestion({ isOpen: true, modo: 'editar', cliente })}
                     className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-lg text-slate-500 hover:text-violet-600 dark:text-slate-400 dark:hover:text-violet-300 hover:bg-violet-50 dark:hover:bg-violet-950/40 border border-dashed border-slate-300 dark:border-slate-700 transition cursor-pointer"
-                    title="Editar categorías del cliente"
+                    title="Editar etiquetas del cliente"
                   >
                     <Plus size={10} />
-                    <span>{(cliente.etiquetas || []).length === 0 ? "Asignar Categoría" : "Editar"}</span>
+                    <span>{(cliente.etiquetas || []).length === 0 ? "Asignar Etiqueta" : "Editar"}</span>
                   </button>
                 )}
               </div>
@@ -1314,10 +1314,10 @@ Quedamos pendientes para revisar detalles o responder cualquier duda.
                         type="button"
                         onClick={() => setModalGestion({ isOpen: true, modo: 'editar', cliente })}
                         className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-md text-slate-500 hover:text-violet-600 dark:text-slate-400 dark:hover:text-violet-300 hover:bg-violet-50 dark:hover:bg-violet-950/40 border border-dashed border-slate-300 dark:border-slate-700 transition cursor-pointer"
-                        title="Editar categorías del cliente"
+                        title="Editar etiquetas del cliente"
                       >
                         <Plus size={9} />
-                        <span>{(cliente.etiquetas || []).length === 0 ? "Categoría" : "Editar"}</span>
+                        <span>{(cliente.etiquetas || []).length === 0 ? "Etiqueta" : "Editar"}</span>
                       </button>
                     )}
                   </div>
@@ -1740,11 +1740,11 @@ Quedamos pendientes para revisar detalles o responder cualquier duda.
           </button>
         </div>
 
-        {/* Chips de Categorías / Etiquetas personalizadas */}
+        {/* Chips de Etiquetas personalizadas */}
         <div className="flex items-center gap-1.5 pt-1 overflow-x-auto pb-1 scrollbar-thin text-xs">
           <div className="flex items-center gap-1 text-[11px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-wider shrink-0 mr-0.5">
             <Tag size={13} className="text-violet-500 shrink-0" />
-            <span className="hidden xs:inline">Categoría:</span>
+            <span className="hidden xs:inline">Etiqueta:</span>
           </div>
 
           <button
@@ -1793,10 +1793,10 @@ Quedamos pendientes para revisar detalles o responder cualquier duda.
               setModalCategoriasAbierto(true);
             }}
             className="px-2.5 py-1 rounded-lg text-xs font-bold text-violet-600 dark:text-violet-400 hover:text-white hover:bg-violet-600 border border-dashed border-violet-300 dark:border-violet-800 bg-violet-50/50 dark:bg-violet-950/20 shrink-0 transition cursor-pointer flex items-center gap-1 shadow-2xs"
-            title="Crear o gestionar categorías de clientes"
+            title="Crear o gestionar etiquetas de clientes"
           >
             <Plus size={13} />
-            <span>Nueva Categoría</span>
+            <span>Nueva Etiqueta</span>
           </button>
         </div>
       </div>
@@ -1806,8 +1806,8 @@ Quedamos pendientes para revisar detalles o responder cualquier duda.
           ========================================================================= */}
       <div className="lg:grid lg:grid-cols-12 lg:gap-6 items-start w-full">
         
-        {/* COLUMNA IZQUIERDA: LISTA DE CLIENTES / DIRECTORIO (4 cols en lg/xl) */}
-        <div className="lg:col-span-4 xl:col-span-4 space-y-3">
+        {/* COLUMNA IZQUIERDA: LISTA DE CLIENTES / DIRECTORIO (5 cols en lg, 4 cols en xl+) */}
+        <div className="lg:col-span-5 xl:col-span-4 space-y-3">
           <div className="flex items-center justify-between px-1">
             <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">
               Contactos ({clientesFiltrados.length})
@@ -1860,7 +1860,7 @@ Quedamos pendientes para revisar detalles o responder cualquier duda.
                     }`}
                   >
                     {/* Lado Izquierdo: Avatar + Info */}
-                    <div className="flex items-center gap-3 min-w-0 pr-2">
+                    <div className="flex items-center gap-2.5 min-w-0 flex-1 pr-2">
                       {/* Avatar con inicial e indicador VIP */}
                       <div className="relative shrink-0">
                         <div className={`w-10 h-10 rounded-full flex items-center justify-center font-black text-sm tracking-tight ${
@@ -1880,20 +1880,19 @@ Quedamos pendientes para revisar detalles o responder cualquier duda.
                       </div>
 
                       {/* Nombre y subtítulos */}
-                      <div className="min-w-0">
-                        <div className="flex items-center gap-1.5">
-                          <h3 className={`text-sm font-bold truncate transition-colors ${
-                            estaSeleccionado 
-                              ? 'text-emerald-700 dark:text-emerald-400' 
-                              : 'text-slate-900 dark:text-white group-hover:text-emerald-600 dark:group-hover:text-emerald-400'
-                          }`}>
+                      <div className="min-w-0 flex-1">
+                        {/* Fila 1: Nombre en grande + Badge de riesgo (sin que el apodo lo corte) */}
+                        <div className="flex items-center gap-1.5 min-w-0">
+                          <h3 
+                            className={`text-sm font-bold truncate transition-colors leading-snug ${
+                              estaSeleccionado 
+                                ? 'text-emerald-700 dark:text-emerald-400' 
+                                : 'text-slate-900 dark:text-white group-hover:text-emerald-600 dark:group-hover:text-emerald-400'
+                            }`}
+                            title={c.nombre}
+                          >
                             {c.nombre}
                           </h3>
-                          {c.apodo && (
-                            <span className="text-[11px] font-semibold text-amber-700 dark:text-amber-400 shrink-0">
-                              ({c.apodo})
-                            </span>
-                          )}
                           {c.semaforo === 'riesgo' && (
                             <span className="px-1.5 py-0.2 rounded-md text-[9px] font-black bg-rose-100 dark:bg-rose-500/20 text-rose-700 dark:text-rose-300 shrink-0">
                               +30d
@@ -1901,23 +1900,29 @@ Quedamos pendientes para revisar detalles o responder cualquier duda.
                           )}
                         </div>
                         
-                        <div className="flex items-center gap-2 text-xs text-slate-400 mt-0.5 truncate">
+                        {/* Fila 2: Apodo entrecomillado + Teléfono + Dirección */}
+                        <div className="flex items-center gap-1.5 text-xs text-slate-400 mt-0.5 truncate">
+                          {c.apodo && (
+                            <span className="text-[10px] font-bold text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/40 px-1.5 py-0.2 rounded border border-amber-200/60 dark:border-amber-800/40 shrink-0 truncate max-w-[120px]">
+                              "{c.apodo}"
+                            </span>
+                          )}
                           {c.celular ? (
-                            <span className="flex items-center gap-1 shrink-0">
-                              <Phone size={11} className="text-slate-400" />
+                            <span className="flex items-center gap-1 shrink-0 text-[11px]">
+                              <Phone size={10} className="text-slate-400" />
                               <span>{c.celular}</span>
                             </span>
                           ) : (
-                            <span className="italic text-[11px]">Sin teléfono</span>
+                            <span className="italic text-[11px]">Sin tel</span>
                           )}
                           {c.direccion && (
-                            <span className="hidden sm:inline-flex items-center gap-1 truncate text-[11px]">
-                              • <MapPin size={10} className="shrink-0" /> {c.direccion}
+                            <span className="hidden sm:inline-flex items-center gap-0.5 truncate text-[11px]">
+                              • <MapPin size={9} className="shrink-0" /> {c.direccion}
                             </span>
                           )}
                         </div>
 
-                        {/* Categorías / Etiquetas personalizadas del cliente */}
+                        {/* Etiquetas personalizadas del cliente */}
                         {c.etiquetas && c.etiquetas.length > 0 && (
                           <div className="flex flex-wrap items-center gap-1 mt-1">
                             {c.etiquetas.map((t, idx) => (
@@ -1933,7 +1938,7 @@ Quedamos pendientes para revisar detalles o responder cualquier duda.
                                     ? 'bg-violet-600 text-white shadow-2xs'
                                     : 'bg-violet-50 dark:bg-violet-950/60 text-violet-700 dark:text-violet-300 border border-violet-200/50 dark:border-violet-800/40 hover:bg-violet-100'
                                 }`}
-                                title={`Filtrar por categoría "${t}"`}
+                                title={`Filtrar por etiqueta "${t}"`}
                               >
                                 🏷️ {t}
                               </button>
@@ -1983,8 +1988,8 @@ Quedamos pendientes para revisar detalles o responder cualquier duda.
           )}
         </div>
 
-        {/* COLUMNA DERECHA: EXPEDIENTE OFICIAL DEL CLIENTE (8 cols en lg/xl) */}
-        <div className="hidden lg:block lg:col-span-8 xl:col-span-8 sticky top-4">
+        {/* COLUMNA DERECHA: EXPEDIENTE OFICIAL DEL CLIENTE (7 cols en lg, 8 cols en xl+) */}
+        <div className="hidden lg:block lg:col-span-7 xl:col-span-8 sticky top-4">
           {clienteActivoDetalle ? (
             <div className="bg-white dark:bg-[#0f172a] rounded-[2rem] border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden flex flex-col lg:h-[calc(100vh-210px)]">
               {renderFichaCliente(clienteActivoDetalle, separesClienteActivo, false)}
@@ -2176,10 +2181,10 @@ Quedamos pendientes para revisar detalles o responder cualquier duda.
                 />
               </div>
 
-              {/* Categorías / Etiquetas en Modal Nuevo Cliente */}
+              {/* Etiquetas en Modal Nuevo Cliente */}
               <div>
                 <label className="text-xs font-bold text-slate-600 dark:text-slate-300 block mb-1 flex items-center gap-1.5">
-                  <Tag size={13} className="text-violet-500" /> Categorías / Etiquetas (Opcional)
+                  <Tag size={13} className="text-violet-500" /> Etiquetas Personalizadas (Opcional)
                 </label>
                 {etiquetasNuevas.length > 0 && (
                   <div className="flex flex-wrap gap-1 mb-2">
@@ -2561,7 +2566,7 @@ Quedamos pendientes para revisar detalles o responder cualquier duda.
       />
 
       {/* =========================================================================
-          MODAL: GESTIONAR CATEGORÍAS / ETIQUETAS PERSONALIZADAS
+          MODAL: GESTIONAR ETIQUETAS PERSONALIZADAS
           ========================================================================= */}
       {modalCategoriasAbierto && (
         <div 
@@ -2576,9 +2581,9 @@ Quedamos pendientes para revisar detalles o responder cualquier duda.
                 </div>
                 <div>
                   <h3 className="text-base font-black text-slate-900 dark:text-white">
-                    Categorías de Clientes
+                    Etiquetas de Clientes
                   </h3>
-                  <p className="text-xs text-slate-400">Crea filtros personalizados y clasifica a tus clientes</p>
+                  <p className="text-xs text-slate-400">Crea etiquetas personalizadas y clasifica a tus clientes</p>
                 </div>
               </div>
               <button
@@ -2591,16 +2596,16 @@ Quedamos pendientes para revisar detalles o responder cualquier duda.
             </div>
 
             <div className="space-y-4 overflow-y-auto flex-1 pr-1">
-              {/* Sección 1: Crear y asignar nueva categoría */}
+              {/* Sección 1: Crear y asignar nueva etiqueta */}
               <div className="p-4 bg-violet-50/50 dark:bg-violet-950/20 border border-violet-100 dark:border-violet-900/50 rounded-2xl space-y-3">
                 <span className="text-[11px] font-black uppercase tracking-wider text-violet-700 dark:text-violet-300 block">
-                  1. Crear nueva categoría
+                  1. Crear nueva etiqueta
                 </span>
                 <input
                   type="text"
                   value={nuevaCatNombre}
                   onChange={(e) => setNuevaCatNombre(e.target.value)}
-                  placeholder="Nombre de categoría (ej: Mayoristas, Familia, Vecinos...)"
+                  placeholder="Nombre de etiqueta (ej: Mayoristas, Familia, Vecinos...)"
                   maxLength={25}
                   className="w-full bg-white dark:bg-[#020617] border border-violet-200 dark:border-violet-800 rounded-xl px-3.5 py-2.5 text-xs font-semibold text-slate-800 dark:text-white focus:ring-2 focus:ring-violet-500 focus:outline-hidden"
                 />
@@ -2667,19 +2672,19 @@ Quedamos pendientes para revisar detalles o responder cualquier duda.
                   disabled={guardandoCategorias || !nuevaCatNombre.trim() || clientesAsignarCat.length === 0}
                   className="w-full py-2.5 bg-violet-600 hover:bg-violet-700 disabled:opacity-40 text-white font-black text-xs rounded-xl shadow-xs transition flex items-center justify-center gap-1.5 cursor-pointer"
                 >
-                  {guardandoCategorias ? "Guardando..." : <>Crear y Asignar Categoría <Check size={14} /></>}
+                  {guardandoCategorias ? "Guardando..." : <>Crear y Asignar Etiqueta <Check size={14} /></>}
                 </button>
               </div>
 
-              {/* Sección 2: Categorías actuales */}
+              {/* Sección 2: Etiquetas actuales */}
               <div className="space-y-2 pt-2">
                 <span className="text-[11px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400 block">
-                  2. Categorías existentes en uso
+                  2. Etiquetas existentes en uso
                 </span>
 
                 {todasLasEtiquetas.length === 0 ? (
                   <p className="text-xs text-slate-400 italic py-2 text-center">
-                    Aún no has creado ninguna categoría personalizada.
+                    Aún no has creado ninguna etiqueta personalizada.
                   </p>
                 ) : (
                   <div className="space-y-1.5">
@@ -2712,7 +2717,7 @@ Quedamos pendientes para revisar detalles o responder cualquier duda.
                             onClick={() => handleEliminarCategoriaGlobal(cat.nombre)}
                             disabled={guardandoCategorias}
                             className="p-1 text-slate-400 hover:text-rose-600 rounded-lg transition cursor-pointer"
-                            title="Desvincular categoría de todos los clientes"
+                            title="Desvincular etiqueta de todos los clientes"
                           >
                             <Trash2 size={13} />
                           </button>
