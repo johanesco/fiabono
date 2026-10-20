@@ -59,8 +59,7 @@ export async function POST(request: Request) {
         if (!productoSnap.exists || productoSnap.data()?.usuarioId !== cuentaPrincipalId) throw new Error('PRODUCTO_NO_AUTORIZADO');
         const producto = productoSnap.data() as any;
         const stock = Number(producto.stock || 0);
-        if (!Number.isFinite(stock) || stock < 0) throw new Error('STOCK_INVALIDO');
-        if (producto.tipoProducto !== 'servicio' && producto.inventariable !== false && Number(item.cantidad) > stock) throw new Error(`SIN_STOCK:${producto.nombre || item.productoId}`);
+        if (!Number.isFinite(stock)) throw new Error('STOCK_INVALIDO');
         productos.set(item.productoId, { ref: productoRef, data: producto });
       }
 

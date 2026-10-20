@@ -18,6 +18,21 @@ export async function POST(request: Request) {
     const nombre = typeof body.nombre === 'string' ? body.nombre.trim() : '';
     if (!nombre) return NextResponse.json({ error: 'El nombre del cliente es obligatorio.' }, { status: 400 });
 
+    const numeroDocLimpio = typeof body.numeroDocumento === 'string' ? body.numeroDocumento.trim() : '';
+    if (numeroDocLimpio) {
+      const clienteExistenteSnap = await adminDb.collection('clientes')
+        .where('usuarioId', '==', cuentaPrincipalId)
+        .where('numeroDocumento', '==', numeroDocLimpio)
+        .limit(1)
+        .get();
+      if (!clienteExistenteSnap.empty) {
+        const clienteExistenteData = clienteExistenteSnap.docs[0].data();
+        return NextResponse.json({ 
+          error: `Ya existe un cliente registrado con este documento (${clienteExistenteData.nombre || 'Sin nombre'}).` 
+        }, { status: 409 });
+      }
+    }
+
     const cuentaSnap = await adminDb.collection('usuarios').doc(cuentaPrincipalId).get();
     const cuenta = cuentaSnap.data() as any;
     const plan = String(cuenta?.plan || 'gratis').toLowerCase();
@@ -26,10 +41,36 @@ export async function POST(request: Request) {
       if (clientesSnap.size >= 15) return NextResponse.json({ error: 'Has alcanzado el límite de 15 clientes del Plan Gratuito.' }, { status: 409 });
     }
 
+    const saldoInicialNum = typeof body.saldoInicial === 'number' 
+      ? Math.max(0, Math.round(body.saldoInicial)) 
+      : (typeof body.saldoInicial === 'string' ? Math.max(0, Math.round(Number(body.saldoInicial.replace(/[^\d]/g, '')) || 0)) : 0);
+
+    let etiquetasFinales: string[] = [];
+    if (Array.isArray(body.etiquetas)) {
+      body.etiquetas.forEach((item: any) => {
+        if (typeof item === 'string') {
+          item.split(/[,;-]/).forEach((t: string) => {
+            const clean = t.trim();
+            if (clean && !etiquetasFinales.some(exist => exist.toLowerCase() === clean.toLowerCase())) {
+              etiquetasFinales.push(clean);
+            }
+          });
+        }
+      });
+    } else if (typeof body.etiquetas === 'string' && body.etiquetas.trim()) {
+      body.etiquetas.split(/[,;-]/).forEach((t: string) => {
+        const clean = t.trim();
+        if (clean && !etiquetasFinales.some(exist => exist.toLowerCase() === clean.toLowerCase())) {
+          etiquetasFinales.push(clean);
+        }
+      });
+    }
+
     const clienteRef = adminDb.collection('clientes').doc();
     const cliente = {
       nombre,
       celular: typeof body.celular === 'string' ? body.celular.trim() : '',
+      apodo: typeof body.apodo === 'string' ? body.apodo.trim() : '',
       direccion: typeof body.direccion === 'string' ? body.direccion.trim() : '',
       notas: typeof body.notas === 'string' ? body.notas.trim() : '',
       tipoDocumento: typeof body.tipoDocumento === 'string' ? body.tipoDocumento.trim() : 'CC',
@@ -37,11 +78,38 @@ export async function POST(request: Request) {
       dv: typeof body.dv === 'string' ? body.dv.trim() : '',
       email: typeof body.email === 'string' ? body.email.trim() : '',
       razonSocial: typeof body.razonSocial === 'string' ? body.razonSocial.trim() : '',
-      deudaTotal: 0,
+      etiquetas: etiquetasFinales,
+      deudaTotal: saldoInicialNum,
       usuarioId: cuentaPrincipalId,
       fecha_creacion: new Date()
     };
     await clienteRef.create(cliente);
+
+    if (saldoInicialNum > 0) {
+      const movRef = adminDb.collection('movimientos').doc();
+      await movRef.set({
+        usuarioId: cuentaPrincipalId,
+        clienteId: clienteRef.id,
+        clienteNombre: nombre,
+        tipo: 'fiado',
+        monto: saldoInicialNum,
+        total: saldoInicialNum,
+        subtotal: saldoInicialNum,
+        metodoPago: 'fiado',
+        descripcion: 'Saldo inicial pendiente / Cartera heredada (Migración)',
+        detalles: [
+          {
+            descripcion: 'Saldo inicial heredado de libreta/sistema anterior',
+            valor: saldoInicialNum,
+            cantidad: 1
+          }
+        ],
+        fecha: new Date(),
+        registradoPor: usuario.nombre || usuario.nombreUsuario || 'Administrador',
+        esPublico: false
+      });
+    }
+
     return NextResponse.json({ ok: true, id: clienteRef.id, cliente: { id: clienteRef.id, ...cliente } });
   } catch (error) {
     console.error('Error creando cliente:', error);

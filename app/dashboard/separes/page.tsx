@@ -6,10 +6,10 @@ import {
 } from "firebase/firestore";
 import { auth, db } from "../../../firebase";
 import { 
-  Bookmark, ArrowLeft, Search, Plus, X, ChevronRight, CheckCircle2, 
+  Bookmark, ArrowLeft, Search, Plus, Minus, X, ChevronRight, CheckCircle2, 
   MessageCircle, Printer, MoreVertical, Camera, AlertCircle, Banknote, 
   CreditCard, Smartphone, Zap, Clock, Calendar, ChevronDown, ChevronUp, 
-  Trash2, User, Eye, Check, AlertTriangle, HelpCircle, FileText, RotateCcw, Package, Wallet
+  Trash2, User, Eye, Check, AlertTriangle, HelpCircle, FileText, RotateCcw, Package, Wallet, MapPin, Upload
 } from 'lucide-react';
 import toast from "react-hot-toast";
 import { useAuth } from "@/hooks/AuthContext";
@@ -51,6 +51,7 @@ function SeparesContenido() {
   }, [datosSesion, esAdmin, puedeAbonar, tienePermisoSepare, router]);
 
   const [separes, setSepares] = useState<any[]>([]);
+  const [mapaInventario, setMapaInventario] = useState<Record<string, any>>({});
   const [cargando, setCargando] = useState(true);
   const [tabActiva, setTabActiva] = useState<'activos' | 'completados' | 'cancelados' | 'todos'>('activos');
   const [busqueda, setBusqueda] = useState("");
@@ -80,8 +81,46 @@ function SeparesContenido() {
     separe: any;
     ticketDatos?: any;
   } | null>(null);
-  const [fotoLightbox, setFotoLightbox] = useState<string | null>(null);
+  const [fotoLightbox, setFotoLightbox] = useState<{
+    url: string;
+    productoNombre?: string | null;
+    detalle?: string | null;
+    esDeInventario?: boolean;
+  } | null>(null);
   const [modalSuscripcionOpen, setModalSuscripcionOpen] = useState<boolean>(false);
+
+  // Estados de Entrega Parcial Inteligente
+  const [modalEntregaParcial, setModalEntregaParcial] = useState<boolean>(false);
+  const [pasoEntregaParcial, setPasoEntregaParcial] = useState<'seleccion' | 'confirmacion'>('seleccion');
+  const [cantidadesEntregaParcial, setCantidadesEntregaParcial] = useState<Record<number, number>>({});
+  const [procesandoEntregaParcial, setProcesandoEntregaParcial] = useState<boolean>(false);
+  const isDeliveringParcialRef = useRef<boolean>(false);
+  const [modalExitoEntregaParcial, setModalExitoEntregaParcial] = useState<{
+    visible: boolean;
+    separe: any;
+    itemsEntregados: any[];
+    valorEntregadoHoy: number;
+    ticketDatos?: any;
+  } | null>(null);
+
+  // Estados de Bitácora de Novedades y Ubicación Física
+  const [modalNovedades, setModalNovedades] = useState<boolean>(false);
+  const [nuevaNotaNovedad, setNuevaNotaNovedad] = useState<string>("");
+  const [ubicacionBodegaEdit, setUbicacionBodegaEdit] = useState<string>("");
+  const [guardandoNovedad, setGuardandoNovedad] = useState<boolean>(false);
+
+  // Estados para Anexar Fotos Adicionales con Cámara en Vivo (Antifraude / Vinculación a Producto)
+  const fileInputPostSepareRef = useRef<HTMLInputElement>(null);
+  const [modalCamaraPostSepare, setModalCamaraPostSepare] = useState<boolean>(false);
+  const [separeParaFoto, setSepareParaFoto] = useState<any | null>(null);
+  const [productoIndexParaFoto, setProductoIndexParaFoto] = useState<number | null>(null);
+  const [mediaStreamPost, setMediaStreamPost] = useState<MediaStream | null>(null);
+  const [facingModePost, setFacingModePost] = useState<'environment' | 'user'>('environment');
+  const [iniciandoCamaraPost, setIniciandoCamaraPost] = useState<boolean>(false);
+  const [flashEfectoPost, setFlashEfectoPost] = useState<boolean>(false);
+  const videoPostRef = useRef<HTMLVideoElement | null>(null);
+  const [errorCamaraPost, setErrorCamaraPost] = useState<'permiso_denegado' | 'no_disponible' | null>(null);
+  const [subiendoFotoPost, setSubiendoFotoPost] = useState<boolean>(false);
 
   // Generadores de Sonidos Web Audio API
   const reproducirSonidoExito = () => {
@@ -201,6 +240,48 @@ function SeparesContenido() {
 
     return () => unsub();
   }, [cuentaPrincipalId]);
+
+  // Listener en tiempo real del inventario para resolver fotos de catálogo en vivo
+  useEffect(() => {
+    if (!cuentaPrincipalId) return;
+
+    const qInv = query(
+      collection(db, "inventario"),
+      where("usuarioId", "==", cuentaPrincipalId)
+    );
+
+    const unsubInv = onSnapshot(qInv, (snapshot) => {
+      const mapa: Record<string, any> = {};
+      snapshot.forEach((docSnap) => {
+        const data = docSnap.data();
+        const prod = { id: docSnap.id, ...data };
+        mapa[docSnap.id] = prod;
+        if (data.nombre) {
+          mapa[data.nombre.trim().toLowerCase()] = prod;
+        }
+      });
+      setMapaInventario(mapa);
+    }, (error) => {
+      console.warn("Error cargando inventario en separes:", error);
+    });
+
+    return () => unsubInv();
+  }, [cuentaPrincipalId]);
+
+  // Obtener la foto más fidedigna de un artículo (prioriza foto propia > inventario por ID > inventario por nombre)
+  const obtenerFotoProducto = (it: any) => {
+    if (!it) return null;
+    if (it.fotoUrl) return it.fotoUrl;
+    if (it.foto) return it.foto;
+    if (it.imagen) return it.imagen;
+    if (it.imagenUrl) return it.imagenUrl;
+
+    const prodInv = it.idProducto 
+      ? mapaInventario[it.idProducto] 
+      : (it.descripcion ? mapaInventario[it.descripcion.trim().toLowerCase()] : null);
+
+    return prodInv?.imagen || prodInv?.imagenUrl || prodInv?.foto || prodInv?.fotoUrl || null;
+  };
 
   // Manejar query params (?tab=cancelados&busqueda=...)
   useEffect(() => {
@@ -562,6 +643,387 @@ Gracias por tu compra y preferencia.
     abrirEnlaceWhatsApp(celular, texto);
   };
 
+  // Abrir Modal de Entrega Parcial Inteligente
+  const abrirModalEntregaParcial = (sep: any) => {
+    setSepareSeleccionado(sep);
+    setCantidadesEntregaParcial({});
+    setPasoEntregaParcial('seleccion');
+    setModalEntregaParcial(true);
+  };
+
+  // Confirmar Entrega Parcial Inteligente en Servidor
+  const confirmarEntregaParcial = async () => {
+    if (!separeSeleccionado) return;
+    if (isDeliveringParcialRef.current || procesandoEntregaParcial) return;
+
+    const items = separeSeleccionado.items || [];
+    const entregasPayload = Object.entries(cantidadesEntregaParcial)
+      .map(([idxStr, cant]) => ({ index: Number(idxStr), cantidad: Number(cant) }))
+      .filter(e => e.cantidad > 0);
+
+    if (entregasPayload.length === 0) {
+      toast.error("Selecciona al menos un artículo para entregar.");
+      return;
+    }
+
+    isDeliveringParcialRef.current = true;
+    setProcesandoEntregaParcial(true);
+
+    try {
+      const token = await auth.currentUser?.getIdToken();
+      if (!token) throw new Error('Sesión inválida.');
+
+      const respuesta = await fetch('/api/separes/entregar-parcial', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({
+          separeId: separeSeleccionado.id,
+          entregas: entregasPayload
+        })
+      });
+
+      const res = await respuesta.json();
+      if (!respuesta.ok) throw new Error(res.error || 'No se pudo registrar la entrega parcial.');
+
+      reproducirSonidoCelebracion();
+      toast.success(res.esCierreTotal ? "¡Entrega total completada! 🛍️" : "¡Entrega parcial registrada con éxito! 📦");
+      setModalEntregaParcial(false);
+
+      const ticketParcialDatos: DatosFacturaProps = {
+        nombreNegocio,
+        telefonoNegocio: datosSesion?.telefonoNegocio || "",
+        correoNegocio: datosSesion?.correoNegocio || "",
+        logoNegocio: datosSesion?.logoNegocio || null,
+        nitNegocio: datosSesion?.nitNegocio || "",
+        direccionNegocio: datosSesion?.direccionNegocio || "",
+        mensajePieTicket: datosSesion?.mensajePieTicket || "Comprobante de Entrega Parcial.",
+        nombreCliente: separeSeleccionado.clienteNombre,
+        celularCliente: separeSeleccionado.clienteCelular || "",
+        registradoPor: nombreUsuario,
+        fecha: new Date(),
+        tipo: 'entrega_separe',
+        detalles: res.itemsEntregadosHoy.map((it: any) => ({
+          descripcion: it.descripcion,
+          cantidad: it.cantidad,
+          valor: it.valor,
+          valorUnitario: it.valorUnitario
+        })),
+        descripcionGeneral: `ENTREGA PARCIAL SEPARE: Valor retirado hoy $${Number(res.valorAEntregarHoy || 0).toLocaleString('es-CO')}`,
+        montoTotal: res.valorAEntregarHoy,
+        pagoRecibido: res.valorAEntregarHoy,
+        saldoNuevo: Math.max(0, (separeSeleccionado.saldoPendiente || 0)),
+        idTransaccion: res.movimientoId,
+        metodoPago: 'separe_liquidado'
+      };
+
+      // Construir versión actualizada del separe con los artículos recién entregados
+      const itemsActualizados = res.itemsActualizados || (separeSeleccionado.items || []).map((it: any, idx: number) => {
+        const entregaDeEsteItem = entregasPayload.find((e: any) => e.index === idx);
+        if (entregaDeEsteItem) {
+          const nuevaCantEntregada = Number(it.cantidadEntregada || 0) + Number(entregaDeEsteItem.cantidad);
+          return {
+            ...it,
+            cantidadEntregada: nuevaCantEntregada,
+            entregadoCompleto: nuevaCantEntregada >= Number(it.cantidad || 1)
+          };
+        }
+        return it;
+      });
+
+      const separeActualizado = {
+        ...separeSeleccionado,
+        items: itemsActualizados,
+        valorEntregado: res.nuevoValorEntregadoTotal ?? ((Number(separeSeleccionado.valorEntregado) || 0) + res.valorAEntregarHoy),
+        estado: res.esCierreTotal ? 'completado' : separeSeleccionado.estado
+      };
+
+      setModalExitoEntregaParcial({
+        visible: true,
+        separe: separeActualizado,
+        itemsEntregados: res.itemsEntregadosHoy,
+        valorEntregadoHoy: res.valorAEntregarHoy,
+        ticketDatos: ticketParcialDatos
+      });
+
+    } catch (e: any) {
+      console.error("Error en entrega parcial:", e);
+      toast.error(e?.message || "Error al procesar la entrega parcial.");
+    } finally {
+      isDeliveringParcialRef.current = false;
+      setProcesandoEntregaParcial(false);
+    }
+  };
+
+  // Enviar mensaje de Entrega Parcial por WhatsApp con redacción clara y profesional
+  const enviarWhatsAppEntregaParcial = (sep: any, itemsEntregados: any[], valorEntregadoHoy: number) => {
+    let texto = `¡Hola, *${sep.clienteNombre}*! 👋
+Te compartimos el comprobante de *entrega parcial* de tu Plan Separe en *${nombreNegocio || 'nuestra tienda'}*.
+
+━━━━━━━━━━━━━━━━━━━━━
+📦 *COMPROBANTE DE RETIRO PARCIAL*
+━━━━━━━━━━━━━━━━━━━━━
+
+✅ *PRODUCTOS RETIRADOS HOY:*
+`;
+    itemsEntregados.forEach((it: any) => {
+      texto += `• ${it.cantidad > 1 ? `*${it.cantidad}x* ` : ''}${it.descripcion}  _($${Number(it.valor || 0).toLocaleString('es-CO')})_\n`;
+    });
+
+    // Artículos que verdaderamente CONTINÚAN en bodega/tienda (excluyendo lo entregado hoy y previamente)
+    const pendientes = (sep.items || []).filter((it: any) => {
+      const cantTotal = Number(it.cantidad || 1);
+      const cantEntregada = Number(it.cantidadEntregada || 0);
+      return (cantTotal - cantEntregada) > 0;
+    });
+
+    if (pendientes.length > 0) {
+      texto += `\n🔒 *PRODUCTOS QUE QUEDAN EN RESERVA EN TIENDA:*\n`;
+      pendientes.forEach((it: any) => {
+        const cantPend = Number(it.cantidad || 1) - Number(it.cantidadEntregada || 0);
+        texto += `• ${cantPend > 1 ? `*${cantPend}x* ` : ''}${it.descripcion}  _(Pendiente por retirar)_\n`;
+      });
+    } else {
+      texto += `\n🎉 *¡Has retirado el 100% de los productos de tu Plan Separe!*\n`;
+    }
+
+    const totalPlan = Number(sep.total || 0);
+    const montoPagado = Number(sep.montoPagado || 0);
+    const saldoPendiente = Math.max(0, Number(sep.saldoPendiente || 0));
+
+    texto += `\n━━━━━━━━━━━━━━━━━━━━━
+💰 *ESTADO DE TU CUENTA:*
+━━━━━━━━━━━━━━━━━━━━━
+• *Valor retirado hoy:* $${valorEntregadoHoy.toLocaleString('es-CO')}
+• *Total de tu Plan Separe:* $${totalPlan.toLocaleString('es-CO')}
+• *Total que has abonado:* $${montoPagado.toLocaleString('es-CO')}
+• *Saldo pendiente por pagar:* ${saldoPendiente === 0 ? '*$0 (100% PAGADO)* ✅' : `*$${saldoPendiente.toLocaleString('es-CO')}*`}`;
+
+    if (sep.fechaLimite && saldoPendiente > 0) {
+      texto += `\n• *Fecha límite para pagar saldo:* ${formatearFecha(sep.fechaLimite)}`;
+    }
+
+    if (sep.id && typeof window !== 'undefined') {
+      texto += `\n\n📄 *Ver comprobante digital:*
+${window.location.origin}/t/${sep.id}`;
+    }
+
+    texto += `\n\n¡Gracias por tu pago y preferencia! Cuidamos tus artículos reservados hasta que los retires todos. 😊`;
+
+    const celular = sep.clienteCelular?.replace(/\D/g, '') || "";
+    abrirEnlaceWhatsApp(celular, texto);
+  };
+
+  // Abrir Modal de Novedades y Ubicación Física
+  const abrirModalNovedades = (sep: any) => {
+    setSepareSeleccionado(sep);
+    setNuevaNotaNovedad("");
+    setUbicacionBodegaEdit(sep.ubicacionBodega || sep.notas || "");
+    setModalNovedades(true);
+  };
+
+  // Guardar Novedades y Ubicación
+  const guardarNovedades = async () => {
+    if (!separeSeleccionado) return;
+    if (guardandoNovedad) return;
+
+    setGuardandoNovedad(true);
+    try {
+      const token = await auth.currentUser?.getIdToken();
+      if (!token) throw new Error('Sesión inválida.');
+
+      const respuesta = await fetch('/api/separes/actualizar-notas-fotos', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({
+          separeId: separeSeleccionado.id,
+          nuevaNota: nuevaNotaNovedad.trim() || null,
+          ubicacionBodega: ubicacionBodegaEdit.trim()
+        })
+      });
+
+      const res = await respuesta.json();
+      if (!respuesta.ok) throw new Error(res.error || 'Error al actualizar.');
+
+      toast.success("Novedad y ubicación guardadas con éxito");
+      setModalNovedades(false);
+    } catch (e: any) {
+      console.error(e);
+      toast.error(e?.message || "No se pudo actualizar.");
+    } finally {
+      setGuardandoNovedad(false);
+    }
+  };
+
+  // Generador de sonido de obturador de cámara
+  const reproducirSonidoCamara = () => {
+    try {
+      const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+      if (!AudioCtx) return;
+      const ctx = new AudioCtx();
+      const osc1 = ctx.createOscillator();
+      const gain1 = ctx.createGain();
+      osc1.type = 'sine';
+      osc1.frequency.setValueAtTime(2400, ctx.currentTime);
+      osc1.frequency.exponentialRampToValueAtTime(300, ctx.currentTime + 0.04);
+      gain1.gain.setValueAtTime(0.8, ctx.currentTime);
+      gain1.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.04);
+      osc1.connect(gain1);
+      gain1.connect(ctx.destination);
+      osc1.start(ctx.currentTime);
+      osc1.stop(ctx.currentTime + 0.04);
+    } catch (e) {}
+  };
+
+  // Limpiar stream al desmontar o cerrar
+  useEffect(() => {
+    return () => {
+      if (mediaStreamPost) {
+        mediaStreamPost.getTracks().forEach(t => t.stop());
+      }
+    };
+  }, [mediaStreamPost]);
+
+  // Asignar stream a videoPostRef cuando cambie
+  useEffect(() => {
+    if (videoPostRef.current && mediaStreamPost) {
+      videoPostRef.current.srcObject = mediaStreamPost;
+      videoPostRef.current.play().catch(e => console.log("Video post play error:", e));
+    }
+  }, [mediaStreamPost, modalCamaraPostSepare]);
+
+  const iniciarCamaraPost = async (modo: 'environment' | 'user' = facingModePost) => {
+    setIniciandoCamaraPost(true);
+    setErrorCamaraPost(null);
+    try {
+      if (mediaStreamPost) {
+        mediaStreamPost.getTracks().forEach(t => t.stop());
+      }
+
+      let stream: MediaStream | null = null;
+      // Intento 1: Con facingMode flexible para móviles
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: {
+            facingMode: { ideal: modo },
+            width: { ideal: 1280 },
+            height: { ideal: 720 }
+          },
+          audio: false
+        });
+      } catch (err1) {
+        // Intento 2: Fallback para laptops / webcams integradas sin facingMode
+        try {
+          stream = await navigator.mediaDevices.getUserMedia({
+            video: true,
+            audio: false
+          });
+        } catch (err2: any) {
+          throw err2;
+        }
+      }
+
+      if (stream) {
+        setMediaStreamPost(stream);
+        setFacingModePost(modo);
+        setErrorCamaraPost(null);
+      }
+    } catch (err: any) {
+      console.warn("No se pudo iniciar cámara:", err);
+      const esPermiso = err?.name === 'NotAllowedError' || err?.name === 'PermissionDeniedError';
+      setErrorCamaraPost(esPermiso ? 'permiso_denegado' : 'no_disponible');
+      if (esPermiso) {
+        toast.error("Permiso de cámara no concedido en el navegador.");
+      } else {
+        toast("No se detectó cámara activa en este equipo. Puedes adjuntar fotos desde tus archivos.", { icon: "📸" });
+      }
+    } finally {
+      setIniciandoCamaraPost(false);
+    }
+  };
+
+  const cerrarCamaraPost = () => {
+    if (mediaStreamPost) {
+      mediaStreamPost.getTracks().forEach(t => t.stop());
+      setMediaStreamPost(null);
+    }
+    setModalCamaraPostSepare(false);
+    setSepareParaFoto(null);
+    setProductoIndexParaFoto(null);
+  };
+
+  const alternarCamaraPost = async () => {
+    const nuevoModo = facingModePost === 'environment' ? 'user' : 'environment';
+    await iniciarCamaraPost(nuevoModo);
+  };
+
+  const abrirModalCamaraPostSepare = (sep: any, itemIdx: number | null = null) => {
+    setSepareParaFoto(sep);
+    setProductoIndexParaFoto(itemIdx);
+    setModalCamaraPostSepare(true);
+    iniciarCamaraPost('environment');
+  };
+
+  const capturarFotoPost = async () => {
+    if (!videoPostRef.current || !separeParaFoto) return;
+    reproducirSonidoCamara();
+    setFlashEfectoPost(true);
+    setTimeout(() => setFlashEfectoPost(false), 200);
+
+    const canvas = document.createElement("canvas");
+    canvas.width = videoPostRef.current.videoWidth || 800;
+    canvas.height = videoPostRef.current.videoHeight || 600;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+    ctx.drawImage(videoPostRef.current, 0, 0, canvas.width, canvas.height);
+    const dataUrl = canvas.toDataURL("image/jpeg", 0.75);
+
+    cerrarCamaraPost();
+    await guardarFotoEnServidor(separeParaFoto.id, dataUrl, productoIndexParaFoto);
+  };
+
+  const guardarFotoEnServidor = async (separeId: string, dataUrl: string, productoIdx: number | null) => {
+    setSubiendoFotoPost(true);
+    const toastId = toast.loading("Guardando foto de evidencia...");
+    try {
+      const token = await auth.currentUser?.getIdToken();
+      if (!token) throw new Error("Sesión inválida.");
+
+      const respuesta = await fetch('/api/separes/actualizar-notas-fotos', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({
+          separeId,
+          nuevaFoto: dataUrl,
+          productoIndex: productoIdx
+        })
+      });
+
+      const res = await respuesta.json();
+      if (!respuesta.ok) throw new Error(res.error || 'No se pudo guardar la foto.');
+      toast.success(productoIdx !== null ? "Foto vinculada al artículo con éxito 📸" : "Foto de evidencia guardada 📸", { id: toastId });
+    } catch (e: any) {
+      toast.error(e?.message || "Error al subir la foto.", { id: toastId });
+    } finally {
+      setSubiendoFotoPost(false);
+    }
+  };
+
+  // Procesar archivo de foto adicional post-creación desde galería
+  const procesarFotoPostSepare = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !separeParaFoto) return;
+
+    const reader = new FileReader();
+    reader.onload = async (ev) => {
+      const dataUrl = ev.target?.result as string;
+      if (!dataUrl) return;
+      cerrarCamaraPost();
+      await guardarFotoEnServidor(separeParaFoto.id, dataUrl, productoIndexParaFoto);
+      if (fileInputPostSepareRef.current) fileInputPostSepareRef.current.value = "";
+    };
+    reader.readAsDataURL(file);
+  };
+
   // Cancelar Separe con registro de movimiento de devolución y notificación
   const confirmarCancelacion = async () => {
     if (!separeSeleccionado) return;
@@ -913,19 +1375,24 @@ Gracias por contactarnos.`;
                   className="bg-white dark:bg-[#0f172a] rounded-3xl p-4 sm:p-5 border border-slate-200/80 dark:border-slate-800 shadow-sm hover:shadow-md transition-all space-y-3.5 flex flex-col justify-between"
                 >
                   <div className="space-y-3">
-                    {/* Encabezado: Cliente + Badges */}
+                    {/* Encabezado: Cliente + Badges (Sin truncar nombre) */}
                     <div className="flex items-start justify-between gap-2 min-w-0">
-                      <div className="flex items-center gap-2.5 sm:gap-3 min-w-0 flex-1">
-                        <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-violet-600 to-purple-700 text-white font-black text-sm flex items-center justify-center shadow-sm shrink-0">
+                      <div className="flex items-start gap-2.5 sm:gap-3 min-w-0 flex-1">
+                        <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-violet-600 to-purple-700 text-white font-black text-sm flex items-center justify-center shadow-sm shrink-0 mt-0.5">
                           {sep.clienteNombre?.charAt(0).toUpperCase() || "C"}
                         </div>
                         <div className="min-w-0 flex-1">
-                          <h3 className="font-black text-sm text-slate-900 dark:text-white leading-tight truncate">
+                          <h3 className="font-black text-sm sm:text-base text-slate-900 dark:text-white leading-tight break-words">
                             {sep.clienteNombre}
                           </h3>
-                          <p className="text-[11px] font-bold text-slate-400 truncate">
+                          <p className="text-[11px] font-bold text-slate-400 mt-0.5">
                             {sep.clienteCelular || "Sin celular"}
                           </p>
+                          {(sep.ubicacionBodega || sep.notas) && (
+                            <span className="inline-block mt-1 text-[10.5px] font-bold text-violet-700 dark:text-violet-300 bg-violet-50 dark:bg-violet-950/40 border border-violet-200 dark:border-violet-800/60 px-2 py-0.5 rounded-lg break-words">
+                              📦 {sep.ubicacionBodega || sep.notas}
+                            </span>
+                          )}
                         </div>
                       </div>
 
@@ -954,72 +1421,146 @@ Gracias por contactarnos.`;
                       </div>
                     </div>
 
-                    {/* Lista de Artículos */}
+                    {/* Lista de Artículos con estado de entrega parcial */}
                     <div className="bg-slate-50 dark:bg-slate-900/60 p-3 rounded-2xl space-y-2 border border-slate-100 dark:border-slate-800/60">
-                      <div className="space-y-1.5">
+                      <div className="space-y-2">
                         {(sep.items || []).map((it: any, idx: number) => {
-                          const fotoItem = it.fotoUrl || it.foto || it.imagen;
+                          const fotoItem = obtenerFotoProducto(it);
+                          const cantTotal = Number(it.cantidad || 1);
+                          const cantEnt = Number(it.cantidadEntregada || 0);
+                          const esEntregadoTotal = cantEnt >= cantTotal;
+
                           return (
-                            <div key={idx} className="flex justify-between items-center text-xs min-w-0 gap-2">
-                              <div className="flex items-center gap-1.5 truncate flex-1 min-w-0">
-                                {it.cantidad > 1 && <strong className="text-violet-600 font-black mr-0.5">{it.cantidad}x</strong>}
-                                <span className="font-bold text-slate-700 dark:text-slate-300 truncate">
-                                  {it.descripcion}
+                            <div key={idx} className="flex flex-col text-xs min-w-0 border-b border-slate-200/50 dark:border-slate-800/50 pb-1.5 last:border-b-0 last:pb-0">
+                              <div className="flex justify-between items-center gap-2">
+                                <div className="flex items-center gap-1.5 min-w-0 flex-1">
+                                  {cantTotal > 1 && <strong className="text-violet-600 font-black mr-0.5 shrink-0">{cantTotal}x</strong>}
+                                  <span className="font-bold text-slate-700 dark:text-slate-300 break-words leading-tight flex-1">
+                                    {it.descripcion}
+                                  </span>
+                                  {fotoItem ? (
+                                    <button
+                                      type="button"
+                                      onClick={() => setFotoLightbox({
+                                        url: fotoItem,
+                                        productoNombre: it.descripcion,
+                                        detalle: `Artículo en Separe • ${cantTotal > 1 ? `${cantTotal} unidades` : '1 unidad'}`,
+                                        esDeInventario: Boolean(it.idProducto || mapaInventario[it.descripcion?.trim().toLowerCase()])
+                                      })}
+                                      className="shrink-0 p-1 bg-violet-100 dark:bg-violet-500/20 text-violet-600 dark:text-violet-300 rounded-lg hover:scale-110 transition-transform cursor-pointer"
+                                      title={`Ver foto de "${it.descripcion}"`}
+                                    >
+                                      <Camera size={12} />
+                                    </button>
+                                  ) : (!esCompletado && !esCancelado && (
+                                    <button
+                                      type="button"
+                                      onClick={() => abrirModalCamaraPostSepare(sep, idx)}
+                                      className="shrink-0 px-1.5 py-0.5 bg-slate-100 hover:bg-violet-100 dark:bg-slate-800 dark:hover:bg-violet-950/40 text-slate-400 hover:text-violet-600 dark:hover:text-violet-300 rounded-md text-[10px] font-bold transition-all flex items-center gap-1 cursor-pointer"
+                                      title="Tomar foto con cámara directa a este producto"
+                                    >
+                                      <Camera size={11} />
+                                      <span className="hidden sm:inline">+Foto</span>
+                                    </button>
+                                  ))}
+                                </div>
+                                <span className="font-bold text-slate-900 dark:text-slate-100 shrink-0">
+                                  ${((Number(it.valor) || 0) * cantTotal).toLocaleString('es-CO')}
                                 </span>
-                                {fotoItem && (
-                                  <button
-                                    type="button"
-                                    onClick={() => setFotoLightbox(fotoItem)}
-                                    className="shrink-0 p-1 bg-violet-100 dark:bg-violet-500/20 text-violet-600 dark:text-violet-300 rounded-lg hover:scale-110 transition-transform cursor-pointer"
-                                    title="Ver foto de este producto"
-                                  >
-                                    <Camera size={12} />
-                                  </button>
-                                )}
                               </div>
-                              <span className="font-bold text-slate-900 dark:text-slate-100 shrink-0">
-                                ${((Number(it.valor) || 0) * (it.cantidad || 1)).toLocaleString('es-CO')}
-                              </span>
+
+                              {/* Badge de Entrega Parcial por Producto */}
+                              {cantEnt > 0 && (
+                                <div className="mt-1 flex items-center gap-1">
+                                  <span className={`text-[9.5px] font-black px-1.5 py-0.5 rounded-md inline-flex items-center gap-1 ${
+                                    esEntregadoTotal
+                                      ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300'
+                                      : 'bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300'
+                                  }`}>
+                                    <Check size={10} />
+                                    {esEntregadoTotal ? 'Entregado al cliente' : `${cantEnt} de ${cantTotal} entregados`}
+                                  </span>
+                                </div>
+                              )}
                             </div>
                           );
                         })}
                       </div>
 
-                      {/* Miniaturas de Fotos Si Existen */}
+                      {/* Miniaturas de Fotos e Inserción Antifraude */}
                       {(() => {
-                        const fotosColeccion: string[] = [
-                          ...(Array.isArray(sep.fotos) ? sep.fotos : []),
-                          ...(Array.isArray(sep.items) ? sep.items.map((it: any) => it.fotoUrl || it.foto || it.imagen).filter(Boolean) : [])
-                        ].filter((url, i, arr) => arr.indexOf(url) === i);
+                        const fotosColeccion: { url: string; productoNombre?: string | null; detalle?: string | null; esDeInventario?: boolean }[] = [];
 
-                        if (fotosColeccion.length === 0) return null;
+                        // 1. Fotos de los artículos individuales del separe
+                        (sep.items || []).forEach((it: any) => {
+                          const fUrl = obtenerFotoProducto(it);
+                          if (fUrl && !fotosColeccion.some(f => f.url === fUrl)) {
+                            fotosColeccion.push({
+                              url: fUrl,
+                              productoNombre: it.descripcion,
+                              detalle: `Artículo en Separe • ${Number(it.cantidad || 1)} un.`,
+                              esDeInventario: Boolean(it.idProducto || mapaInventario[it.descripcion?.trim().toLowerCase()])
+                            });
+                          }
+                        });
+
+                        // 2. Fotos generales o evidencias anexadas al separe (sep.fotos)
+                        if (Array.isArray(sep.fotos)) {
+                          sep.fotos.forEach((fUrl: string, idx: number) => {
+                            if (fUrl && !fotosColeccion.some(f => f.url === fUrl)) {
+                              const itemVinculado = (sep.items || []).find((it: any) => it.fotoUrl === fUrl || it.foto === fUrl || it.imagen === fUrl);
+                              if (itemVinculado) {
+                                fotosColeccion.push({
+                                  url: fUrl,
+                                  productoNombre: itemVinculado.descripcion,
+                                  detalle: `Artículo en Separe • ${Number(itemVinculado.cantidad || 1)} un.`,
+                                  esDeInventario: false
+                                });
+                              } else {
+                                fotosColeccion.push({
+                                  url: fUrl,
+                                  productoNombre: null,
+                                  detalle: `Evidencia fotográfica #${idx + 1} • Separe`,
+                                  esDeInventario: false
+                                });
+                              }
+                            }
+                          });
+                        }
 
                         return (
-                          <div className="flex items-center gap-2 pt-2 border-t border-slate-200/60 dark:border-slate-800">
-                            <span className="text-[10px] font-black text-violet-600 dark:text-violet-400 flex items-center gap-1 shrink-0">
-                              <Camera size={13} /> Fotos ({fotosColeccion.length}):
-                            </span>
-                            <div className="flex items-center gap-1.5 overflow-x-auto py-0.5 no-scrollbar">
-                              {fotosColeccion.map((fUrl: string, fIdx: number) => (
+                          <div className="flex items-center justify-between gap-2 pt-2 border-t border-slate-200/60 dark:border-slate-800">
+                            <div className="flex items-center gap-1.5 overflow-x-auto py-0.5 no-scrollbar flex-1 min-w-0">
+                              <span className="text-[10px] font-black text-violet-600 dark:text-violet-400 flex items-center gap-1 shrink-0">
+                                <Camera size={13} /> Fotos ({fotosColeccion.length}):
+                              </span>
+                              {fotosColeccion.map((fotoObj, fIdx: number) => (
                                 <img
                                   key={fIdx}
-                                  src={fUrl}
-                                  alt={`Foto producto ${fIdx + 1}`}
-                                  onClick={() => setFotoLightbox(fUrl)}
-                                  className="w-9 h-9 rounded-xl object-cover cursor-pointer border-2 border-violet-300 dark:border-violet-700 hover:scale-110 shadow-sm transition-transform shrink-0"
-                                  title="Clic para ampliar foto"
+                                  src={fotoObj.url}
+                                  alt={fotoObj.productoNombre || `Foto ${fIdx + 1}`}
+                                  onClick={() => setFotoLightbox(fotoObj)}
+                                  className="w-8 h-8 rounded-xl object-cover cursor-pointer border-2 border-violet-300 dark:border-violet-700 hover:scale-110 shadow-sm transition-transform shrink-0"
+                                  title={fotoObj.productoNombre ? `Ver foto de "${fotoObj.productoNombre}"` : "Clic para ampliar foto"}
                                 />
                               ))}
                             </div>
+
+                            {/* Botón Anexar Foto Antifraude (Acumula foto) */}
+                            {!esCancelado && !esCompletado && (
+                              <button
+                                type="button"
+                                onClick={() => abrirModalCamaraPostSepare(sep, null)}
+                                className="px-2 py-1 rounded-lg bg-violet-100 dark:bg-violet-950/50 hover:bg-violet-200 text-violet-700 dark:text-violet-300 text-[10.5px] font-black flex items-center gap-1 shrink-0 transition-colors cursor-pointer"
+                                title="Tomar foto con cámara o adjuntar evidencia"
+                              >
+                                <Plus size={11} />
+                                <span>Foto</span>
+                              </button>
+                            )}
                           </div>
                         );
                       })()}
-
-                      {sep.notas && (
-                        <p className="text-[11px] text-slate-500 italic pt-1 border-t border-slate-200/60 dark:border-slate-800">
-                          &quot;{sep.notas}&quot;
-                        </p>
-                      )}
                     </div>
 
                     {/* Barra de Progreso Visual */}
@@ -1057,73 +1598,127 @@ Gracias por contactarnos.`;
                     </div>
                   </div>
 
-                  {/* Acciones de la Tarjeta */}
-                  <div className="pt-2 border-t border-slate-100 dark:border-slate-800 flex items-center gap-2">
-                    {/* Botón Abonar (Solo si activo y con saldo) */}
-                    {!esCompletado && !esCancelado && saldo > 0 && (
-                      puedeAbonar ? (
-                        <button
-                          onClick={() => abrirModalAbono(sep)}
-                          className="flex-1 bg-violet-600 hover:bg-violet-700 text-white font-bold text-xs py-2.5 rounded-xl shadow-sm transition-all flex items-center justify-center gap-1.5 active:scale-95 cursor-pointer"
-                        >
-                          <Banknote size={14} /> Abonar
-                        </button>
-                      ) : (
-                        <div className="flex-1 bg-slate-100 dark:bg-slate-800 text-slate-400 font-bold text-[11px] py-2 rounded-xl text-center">
-                          Abonos restringidos
+                  {/* Acciones de la Tarjeta con Entrega Parcial Inteligente */}
+                  {(() => {
+                    const valorEntregadoTotal = Number(sep.valorEntregado || 0);
+                    const abonoDisponible = Math.max(0, pagado - valorEntregadoTotal);
+                    const itemsPendientes = (sep.items || []).filter((it: any) => (Number(it.cantidad || 1) - Number(it.cantidadEntregada || 0)) > 0);
+                    const totalBrutoSep = Number(sep.totalBruto || 0) || (sep.items || []).reduce((acc: number, it: any) => acc + (Number(it.valor) || 0) * (it.cantidad || 1), 0);
+                    const factorDto = totalBrutoSep > 0 && Number(sep.montoDescuento || 0) > 0 ? (1 - (Number(sep.montoDescuento || 0) / totalBrutoSep)) : 1;
+                    const alcanzaParaAlguno = itemsPendientes.some((it: any) => {
+                      const pNeto = Math.round((Number(it.valor) || 0) * factorDto);
+                      return pNeto > 0 && abonoDisponible >= pNeto;
+                    });
+
+                    return (
+                      <div className="pt-2.5 border-t border-slate-100 dark:border-slate-800 space-y-2">
+                        {/* FILA 1: ACCIONES OPERATIVAS Y TRANSACCIONALES */}
+                        <div className="flex items-center gap-2">
+                          {/* Botón Abonar */}
+                          {!esCompletado && !esCancelado && saldo > 0 && (
+                            puedeAbonar ? (
+                              <button
+                                onClick={() => abrirModalAbono(sep)}
+                                className="flex-1 bg-violet-600 hover:bg-violet-700 text-white font-bold text-xs py-2.5 px-3 rounded-xl shadow-sm transition-all flex items-center justify-center gap-1.5 active:scale-95 cursor-pointer whitespace-nowrap"
+                              >
+                                <Banknote size={14} className="shrink-0" />
+                                <span>Abonar</span>
+                              </button>
+                            ) : (
+                              <div className="flex-1 bg-slate-100 dark:bg-slate-800 text-slate-400 font-bold text-[11px] py-2.5 rounded-xl text-center">
+                                Abonos restringidos
+                              </div>
+                            )
+                          )}
+
+                          {/* Botón Retiro Parcial (Habilitado si el abono libre alcanza) */}
+                          {!esCompletado && !esCancelado && saldo > 0 && alcanzaParaAlguno && (
+                            <button
+                              type="button"
+                              onClick={() => abrirModalEntregaParcial(sep)}
+                              className="flex-1 bg-amber-500 hover:bg-amber-600 text-white font-bold text-xs py-2.5 px-3 rounded-xl shadow-sm transition-all flex items-center justify-center gap-1.5 active:scale-95 cursor-pointer animate-in fade-in whitespace-nowrap"
+                              title={`Alcanza para entregar productos con los $${abonoDisponible.toLocaleString('es-CO')} libres abonados`}
+                            >
+                              <Package size={14} className="shrink-0" />
+                              <span>Retiro Parcial</span>
+                            </button>
+                          )}
+
+                          {/* Botón Completar / Entregar Total (Si saldo === 0 y activo) */}
+                          {!esCompletado && !esCancelado && saldo === 0 && (
+                            <button
+                              onClick={() => {
+                                setSepareSeleccionado(sep);
+                                setModalCompletar(true);
+                              }}
+                              className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs py-2.5 px-3 rounded-xl shadow-sm transition-all flex items-center justify-center gap-1.5 active:scale-95 cursor-pointer animate-pulse"
+                            >
+                              <CheckCircle2 size={14} className="shrink-0" />
+                              <span>Entregar y Finalizar</span>
+                            </button>
+                          )}
                         </div>
-                      )
-                    )}
 
-                    {/* Botón Completar (Si saldo === 0 y activo) */}
-                    {!esCompletado && !esCancelado && saldo === 0 && (
-                      <button
-                        onClick={() => {
-                          setSepareSeleccionado(sep);
-                          setModalCompletar(true);
-                        }}
-                        className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs py-2.5 rounded-xl shadow-sm transition-all flex items-center justify-center gap-1.5 active:scale-95 cursor-pointer animate-pulse"
-                      >
-                        <CheckCircle2 size={14} /> Entregar / Cerrar
-                      </button>
-                    )}
+                        {/* FILA 2: UTILIDADES (NOTAS, HISTORIAL, COMPROBANTE, CANCELAR) */}
+                        <div className="flex items-center justify-between gap-1.5 pt-0.5">
+                          {/* Botón Novedades / Notas con texto claro y badge de conteo */}
+                          <button
+                            onClick={() => abrirModalNovedades(sep)}
+                            className={`flex-1 py-1.5 px-2 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                              (sep.bitacoraNovedades && sep.bitacoraNovedades.length > 0) || sep.ubicacionBodega
+                                ? 'bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/40 dark:hover:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300 border border-indigo-200/80 dark:border-indigo-800/60'
+                                : 'bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300'
+                            }`}
+                            title="Bitácora de notas, seguimiento y ubicación física"
+                          >
+                            <FileText size={13} className="shrink-0" />
+                            <span>Notas</span>
+                            {sep.bitacoraNovedades && sep.bitacoraNovedades.length > 0 && (
+                              <span className="w-4 h-4 rounded-full bg-indigo-600 text-white text-[9px] font-black flex items-center justify-center shrink-0">
+                                {sep.bitacoraNovedades.length}
+                              </span>
+                            )}
+                          </button>
 
-                    {/* Historial de Abonos */}
-                    <button
-                      onClick={() => {
-                        setSepareSeleccionado(sep);
-                        setModalHistorial(true);
-                      }}
-                      className="px-3 py-2.5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold text-xs rounded-xl transition-colors flex items-center gap-1 cursor-pointer"
-                      title="Ver historial de abonos"
-                    >
-                      <Clock size={14} />
-                      <span className="hidden sm:inline">Historial</span>
-                    </button>
+                          {/* Historial de Abonos */}
+                          <button
+                            onClick={() => {
+                              setSepareSeleccionado(sep);
+                              setModalHistorial(true);
+                            }}
+                            className="flex-1 py-1.5 px-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold text-xs rounded-xl transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
+                            title="Ver historial de abonos"
+                          >
+                            <Clock size={13} className="shrink-0" />
+                            <span>Historial</span>
+                          </button>
 
-                    {/* Imprimir Ticket */}
-                    <button
-                      onClick={() => abrirTicketSepare(sep)}
-                      className="p-2.5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-xl transition-colors cursor-pointer"
-                      title="Imprimir Comprobante"
-                    >
-                      <Printer size={14} />
-                    </button>
+                          {/* Imprimir Ticket */}
+                          <button
+                            onClick={() => abrirTicketSepare(sep)}
+                            className="p-1.5 px-2.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-xl transition-colors cursor-pointer shrink-0"
+                            title="Imprimir Comprobante"
+                          >
+                            <Printer size={14} />
+                          </button>
 
-                    {/* Cancelar (Si activo) */}
-                    {!esCompletado && !esCancelado && (
-                      <button
-                        onClick={() => {
-                          setSepareSeleccionado(sep);
-                          setModalCancelar(true);
-                        }}
-                        className="p-2.5 text-slate-400 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/30 rounded-xl transition-colors cursor-pointer"
-                        title="Cancelar Separe"
-                      >
-                        <X size={15} />
-                      </button>
-                    )}
-                  </div>
+                          {/* Cancelar (Si activo) */}
+                          {!esCompletado && !esCancelado && (
+                            <button
+                              onClick={() => {
+                                setSepareSeleccionado(sep);
+                                setModalCancelar(true);
+                              }}
+                              className="p-1.5 px-2 text-slate-400 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/30 rounded-xl transition-colors cursor-pointer shrink-0"
+                              title="Cancelar Separe"
+                            >
+                              <X size={15} />
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })()}
                 </div>
               );
             })}
@@ -1472,15 +2067,23 @@ Gracias por contactarnos.`;
               <div className="p-3 bg-slate-50 dark:bg-slate-800/50 rounded-2xl text-left border border-slate-100 dark:border-slate-800">
                 <p className="font-bold text-slate-800 dark:text-slate-200 text-xs mb-2 flex items-center gap-1.5"><Package size={14}/> Evidencia de artículos a entregar:</p>
                 <div className="flex gap-2 overflow-x-auto pb-1">
-                  {separeSeleccionado.fotos.map((fotoUrl: string, idx: number) => (
-                    <img 
-                      key={idx} 
-                      src={fotoUrl} 
-                      alt="Artículo separado" 
-                      onClick={() => setFotoLightbox(fotoUrl)}
-                      className="w-16 h-16 object-cover rounded-xl cursor-pointer hover:scale-105 transition-transform shadow-sm border border-slate-200 dark:border-slate-700"
-                    />
-                  ))}
+                  {separeSeleccionado.fotos.map((fotoUrl: string, idx: number) => {
+                    const itemVinculado = (separeSeleccionado.items || []).find((it: any) => it.fotoUrl === fotoUrl || it.foto === fotoUrl || it.imagen === fotoUrl);
+                    return (
+                      <img 
+                        key={idx} 
+                        src={fotoUrl} 
+                        alt="Artículo separado" 
+                        onClick={() => setFotoLightbox({
+                          url: fotoUrl,
+                          productoNombre: itemVinculado?.descripcion || null,
+                          detalle: itemVinculado ? `Artículo a entregar • ${itemVinculado.cantidad || 1} un.` : `Foto de evidencia #${idx + 1}`
+                        })}
+                        className="w-16 h-16 object-cover rounded-xl cursor-pointer hover:scale-105 transition-transform shadow-sm border border-slate-200 dark:border-slate-700"
+                        title={itemVinculado ? `Ver foto de "${itemVinculado.descripcion}"` : "Clic para ampliar foto"}
+                      />
+                    );
+                  })}
                 </div>
               </div>
             )}
@@ -1746,20 +2349,771 @@ Gracias por contactarnos.`;
         </div>
       )}
 
-      {/* LIGHTBOX DE FOTOS */}
+      {/* MODAL DE ENTREGA PARCIAL INTELIGENTE */}
+      {modalEntregaParcial && separeSeleccionado && (() => {
+        const montoPagadoSep = Number(separeSeleccionado.montoPagado || 0);
+        const valorEntregadoSep = Number(separeSeleccionado.valorEntregado || 0);
+        const abonoDisponibleSep = Math.max(0, montoPagadoSep - valorEntregadoSep);
+
+        const itemsSep = separeSeleccionado.items || [];
+        const totalBrutoSep = itemsSep.reduce((acc: number, it: any) => acc + (Number(it.valor) || 0) * (it.cantidad || 1), 0);
+        const montoDescuentoSep = Number(separeSeleccionado.descuento || 0);
+        const factorDescuentoSep = (totalBrutoSep > 0 && montoDescuentoSep > 0) ? (1 - (montoDescuentoSep / totalBrutoSep)) : 1;
+
+        const valorTotalHoy = itemsSep.reduce((acc: number, it: any, idx: number) => {
+          const cant = cantidadesEntregaParcial[idx] || 0;
+          const precioUnitarioNeto = Math.round((Number(it.valor) || 0) * factorDescuentoSep);
+          return acc + (cant * precioUnitarioNeto);
+        }, 0);
+
+        const abonoRestante = abonoDisponibleSep - valorTotalHoy;
+        const superaLimite = valorTotalHoy > abonoDisponibleSep;
+
+        return (
+          <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center p-3 sm:p-4 z-[220] animate-in fade-in duration-200">
+            <div className="bg-white dark:bg-[#0f172a] p-5 sm:p-7 rounded-3xl w-full max-w-xl shadow-2xl border border-slate-200 dark:border-slate-800 space-y-4 max-h-[90vh] overflow-y-auto">
+              
+              {/* Encabezado del Modal */}
+              <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-2xl bg-amber-100 dark:bg-amber-500/20 text-amber-600 dark:text-amber-400 flex items-center justify-center shadow-inner">
+                    <Package size={22} />
+                  </div>
+                  <div>
+                    <h3 className="text-base sm:text-lg font-black text-slate-900 dark:text-white">
+                      {pasoEntregaParcial === 'seleccion' ? 'Entrega Parcial Inteligente' : 'Confirmar Entrega de Artículos'}
+                    </h3>
+                    <p className="text-xs text-slate-500 dark:text-slate-400 break-words">
+                      Cliente: <strong className="text-slate-800 dark:text-slate-200">{separeSeleccionado.clienteNombre}</strong>
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setModalEntregaParcial(false)}
+                  className="p-1.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                >
+                  <X size={20} />
+                </button>
+              </div>
+
+              {/* PASO 1: SELECCIÓN DE CANTIDADES */}
+              {pasoEntregaParcial === 'seleccion' && (
+                <>
+                  {/* Panel Financiero en Vivo */}
+                  <div className="grid grid-cols-3 gap-2 p-3 bg-slate-50 dark:bg-slate-900/60 rounded-2xl border border-slate-200/60 dark:border-slate-800 text-center">
+                    <div className="p-2">
+                      <p className="text-[10px] uppercase font-bold text-slate-500 dark:text-slate-400">Abono Libre</p>
+                      <p className="text-xs sm:text-sm font-black text-emerald-600 dark:text-emerald-400">
+                        ${abonoDisponibleSep.toLocaleString('es-CO')}
+                      </p>
+                    </div>
+                    <div className="p-2 border-x border-slate-200 dark:border-slate-800">
+                      <p className="text-[10px] uppercase font-bold text-slate-500 dark:text-slate-400">A Retirar Hoy</p>
+                      <p className={`text-xs sm:text-sm font-black ${valorTotalHoy > 0 ? (superaLimite ? 'text-rose-600' : 'text-amber-600 dark:text-amber-400') : 'text-slate-400'}`}>
+                        ${valorTotalHoy.toLocaleString('es-CO')}
+                      </p>
+                    </div>
+                    <div className="p-2">
+                      <p className="text-[10px] uppercase font-bold text-slate-500 dark:text-slate-400">Abono Restante</p>
+                      <p className={`text-xs sm:text-sm font-black ${abonoRestante < 0 ? 'text-rose-600' : 'text-slate-700 dark:text-slate-300'}`}>
+                        ${abonoRestante.toLocaleString('es-CO')}
+                      </p>
+                    </div>
+                  </div>
+
+                  {superaLimite && (
+                    <div className="p-2.5 bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900 rounded-xl flex items-center gap-2 text-rose-700 dark:text-rose-300 text-xs font-semibold">
+                      <AlertTriangle size={16} className="shrink-0" />
+                      <span>El valor de los artículos supera el abono libre disponible (${abonoDisponibleSep.toLocaleString('es-CO')}). Reduce unidades para continuar.</span>
+                    </div>
+                  )}
+
+                  {/* Listado de Artículos con Selectores de Cantidad */}
+                  <div className="space-y-2">
+                    <p className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                      Selecciona la cantidad de artículos que el cliente retira hoy:
+                    </p>
+
+                    <div className="space-y-2 max-h-[40vh] overflow-y-auto pr-1">
+                      {itemsSep.map((item: any, idx: number) => {
+                        const cantTotal = Number(item.cantidad || 1);
+                        const cantEntregada = Number(item.cantidadEntregada || 0);
+                        const cantPendiente = Math.max(0, cantTotal - cantEntregada);
+                        const valorUnitNeto = Math.round((Number(item.valor) || 0) * factorDescuentoSep);
+                        const cantSeleccionada = cantidadesEntregaParcial[idx] || 0;
+                        const yaCompletado = cantPendiente === 0;
+
+                        const puedeSumarUno = !yaCompletado &&
+                          cantSeleccionada < cantPendiente &&
+                          (valorTotalHoy + valorUnitNeto) <= abonoDisponibleSep;
+
+                        return (
+                          <div
+                            key={idx}
+                            className={`p-3 rounded-2xl border transition-all flex items-center justify-between gap-3 ${
+                              yaCompletado 
+                                ? 'bg-slate-50/50 dark:bg-slate-900/30 border-slate-200/40 dark:border-slate-800/40 opacity-60' 
+                                : cantSeleccionada > 0
+                                  ? 'bg-amber-50/60 dark:bg-amber-950/20 border-amber-300 dark:border-amber-800/60'
+                                  : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800'
+                            }`}
+                          >
+                            <div className="flex-1 min-w-0">
+                              <p className="text-xs font-bold text-slate-900 dark:text-white break-words">
+                                {item.descripcion}
+                              </p>
+                              <div className="flex flex-wrap items-center gap-2 mt-1 text-[11px] text-slate-500 dark:text-slate-400">
+                                <span>Unitario: <strong className="text-slate-700 dark:text-slate-300">${valorUnitNeto.toLocaleString('es-CO')}</strong></span>
+                                <span>• Total: {cantTotal}</span>
+                                {cantEntregada > 0 && (
+                                  <span className="text-emerald-600 dark:text-emerald-400 font-semibold">
+                                    ({cantEntregada} ya entregados)
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+
+                            {yaCompletado ? (
+                              <span className="shrink-0 px-2.5 py-1 bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 text-[10px] font-bold rounded-lg flex items-center gap-1">
+                                <Check size={12} /> Entregado
+                              </span>
+                            ) : (
+                              <div className="flex items-center gap-2 shrink-0">
+                                {valorUnitNeto > abonoDisponibleSep && cantSeleccionada === 0 && (
+                                  <span className="text-[10px] text-amber-600 dark:text-amber-400 font-semibold hidden sm:inline">
+                                    Falta abono
+                                  </span>
+                                )}
+                                <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-800 p-1 rounded-xl border border-slate-200 dark:border-slate-700">
+                                  <button
+                                    type="button"
+                                    disabled={cantSeleccionada <= 0}
+                                    onClick={() => {
+                                      setCantidadesEntregaParcial(prev => ({
+                                        ...prev,
+                                        [idx]: Math.max(0, (prev[idx] || 0) - 1)
+                                      }));
+                                    }}
+                                    className="w-7 h-7 rounded-lg bg-white dark:bg-slate-700 text-slate-700 dark:text-slate-200 font-bold flex items-center justify-center hover:bg-slate-200 dark:hover:bg-slate-600 disabled:opacity-30 disabled:cursor-not-allowed shadow-sm transition-all"
+                                  >
+                                    <Minus size={14} />
+                                  </button>
+                                  <span className="w-8 text-center text-xs font-black text-slate-900 dark:text-white">
+                                    {cantSeleccionada}
+                                  </span>
+                                  <button
+                                    type="button"
+                                    disabled={!puedeSumarUno}
+                                    onClick={() => {
+                                      setCantidadesEntregaParcial(prev => ({
+                                        ...prev,
+                                        [idx]: (prev[idx] || 0) + 1
+                                      }));
+                                    }}
+                                    className="w-7 h-7 rounded-lg bg-white dark:bg-slate-700 text-slate-700 dark:text-slate-200 font-bold flex items-center justify-center hover:bg-slate-200 dark:hover:bg-slate-600 disabled:opacity-30 disabled:cursor-not-allowed shadow-sm transition-all"
+                                  >
+                                    <Plus size={14} />
+                                  </button>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Acciones Paso 1 */}
+                  <div className="pt-2 flex flex-col sm:flex-row gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setModalEntregaParcial(false)}
+                      className="flex-1 py-3 px-4 rounded-xl border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 font-bold text-xs transition-colors"
+                    >
+                      Cancelar
+                    </button>
+                    <button
+                      type="button"
+                      disabled={valorTotalHoy <= 0 || superaLimite}
+                      onClick={() => setPasoEntregaParcial('confirmacion')}
+                      className="flex-[2] py-3 px-4 rounded-xl bg-amber-500 hover:bg-amber-600 disabled:bg-slate-300 dark:disabled:bg-slate-800 text-white font-bold text-xs shadow-md transition-all flex items-center justify-center gap-2 disabled:cursor-not-allowed cursor-pointer"
+                    >
+                      <Package size={16} />
+                      {valorTotalHoy > 0 
+                        ? `Continuar a Verificación ($${valorTotalHoy.toLocaleString('es-CO')}) →` 
+                        : "Selecciona artículos"}
+                    </button>
+                  </div>
+                </>
+              )}
+
+              {/* PASO 2: CONFIRMACIÓN Y REVISIÓN VISUAL DE FOTOS */}
+              {pasoEntregaParcial === 'confirmacion' && (() => {
+                const itemsAEntregar = itemsSep
+                  .map((it: any, idx: number) => ({
+                    ...it,
+                    originalIndex: idx,
+                    cantidadAEntregar: cantidadesEntregaParcial[idx] || 0,
+                    valorUnitNeto: Math.round((Number(it.valor) || 0) * factorDescuentoSep)
+                  }))
+                  .filter((it: any) => it.cantidadAEntregar > 0);
+
+                const itemsQueQuedan = itemsSep
+                  .map((it: any, idx: number) => {
+                    const cantTotal = Number(it.cantidad || 1);
+                    const cantEntregadaPrevia = Number(it.cantidadEntregada || 0);
+                    const entregandoHoy = cantidadesEntregaParcial[idx] || 0;
+                    const quedan = Math.max(0, cantTotal - (cantEntregadaPrevia + entregandoHoy));
+                    return { ...it, cantidadQueQueda: quedan };
+                  })
+                  .filter((it: any) => it.cantidadQueQueda > 0);
+
+                return (
+                  <div className="space-y-4 animate-in fade-in duration-200">
+                    <div className="p-3 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/50 rounded-2xl flex items-start gap-2.5 text-xs text-amber-900 dark:text-amber-200">
+                      <Camera size={18} className="text-amber-600 shrink-0 mt-0.5" />
+                      <div>
+                        <strong className="block font-black">Verificación física y fotográfica</strong>
+                        <span>Comprueba que los artículos físicos que vas a entregar coincidan con sus fotos registradas:</span>
+                      </div>
+                    </div>
+
+                    {/* Lista de Artículos a Entregar con Fotos Reales */}
+                    <div className="space-y-2.5 max-h-[38vh] overflow-y-auto pr-1">
+                      {itemsAEntregar.map((it: any, i: number) => {
+                        const fotoItem = obtenerFotoProducto(it);
+                        const fotoFallback = separeSeleccionado.fotos?.[0];
+                        const fotoAMostrar = fotoItem || fotoFallback;
+
+                        return (
+                          <div
+                            key={i}
+                            className="p-3 bg-white dark:bg-slate-900 rounded-2xl border-2 border-amber-300 dark:border-amber-700/60 shadow-sm flex items-center gap-3"
+                          >
+                            {/* Miniatura de Foto del Producto */}
+                            <div className="relative shrink-0">
+                              {fotoAMostrar ? (
+                                <img
+                                  src={fotoAMostrar}
+                                  alt={it.descripcion}
+                                  onClick={() => setFotoLightbox({
+                                    url: fotoAMostrar,
+                                    productoNombre: it.descripcion,
+                                    detalle: `Entrega física hoy: ${it.cantidadAEntregar} un. • Valor unitario: $${it.valorUnitNeto.toLocaleString('es-CO')}`,
+                                    esDeInventario: Boolean(it.idProducto || mapaInventario[it.descripcion?.trim().toLowerCase()])
+                                  })}
+                                  className="w-16 h-16 rounded-xl object-cover border-2 border-amber-400 cursor-pointer hover:scale-105 transition-transform shadow-sm"
+                                  title="Clic para ampliar foto"
+                                />
+                              ) : (
+                                <div className="w-16 h-16 rounded-xl bg-slate-100 dark:bg-slate-800 flex flex-col items-center justify-center text-slate-400 border border-dashed border-slate-300 dark:border-slate-700">
+                                  <Camera size={18} />
+                                  <span className="text-[9px] font-bold mt-1">Sin foto</span>
+                                </div>
+                              )}
+                            </div>
+
+                            <div className="flex-1 min-w-0">
+                              <h4 className="text-xs sm:text-sm font-bold text-slate-900 dark:text-white break-words">
+                                {it.descripcion}
+                              </h4>
+                              <div className="flex flex-wrap items-center gap-2 mt-1 text-xs">
+                                <span className="px-2 py-0.5 rounded-md bg-amber-100 text-amber-900 dark:bg-amber-950/60 dark:text-amber-300 font-black text-[11px]">
+                                  Entrega hoy: {it.cantidadAEntregar} un.
+                                </span>
+                                <span className="text-slate-500 font-medium">
+                                  Valor: <strong className="text-slate-900 dark:text-white">${(it.cantidadAEntregar * it.valorUnitNeto).toLocaleString('es-CO')}</strong>
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+
+                    {/* Resumen Financiero y Artículos que Quedan */}
+                    <div className="p-3.5 bg-slate-50 dark:bg-slate-900/60 rounded-2xl border border-slate-200 dark:border-slate-800 text-xs space-y-1.5">
+                      <div className="flex justify-between font-bold text-slate-700 dark:text-slate-300">
+                        <span>Total retirado en esta visita:</span>
+                        <span className="text-amber-600 dark:text-amber-400 font-black text-sm">${valorTotalHoy.toLocaleString('es-CO')}</span>
+                      </div>
+                      <div className="flex justify-between text-slate-500 text-[11px]">
+                        <span>Abono libre que queda en tienda:</span>
+                        <span className="font-bold text-emerald-600 dark:text-emerald-400">${abonoRestante.toLocaleString('es-CO')}</span>
+                      </div>
+                      <div className="flex justify-between text-slate-500 text-[11px] pt-1 border-t border-slate-200 dark:border-slate-800">
+                        <span>Saldo pendiente por pagar del separe:</span>
+                        <span className="font-bold text-slate-800 dark:text-slate-200">${Number(separeSeleccionado.saldoPendiente || 0).toLocaleString('es-CO')}</span>
+                      </div>
+
+                      {itemsQueQuedan.length > 0 && (
+                        <div className="pt-2 text-[11px] text-slate-600 dark:text-slate-400">
+                          <strong className="block text-slate-700 dark:text-slate-300 mb-0.5">📦 Quedan guardados en bodega:</strong>
+                          <ul className="list-disc list-inside space-y-0.5">
+                            {itemsQueQuedan.map((itQ: any, qi: number) => (
+                              <li key={qi}>
+                                {itQ.cantidadQueQueda > 1 ? `${itQ.cantidadQueQueda}x ` : ''}{itQ.descripcion}
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Botones de Confirmación */}
+                    <div className="pt-2 flex flex-col sm:flex-row gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setPasoEntregaParcial('seleccion')}
+                        className="flex-1 py-3 px-4 rounded-xl border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 font-bold text-xs transition-colors"
+                      >
+                        ← Modificar Cantidades
+                      </button>
+                      <button
+                        type="button"
+                        disabled={procesandoEntregaParcial}
+                        onClick={confirmarEntregaParcial}
+                        className="flex-[2] py-3 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-bold text-xs shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer"
+                      >
+                        <CheckCircle2 size={16} />
+                        {procesandoEntregaParcial ? "Registrando Entrega..." : "Confirmar y Entregar Mercancía"}
+                      </button>
+                    </div>
+                  </div>
+                );
+              })()}
+
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* MODAL DE CÁMARA EN VIVO POST-CREACIÓN (EVIDENCIA Y VINCULACIÓN A PRODUCTOS) */}
+      {modalCamaraPostSepare && separeParaFoto && (
+        <div className="fixed inset-0 bg-black/90 backdrop-blur-md flex items-center justify-center p-3 sm:p-4 z-[240] animate-in fade-in duration-200">
+          <div className="bg-slate-900 text-white rounded-3xl w-full max-w-md border border-slate-800 shadow-2xl overflow-hidden space-y-3">
+            
+            {/* Header del Modal Cámara */}
+            <div className="p-4 pb-0 flex items-center justify-between">
+              <div>
+                <h3 className="text-base font-black flex items-center gap-2">
+                  <Camera size={18} className="text-violet-400" />
+                  Tomar Foto de Evidencia
+                </h3>
+                <p className="text-xs text-slate-400 break-words">
+                  Cliente: <strong className="text-slate-200">{separeParaFoto.clienteNombre}</strong>
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={cerrarCamaraPost}
+                className="p-1.5 text-slate-400 hover:text-white rounded-full hover:bg-slate-800 transition-colors"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Selector de Producto / Referencia */}
+            <div className="px-4 space-y-1.5">
+              <label className="text-[11px] font-bold text-slate-300 flex items-center gap-1.5">
+                <Package size={13} className="text-violet-400" />
+                Vincular foto a este artículo:
+              </label>
+              <div className="flex items-center gap-1.5 overflow-x-auto py-1 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
+                <button
+                  type="button"
+                  onClick={() => setProductoIndexParaFoto(null)}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all cursor-pointer shrink-0 ${
+                    productoIndexParaFoto === null
+                      ? 'bg-violet-600 text-white shadow-sm'
+                      : 'bg-slate-800 text-slate-400 hover:text-white'
+                  }`}
+                >
+                  📦 General del Separe
+                </button>
+                {(separeParaFoto.items || []).map((it: any, idx: number) => (
+                  <button
+                    key={idx}
+                    type="button"
+                    onClick={() => setProductoIndexParaFoto(idx)}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all cursor-pointer shrink-0 ${
+                      productoIndexParaFoto === idx
+                        ? 'bg-violet-600 text-white shadow-sm'
+                        : 'bg-slate-800 text-slate-400 hover:text-white'
+                    }`}
+                  >
+                    {it.descripcion}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Viewport del Video en Vivo */}
+            <div className="relative bg-black aspect-[4/3] flex items-center justify-center overflow-hidden mx-4 rounded-2xl border border-slate-800">
+              {iniciandoCamaraPost ? (
+                <div className="flex flex-col items-center gap-2 text-slate-400 text-xs">
+                  <div className="w-8 h-8 border-2 border-violet-500 border-t-transparent rounded-full animate-spin"></div>
+                  <span>Iniciando lente de la cámara...</span>
+                </div>
+              ) : errorCamaraPost ? (
+                <div className="p-6 text-center flex flex-col items-center gap-2 text-slate-300">
+                  <div className="w-12 h-12 rounded-full bg-slate-800 text-amber-400 flex items-center justify-center shadow-inner">
+                    <AlertTriangle size={24} />
+                  </div>
+                  <div>
+                    <p className="text-xs font-bold text-white">
+                      {errorCamaraPost === 'permiso_denegado'
+                        ? 'Permiso de cámara no concedido'
+                        : 'Cámara en vivo no disponible'}
+                    </p>
+                    <p className="text-[11px] text-slate-400 mt-1 max-w-xs leading-relaxed">
+                      {errorCamaraPost === 'permiso_denegado'
+                        ? 'Permite el acceso a la cámara en el ícono de candado o cámara de la barra superior de tu navegador.'
+                        : 'Verifica los permisos de tu cámara en el navegador o puedes subir una foto directamente desde este equipo.'}
+                    </p>
+                  </div>
+                  <div className="flex flex-wrap items-center justify-center gap-2 pt-1">
+                    <button
+                      type="button"
+                      onClick={() => iniciarCamaraPost()}
+                      className="px-3 py-1.5 bg-violet-600 hover:bg-violet-700 text-white rounded-xl text-xs font-bold transition-colors cursor-pointer"
+                    >
+                      Reintentar cámara
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (fileInputPostSepareRef.current) fileInputPostSepareRef.current.click();
+                      }}
+                      className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl text-xs font-bold transition-colors flex items-center gap-1.5 cursor-pointer"
+                    >
+                      <Upload size={13} />
+                      <span>Subir foto</span>
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <video
+                  ref={videoPostRef}
+                  autoPlay
+                  playsInline
+                  muted
+                  className="w-full h-full object-cover"
+                />
+              )}
+
+              {flashEfectoPost && (
+                <div className="absolute inset-0 bg-white z-30 animate-out fade-out duration-200"></div>
+              )}
+            </div>
+
+            {/* Barra de Controles de Cámara */}
+            <div className="p-4 bg-slate-950 flex items-center justify-around border-t border-slate-800/80">
+              {/* Botón Galería / Subir Archivo */}
+              <button
+                type="button"
+                onClick={() => {
+                  if (fileInputPostSepareRef.current) {
+                    fileInputPostSepareRef.current.click();
+                  }
+                }}
+                className="p-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white rounded-2xl transition-colors flex flex-col items-center gap-1 text-[10px] font-bold cursor-pointer"
+                title="Subir foto desde galería"
+              >
+                <Upload size={17} />
+                <span>Galería</span>
+              </button>
+
+              {/* Botón Central de Obturador */}
+              <button
+                type="button"
+                onClick={capturarFotoPost}
+                disabled={subiendoFotoPost || iniciandoCamaraPost}
+                className="w-14 h-14 rounded-full bg-white border-4 border-violet-600 shadow-xl flex items-center justify-center text-violet-700 hover:scale-105 active:scale-90 transition-transform cursor-pointer disabled:opacity-50"
+                title="Tomar Foto"
+              >
+                <div className="w-10 h-10 rounded-full bg-violet-600 flex items-center justify-center text-white">
+                  <Camera size={20} />
+                </div>
+              </button>
+
+              {/* Botón Girar Cámara */}
+              <button
+                type="button"
+                onClick={alternarCamaraPost}
+                className="p-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white rounded-2xl transition-colors flex flex-col items-center gap-1 text-[10px] font-bold cursor-pointer"
+                title="Girar cámara frontal / trasera"
+              >
+                <RotateCcw size={17} />
+                <span>Girar</span>
+              </button>
+            </div>
+
+          </div>
+        </div>
+      )}
+
+      {/* MODAL BITÁCORA DE NOVEDADES Y UBICACIÓN FÍSICA */}
+      {modalNovedades && separeSeleccionado && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center p-3 sm:p-4 z-[220] animate-in fade-in duration-200">
+          <div className="bg-white dark:bg-[#0f172a] p-5 sm:p-7 rounded-3xl w-full max-w-lg shadow-2xl border border-slate-200 dark:border-slate-800 space-y-4 max-h-[90vh] overflow-y-auto">
+            
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-indigo-100 dark:bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 flex items-center justify-center shadow-inner">
+                  <FileText size={22} />
+                </div>
+                <div>
+                  <h3 className="text-base sm:text-lg font-black text-slate-900 dark:text-white">Novedades y Ubicación</h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 break-words">
+                    Separe de <strong className="text-slate-800 dark:text-slate-200">{separeSeleccionado.clienteNombre}</strong>
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setModalNovedades(false)}
+                className="p-1.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            {/* Campo Ubicación en Bodega */}
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+                <MapPin size={14} className="text-indigo-500" />
+                Ubicación Física en Bodega / Estantería
+              </label>
+              <input
+                type="text"
+                value={ubicacionBodegaEdit}
+                onChange={(e) => setUbicacionBodegaEdit(e.target.value)}
+                placeholder="Ej: Estante B - Caja 3, o bolsa azul rotulada"
+                className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-xs font-medium text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500/30"
+              />
+            </div>
+
+            {/* Historial Inmutable de Novedades */}
+            <div className="space-y-2">
+              <label className="text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+                <Clock size={14} className="text-slate-500" />
+                Historial de Notas y Novedades (Inmutable)
+              </label>
+
+              <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
+                {(separeSeleccionado.bitacoraNovedades && separeSeleccionado.bitacoraNovedades.length > 0) ? (
+                  separeSeleccionado.bitacoraNovedades.map((nov: any, idx: number) => (
+                    <div key={idx} className="p-3 bg-slate-50 dark:bg-slate-900/80 rounded-xl border border-slate-200/60 dark:border-slate-800 text-xs space-y-1">
+                      <div className="flex justify-between items-center text-[10px] text-slate-400 dark:text-slate-500 font-semibold">
+                        <span>{nov.autor || "Usuario"}</span>
+                        <span>{nov.fecha ? new Date(nov.fecha).toLocaleDateString('es-CO', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) : ''}</span>
+                      </div>
+                      <p className="text-slate-700 dark:text-slate-300 whitespace-pre-wrap break-words">{nov.nota}</p>
+                    </div>
+                  ))
+                ) : (
+                  <p className="text-xs text-slate-400 dark:text-slate-500 italic p-3 bg-slate-50/50 dark:bg-slate-900/30 rounded-xl border border-dashed border-slate-200 dark:border-slate-800 text-center">
+                    No hay novedades registradas aún.
+                  </p>
+                )}
+              </div>
+            </div>
+
+            {/* Agregar Nueva Nota */}
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                Agregar Nueva Novedad
+              </label>
+              <textarea
+                value={nuevaNotaNovedad}
+                onChange={(e) => setNuevaNotaNovedad(e.target.value)}
+                placeholder="Escribe un seguimiento o novedad (ej: Cliente confirmó que viene a pagar el viernes, o autorizó cambio de color)..."
+                rows={3}
+                className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500/30 resize-none"
+              />
+            </div>
+
+            {/* Acciones */}
+            <div className="pt-2 flex flex-col sm:flex-row gap-2">
+              <button
+                type="button"
+                onClick={() => setModalNovedades(false)}
+                className="flex-1 py-3 px-4 rounded-xl border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 font-bold text-xs transition-colors"
+              >
+                Cerrar
+              </button>
+              <button
+                type="button"
+                disabled={guardandoNovedad}
+                onClick={guardarNovedades}
+                className="flex-[2] py-3 px-4 rounded-xl bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white font-bold text-xs shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer"
+              >
+                <Check size={16} />
+                {guardandoNovedad ? "Guardando..." : "Guardar Novedad y Ubicación"}
+              </button>
+            </div>
+
+          </div>
+        </div>
+      )}
+
+      {/* MODAL ÉXITO ENTREGA PARCIAL */}
+      {modalExitoEntregaParcial?.visible && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 z-[230] animate-in zoom-in-95 duration-200">
+          <div className="bg-white dark:bg-[#0f172a] p-6 sm:p-8 rounded-3xl w-full max-w-md shadow-2xl border border-slate-100 dark:border-slate-800 text-center space-y-4">
+            <div className="w-16 h-16 bg-amber-100 dark:bg-amber-500/20 text-amber-600 dark:text-amber-400 rounded-full flex items-center justify-center mx-auto shadow-inner">
+              <Package size={36} />
+            </div>
+
+            <div className="space-y-1">
+              <h3 className="text-xl font-black text-slate-900 dark:text-white">¡Entrega Parcial Registrada!</h3>
+              <p className="text-xs text-slate-500 dark:text-slate-400 break-words">
+                Cliente: <strong className="text-slate-800 dark:text-slate-200">{modalExitoEntregaParcial.separe.clienteNombre}</strong>
+              </p>
+            </div>
+
+            <div className="p-4 bg-amber-50/60 dark:bg-amber-950/20 rounded-2xl space-y-2 text-xs text-left border border-amber-200 dark:border-amber-800/40">
+              <p className="font-bold text-amber-900 dark:text-amber-200 text-xs">
+                Artículos entregados en esta visita:
+              </p>
+              <div className="space-y-1 max-h-32 overflow-y-auto">
+                {modalExitoEntregaParcial.itemsEntregados.map((it: any, idx: number) => (
+                  <div key={idx} className="flex justify-between text-slate-700 dark:text-slate-300 text-[11px]">
+                    <span className="break-words">{it.cantidad > 1 ? `${it.cantidad}x ` : ''}{it.descripcion}</span>
+                    <span className="font-bold text-slate-900 dark:text-white shrink-0 ml-2">
+                      ${Number(it.valor || 0).toLocaleString('es-CO')}
+                    </span>
+                  </div>
+                ))}
+              </div>
+              <div className="pt-2 border-t border-amber-200/60 dark:border-amber-800/40 flex justify-between font-black text-xs text-amber-800 dark:text-amber-300">
+                <span>Total Retirado Hoy:</span>
+                <span>${Number(modalExitoEntregaParcial.valorEntregadoHoy || 0).toLocaleString('es-CO')}</span>
+              </div>
+            </div>
+
+            <div className="space-y-2 pt-2">
+              {puedeEnviarWhatsApp && (
+                <button
+                  type="button"
+                  onClick={() => enviarWhatsAppEntregaParcial(
+                    modalExitoEntregaParcial.separe,
+                    modalExitoEntregaParcial.itemsEntregados,
+                    modalExitoEntregaParcial.valorEntregadoHoy
+                  )}
+                  className="w-full bg-[#25D366] hover:bg-[#1ebd5a] text-white font-bold py-3.5 rounded-xl transition-all flex items-center justify-center gap-2 text-sm shadow-md cursor-pointer"
+                >
+                  <MessageCircle size={18} /> Enviar Comprobante por WhatsApp
+                </button>
+              )}
+
+              <button
+                type="button"
+                onClick={() => setModalTicketFactura({ visible: true, datos: modalExitoEntregaParcial.ticketDatos })}
+                className="w-full bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 font-bold py-3 rounded-xl transition-all flex items-center justify-center gap-2 text-xs cursor-pointer"
+              >
+                <Printer size={16} /> Ver / Imprimir Ticket de Entrega Parcial
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setModalExitoEntregaParcial(null)}
+                className="w-full bg-slate-800 hover:bg-slate-900 text-white font-bold py-3 rounded-xl transition-all text-xs cursor-pointer"
+              >
+                Aceptar y Cerrar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* INPUT OCULTO PARA SUBIR FOTOS POST-CREACIÓN (ANTIFRAUDE) */}
+      <input
+        type="file"
+        ref={fileInputPostSepareRef}
+        onChange={procesarFotoPostSepare}
+        accept="image/*"
+        capture="environment"
+        className="hidden"
+      />
+
+      {/* LIGHTBOX DE FOTOS CON IDENTIFICACIÓN ESTÉTICA DEL PRODUCTO */}
       {fotoLightbox && (
         <div 
           onClick={() => setFotoLightbox(null)}
-          className="fixed inset-0 bg-black/90 backdrop-blur-md flex items-center justify-center p-4 z-[250] cursor-pointer"
+          className="fixed inset-0 bg-black/95 backdrop-blur-md flex flex-col items-center justify-center p-3 sm:p-6 z-[250] cursor-pointer animate-in fade-in duration-200 select-none"
         >
-          <div className="relative max-w-2xl max-h-[85vh]">
-            <img src={fotoLightbox} alt="Foto ampliada" className="w-full h-full object-contain rounded-2xl shadow-2xl" />
-            <button
-              onClick={() => setFotoLightbox(null)}
-              className="absolute top-3 right-3 p-2 bg-black/60 text-white rounded-full hover:bg-black transition-colors"
-            >
-              <X size={20} />
-            </button>
+          <div 
+            onClick={(e) => e.stopPropagation()} 
+            className="relative w-full max-w-2xl max-h-[92vh] flex flex-col items-center cursor-default gap-3"
+          >
+            {/* Barra / Badge Superior de Identificación del Producto */}
+            {fotoLightbox.productoNombre ? (
+              <div className="w-full bg-slate-900/90 dark:bg-slate-900/95 backdrop-blur-md rounded-2xl border border-violet-500/40 p-3 sm:px-4 sm:py-2.5 shadow-2xl flex items-center justify-between gap-3 animate-in slide-in-from-top-2 duration-200">
+                <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                  <div className="w-8 h-8 rounded-xl bg-violet-600/25 border border-violet-500/40 flex items-center justify-center text-violet-300 shrink-0 shadow-inner">
+                    <Package size={17} />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <h4 className="text-xs sm:text-sm font-black text-white truncate max-w-full">
+                        {fotoLightbox.productoNombre}
+                      </h4>
+                      <span className="px-2 py-0.5 text-[9.5px] font-black rounded-full bg-violet-500/20 text-violet-300 border border-violet-500/40 shrink-0">
+                        {fotoLightbox.esDeInventario ? "Catálogo Inventario" : "Artículo Vinculado"}
+                      </span>
+                    </div>
+                    {fotoLightbox.detalle && (
+                      <p className="text-[11px] text-slate-300 truncate font-medium mt-0.5">
+                        {fotoLightbox.detalle}
+                      </p>
+                    )}
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setFotoLightbox(null)}
+                  className="p-1.5 bg-white/10 hover:bg-white/20 text-white rounded-full transition-colors cursor-pointer shrink-0"
+                  title="Cerrar vista previa"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+            ) : fotoLightbox.detalle ? (
+              <div className="w-full bg-slate-900/90 backdrop-blur-md rounded-2xl border border-slate-700/60 p-2.5 sm:px-4 text-slate-300 shadow-xl flex items-center justify-between gap-2 text-xs font-semibold animate-in slide-in-from-top-2 duration-200">
+                <div className="flex items-center gap-2">
+                  <Camera size={15} className="text-violet-400 shrink-0" />
+                  <span>{fotoLightbox.detalle}</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setFotoLightbox(null)}
+                  className="p-1.5 bg-white/10 hover:bg-white/20 text-white rounded-full transition-colors cursor-pointer shrink-0"
+                  title="Cerrar vista previa"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+            ) : null}
+
+            {/* Contenedor Visual de la Imagen */}
+            <div className="relative rounded-2xl sm:rounded-3xl overflow-hidden shadow-2xl border border-white/15 bg-black/60 max-h-[75vh] w-full flex items-center justify-center">
+              <img 
+                src={fotoLightbox.url} 
+                alt={fotoLightbox.productoNombre || "Foto de producto"} 
+                className="max-w-full max-h-[75vh] object-contain rounded-2xl" 
+              />
+              {!fotoLightbox.productoNombre && !fotoLightbox.detalle && (
+                <button
+                  type="button"
+                  onClick={() => setFotoLightbox(null)}
+                  className="absolute top-3 right-3 p-2 bg-black/70 hover:bg-black text-white rounded-full transition-colors cursor-pointer shadow-lg border border-white/20"
+                  title="Cerrar vista previa"
+                >
+                  <X size={18} />
+                </button>
+              )}
+            </div>
           </div>
         </div>
       )}

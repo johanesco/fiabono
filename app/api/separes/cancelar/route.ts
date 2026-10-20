@@ -38,7 +38,9 @@ export async function POST(request: Request) {
       if (separe.estado === 'cancelado') throw new Error('SEPARE_CANCELADO');
       if (separe.estado === 'completado') throw new Error('SEPARE_COMPLETADO');
 
-      const montoDevuelto = Number(separe.montoPagado || 0);
+      const valorEntregado = Number(separe.valorEntregado || 0);
+      const montoPagado = Number(separe.montoPagado || 0);
+      const montoDevuelto = Math.max(0, montoPagado - valorEntregado);
       if (!Number.isFinite(montoDevuelto) || montoDevuelto < 0) throw new Error('MONTO_INVALIDO');
       const productos = new Map<string, { ref: any; data: any }>();
       for (const item of itemsDevolver) {

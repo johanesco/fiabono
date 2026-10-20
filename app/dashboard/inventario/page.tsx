@@ -67,7 +67,7 @@ import ModalUpsellSuscripcion from "@/components/ModalUpsellSuscripcion";
 
 type ColumnaOrden = 'categoria' | 'nombre' | 'sku' | 'stock' | 'precioVenta';
 type DireccionOrden = 'asc' | 'desc';
-type FiltroStock = 'todos' | 'en_stock' | 'stock_bajo' | 'sin_stock' | 'servicios';
+type FiltroStock = 'todos' | 'en_stock' | 'stock_bajo' | 'sin_stock' | 'en_deficit' | 'servicios';
 type OrigenExportacionQR = 'seleccionados' | 'fecha' | 'todos';
 type FiltroFechaQR = 'hoy' | '7dias' | 'personalizado';
 type TipoImpresoraQR = 'termica' | 'hoja';
@@ -113,7 +113,7 @@ export default function InventarioPage() {
   const [columnaOrden, setColumnaOrden] = useState<ColumnaOrden>('nombre');
   const [direccionOrden, setDireccionOrden] = useState<DireccionOrden>('asc');
   const [filtrosCategoria, setFiltrosCategoria] = useState<string[]>([]);
-  const [filtrosStock, setFiltrosStock] = useState<('en_stock' | 'stock_bajo' | 'sin_stock' | 'servicios')[]>([]);
+  const [filtrosStock, setFiltrosStock] = useState<('en_stock' | 'stock_bajo' | 'sin_stock' | 'en_deficit' | 'servicios')[]>([]);
   const [mostrarMetricas, setMostrarMetricas] = useState(false);
   const [menuHerramientasMovil, setMenuHerramientasMovil] = useState(false);
   const [modalUpsell, setModalUpsell] = useState<{ visible: boolean; titulo?: string; mensaje?: string; plan?: 'comercio' | 'pro' }>({
@@ -342,14 +342,15 @@ export default function InventarioPage() {
   const metricas = useMemo(() => {
     const totalProductos = inventario.length;
     const unidadesFisicasTotales = inventario.reduce((acc, p) => 
-      acc + (p.inventariable !== false && p.tipoProducto !== 'servicio' ? (Number(p.stock) || 0) : 0), 0
+      acc + (p.inventariable !== false && p.tipoProducto !== 'servicio' ? Math.max(0, Number(p.stock) || 0) : 0), 0
     );
     const valorTotal = inventario.reduce((acc, p) => 
-      acc + ((Number(p.stock) || 0) * (Number(p.precioVenta) || 0)), 0
+      acc + (Math.max(0, Number(p.stock) || 0) * (Number(p.precioVenta) || 0)), 0
     );
     const totalServicios = inventario.filter(p => p.tipoProducto === 'servicio' || p.inventariable === false).length;
     const stockBajo = inventario.filter(p => p.inventariable !== false && p.tipoProducto !== 'servicio' && Number(p.stock) > 0 && Number(p.stock) <= 5).length;
-    const sinStock = inventario.filter(p => p.inventariable !== false && p.tipoProducto !== 'servicio' && Number(p.stock) <= 0).length;
+    const sinStock = inventario.filter(p => p.inventariable !== false && p.tipoProducto !== 'servicio' && Number(p.stock) === 0).length;
+    const enDeficit = inventario.filter(p => p.inventariable !== false && p.tipoProducto !== 'servicio' && Number(p.stock) < 0).length;
     const enStock = inventario.filter(p => (p.inventariable !== false && p.tipoProducto !== 'servicio') && Number(p.stock) > 0).length;
 
     return {
@@ -359,6 +360,7 @@ export default function InventarioPage() {
       totalServicios,
       stockBajo,
       sinStock,
+      enDeficit,
       enStock
     };
   }, [inventario]);
@@ -395,17 +397,16 @@ export default function InventarioPage() {
     });
   }, [inventario, busquedaModalInventario, filtroStockModal]);
 
-  // Helper para validar si un producto se puede vender/fiar (servicios o con stock > 0)
-  const tieneStockDisponible = (prod: any) => {
-    if (prod.tipoProducto === 'servicio' || prod.inventariable === false) return true;
-    return Number(prod.stock || 0) > 0;
+  // Helper para validar si un producto se puede vender/fiar (también permite despacho en déficit cuando se tiene físico en mano)
+  const tieneStockDisponible = (_prod: any) => {
+    return true;
   };
 
   // Despacho directo a Venta, Fiado o Separe
   const despacharAVenta = (productos: any[]) => {
     const productosValidos = (productos || []).filter(tieneStockDisponible);
     if (productosValidos.length === 0) {
-      toast.error("Los productos seleccionados no tienen stock disponible.");
+      toast.error("Selecciona al menos un producto para vender.");
       return;
     }
     const items = productosValidos.map(p => ({
@@ -422,7 +423,7 @@ export default function InventarioPage() {
   const despacharAFiar = (productos: any[]) => {
     const productosValidos = (productos || []).filter(tieneStockDisponible);
     if (productosValidos.length === 0) {
-      toast.error("Los productos seleccionados no tienen stock disponible.");
+      toast.error("Selecciona al menos un producto para fiar.");
       return;
     }
     const items = productosValidos.map(p => ({
@@ -448,7 +449,7 @@ export default function InventarioPage() {
     }
     const productosValidos = (productos || []).filter(tieneStockDisponible);
     if (productosValidos.length === 0) {
-      toast.error("Los productos seleccionados no tienen stock disponible.");
+      toast.error("Selecciona al menos un producto para separar.");
       return;
     }
     const items = productosValidos.map(p => ({
@@ -469,7 +470,7 @@ export default function InventarioPage() {
   };
 
   // Funciones de Multi-Selección de Filtros
-  const toggleFiltroStock = (tipo: 'en_stock' | 'stock_bajo' | 'sin_stock' | 'servicios') => {
+  const toggleFiltroStock = (tipo: 'en_stock' | 'stock_bajo' | 'sin_stock' | 'en_deficit' | 'servicios') => {
     setFiltrosStock(prev => prev.includes(tipo) ? prev.filter(t => t !== tipo) : [...prev, tipo]);
   };
 
@@ -535,7 +536,8 @@ export default function InventarioPage() {
           if (filtro === 'servicios') return esServicio;
           if (filtro === 'en_stock') return !esServicio && cant > 0;
           if (filtro === 'stock_bajo') return !esServicio && cant > 0 && cant <= 5;
-          if (filtro === 'sin_stock') return !esServicio && cant <= 0;
+          if (filtro === 'sin_stock') return !esServicio && cant === 0;
+          if (filtro === 'en_deficit') return !esServicio && cant < 0;
           return false;
         });
       });
@@ -985,7 +987,7 @@ export default function InventarioPage() {
     try {
       if (editandoId) {
         const esInventariable = tipoProducto === 'producto' && inventariable;
-        const cantStock = esInventariable ? Math.max(0, Number(stock) || 0) : 0;
+        const cantStock = esInventariable ? Math.round(Number(stock) || 0) : 0;
         const precioNum = Number(precioVenta.replace(/\D/g, '')) || 0;
         const costoNum = Number(costoCompra.replace(/\D/g, '')) || 0;
         const nombreGuardar = nombre.trim();
@@ -1941,7 +1943,7 @@ export default function InventarioPage() {
         const esServicio = p.tipoProducto === 'servicio' || p.inventariable === false;
         const stockNum = esServicio ? 0 : (Number(p.stock) || 0);
         const precioNum = Number(p.precioVenta) || 0;
-        const totalNum = stockNum * precioNum;
+        const totalNum = Math.max(0, stockNum) * precioNum;
 
         const row = wsInv.addRow([
           esServicio ? 'Servicio' : 'Producto',
@@ -2667,10 +2669,21 @@ export default function InventarioPage() {
       );
     }
 
-    if (cant <= 0) {
+    if (cant < 0) {
       return (
-        <span className={`inline-flex items-center gap-1 rounded-full bg-rose-50 text-rose-700 dark:bg-rose-500/15 dark:text-rose-300 ${modo === 'movil' ? 'px-2 py-0.5 text-[10px]' : 'px-2.5 py-1 text-xs'} font-black border border-rose-200 dark:border-rose-800 shrink-0 animate-pulse`}>
-          <XCircle size={modo === 'movil' ? 11 : 13} className="shrink-0" /> {modo === 'movil' ? 'Sin stock' : 'Sin Stock (0)'}
+        <span
+          title="Vendido físicamente sin stock en sistema. Ingresa mercancía para nivelarlo automáticamente."
+          className={`inline-flex items-center gap-1 rounded-full bg-orange-100 text-orange-800 dark:bg-orange-500/20 dark:text-orange-300 ${modo === 'movil' ? 'px-2 py-0.5 text-[10px]' : 'px-2.5 py-1 text-xs'} font-black border border-orange-300 dark:border-orange-700 shrink-0 animate-pulse`}
+        >
+          <AlertTriangle size={modo === 'movil' ? 11 : 13} className="shrink-0" /> {modo === 'movil' ? `Déficit (${cant})` : `En Déficit (${cant})`}
+        </span>
+      );
+    }
+
+    if (cant === 0) {
+      return (
+        <span className={`inline-flex items-center gap-1 rounded-full bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400 ${modo === 'movil' ? 'px-2 py-0.5 text-[10px]' : 'px-2.5 py-1 text-xs'} font-bold border border-slate-200 dark:border-slate-700 shrink-0`}>
+          <XCircle size={modo === 'movil' ? 11 : 13} className="shrink-0" /> {modo === 'movil' ? 'Sin stock (0)' : 'Sin Stock (0)'}
         </span>
       );
     }
@@ -3055,6 +3068,44 @@ export default function InventarioPage() {
             </div>
           )}
 
+          {/* BANNER INFORMATIVO CUANDO HAY PRODUCTOS EN DÉFICit TEMPORAL (< 0) */}
+          {metricas.enDeficit > 0 && (
+            <div className="p-3 bg-orange-50 dark:bg-orange-950/30 border border-orange-200 dark:border-orange-800/70 rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2.5 shadow-sm animate-in fade-in duration-200">
+              <div className="flex items-start sm:items-center gap-2.5">
+                <div className="p-2 bg-orange-100 dark:bg-orange-900/50 text-orange-600 dark:text-orange-400 rounded-xl shrink-0">
+                  <AlertTriangle size={16} />
+                </div>
+                <div>
+                  <p className="text-xs sm:text-sm font-black text-orange-900 dark:text-orange-200">
+                    {metricas.enDeficit === 1
+                      ? 'Tienes 1 producto vendido en déficit temporal (stock negativo)'
+                      : `Tienes ${metricas.enDeficit} productos vendidos en déficit temporal (stock negativo)`}
+                  </p>
+                  <p className="text-[11px] font-medium text-orange-700 dark:text-orange-300/90">
+                    Se vendieron físicamente cuando el sistema marcaba 0. Al registrar su factura de compra o ajustar su stock, se nivelarán automáticamente.
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  if (!filtrosStock.includes('en_deficit')) {
+                    setFiltrosStock(['en_deficit']);
+                  } else {
+                    limpiarFiltroStock();
+                  }
+                }}
+                className={`px-3 py-1.5 rounded-xl text-xs font-black transition-all shrink-0 ${
+                  filtrosStock.includes('en_deficit')
+                    ? 'bg-orange-700 text-white shadow-sm'
+                    : 'bg-orange-600 hover:bg-orange-500 text-white shadow-sm'
+                }`}
+              >
+                {filtrosStock.includes('en_deficit') ? 'Ver todos' : `Ver en déficit (${metricas.enDeficit})`}
+              </button>
+            </div>
+          )}
+
           {/* BARRA DE BÚSQUEDA Y SELECTOR DE VISTA COMPACTA */}
           <div className="flex flex-col sm:flex-row justify-between items-center gap-2.5">
             <div className="relative flex-1 w-full">
@@ -3135,6 +3186,18 @@ export default function InventarioPage() {
               >
                 <XCircle size={13} /> Sin Stock ({metricas.sinStock})
               </button>
+              {(metricas.enDeficit > 0 || filtrosStock.includes('en_deficit')) && (
+                <button
+                  onClick={() => toggleFiltroStock('en_deficit')}
+                  className={`px-3 py-1 rounded-xl text-xs font-bold transition-all shrink-0 flex items-center gap-1.5 ${
+                    filtrosStock.includes('en_deficit')
+                      ? 'bg-orange-600 text-white shadow-sm font-black ring-2 ring-orange-500/30'
+                      : 'bg-orange-50 dark:bg-orange-950/40 text-orange-700 dark:text-orange-300 border border-orange-300 dark:border-orange-800 hover:border-orange-500'
+                  }`}
+                >
+                  <AlertTriangle size={13} /> En Déficit ({metricas.enDeficit})
+                </button>
+              )}
               <button
                 onClick={() => toggleFiltroStock('servicios')}
                 className={`px-3 py-1 rounded-xl text-xs font-bold transition-all shrink-0 flex items-center gap-1.5 ${
@@ -3253,7 +3316,7 @@ export default function InventarioPage() {
                     key={f} 
                     className="inline-flex items-center gap-1 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 px-2 py-0.5 rounded-lg border border-emerald-200 dark:border-emerald-800 font-bold text-[11px]"
                   >
-                    <span>{f === 'en_stock' ? 'Con stock' : f === 'stock_bajo' ? 'Stock bajo' : f === 'sin_stock' ? 'Sin stock' : 'Servicios'}</span>
+                    <span>{f === 'en_stock' ? 'Con stock' : f === 'stock_bajo' ? 'Stock bajo' : f === 'sin_stock' ? 'Sin stock' : f === 'en_deficit' ? 'En déficit' : 'Servicios'}</span>
                     <button 
                       type="button" 
                       onClick={() => toggleFiltroStock(f)} 
@@ -5471,19 +5534,24 @@ export default function InventarioPage() {
                       </div>
                     )}
 
-                    {/* Stock Inicial */}
+                    {/* Stock Inicial / Actual */}
                     <div className="space-y-1">
                       <label className="text-[10px] sm:text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider block truncate">
-                        Stock Inicial
+                        {editandoId ? 'Stock Actual' : 'Stock Inicial'}
                       </label>
                       {tipoProducto === 'producto' && inventariable ? (
                         <input 
                           type="number" 
-                          min="0" 
+                          min={editandoId ? undefined : "0"} 
                           value={stock} 
                           onChange={(e) => { 
-                            const valor = Number(e.target.value); 
-                            setStock(String(Math.max(0, valor))); 
+                            const raw = e.target.value;
+                            if (editandoId && (raw === '' || raw === '-')) {
+                              setStock(raw);
+                            } else {
+                              const valor = Number(raw);
+                              setStock(String(editandoId ? valor : Math.max(0, valor)));
+                            }
                             setErrores(prev => ({ ...prev, stock: '' })); 
                           }} 
                           placeholder="0" 

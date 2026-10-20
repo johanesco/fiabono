@@ -8,7 +8,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test:rules": "firebase emulators:exec --only firestore \"node tests/firestore.rules.test.js\""
+    "test:rules": "firebase emulators:exec --only firestore \"node tests/firestore.rules.test.js\"",
+    "deploy:rules": "firebase deploy --only firestore:rules"
   },
   "dependencies": {
     "exceljs": "^4.4.0",

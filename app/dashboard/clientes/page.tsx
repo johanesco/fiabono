@@ -11,12 +11,15 @@ import {
 } from "firebase/firestore";
 import { auth, db } from "../../../firebase";
 import { useAuth } from "@/hooks/AuthContext";
+import { API_DB } from "@/servicios/db";
 import { Cliente, Movimiento, Separe } from "@/types";
 import { abrirEnlaceWhatsApp } from "@/utils/whatsapp";
 import { agregarMediosPagoAlEstado } from "@/utils/mediosPago";
 import ModalGestionCliente from "@/components/ModalGestionCliente";
 import ModalProcesarDevolucion from "@/components/ModalProcesarDevolucion";
 import TicketFacturaModal, { DatosFacturaProps } from "@/components/TicketFacturaModal";
+import ModalExportarClientes from "@/components/clientes/ModalExportarClientes";
+import ModalImportarClientes from "@/components/clientes/ModalImportarClientes";
 import toast from "react-hot-toast";
 import { 
   RotateCcw,
@@ -48,7 +51,13 @@ import {
   Edit3,
   Trash2,
   Printer,
-  Bookmark
+  Bookmark,
+  Tag,
+  Plus,
+  Check,
+  Download,
+  Upload,
+  Smile
 } from "lucide-react";
 
 export default function ClientesPage() {
@@ -86,14 +95,33 @@ function ClientesContenido() {
   const [busqueda, setBusqueda] = useState("");
   const [mostrarIndicadores, setMostrarIndicadores] = useState(false);
   const [filtroActivo, setFiltroActivo] = useState<'todos' | 'con_deuda' | 'en_riesgo' | 'mayor_deuda' | 'vip' | 'al_dia'>('todos');
+  const [etiquetaFiltro, setEtiquetaFiltro] = useState<string | null>(null);
 
   // Modales
   const [modalNuevoAbierto, setModalNuevoAbierto] = useState(false);
   const [nombreNuevo, setNombreNuevo] = useState("");
+  const [apodoNuevo, setApodoNuevo] = useState("");
+  const [tipoDocumentoNuevo, setTipoDocumentoNuevo] = useState<string>("CC");
+  const [numeroDocumentoNuevo, setNumeroDocumentoNuevo] = useState("");
+  const [saldoInicialNuevo, setSaldoInicialNuevo] = useState("");
   const [celularNuevo, setCelularNuevo] = useState("");
   const [direccionNueva, setDireccionNueva] = useState("");
   const [notasNuevas, setNotasNuevas] = useState("");
+  const [etiquetasNuevas, setEtiquetasNuevas] = useState<string[]>([]);
+  const [inputEtiquetaNueva, setInputEtiquetaNueva] = useState("");
   const [guardandoCliente, setGuardandoCliente] = useState(false);
+
+  // Modales Importar y Exportar
+  const [modalExportarAbierto, setModalExportarAbierto] = useState(false);
+  const [modalImportarAbierto, setModalImportarAbierto] = useState(false);
+
+  // Modal Gestión de Categorías
+  const [modalCategoriasAbierto, setModalCategoriasAbierto] = useState(false);
+  const [nuevaCatNombre, setNuevaCatNombre] = useState("");
+  const [clientesAsignarCat, setClientesAsignarCat] = useState<string[]>([]);
+  const [guardandoCategorias, setGuardandoCategorias] = useState(false);
+  const [clienteDocDuplicadoNuevo, setClienteDocDuplicadoNuevo] = useState<Cliente | null>(null);
+  const [clienteCelDuplicadoNuevo, setClienteCelDuplicadoNuevo] = useState<Cliente | null>(null);
 
   // Modal edición/eliminación
   const [modalGestion, setModalGestion] = useState<{ isOpen: boolean; modo: 'editar' | 'eliminar'; cliente: Cliente | null }>({
@@ -320,7 +348,25 @@ function ClientesContenido() {
     };
   }, [clientesConAnalisis]);
 
-  // 5. Filtrado por Búsqueda y Pestañas
+  // 5. Categorías / Etiquetas personalizadas extraídas dinámicamente de los clientes
+  const todasLasEtiquetas = useMemo(() => {
+    const conteos: Record<string, number> = {};
+    clientes.forEach((c) => {
+      if (Array.isArray(c.etiquetas)) {
+        c.etiquetas.forEach((e) => {
+          const t = String(e || "").trim();
+          if (t) {
+            conteos[t] = (conteos[t] || 0) + 1;
+          }
+        });
+      }
+    });
+    return Object.entries(conteos)
+      .map(([nombre, count]) => ({ nombre, count }))
+      .sort((a, b) => b.count - a.count || a.nombre.localeCompare(b.nombre));
+  }, [clientes]);
+
+  // 6. Filtrado por Búsqueda, Pestañas y Categorías Personalizadas
   const clientesFiltrados = useMemo(() => {
     const normalizar = (texto: string) => (texto || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
     const qNorm = normalizar(busqueda);
@@ -330,11 +376,22 @@ function ClientesContenido() {
       const coincideBusqueda = 
         !qNorm ||
         normalizar(c.nombre).includes(qNorm) ||
+        (c.apodo && normalizar(c.apodo).includes(qNorm)) ||
         (c.celular && c.celular.includes(busqueda.trim())) ||
+        (c.numeroDocumento && c.numeroDocumento.includes(busqueda.trim())) ||
         normalizar(c.direccion || "").includes(qNorm) ||
-        normalizar(c.notas || "").includes(qNorm);
+        normalizar(c.notas || "").includes(qNorm) ||
+        (c.etiquetas || []).some((t) => normalizar(t).includes(qNorm));
 
       if (!coincideBusqueda) return false;
+
+      // Filtro de etiqueta personalizada
+      if (etiquetaFiltro) {
+        const tieneEtiqueta = (c.etiquetas || []).some(
+          (t) => t.toLowerCase() === etiquetaFiltro.toLowerCase()
+        );
+        if (!tieneEtiqueta) return false;
+      }
 
       // Filtro de pestaña
       if (filtroActivo === 'con_deuda') return c.deuda > 0;
@@ -354,7 +411,7 @@ function ClientesContenido() {
       }
       return a.nombre.localeCompare(b.nombre);
     });
-  }, [clientesConAnalisis, busqueda, filtroActivo]);
+  }, [clientesConAnalisis, busqueda, filtroActivo, etiquetaFiltro]);
 
   // Cliente activo para la ficha derecha en escritorio o modal móvil
   const clienteActivoDetalle = useMemo(() => {
@@ -366,6 +423,18 @@ function ClientesContenido() {
     if (!clienteActivoDetalle) return [];
     return separes.filter(s => s.clienteId === clienteActivoDetalle.id);
   }, [clienteActivoDetalle, separes]);
+
+  const filtroActivoNombre = useMemo(() => {
+    let base = "Todos los clientes";
+    if (filtroActivo === 'con_deuda') base = "Con Deuda Activa";
+    else if (filtroActivo === 'en_riesgo') base = "En Riesgo (+30 días)";
+    else if (filtroActivo === 'mayor_deuda') base = "Mayor Deuda";
+    else if (filtroActivo === 'vip') base = "Clientes VIP";
+    else if (filtroActivo === 'al_dia') base = "Cuentas al Día";
+    if (etiquetaFiltro) base += ` • Categoría: ${etiquetaFiltro}`;
+    if (busqueda.trim()) base += ` • Búsqueda: "${busqueda.trim()}"`;
+    return base;
+  }, [filtroActivo, etiquetaFiltro, busqueda]);
 
   // En pantallas grandes (>= 1024px), si no hay cliente seleccionado, auto-seleccionar el primero
   useEffect(() => {
@@ -479,6 +548,79 @@ Quedamos pendientes para revisar detalles o responder cualquier duda.
     setModalTicketFactura({ visible: true, datos: datosTicket });
   };
 
+  // Ejecutar creación del cliente (consumo de API y actualización de estado)
+  const ejecutarCreacionCliente = async () => {
+    // Consolidar categorías: si el usuario escribió en el campo pero no presionó "+ Agregar", incluirla automáticamente
+    const tagsParaGuardar = [...etiquetasNuevas];
+    if (inputEtiquetaNueva.trim()) {
+      inputEtiquetaNueva.split(/[,;-]/).forEach(t => {
+        const clean = t.trim();
+        if (clean && !tagsParaGuardar.some(exist => exist.toLowerCase() === clean.toLowerCase())) {
+          tagsParaGuardar.push(clean);
+        }
+      });
+    }
+
+    try {
+      setGuardandoCliente(true);
+      const token = await auth.currentUser?.getIdToken();
+      if (!token) throw new Error('Sesión inválida.');
+      const respuesta = await fetch('/api/clientes/crear', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ 
+          nombre: nombreNuevo, 
+          apodo: apodoNuevo.trim(),
+          tipoDocumento: tipoDocumentoNuevo || 'CC',
+          numeroDocumento: numeroDocumentoNuevo.trim(),
+          saldoInicial: saldoInicialNuevo.trim() ? Number(saldoInicialNuevo.replace(/[^\d]/g, '')) : 0,
+          celular: celularNuevo, 
+          direccion: direccionNueva, 
+          notas: notasNuevas,
+          etiquetas: tagsParaGuardar
+        })
+      });
+      const resultado = await respuesta.json();
+      if (!respuesta.ok) throw new Error(resultado.error || 'No se pudo crear el cliente.');
+      const docRef = { id: resultado.id };
+      const saldoIni = saldoInicialNuevo.trim() ? Math.round(Number(saldoInicialNuevo.replace(/[^\d]/g, '')) || 0) : 0;
+
+      const nuevoObj = {
+        id: docRef.id,
+        nombre: nombreNuevo.trim(),
+        apodo: apodoNuevo.trim(),
+        tipoDocumento: tipoDocumentoNuevo || 'CC',
+        numeroDocumento: numeroDocumentoNuevo.trim(),
+        celular: celularNuevo.trim() || "",
+        direccion: direccionNueva.trim() || "",
+        notas: notasNuevas.trim() || "",
+        etiquetas: tagsParaGuardar,
+        deudaTotal: saldoIni,
+        usuarioId: cuentaPrincipalId,
+      } as Cliente;
+
+      setClientes(prev => [nuevoObj, ...prev.filter(c => c.id !== nuevoObj.id)]);
+
+      toast.success(`Cliente ${nombreNuevo.trim()} registrado con éxito ✨`);
+      setModalNuevoAbierto(false);
+      setNombreNuevo("");
+      setApodoNuevo("");
+      setTipoDocumentoNuevo("CC");
+      setNumeroDocumentoNuevo("");
+      setSaldoInicialNuevo("");
+      setCelularNuevo("");
+      setDireccionNueva("");
+      setNotasNuevas("");
+      setEtiquetasNuevas([]);
+      setInputEtiquetaNueva("");
+    } catch (err: any) {
+      console.error("Error al crear cliente:", err);
+      toast.error(err.message || "Error al crear el cliente.");
+    } finally {
+      setGuardandoCliente(false);
+    }
+  };
+
   // 7. Acción: Crear Nuevo Cliente
   const handleGuardarNuevoCliente = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -499,42 +641,92 @@ Quedamos pendientes para revisar detalles o responder cualquier duda.
       return;
     }
 
+    // CONTROL DE INTEGRIDAD: Validar documento / cédula duplicada (bloqueo estricto con ventana modal diseñada)
+    const docNuevoLimpio = numeroDocumentoNuevo.trim();
+    if (docNuevoLimpio) {
+      const clienteConMismoDoc = clientes.find(c => 
+        c.numeroDocumento && c.numeroDocumento.trim().toLowerCase() === docNuevoLimpio.toLowerCase()
+      );
+      if (clienteConMismoDoc) {
+        setClienteDocDuplicadoNuevo(clienteConMismoDoc);
+        return;
+      }
+    }
 
+    // Celular duplicado: ventana emergente para advertir pero permitiendo continuar
+    const celNuevoLimpio = celularNuevo.replace(/[^\d]/g, '');
+    if (celNuevoLimpio && celNuevoLimpio.length >= 7) {
+      const clienteConMismoCel = clientes.find(c => 
+        c.celular && c.celular.replace(/[^\d]/g, '') === celNuevoLimpio
+      );
+      if (clienteConMismoCel) {
+        setClienteCelDuplicadoNuevo(clienteConMismoCel);
+        return;
+      }
+    }
+
+    await ejecutarCreacionCliente();
+  };
+
+  // 8. Acción: Asignar categoría en lote a clientes seleccionados
+  const handleGuardarCategoriaMasiva = async () => {
+    const cat = nuevaCatNombre.trim();
+    if (!cat) {
+      toast.error("Ingresa el nombre de la categoría.");
+      return;
+    }
+    if (clientesAsignarCat.length === 0) {
+      toast.error("Selecciona al menos un cliente para asignarle esta categoría.");
+      return;
+    }
+
+    setGuardandoCategorias(true);
     try {
-      setGuardandoCliente(true);
-      const token = await auth.currentUser?.getIdToken();
-      if (!token) throw new Error('Sesión inválida.');
-      const respuesta = await fetch('/api/clientes/crear', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ nombre: nombreNuevo, celular: celularNuevo, direccion: direccionNueva, notas: notasNuevas })
+      const promises = clientesAsignarCat.map(async (cid) => {
+        const clienteActual = clientes.find(c => c.id === cid);
+        if (!clienteActual) return;
+        const tags = Array.isArray(clienteActual.etiquetas) ? [...clienteActual.etiquetas] : [];
+        if (!tags.some(t => t.toLowerCase() === cat.toLowerCase())) {
+          tags.push(cat);
+          await API_DB.actualizarCliente(cid, { etiquetas: tags });
+        }
       });
-      const resultado = await respuesta.json();
-      if (!respuesta.ok) throw new Error(resultado.error || 'No se pudo crear el cliente.');
-      const docRef = { id: resultado.id };
 
-      const nuevoObj = {
-        id: docRef.id,
-        nombre: nombreNuevo.trim(),
-        celular: celularNuevo.trim() || "",
-        direccion: direccionNueva.trim() || "",
-        notas: notasNuevas.trim() || "",
-        deudaTotal: 0,
-        usuarioId: cuentaPrincipalId,
-      } as Cliente;
-
-      toast.success(`Cliente ${nombreNuevo.trim()} registrado con éxito ✨`);
-      setModalNuevoAbierto(false);
-      setNombreNuevo("");
-      setCelularNuevo("");
-      setDireccionNueva("");
-      setNotasNuevas("");
-      setClienteFicha(nuevoObj);
+      await Promise.all(promises);
+      toast.success(`Categoría "${cat}" asignada a ${clientesAsignarCat.length} cliente(s) ✨`);
+      setModalCategoriasAbierto(false);
+      setNuevaCatNombre("");
+      setClientesAsignarCat([]);
+      setEtiquetaFiltro(cat);
     } catch (err) {
-      console.error("Error al crear cliente:", err);
-      toast.error("No se pudo registrar el cliente.");
+      console.error("Error asignando categoría:", err);
+      toast.error("Hubo un error al asignar la categoría.");
     } finally {
-      setGuardandoCliente(false);
+      setGuardandoCategorias(false);
+    }
+  };
+
+  // 9. Acción: Desvincular una categoría de todos los clientes
+  const handleEliminarCategoriaGlobal = async (nombreCategoria: string) => {
+    if (!confirm(`¿Deseas desvincular la categoría "${nombreCategoria}" de todos los clientes?`)) return;
+
+    setGuardandoCategorias(true);
+    try {
+      const afectados = clientes.filter(c => (c.etiquetas || []).some(t => t.toLowerCase() === nombreCategoria.toLowerCase()));
+      const promises = afectados.map(async (c) => {
+        const tagsActualizadas = (c.etiquetas || []).filter(t => t.toLowerCase() !== nombreCategoria.toLowerCase());
+        await API_DB.actualizarCliente(c.id, { etiquetas: tagsActualizadas });
+      });
+      await Promise.all(promises);
+      if (etiquetaFiltro?.toLowerCase() === nombreCategoria.toLowerCase()) {
+        setEtiquetaFiltro(null);
+      }
+      toast.success(`Categoría "${nombreCategoria}" desvinculada.`);
+    } catch (err) {
+      console.error("Error al desvincular categoría global:", err);
+      toast.error("No se pudo desvincular la categoría.");
+    } finally {
+      setGuardandoCategorias(false);
     }
   };
 
@@ -844,6 +1036,11 @@ Quedamos pendientes para revisar detalles o responder cualquier duda.
                 <h2 className="text-xl font-black text-slate-900 dark:text-white tracking-tight leading-tight break-words">
                   {cliente.nombre}
                 </h2>
+                {cliente.apodo && (
+                  <span className="text-xs font-bold text-amber-700 dark:text-amber-400 bg-amber-100/70 dark:bg-amber-950/50 px-2 py-0.5 rounded-lg border border-amber-200 dark:border-amber-800/40">
+                    "{cliente.apodo}"
+                  </span>
+                )}
                 {!esCajero && (
                   <div className="inline-flex items-center gap-1 shrink-0">
                     <button
@@ -875,6 +1072,30 @@ Quedamos pendientes para revisar detalles o responder cualquier duda.
                   📍 {cliente.direccion}
                 </p>
               )}
+
+              {/* Categorías / Etiquetas personalizadas del cliente en móvil */}
+              <div className="flex flex-wrap items-center justify-center gap-1 mt-1.5">
+                {(cliente.etiquetas || []).map((tag: string, i: number) => (
+                  <span 
+                    key={i} 
+                    className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-lg bg-violet-100 dark:bg-violet-950/60 text-violet-700 dark:text-violet-300 border border-violet-200 dark:border-violet-800 shadow-2xs"
+                  >
+                    <Tag size={10} className="shrink-0" />
+                    <span>{tag}</span>
+                  </span>
+                ))}
+                {!esCajero && (
+                  <button
+                    type="button"
+                    onClick={() => setModalGestion({ isOpen: true, modo: 'editar', cliente })}
+                    className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-lg text-slate-500 hover:text-violet-600 dark:text-slate-400 dark:hover:text-violet-300 hover:bg-violet-50 dark:hover:bg-violet-950/40 border border-dashed border-slate-300 dark:border-slate-700 transition cursor-pointer"
+                    title="Editar categorías del cliente"
+                  >
+                    <Plus size={10} />
+                    <span>{(cliente.etiquetas || []).length === 0 ? "Asignar Categoría" : "Editar"}</span>
+                  </button>
+                )}
+              </div>
 
               {/* Botón cerrar modal en esquina */}
               {isMobileModal && (
@@ -1019,6 +1240,11 @@ Quedamos pendientes para revisar detalles o responder cualquier duda.
                 <h2 className="text-[22px] sm:text-[26px] font-black text-slate-900 dark:text-white tracking-tight leading-tight break-words">
                   {cliente.nombre}
                 </h2>
+                {cliente.apodo && (
+                  <span className="text-xs sm:text-sm font-bold text-amber-700 dark:text-amber-400 bg-amber-100/70 dark:bg-amber-950/50 px-2.5 py-0.5 rounded-lg border border-amber-200 dark:border-amber-800/40">
+                    "{cliente.apodo}"
+                  </span>
+                )}
                 {!esCajero && (
                   <div className="inline-flex items-center gap-1 shrink-0">
                     <button
@@ -1048,6 +1274,30 @@ Quedamos pendientes para revisar detalles o responder cualquier duda.
                   📍 {cliente.direccion}
                 </p>
               )}
+
+              {/* Categorías / Etiquetas personalizadas del cliente en escritorio */}
+              <div className="flex flex-wrap items-center justify-center gap-1.5 mt-2">
+                {(cliente.etiquetas || []).map((tag: string, i: number) => (
+                  <span 
+                    key={i} 
+                    className="inline-flex items-center gap-1 text-[10px] font-bold px-2.5 py-0.5 rounded-lg bg-violet-100 dark:bg-violet-950/60 text-violet-700 dark:text-violet-300 border border-violet-200 dark:border-violet-800 shadow-2xs"
+                  >
+                    <Tag size={11} className="shrink-0" />
+                    <span>{tag}</span>
+                  </span>
+                ))}
+                {!esCajero && (
+                  <button
+                    type="button"
+                    onClick={() => setModalGestion({ isOpen: true, modo: 'editar', cliente })}
+                    className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-lg text-slate-500 hover:text-violet-600 dark:text-slate-400 dark:hover:text-violet-300 hover:bg-violet-50 dark:hover:bg-violet-950/40 border border-dashed border-slate-300 dark:border-slate-700 transition cursor-pointer"
+                    title="Editar categorías del cliente"
+                  >
+                    <Plus size={10} />
+                    <span>{(cliente.etiquetas || []).length === 0 ? "Asignar Categoría" : "Editar"}</span>
+                  </button>
+                )}
+              </div>
             </div>
 
             {/* Fila 2: Saldo Destacado en tarjeta compacta */}
@@ -1202,15 +1452,37 @@ Quedamos pendientes para revisar detalles o responder cualquier duda.
           </div>
         </div>
 
-        <button
-          type="button"
-          onClick={() => setModalNuevoAbierto(true)}
-          className="flex items-center gap-1.5 px-3 py-2 sm:px-4 sm:py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-xs transition active:scale-95 cursor-pointer shrink-0"
-        >
-          <UserPlus size={15} />
-          <span className="hidden xs:inline">Nuevo Cliente</span>
-          <span className="xs:hidden">Nuevo</span>
-        </button>
+        <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+          <button
+            type="button"
+            onClick={() => setModalImportarAbierto(true)}
+            className="flex items-center gap-1.5 px-2.5 py-2 sm:px-3 sm:py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/80 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 font-bold text-xs transition cursor-pointer"
+            title="Importar clientes desde Excel (.xlsx) o CSV"
+          >
+            <Upload size={14} className="text-blue-500" />
+            <span className="hidden sm:inline">Importar</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setModalExportarAbierto(true)}
+            className="flex items-center gap-1.5 px-2.5 py-2 sm:px-3 sm:py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/80 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 font-bold text-xs transition cursor-pointer"
+            title="Exportar clientes a Excel (.xlsx) o CSV"
+          >
+            <Download size={14} className="text-emerald-500" />
+            <span className="hidden sm:inline">Exportar</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setModalNuevoAbierto(true)}
+            className="flex items-center gap-1.5 px-3 py-2 sm:px-4 sm:py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-xs transition active:scale-95 cursor-pointer"
+          >
+            <UserPlus size={15} />
+            <span className="hidden xs:inline">Nuevo Cliente</span>
+            <span className="xs:hidden">Nuevo</span>
+          </button>
+        </div>
       </div>
 
       {/* 2. INDICADORES OPCIONALES, OCULTOS POR DEFECTO */}
@@ -1437,6 +1709,66 @@ Quedamos pendientes para revisar detalles o responder cualquier duda.
             </span>
           </button>
         </div>
+
+        {/* Chips de Categorías / Etiquetas personalizadas */}
+        <div className="flex items-center gap-1.5 pt-1 overflow-x-auto pb-1 scrollbar-thin text-xs">
+          <div className="flex items-center gap-1 text-[11px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-wider shrink-0 mr-0.5">
+            <Tag size={13} className="text-violet-500 shrink-0" />
+            <span className="hidden xs:inline">Categoría:</span>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => setEtiquetaFiltro(null)}
+            className={`px-2.5 py-1 rounded-lg text-xs font-bold shrink-0 transition cursor-pointer ${
+              etiquetaFiltro === null
+                ? 'bg-violet-600 text-white shadow-xs'
+                : 'bg-white dark:bg-[#0f172a] text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-800 hover:border-violet-300'
+            }`}
+          >
+            Todas
+          </button>
+
+          {todasLasEtiquetas.map((cat) => {
+            const estaActiva = etiquetaFiltro?.toLowerCase() === cat.nombre.toLowerCase();
+            return (
+              <button
+                key={cat.nombre}
+                type="button"
+                onClick={() => setEtiquetaFiltro(estaActiva ? null : cat.nombre)}
+                className={`px-2.5 py-1 rounded-lg text-xs font-bold shrink-0 transition cursor-pointer flex items-center gap-1.5 ${
+                  estaActiva
+                    ? 'bg-violet-600 text-white shadow-xs ring-2 ring-violet-400/40'
+                    : 'bg-white dark:bg-[#0f172a] text-violet-700 dark:text-violet-300 border border-violet-200/80 dark:border-violet-900/60 hover:bg-violet-50 dark:hover:bg-violet-950/40'
+                }`}
+              >
+                <span>🏷️ {cat.nombre}</span>
+                <span className={`text-[10px] font-black px-1.5 py-0.2 rounded-full ${
+                  estaActiva ? 'bg-white/20 text-white' : 'bg-violet-100 dark:bg-violet-950 text-violet-800 dark:text-violet-300'
+                }`}>
+                  {cat.count}
+                </span>
+                {estaActiva && (
+                  <X size={12} className="opacity-80 hover:opacity-100" />
+                )}
+              </button>
+            );
+          })}
+
+          <button
+            type="button"
+            onClick={() => {
+              setNuevaCatNombre("");
+              setClientesAsignarCat([]);
+              setModalCategoriasAbierto(true);
+            }}
+            className="px-2.5 py-1 rounded-lg text-xs font-bold text-violet-600 dark:text-violet-400 hover:text-white hover:bg-violet-600 border border-dashed border-violet-300 dark:border-violet-800 bg-violet-50/50 dark:bg-violet-950/20 shrink-0 transition cursor-pointer flex items-center gap-1 shadow-2xs"
+            title="Crear o gestionar categorías de clientes"
+          >
+            <Plus size={13} />
+            <span>Nueva Categoría</span>
+          </button>
+        </div>
       </div>
 
       {/* =========================================================================
@@ -1527,6 +1859,11 @@ Quedamos pendientes para revisar detalles o responder cualquier duda.
                           }`}>
                             {c.nombre}
                           </h3>
+                          {c.apodo && (
+                            <span className="text-[11px] font-semibold text-amber-700 dark:text-amber-400 shrink-0">
+                              ({c.apodo})
+                            </span>
+                          )}
                           {c.semaforo === 'riesgo' && (
                             <span className="px-1.5 py-0.2 rounded-md text-[9px] font-black bg-rose-100 dark:bg-rose-500/20 text-rose-700 dark:text-rose-300 shrink-0">
                               +30d
@@ -1549,6 +1886,30 @@ Quedamos pendientes para revisar detalles o responder cualquier duda.
                             </span>
                           )}
                         </div>
+
+                        {/* Categorías / Etiquetas personalizadas del cliente */}
+                        {c.etiquetas && c.etiquetas.length > 0 && (
+                          <div className="flex flex-wrap items-center gap-1 mt-1">
+                            {c.etiquetas.map((t, idx) => (
+                              <button
+                                key={idx}
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setEtiquetaFiltro(etiquetaFiltro?.toLowerCase() === t.toLowerCase() ? null : t);
+                                }}
+                                className={`inline-flex items-center gap-0.5 text-[9px] font-bold px-1.5 py-0.5 rounded-md transition cursor-pointer ${
+                                  etiquetaFiltro?.toLowerCase() === t.toLowerCase()
+                                    ? 'bg-violet-600 text-white shadow-2xs'
+                                    : 'bg-violet-50 dark:bg-violet-950/60 text-violet-700 dark:text-violet-300 border border-violet-200/50 dark:border-violet-800/40 hover:bg-violet-100'
+                                }`}
+                                title={`Filtrar por categoría "${t}"`}
+                              >
+                                🏷️ {t}
+                              </button>
+                            ))}
+                          </div>
+                        )}
                       </div>
                     </div>
 
@@ -1679,6 +2040,51 @@ Quedamos pendientes para revisar detalles o responder cualquier duda.
               </div>
 
               <div>
+                <label className="text-xs font-bold text-slate-600 dark:text-slate-300 block mb-1 flex items-center gap-1.5">
+                  <Smile size={13} className="text-amber-500" /> Apodo / Alias (Opcional)
+                </label>
+                <input
+                  type="text"
+                  value={apodoNuevo}
+                  onChange={(e) => setApodoNuevo(e.target.value)}
+                  placeholder="Ej: Cachaco, El Paisa, Doña Mary..."
+                  className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3.5 py-2.5 text-sm font-semibold text-slate-800 dark:text-white focus:ring-2 focus:ring-emerald-500 focus:outline-hidden"
+                />
+              </div>
+
+              {/* Documento (CC / NIT / CE) */}
+              <div className="grid grid-cols-3 gap-2">
+                <div className="col-span-1">
+                  <label className="text-xs font-bold text-slate-600 dark:text-slate-300 block mb-1">
+                    Tipo Doc.
+                  </label>
+                  <select
+                    value={tipoDocumentoNuevo}
+                    onChange={(e) => setTipoDocumentoNuevo(e.target.value)}
+                    className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-2.5 py-2.5 text-xs font-bold text-slate-800 dark:text-white focus:ring-2 focus:ring-emerald-500 focus:outline-hidden cursor-pointer"
+                  >
+                    <option value="CC">CC</option>
+                    <option value="NIT">NIT</option>
+                    <option value="CE">CE</option>
+                    <option value="PP">Pasaporte</option>
+                    <option value="TI">TI</option>
+                  </select>
+                </div>
+                <div className="col-span-2">
+                  <label className="text-xs font-bold text-slate-600 dark:text-slate-300 block mb-1">
+                    Cédula / Documento (Opcional)
+                  </label>
+                  <input
+                    type="text"
+                    value={numeroDocumentoNuevo}
+                    onChange={(e) => setNumeroDocumentoNuevo(e.target.value)}
+                    placeholder="Ej: 1020304050"
+                    className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3.5 py-2.5 text-sm font-semibold text-slate-800 dark:text-white focus:ring-2 focus:ring-emerald-500 focus:outline-hidden"
+                  />
+                </div>
+              </div>
+
+              <div>
                 <label className="text-xs font-bold text-slate-600 dark:text-slate-300 block mb-1">
                   Celular (WhatsApp)
                 </label>
@@ -1704,17 +2110,134 @@ Quedamos pendientes para revisar detalles o responder cualquier duda.
                 />
               </div>
 
+              {/* Saldo Inicial Pendiente Opcional */}
+              <div>
+                <label className="text-xs font-bold text-slate-600 dark:text-slate-300 block mb-1 flex items-center justify-between">
+                  <span className="flex items-center gap-1.5">
+                    <DollarSign size={13} className="text-amber-500" /> Saldo Inicial Pendiente (Opcional)
+                  </span>
+                  <span className="text-[10px] text-slate-400 font-normal">Si ya te debía dinero</span>
+                </label>
+                <div className="relative">
+                  <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-xs">$</span>
+                  <input
+                    type="text"
+                    value={saldoInicialNuevo ? Number(saldoInicialNuevo).toLocaleString('es-CO') : ''}
+                    onChange={(e) => {
+                      const val = e.target.value.replace(/[^\d]/g, '');
+                      setSaldoInicialNuevo(val);
+                    }}
+                    placeholder="0"
+                    className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl pl-8 pr-3.5 py-2.5 text-sm font-bold text-amber-600 dark:text-amber-400 focus:ring-2 focus:ring-amber-500 focus:outline-hidden"
+                  />
+                </div>
+              </div>
+
               <div>
                 <label className="text-xs font-bold text-slate-600 dark:text-slate-300 block mb-1">
-                  Notas / Referencia / Apodo
+                  Notas / Referencias (Opcional)
                 </label>
                 <textarea
                   rows={2}
                   value={notasNuevas}
                   onChange={(e) => setNotasNuevas(e.target.value)}
-                  placeholder="Ej: Apodo (Cachaco), parentesco (Hermana de Juan), referencia..."
+                  placeholder="Ej: Parentesco (Hermana de Juan), casa azul frente al parque..."
                   className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3.5 py-2 text-xs font-semibold text-slate-800 dark:text-white focus:ring-2 focus:ring-emerald-500 focus:outline-hidden resize-none"
                 />
+              </div>
+
+              {/* Categorías / Etiquetas en Modal Nuevo Cliente */}
+              <div>
+                <label className="text-xs font-bold text-slate-600 dark:text-slate-300 block mb-1 flex items-center gap-1.5">
+                  <Tag size={13} className="text-violet-500" /> Categorías / Etiquetas (Opcional)
+                </label>
+                {etiquetasNuevas.length > 0 && (
+                  <div className="flex flex-wrap gap-1 mb-2">
+                    {etiquetasNuevas.map((t, idx) => (
+                      <span key={idx} className="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-md bg-violet-100 dark:bg-violet-950/60 text-violet-700 dark:text-violet-300 border border-violet-200 dark:border-violet-800">
+                        🏷️ {t}
+                        <button
+                          type="button"
+                          onClick={() => setEtiquetasNuevas(prev => prev.filter((_, i) => i !== idx))}
+                          className="hover:text-rose-500 p-0.5 cursor-pointer"
+                        >
+                          <X size={11} />
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+                )}
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={inputEtiquetaNueva}
+                    onChange={(e) => setInputEtiquetaNueva(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ',') {
+                        e.preventDefault();
+                        const valor = inputEtiquetaNueva.trim();
+                        if (valor) {
+                          const partes = valor.split(/[,;-]/).map(t => t.trim()).filter(Boolean);
+                          setEtiquetasNuevas(prev => {
+                            const lista = [...prev];
+                            partes.forEach(p => {
+                              if (!lista.some(exist => exist.toLowerCase() === p.toLowerCase())) {
+                                lista.push(p);
+                              }
+                            });
+                            return lista;
+                          });
+                          setInputEtiquetaNueva("");
+                        }
+                      }
+                    }}
+                    placeholder="Ej: Mayorista, Vecino, Familia (o escribe y da Guardar)"
+                    className="flex-1 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs font-semibold text-slate-800 dark:text-white focus:ring-2 focus:ring-violet-500 focus:outline-hidden"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const valor = inputEtiquetaNueva.trim();
+                      if (valor) {
+                        const partes = valor.split(/[,;-]/).map(t => t.trim()).filter(Boolean);
+                        setEtiquetasNuevas(prev => {
+                          const lista = [...prev];
+                          partes.forEach(p => {
+                            if (!lista.some(exist => exist.toLowerCase() === p.toLowerCase())) {
+                              lista.push(p);
+                            }
+                          });
+                          return lista;
+                        });
+                        setInputEtiquetaNueva("");
+                      }
+                    }}
+                    disabled={!inputEtiquetaNueva.trim()}
+                    className="px-3 py-2 bg-violet-600 hover:bg-violet-700 disabled:opacity-40 text-white font-bold text-xs rounded-xl flex items-center gap-1 transition cursor-pointer shrink-0"
+                  >
+                    <Plus size={13} /> Agregar
+                  </button>
+                </div>
+                {todasLasEtiquetas.some(cat => !etiquetasNuevas.some(e => e.toLowerCase() === cat.nombre.toLowerCase())) && (
+                  <div className="flex flex-wrap items-center gap-1 pt-1.5">
+                    <span className="text-[10px] text-slate-400 font-semibold">Existentes:</span>
+                    {todasLasEtiquetas
+                      .filter(cat => !etiquetasNuevas.some(e => e.toLowerCase() === cat.nombre.toLowerCase()))
+                      .slice(0, 6)
+                      .map((cat) => (
+                        <button
+                          key={cat.nombre}
+                          type="button"
+                          onClick={() => {
+                            setEtiquetasNuevas(prev => [...prev, cat.nombre]);
+                          }}
+                          className="px-2 py-0.5 text-[10px] font-bold rounded-md bg-slate-100 hover:bg-violet-50 dark:bg-slate-800 dark:hover:bg-violet-950/40 text-slate-600 dark:text-slate-300 hover:text-violet-600 dark:hover:text-violet-300 border border-slate-200/60 dark:border-slate-700 transition cursor-pointer"
+                        >
+                          + {cat.nombre}
+                        </button>
+                    ))}
+                  </div>
+                )}
               </div>
 
               <div className="pt-2 flex items-center gap-3">
@@ -1739,6 +2262,217 @@ Quedamos pendientes para revisar detalles o responder cualquier duda.
       )}
 
       {/* =========================================================================
+          SUB-MODAL: ALERTA DE CÉDULA / DOCUMENTO DUPLICADO AL CREAR (DISEÑO PREMIUM)
+          ========================================================================= */}
+      {clienteDocDuplicadoNuevo && (
+        <div 
+          onClick={() => setClienteDocDuplicadoNuevo(null)}
+          className="fixed inset-0 z-[210] flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-xs animate-in fade-in duration-200"
+        >
+          <div 
+            onClick={(e) => e.stopPropagation()}
+            className="bg-white dark:bg-[#0f172a] rounded-3xl max-w-md w-full p-6 border border-slate-100 dark:border-slate-800 shadow-2xl space-y-5 animate-in zoom-in-95 duration-200"
+          >
+            {/* Cabecera con Icono */}
+            <div className="flex items-start gap-4">
+              <div className="w-12 h-12 rounded-2xl bg-amber-100 dark:bg-amber-950/50 text-amber-600 dark:text-amber-400 flex items-center justify-center shrink-0 shadow-xs border border-amber-200/60 dark:border-amber-800/60">
+                <AlertTriangle size={24} />
+              </div>
+              <div className="flex-1 min-w-0">
+                <span className="inline-block px-2 py-0.5 rounded-md bg-amber-100 dark:bg-amber-950/80 text-amber-800 dark:text-amber-300 text-[10px] font-black uppercase tracking-wider mb-1">
+                  Documento ya registrado
+                </span>
+                <h4 className="text-base font-black text-slate-900 dark:text-white leading-snug">
+                  Esta identificación ya pertenece a otro cliente
+                </h4>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                  Cada cliente debe contar con un número de documento único en tu negocio.
+                </p>
+              </div>
+            </div>
+
+            {/* Tarjeta de Conflicto */}
+            <div className="bg-slate-50 dark:bg-[#020617] rounded-2xl p-4 border border-slate-200/70 dark:border-slate-800/80 space-y-3.5">
+              <div className="flex items-center justify-between pb-3 border-b border-slate-200/60 dark:border-slate-800/60">
+                <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400">
+                  Documento ingresado:
+                </span>
+                <span className="px-2.5 py-1 rounded-lg bg-amber-500/10 text-amber-700 dark:text-amber-300 font-black text-xs tracking-wider border border-amber-500/20">
+                  {tipoDocumentoNuevo} {numeroDocumentoNuevo.trim()}
+                </span>
+              </div>
+
+              <div className="space-y-1.5">
+                <span className="text-[10px] uppercase font-bold text-slate-400 block tracking-wider">
+                  Asignado actualmente a:
+                </span>
+
+                <div className="p-3 rounded-xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 flex items-center justify-between gap-3 shadow-xs">
+                  <div className="min-w-0 flex-1">
+                    <p className="font-black text-xs text-slate-900 dark:text-white truncate">
+                      {clienteDocDuplicadoNuevo.nombre}
+                    </p>
+                    {clienteDocDuplicadoNuevo.apodo && (
+                      <p className="text-[11px] font-bold text-amber-600 dark:text-amber-400 truncate">
+                        Alias: &ldquo;{clienteDocDuplicadoNuevo.apodo}&rdquo;
+                      </p>
+                    )}
+                    {clienteDocDuplicadoNuevo.celular && (
+                      <p className="text-[10px] text-slate-400 truncate mt-0.5">
+                        📱 {clienteDocDuplicadoNuevo.celular}
+                      </p>
+                    )}
+                  </div>
+                  {(clienteDocDuplicadoNuevo.deudaTotal || 0) > 0 && (
+                    <div className="text-right shrink-0">
+                      <span className="text-[9px] uppercase font-bold text-rose-500 block">Deuda actual</span>
+                      <span className="font-black text-xs text-rose-600 dark:text-rose-400">
+                        ${(clienteDocDuplicadoNuevo.deudaTotal || 0).toLocaleString('es-CO')}
+                      </span>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div className="pt-2 border-t border-slate-200/60 dark:border-slate-800/60 text-[11px] text-slate-500 dark:text-slate-400 flex items-center justify-between">
+                <span>Cliente que intentas crear:</span>
+                <span className="font-bold text-slate-800 dark:text-slate-200 truncate max-w-[180px]">
+                  {nombreNuevo || "(Nuevo)"}
+                </span>
+              </div>
+            </div>
+
+            <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-relaxed text-center">
+              Revisa si hubo una equivocación al escribir el documento, o busca en tu lista a <strong className="text-slate-700 dark:text-slate-300">&ldquo;{clienteDocDuplicadoNuevo.nombre}&rdquo;</strong> si se trata del mismo usuario.
+            </p>
+
+            <button
+              type="button"
+              onClick={() => setClienteDocDuplicadoNuevo(null)}
+              className="w-full py-3.5 rounded-2xl bg-amber-600 hover:bg-amber-700 text-white text-xs font-black shadow-lg shadow-amber-600/20 transition cursor-pointer flex items-center justify-center gap-2"
+            >
+              <span>Entendido, Corregir Documento</span>
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* =========================================================================
+          SUB-MODAL: ALERTA DE CELULAR DUPLICADO AL CREAR (DISEÑO PREMIUM CON OPCIÓN CONTINUAR)
+          ========================================================================= */}
+      {clienteCelDuplicadoNuevo && (
+        <div 
+          onClick={() => setClienteCelDuplicadoNuevo(null)}
+          className="fixed inset-0 z-[210] flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-xs animate-in fade-in duration-200"
+        >
+          <div 
+            onClick={(e) => e.stopPropagation()}
+            className="bg-white dark:bg-[#0f172a] rounded-3xl max-w-md w-full p-6 border border-slate-100 dark:border-slate-800 shadow-2xl space-y-5 animate-in zoom-in-95 duration-200"
+          >
+            {/* Cabecera con Icono de Celular */}
+            <div className="flex items-start gap-4">
+              <div className="w-12 h-12 rounded-2xl bg-blue-100 dark:bg-blue-950/50 text-blue-600 dark:text-blue-400 flex items-center justify-center shrink-0 shadow-xs border border-blue-200/60 dark:border-blue-800/60">
+                <Phone size={24} />
+              </div>
+              <div className="flex-1 min-w-0">
+                <span className="inline-block px-2 py-0.5 rounded-md bg-blue-100 dark:bg-blue-950/80 text-blue-800 dark:text-blue-300 text-[10px] font-black uppercase tracking-wider mb-1">
+                  Celular compartido
+                </span>
+                <h4 className="text-base font-black text-slate-900 dark:text-white leading-snug">
+                  Este número de celular ya está registrado
+                </h4>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                  Puedes continuar si es una línea compartida o corregirlo si fue un error.
+                </p>
+              </div>
+            </div>
+
+            {/* Tarjeta de Comparación */}
+            <div className="bg-slate-50 dark:bg-[#020617] rounded-2xl p-4 border border-slate-200/70 dark:border-slate-800/80 space-y-3.5">
+              
+              {/* Celular ingresado */}
+              <div className="flex items-center justify-between pb-3 border-b border-slate-200/60 dark:border-slate-800/60">
+                <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400">
+                  Celular ingresado:
+                </span>
+                <span className="px-2.5 py-1 rounded-lg bg-blue-500/10 text-blue-700 dark:text-blue-300 font-black text-xs tracking-wider border border-blue-500/20">
+                  📱 {celularNuevo.trim()}
+                </span>
+              </div>
+
+              {/* Ficha del cliente que ya tiene este celular */}
+              <div className="space-y-1.5">
+                <span className="text-[10px] uppercase font-bold text-slate-400 block tracking-wider">
+                  Asociado actualmente a:
+                </span>
+
+                <div className="p-3 rounded-xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 flex items-center justify-between gap-3 shadow-xs">
+                  <div className="min-w-0 flex-1">
+                    <p className="font-black text-xs text-slate-900 dark:text-white truncate">
+                      {clienteCelDuplicadoNuevo.nombre}
+                    </p>
+                    {clienteCelDuplicadoNuevo.apodo && (
+                      <p className="text-[11px] font-bold text-amber-600 dark:text-amber-400 truncate">
+                        Alias: &ldquo;{clienteCelDuplicadoNuevo.apodo}&rdquo;
+                      </p>
+                    )}
+                    {clienteCelDuplicadoNuevo.numeroDocumento && (
+                      <p className="text-[10px] text-slate-400 truncate mt-0.5">
+                        Doc: {clienteCelDuplicadoNuevo.tipoDocumento || 'CC'} {clienteCelDuplicadoNuevo.numeroDocumento}
+                      </p>
+                    )}
+                  </div>
+                  {((clienteCelDuplicadoNuevo.deudaTotal || 0) > 0) && (
+                    <div className="text-right shrink-0">
+                      <span className="text-[9px] uppercase font-bold text-rose-500 block">Deuda actual</span>
+                      <span className="font-black text-xs text-rose-600 dark:text-rose-400">
+                        ${(clienteCelDuplicadoNuevo.deudaTotal || 0).toLocaleString('es-CO')}
+                      </span>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Cliente que estás creando */}
+              <div className="pt-2 border-t border-slate-200/60 dark:border-slate-800/60 text-[11px] text-slate-500 dark:text-slate-400 flex items-center justify-between">
+                <span>Cliente que intentas crear:</span>
+                <span className="font-bold text-slate-800 dark:text-slate-200 truncate max-w-[180px]">
+                  {nombreNuevo || "(Nuevo)"}
+                </span>
+              </div>
+
+            </div>
+
+            {/* Mensaje de orientación */}
+            <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-relaxed text-center">
+              Si ambos clientes son familiares o comparten el mismo teléfono, puedes continuar. Si fue una equivocación, puedes corregirlo ahora.
+            </p>
+
+            {/* Botones de acción: Corregir vs Continuar */}
+            <div className="grid grid-cols-2 gap-2.5 pt-1">
+              <button
+                type="button"
+                onClick={() => setClienteCelDuplicadoNuevo(null)}
+                className="py-3 px-3 rounded-xl border border-slate-200 dark:border-slate-700 text-xs font-bold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition cursor-pointer text-center"
+              >
+                Corregir Celular
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setClienteCelDuplicadoNuevo(null);
+                  ejecutarCreacionCliente();
+                }}
+                className="py-3 px-3 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-black shadow-md shadow-blue-600/20 transition cursor-pointer text-center"
+              >
+                Continuar de todos modos
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* =========================================================================
           MODAL: EDITAR / ELIMINAR CLIENTE (INTEGRADO)
           ========================================================================= */}
       {modalGestion.isOpen && modalGestion.cliente && (
@@ -1746,6 +2480,7 @@ Quedamos pendientes para revisar detalles o responder cualquier duda.
           isOpen={modalGestion.isOpen}
           modo={modalGestion.modo}
           cliente={modalGestion.cliente}
+          clientesExistentes={clientes}
           onClose={() => setModalGestion({ isOpen: false, modo: 'editar', cliente: null })}
           onSuccess={(clienteActualizado, fueEliminado) => {
             setModalGestion({ isOpen: false, modo: 'editar', cliente: null });
@@ -1793,6 +2528,206 @@ Quedamos pendientes para revisar detalles o responder cualquier duda.
             setMovimientos(prev => prev.map(m => m.id === id ? { ...m, facturaElectronica: fe } : m));
           }
         }}
+      />
+
+      {/* =========================================================================
+          MODAL: GESTIONAR CATEGORÍAS / ETIQUETAS PERSONALIZADAS
+          ========================================================================= */}
+      {modalCategoriasAbierto && (
+        <div 
+          onClick={(e) => { if (e.target === e.currentTarget) setModalCategoriasAbierto(false); }}
+          className="fixed inset-0 z-[160] flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-xs animate-in fade-in duration-200"
+        >
+          <div className="bg-white dark:bg-[#0f172a] rounded-3xl max-w-lg w-full p-6 border border-slate-100 dark:border-slate-800 shadow-2xl space-y-4 max-h-[90vh] flex flex-col">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800 shrink-0">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-violet-100 dark:bg-violet-500/20 text-violet-600 dark:text-violet-400 flex items-center justify-center font-black">
+                  <Tag size={18} />
+                </div>
+                <div>
+                  <h3 className="text-base font-black text-slate-900 dark:text-white">
+                    Categorías de Clientes
+                  </h3>
+                  <p className="text-xs text-slate-400">Crea filtros personalizados y clasifica a tus clientes</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setModalCategoriasAbierto(false)}
+                className="p-2 text-slate-400 hover:text-slate-600 dark:hover:text-white rounded-xl cursor-pointer"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="space-y-4 overflow-y-auto flex-1 pr-1">
+              {/* Sección 1: Crear y asignar nueva categoría */}
+              <div className="p-4 bg-violet-50/50 dark:bg-violet-950/20 border border-violet-100 dark:border-violet-900/50 rounded-2xl space-y-3">
+                <span className="text-[11px] font-black uppercase tracking-wider text-violet-700 dark:text-violet-300 block">
+                  1. Crear nueva categoría
+                </span>
+                <input
+                  type="text"
+                  value={nuevaCatNombre}
+                  onChange={(e) => setNuevaCatNombre(e.target.value)}
+                  placeholder="Nombre de categoría (ej: Mayoristas, Familia, Vecinos...)"
+                  maxLength={25}
+                  className="w-full bg-white dark:bg-[#020617] border border-violet-200 dark:border-violet-800 rounded-xl px-3.5 py-2.5 text-xs font-semibold text-slate-800 dark:text-white focus:ring-2 focus:ring-violet-500 focus:outline-hidden"
+                />
+
+                <div>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <span className="text-[11px] font-bold text-slate-600 dark:text-slate-300">
+                      Selecciona los clientes ({clientesAsignarCat.length} seleccionados):
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (clientesAsignarCat.length === clientes.length) {
+                          setClientesAsignarCat([]);
+                        } else {
+                          setClientesAsignarCat(clientes.map(c => c.id));
+                        }
+                      }}
+                      className="text-[10px] font-bold text-violet-600 dark:text-violet-400 hover:underline cursor-pointer"
+                    >
+                      {clientesAsignarCat.length === clientes.length ? "Deseleccionar todos" : "Seleccionar todos"}
+                    </button>
+                  </div>
+                  
+                  <div className="max-h-40 overflow-y-auto bg-white dark:bg-[#020617] border border-slate-200 dark:border-slate-800 rounded-xl p-2 space-y-1 divide-y divide-slate-100 dark:divide-slate-800/60">
+                    {clientes.map((c) => {
+                      const seleccionado = clientesAsignarCat.includes(c.id);
+                      return (
+                        <label
+                          key={c.id}
+                          className="flex items-center justify-between p-1.5 hover:bg-slate-50 dark:hover:bg-slate-900 rounded-lg cursor-pointer text-xs"
+                        >
+                          <div className="flex items-center gap-2 min-w-0">
+                            <input
+                              type="checkbox"
+                              checked={seleccionado}
+                              onChange={(e) => {
+                                if (e.target.checked) {
+                                  setClientesAsignarCat(prev => [...prev, c.id]);
+                                } else {
+                                  setClientesAsignarCat(prev => prev.filter(id => id !== c.id));
+                                }
+                              }}
+                              className="rounded border-slate-300 text-violet-600 focus:ring-violet-500 w-4 h-4 cursor-pointer"
+                            />
+                            <span className="font-bold text-slate-800 dark:text-white truncate">
+                              {c.nombre}
+                            </span>
+                          </div>
+                          {c.celular && (
+                            <span className="text-[10px] text-slate-400 shrink-0">
+                              {c.celular}
+                            </span>
+                          )}
+                        </label>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={handleGuardarCategoriaMasiva}
+                  disabled={guardandoCategorias || !nuevaCatNombre.trim() || clientesAsignarCat.length === 0}
+                  className="w-full py-2.5 bg-violet-600 hover:bg-violet-700 disabled:opacity-40 text-white font-black text-xs rounded-xl shadow-xs transition flex items-center justify-center gap-1.5 cursor-pointer"
+                >
+                  {guardandoCategorias ? "Guardando..." : <>Crear y Asignar Categoría <Check size={14} /></>}
+                </button>
+              </div>
+
+              {/* Sección 2: Categorías actuales */}
+              <div className="space-y-2 pt-2">
+                <span className="text-[11px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400 block">
+                  2. Categorías existentes en uso
+                </span>
+
+                {todasLasEtiquetas.length === 0 ? (
+                  <p className="text-xs text-slate-400 italic py-2 text-center">
+                    Aún no has creado ninguna categoría personalizada.
+                  </p>
+                ) : (
+                  <div className="space-y-1.5">
+                    {todasLasEtiquetas.map((cat) => (
+                      <div
+                        key={cat.nombre}
+                        className="flex items-center justify-between p-2.5 bg-slate-50 dark:bg-[#020617] border border-slate-200 dark:border-slate-800 rounded-xl"
+                      >
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs font-bold text-slate-800 dark:text-white">
+                            🏷️ {cat.nombre}
+                          </span>
+                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-violet-100 text-violet-700 dark:bg-violet-950/60 dark:text-violet-300">
+                            {cat.count} cliente(s)
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setEtiquetaFiltro(cat.nombre);
+                              setModalCategoriasAbierto(false);
+                            }}
+                            className="px-2 py-1 text-[11px] font-bold text-violet-600 hover:bg-violet-50 dark:hover:bg-violet-950/40 rounded-lg transition cursor-pointer"
+                          >
+                            Filtrar
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleEliminarCategoriaGlobal(cat.nombre)}
+                            disabled={guardandoCategorias}
+                            className="p-1 text-slate-400 hover:text-rose-600 rounded-lg transition cursor-pointer"
+                            title="Desvincular categoría de todos los clientes"
+                          >
+                            <Trash2 size={13} />
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="pt-2 border-t border-slate-100 dark:border-slate-800 shrink-0">
+              <button
+                type="button"
+                onClick={() => setModalCategoriasAbierto(false)}
+                className="w-full py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 text-xs font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition cursor-pointer"
+              >
+                Cerrar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* =========================================================================
+          MODALES: EXPORTAR E IMPORTAR CLIENTES
+          ========================================================================= */}
+      <ModalExportarClientes
+        isOpen={modalExportarAbierto}
+        onClose={() => setModalExportarAbierto(false)}
+        todosLosClientes={clientesConAnalisis as any}
+        clientesFiltrados={clientesFiltrados as any}
+        filtroActivoNombre={filtroActivoNombre}
+        nombreNegocio={nombreNegocio}
+      />
+
+      <ModalImportarClientes
+        isOpen={modalImportarAbierto}
+        onClose={() => setModalImportarAbierto(false)}
+        cuentaPrincipalId={cuentaPrincipalId}
+        clientesExistentes={clientes}
+        categoriasExistentes={todasLasEtiquetas.map(e => e.nombre)}
+        esPlanGratis={datosSesion?.esGratis ?? (datosSesion?.planActual === 'gratis' || datosSesion?.planActual === 'basico')}
+        limitePlan={datosSesion?.limiteClientes ?? 15}
+        onSuccess={() => {}}
       />
     </div>
   );

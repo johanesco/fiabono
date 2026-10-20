@@ -47,7 +47,7 @@ export async function POST(request: Request) {
         if (!snap.exists || snap.data()?.usuarioId !== cuentaPrincipalId) throw new Error('PRODUCTO_NO_AUTORIZADO');
         const productoActual = snap.data() as any;
         const stockActual = Number(productoActual.stock || 0);
-        if (!Number.isFinite(stockActual) || stockActual < 0) throw new Error('STOCK_INVALIDO');
+        if (!Number.isFinite(stockActual)) throw new Error('STOCK_INVALIDO');
         const cantidad = Math.round(Number(producto.stock));
         if (!Number.isInteger(cantidad) || cantidad < 0) throw new Error('CANTIDAD_INVALIDA');
         const cantidadAplicada = productoActual.inventariable === false || productoActual.tipoProducto === 'servicio' ? 0 : cantidad;

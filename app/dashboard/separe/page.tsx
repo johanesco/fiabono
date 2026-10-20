@@ -818,7 +818,7 @@ function SepareContenido() {
       );
       const esInventariable = productoEnInventario && productoEnInventario.tipoProducto !== 'servicio' && productoEnInventario.inventariable !== false;
       
-      if (esInventariable) {
+      if (esInventariable && delta > 0) {
         const cantidadEnOtrasFilas = filas.reduce((acc, f, i) => {
           const fDesc = f.descripcion.toLowerCase().trim();
           if (i !== index && (
@@ -833,13 +833,7 @@ function SepareContenido() {
         const stockTotalPermitido = (productoEnInventario.stock || 0) - cantidadEnOtrasFilas;
 
         if (nuevaCant > stockTotalPermitido) {
-          const totalYaEnLista = cantidadEnOtrasFilas + filaActual.cantidad;
-          if (totalYaEnLista >= (productoEnInventario.stock || 0)) {
-            toast.error(`⚠️ Ya tienes todas las unidades disponibles de "${productoEnInventario.nombre}" en tu lista (${productoEnInventario.stock || 0} en total).`, { position: 'bottom-center', icon: '🚫' });
-          } else {
-            toast.error(`⚠️ Solo puedes agregar ${Math.max(0, stockTotalPermitido - filaActual.cantidad)} unidad(es) más de "${productoEnInventario.nombre}".`, { position: 'bottom-center', icon: '🚫' });
-          }
-          return;
+          toast(`⚠️ "${productoEnInventario.nombre}" supera el stock del sistema (${productoEnInventario.stock || 0}) — Se separará en déficit.`, { position: 'bottom-center' });
         }
       }
     }
@@ -862,8 +856,7 @@ function SepareContenido() {
       const stockDisp = (prod.stock || 0) - cantidadEnOtrasFilas;
 
       if (stockDisp <= 0) {
-        toast.error(`¡Sin stock disponible! Ya has seleccionado todo el stock (${prod.stock || 0}) de "${prod.nombre}".`);
-        return;
+        toast(`⚠️ "${prod.nombre}" sin stock en sistema — Añadido en déficit temporal.`, { duration: 2500, position: 'bottom-center' });
       }
     }
 
@@ -874,8 +867,9 @@ function SepareContenido() {
         ...copia[index],
         descripcion: prod.nombre,
         valor: precio.toString(),
-        fotoUrl: prod.imagenUrl || prod.fotoUrl || copia[index].fotoUrl || null,
-        esDeInventario: true
+        fotoUrl: prod.imagen || prod.imagenUrl || prod.foto || prod.fotoUrl || copia[index].fotoUrl || null,
+        esDeInventario: true,
+        idProducto: prod.id || null
       };
       return copia;
     });
@@ -896,8 +890,7 @@ function SepareContenido() {
     }, 0);
 
     if (esInventariable && (cantidadEnCarrito + 1) > (producto.stock || 0)) {
-      toast.error(`⚠️ Agotado. Solo tienes ${producto.stock || 0} de "${producto.nombre}".`, { duration: 2000, position: 'bottom-center', icon: '🚫' });
-      return;
+      toast(`⚠️ "${producto.nombre}" sin stock en sistema — Añadido en déficit temporal.`, { duration: 2500, position: 'bottom-center' });
     }
 
     setFilas(prev => {
@@ -909,13 +902,14 @@ function SepareContenido() {
         return nuevas;
       }
 
+      const fotoProd = producto.imagen || producto.imagenUrl || producto.foto || producto.fotoUrl || null;
       const indexVacia = nuevas.findIndex(f => f.descripcion.trim() === '' && (f.valor.trim() === '' || f.valor === '0'));
       if (indexVacia >= 0) {
-        nuevas[indexVacia] = { ...nuevas[indexVacia], descripcion: producto.nombre, valor: (producto.precioVenta || producto.precio || 0).toString(), cantidad: 1, esDeInventario: true, fotoUrl: producto.imagenUrl || producto.fotoUrl || null, idProducto: producto.id || null };
+        nuevas[indexVacia] = { ...nuevas[indexVacia], descripcion: producto.nombre, valor: (producto.precioVenta || producto.precio || 0).toString(), cantidad: 1, esDeInventario: true, fotoUrl: fotoProd, idProducto: producto.id || null };
         return nuevas;
       }
 
-      nuevas.push({ id: Date.now().toString(), descripcion: producto.nombre, valor: (producto.precioVenta || producto.precio || 0).toString(), cantidad: 1, fotoUrl: producto.imagenUrl || producto.fotoUrl || null, esDeInventario: true, idProducto: producto.id || null });
+      nuevas.push({ id: Date.now().toString(), descripcion: producto.nombre, valor: (producto.precioVenta || producto.precio || 0).toString(), cantidad: 1, fotoUrl: fotoProd, esDeInventario: true, idProducto: producto.id || null });
       return nuevas;
     });
   };
@@ -935,8 +929,7 @@ function SepareContenido() {
 
       const stockTotalPermitido = (prodInv.stock || 0) - cantidadEnOtrasFilas;
       if (esInventariable && (fila.cantidad + delta) > stockTotalPermitido) {
-         toast.error(`⚠️ Agotado. Solo tienes ${prodInv.stock || 0} de "${prodInv.nombre}".`, { duration: 2000, position: 'bottom-center', icon: '🚫' });
-         return;
+         toast(`⚠️ "${prodInv.nombre}" supera el stock del sistema (${prodInv.stock || 0}) — Se separará en déficit.`, { duration: 2500, position: 'bottom-center' });
       }
     }
 
@@ -1026,10 +1019,6 @@ function SepareContenido() {
               <div 
                 key={prod.id} 
                 onClick={() => {
-                  if (estaAgotado) {
-                    toast.error(`"${prod.nombre}" no tiene existencias disponibles.`, { duration: 2000, position: 'bottom-center' });
-                    return;
-                  }
                   agregarProductoVisual(prod);
                 }}
                 className={`flex flex-col bg-white dark:bg-[#0f172a] rounded-2xl border ${cantidadCarrito > 0 ? 'border-violet-500 ring-2 ring-violet-500/25 shadow-sm' : 'border-slate-200 dark:border-slate-800'} p-2 transition-all shadow-xs hover:shadow-md cursor-pointer select-none group justify-between gap-1`}
@@ -1041,6 +1030,21 @@ function SepareContenido() {
                     <div className="absolute top-1.5 left-1.5 bg-violet-600 text-white min-w-5 h-5 px-1.5 rounded-full flex items-center justify-center text-[10px] font-black z-10 shadow-md">
                       {cantidadCarrito}
                     </div>
+                  )}
+
+                  {/* Botón flotante para tomar/ver foto real del producto separado */}
+                  {cantidadCarrito > 0 && indexCarrito >= 0 && (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        abrirCamaraEnVivo(indexCarrito);
+                      }}
+                      className="absolute top-1.5 right-1.5 bg-black/70 hover:bg-violet-600 text-white p-1.5 rounded-full z-10 transition-colors shadow-md cursor-pointer active:scale-95"
+                      title="Tomar o adjuntar foto real a este artículo"
+                    >
+                      <Camera size={12} />
+                    </button>
                   )}
 
                   {(prod.imagen || prod.imagenUrl || prod.fotoUrl) ? (
@@ -1075,10 +1079,16 @@ function SepareContenido() {
                   <div>
                     {!esInv ? (
                       <span className="text-[9px] font-bold text-indigo-600 dark:text-indigo-400">Servicio</span>
-                    ) : estaAgotado ? (
-                      <span className="text-[9px] font-bold text-rose-500">Agotado</span>
+                    ) : stockDisp < 0 ? (
+                      <span className="text-[9px] font-bold text-orange-600 dark:text-orange-400">Déficit ({stockDisp})</span>
+                    ) : stockDisp === 0 ? (
+                      <span className="text-[9px] font-bold text-slate-500 dark:text-slate-400">0 en sistema</span>
+                    ) : stockDisp <= 5 ? (
+                      <span className="text-[9px] font-bold text-amber-600 dark:text-amber-400">
+                        {stockDisp} en stock
+                      </span>
                     ) : (
-                      <span className={`text-[9px] font-bold ${stockDisp <= 5 ? 'text-amber-500' : 'text-slate-400'}`}>
+                      <span className="text-[9px] font-bold text-emerald-600 dark:text-emerald-400">
                         {stockDisp} en stock
                       </span>
                     )}
@@ -1187,6 +1197,30 @@ function SepareContenido() {
                   <span className="text-[10px] font-bold text-slate-700 dark:text-slate-200 leading-tight flex-1 truncate" title={fila.descripcion}>
                     {fila.descripcion}
                   </span>
+
+                  {/* Foto en Modo Visual Cart */}
+                  <div className="shrink-0 flex items-center">
+                    {fila.fotoUrl ? (
+                      <div className="relative group w-6 h-6 rounded-lg overflow-hidden border border-violet-400 dark:border-violet-600 shrink-0">
+                        <img
+                          src={fila.fotoUrl}
+                          alt="Foto"
+                          onClick={() => setFotoLightbox(fila.fotoUrl!)}
+                          className="w-full h-full object-cover cursor-pointer hover:scale-110 transition-transform"
+                          title="Ver foto ampliada"
+                        />
+                      </div>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => abrirCamaraEnVivo(index)}
+                        className="w-6 h-6 rounded-lg bg-violet-100 dark:bg-violet-950/60 text-violet-600 dark:text-violet-300 hover:bg-violet-200 flex items-center justify-center transition-all cursor-pointer"
+                        title="Tomar foto a este producto"
+                      >
+                        <Camera size={11} />
+                      </button>
+                    )}
+                  </div>
 
                   <div className="flex items-center gap-0.5 shrink-0">
                     <span className="text-[9px] text-slate-400 font-bold">$</span>
@@ -1592,12 +1626,6 @@ function SepareContenido() {
       const esInventariable = prod.tipoProducto !== 'servicio' && prod.inventariable !== false;
       const totalEnCarrito = filas.filter(f => f.descripcion.toLowerCase() === prod.nombre.toLowerCase()).reduce((acc, f) => acc + f.cantidad, 0);
 
-      if (esInventariable && totalEnCarrito >= (prod.stock || 0)) {
-        reproducirSonidoNoEncontrado();
-        setMensajeScaneo({ texto: `⚠️ Sin stock disponible (${prod.stock || 0} máx) de "${prod.nombre}"`, tipo: 'error' });
-        return;
-      }
-
       reproducirSonidoScan();
       setFlashExito(true);
 
@@ -1622,8 +1650,9 @@ function SepareContenido() {
           descripcion: prod.nombre,
           valor: String(precioUnit),
           cantidad: 1,
-          fotoUrl: prod.imagenUrl || prod.fotoUrl || null,
-          esDeInventario: true
+          fotoUrl: prod.imagen || prod.imagenUrl || prod.foto || prod.fotoUrl || null,
+          esDeInventario: true,
+          idProducto: prod.id || null
         };
 
         setUltimoProductoEscaneado({
@@ -1641,7 +1670,11 @@ function SepareContenido() {
         }
       });
 
-      setMensajeScaneo({ texto: `+1 "${prod.nombre}"`, tipo: 'exito' });
+      if (esInventariable && totalEnCarrito >= (prod.stock || 0)) {
+        setMensajeScaneo({ texto: `⚠️ +1 "${prod.nombre}" (En déficit temporal)`, tipo: 'exito' });
+      } else {
+        setMensajeScaneo({ texto: `+1 "${prod.nombre}"`, tipo: 'exito' });
+      }
       setTimeout(() => setMensajeScaneo(null), 2000);
     } else {
       reproducirSonidoNoEncontrado();
@@ -1774,35 +1807,23 @@ function SepareContenido() {
     }
 
     const itemsGuardar = itemsFiltrados.map(f => {
-      const pInv = inventario.find(p => (p.nombre || "").trim().toLowerCase() === f.descripcion.trim().toLowerCase());
+      const pInv = inventario.find(p => 
+        (f.idProducto && p.id === f.idProducto) ||
+        (p.nombre || "").trim().toLowerCase() === f.descripcion.trim().toLowerCase()
+      );
+      const fotoFinal = f.fotoUrl || pInv?.imagen || pInv?.imagenUrl || pInv?.foto || pInv?.fotoUrl || null;
       return {
         descripcion: f.descripcion.trim(),
-          valor: (parseFloat(f.valor) || 0).toString(),
-          cantidad: f.cantidad,
-          fotoUrl: f.fotoUrl || null,
-          idProducto: f.idProducto || pInv?.id || null
-        };
-      });
+        valor: (parseFloat(f.valor) || 0).toString(),
+        cantidad: f.cantidad,
+        fotoUrl: fotoFinal,
+        idProducto: f.idProducto || pInv?.id || null
+      };
+    });
 
     if (itemsGuardar.length === 0) {
       toast.error("Agrega al menos un artículo con descripción y precio válido");
       return;
-    }
-
-    // Validación rigurosa de stock acumulado para todos los productos
-    for (const item of itemsGuardar) {
-      const pInv = inventario.find(p => p.nombre.toLowerCase() === item.descripcion.toLowerCase());
-      const esInv = pInv && pInv.tipoProducto !== 'servicio' && pInv.inventariable !== false;
-      if (esInv) {
-        const totalRequerido = itemsGuardar
-          .filter(it => it.descripcion.toLowerCase() === item.descripcion.toLowerCase())
-          .reduce((sum, it) => sum + it.cantidad, 0);
-
-        if (totalRequerido > (pInv.stock || 0)) {
-          toast.error(`¡Stock insuficiente! Para "${pInv.nombre}" solicitas ${totalRequerido} pero solo quedan ${pInv.stock || 0} disponibles.`);
-          return;
-        }
-      }
     }
 
     if (abonoInicialNum > totalSepare) {
@@ -2411,21 +2432,17 @@ Estamos atentos para cualquier consulta.
                                 <div
                                   key={p.id}
                                   onClick={() => {
-                                    if (estaAgotado) {
-                                      toast.error(`⚠️ "${p.nombre}" no tiene existencias disponibles.`, { duration: 2000, position: 'bottom-center', icon: '🚫' });
-                                      return;
-                                    }
                                     seleccionarProductoInventario(index, p);
                                   }}
-                                  className={`p-3 transition-all flex justify-between items-center text-xs sm:text-sm ${
+                                  className={`p-3 transition-all flex justify-between items-center text-xs sm:text-sm cursor-pointer active:scale-[0.99] ${
                                     estaAgotado 
-                                      ? 'bg-rose-50/50 dark:bg-rose-950/20 opacity-60 cursor-not-allowed hover:bg-rose-100/60 border-l-4 border-rose-500' 
-                                      : 'hover:bg-violet-50/80 dark:hover:bg-slate-800/80 cursor-pointer active:scale-[0.99]'
+                                      ? 'bg-amber-50/40 dark:bg-amber-950/20 hover:bg-amber-100/50 dark:hover:bg-amber-950/40 border-l-4 border-amber-500' 
+                                      : 'hover:bg-violet-50/80 dark:hover:bg-slate-800/80'
                                   }`}
                                 >
                                   <div className="min-w-0 pr-3">
                                     <div className="flex items-center gap-2">
-                                      <span className={`font-bold block truncate ${estaAgotado ? 'text-slate-500 line-through' : 'text-slate-800 dark:text-slate-100'}`}>
+                                      <span className="font-bold block truncate text-slate-800 dark:text-slate-100">
                                         {p.nombre}
                                       </span>
                                       {p.sku && (
@@ -2440,9 +2457,13 @@ Estamos atentos para cualquier consulta.
                                         <span className="text-[10px] font-bold text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-500/20 px-2 py-0.5 rounded-full inline-flex items-center gap-1">
                                           Servicio / Ilimitado
                                         </span>
-                                      ) : estaAgotado ? (
-                                        <span className="text-[10px] font-bold text-rose-700 dark:text-rose-400 bg-rose-100 dark:bg-rose-500/20 px-2.5 py-0.5 rounded-full inline-flex items-center gap-1">
-                                          Agotado ({cantEnOtras > 0 ? `${cantEnOtras} en tu lista` : '0 disponibles'})
+                                      ) : stockDisp < 0 ? (
+                                        <span className="text-[10px] font-bold text-orange-800 dark:text-orange-300 bg-orange-100 dark:bg-orange-500/20 px-2.5 py-0.5 rounded-full inline-flex items-center gap-1">
+                                          ⚡ Déficit ({stockDisp})
+                                        </span>
+                                      ) : stockDisp === 0 ? (
+                                        <span className="text-[10px] font-bold text-slate-700 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 px-2.5 py-0.5 rounded-full inline-flex items-center gap-1">
+                                          📦 0 en sistema (Separar en déficit)
                                         </span>
                                       ) : stockDisp <= 5 ? (
                                         <span className="text-[10px] font-bold text-amber-700 dark:text-amber-300 bg-amber-100 dark:bg-amber-500/20 px-2.5 py-0.5 rounded-full inline-flex items-center gap-1">
@@ -2457,7 +2478,7 @@ Estamos atentos para cualquier consulta.
                                     </div>
                                   </div>
 
-                                  <span className={`font-black shrink-0 ${estaAgotado ? 'text-slate-400' : 'text-violet-600 dark:text-violet-400'}`}>
+                                  <span className="font-black shrink-0 text-violet-600 dark:text-violet-400">
                                     ${precioP.toLocaleString('es-CO')}
                                   </span>
                                 </div>
@@ -2520,14 +2541,17 @@ Estamos atentos para cualquier consulta.
                         {/* Botón de Cámara y Miniatura con Lightbox */}
                         <div className="shrink-0 flex items-end">
                           {fila.fotoUrl ? (
-                            <div className="relative group w-[38px] sm:w-[40px] md:w-[42px] h-[38px] sm:h-[40px] md:h-[42px] rounded-xl overflow-hidden border border-violet-300 dark:border-violet-700 shadow-xs shrink-0 bg-slate-900">
+                            <div className="relative group w-[42px] sm:w-[44px] md:w-[48px] h-[38px] sm:h-[40px] md:h-[42px] rounded-xl overflow-hidden border-2 border-violet-500 shadow-xs shrink-0 bg-slate-900">
                               <img
                                 src={fila.fotoUrl}
                                 alt="Foto"
                                 onClick={() => setFotoLightbox(fila.fotoUrl!)}
                                 className="w-full h-full object-cover cursor-pointer hover:scale-110 transition-transform"
-                                title="Clic para ampliar y confirmar foto"
+                                title="Clic para ampliar foto"
                               />
+                              <div className="absolute bottom-0 inset-x-0 bg-violet-900/80 text-[8px] font-black text-white text-center py-0.2 pointer-events-none">
+                                ✓ FOTO
+                              </div>
                               <button
                                 type="button"
                                 onClick={(e) => {
@@ -2544,11 +2568,15 @@ Estamos atentos para cualquier consulta.
                             <button
                               type="button"
                               onClick={() => abrirCamaraEnVivo(index)}
-                              className="h-[38px] sm:h-[40px] md:h-[42px] px-2.5 bg-violet-50 dark:bg-violet-500/10 text-violet-600 dark:text-violet-400 border border-violet-200 dark:border-violet-800 rounded-xl hover:bg-violet-100 dark:hover:bg-violet-500/20 flex items-center gap-1 text-xs font-bold transition-all cursor-pointer shrink-0 active:scale-95"
-                              title="Tomar o adjuntar foto"
+                              className={`h-[38px] sm:h-[40px] md:h-[42px] px-3 rounded-xl border flex items-center gap-1.5 text-xs font-black transition-all cursor-pointer shrink-0 active:scale-95 shadow-xs ${
+                                fila.descripcion.trim()
+                                  ? 'bg-violet-600 hover:bg-violet-700 text-white border-violet-700 ring-2 ring-violet-500/20'
+                                  : 'bg-violet-50 dark:bg-violet-500/10 text-violet-700 dark:text-violet-300 border-violet-300 dark:border-violet-800 hover:bg-violet-100'
+                              }`}
+                              title="Tomar o adjuntar foto de evidencia del producto"
                             >
-                              <Camera size={14} />
-                              <span className="hidden sm:inline">Foto</span>
+                              <Camera size={15} className={fila.descripcion.trim() ? 'animate-pulse' : ''} />
+                              <span>+ Foto</span>
                             </button>
                           )}
                         </div>
@@ -2753,16 +2781,18 @@ Estamos atentos para cualquier consulta.
               </div>
 
               {clienteSeleccionado ? (
-                <div className="py-2 px-3 bg-violet-50 dark:bg-violet-500/10 rounded-xl border border-violet-200 flex justify-between items-center shadow-sm">
-                  <div className="flex flex-col min-w-0 mr-2">
-                    <span className="font-black text-slate-900 dark:text-violet-300 text-xs sm:text-sm truncate">{clienteSeleccionado.nombre}</span>
-                    <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400">
+                <div className="py-2.5 px-3 bg-violet-50 dark:bg-violet-500/10 rounded-xl border border-violet-200 flex justify-between items-center shadow-sm">
+                  <div className="flex flex-col min-w-0 mr-2 flex-1">
+                    <span className="font-black text-slate-900 dark:text-violet-300 text-xs sm:text-sm break-words leading-tight">
+                      {clienteSeleccionado.nombre}
+                    </span>
+                    <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 mt-0.5">
                       {clienteSeleccionado.celular ? `WhatsApp: ${clienteSeleccionado.celular}` : "Sin celular"}
                     </span>
                   </div>
                   <button
                     onClick={() => { setClienteSeleccionado(null); setBusquedaCliente(""); }}
-                    className="text-rose-500 shrink-0 hover:bg-rose-100 p-1 rounded-full cursor-pointer"
+                    className="text-rose-500 shrink-0 hover:bg-rose-100 p-1.5 rounded-full cursor-pointer transition-colors"
                     title="Cambiar cliente"
                   >
                     <X size={15} />
@@ -2840,6 +2870,7 @@ Estamos atentos para cualquier consulta.
                 </label>
                 <div className="flex items-center gap-1">
                   {[
+                    { label: '15d', dias: 15 },
                     { label: '1m', meses: 1 },
                     { label: '3m', meses: 3 },
                     { label: '6m', meses: 6 }
@@ -2849,10 +2880,14 @@ Estamos atentos para cualquier consulta.
                       type="button"
                       onClick={() => {
                         const d = new Date();
-                        d.setMonth(d.getMonth() + btn.meses);
+                        if (btn.dias) {
+                          d.setDate(d.getDate() + btn.dias);
+                        } else if (btn.meses) {
+                          d.setMonth(d.getMonth() + btn.meses);
+                        }
                         setFechaLimite(d.toISOString().split('T')[0]);
                       }}
-                      className="px-2 py-0.5 rounded-lg bg-violet-50 dark:bg-violet-950/40 hover:bg-violet-100 text-violet-700 dark:text-violet-300 font-bold text-[10px] transition-colors border border-violet-200/60 dark:border-violet-800/40"
+                      className="px-2 py-0.5 rounded-lg bg-violet-50 dark:bg-violet-950/40 hover:bg-violet-100 text-violet-700 dark:text-violet-300 font-bold text-[10px] transition-colors border border-violet-200/60 dark:border-violet-800/40 cursor-pointer"
                     >
                       {btn.label}
                     </button>
@@ -2867,20 +2902,51 @@ Estamos atentos para cualquier consulta.
                 className="w-full px-2.5 py-1.5 bg-slate-50 dark:bg-[#020617] border border-slate-200 dark:border-slate-700 rounded-xl font-bold text-xs text-slate-900 dark:text-white outline-none focus:border-violet-500"
               />
 
-              <input
-                type="text"
-                value={notas}
-                onChange={(e) => setNotas(e.target.value)}
-                placeholder="Nota / Ubicación (Opcional)..."
-                className="w-full px-2.5 py-1.5 bg-slate-50 dark:bg-[#020617] border border-slate-200 dark:border-slate-700 rounded-xl font-medium text-xs text-slate-900 dark:text-white outline-none focus:border-violet-500"
-              />
+              <div className="pt-0.5">
+                <input
+                  type="text"
+                  value={notas}
+                  onChange={(e) => setNotas(e.target.value)}
+                  placeholder="📦 Ubicación en Bodega / Observaciones (Ej: Bolsa #12, Estante B)..."
+                  className="w-full px-2.5 py-1.5 bg-slate-50 dark:bg-[#020617] border border-slate-200 dark:border-slate-700 rounded-xl font-medium text-xs text-slate-900 dark:text-white outline-none focus:border-violet-500 placeholder:text-slate-400"
+                />
+              </div>
             </div>
 
             {/* 3. SECCIÓN ABONO INICIAL */}
             <div className="bg-white dark:bg-[#0f172a] p-3 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm space-y-2">
-              <label className="text-[10px] font-black text-slate-500 uppercase tracking-wider flex items-center gap-1">
-                <Banknote size={13} className="text-violet-600" /> Abono Inicial (Opcional)
-              </label>
+              <div className="flex items-center justify-between">
+                <label className="text-[10px] font-black text-slate-500 uppercase tracking-wider flex items-center gap-1">
+                  <Banknote size={13} className="text-violet-600" /> Abono Inicial (Opcional)
+                </label>
+                {totalSepare > 0 && (
+                  <div className="flex items-center gap-1">
+                    <span className="text-[9px] font-bold text-slate-400">Rápido:</span>
+                    {[20, 30, 50].map((pct) => {
+                      const valCalc = Math.round(totalSepare * (pct / 100));
+                      return (
+                        <button
+                          key={pct}
+                          type="button"
+                          onClick={() => setAbonoInicial(String(valCalc))}
+                          className="px-1.5 py-0.5 text-[9.5px] font-black rounded-md bg-violet-50 hover:bg-violet-100 dark:bg-violet-950/40 text-violet-700 dark:text-violet-300 border border-violet-200/80 dark:border-violet-800 transition-colors cursor-pointer"
+                          title={`Abonar el ${pct}% ($${valCalc.toLocaleString('es-CO')})`}
+                        >
+                          {pct}%
+                        </button>
+                      );
+                    })}
+                    <button
+                      type="button"
+                      onClick={() => setAbonoInicial(String(totalSepare))}
+                      className="px-1.5 py-0.5 text-[9.5px] font-black rounded-md bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 transition-colors cursor-pointer"
+                      title="Pagar el 100% del separe"
+                    >
+                      100%
+                    </button>
+                  </div>
+                )}
+              </div>
 
               {/* Formas de Pago del Abono */}
               <div className="grid grid-cols-4 gap-1">

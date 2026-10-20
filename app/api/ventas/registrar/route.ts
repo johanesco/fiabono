@@ -103,10 +103,7 @@ export async function POST(request: Request) {
         const producto = productoSnap.data() as any;
         if (producto.activo === false) throw new Error('PRODUCTO_ARCHIVADO');
         const stock = Number(producto.stock || 0);
-        if (!Number.isFinite(stock) || stock < 0) throw new Error('STOCK_INVALIDO');
-        if (producto.tipoProducto !== 'servicio' && producto.inventariable !== false && cantidad > stock) {
-          throw new Error(`SIN_STOCK:${producto.nombre || productoId}`);
-        }
+        if (!Number.isFinite(stock)) throw new Error('STOCK_INVALIDO');
         productos.set(productoId, { ref: productoRef, data: producto });
       }
 

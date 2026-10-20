@@ -57,7 +57,7 @@ export async function POST(request: Request) {
 
       if (esAdmin) {
         const stock = inventariable ? Number(body.stock) : 0;
-        if (!Number.isInteger(stock) || stock < 0) throw new Error('STOCK_INVALIDO');
+        if (!Number.isInteger(stock)) throw new Error('STOCK_INVALIDO');
         cambios.stock = stock;
       }
 
@@ -69,7 +69,7 @@ export async function POST(request: Request) {
   } catch (error: any) {
     if (error?.message === 'PRODUCTO_NO_AUTORIZADO') return NextResponse.json({ error: 'Producto no encontrado o no pertenece a tu negocio.' }, { status: 403 });
     if (error?.message === 'PRECIOS_INVALIDOS') return NextResponse.json({ error: 'Los precios deben ser números no negativos.' }, { status: 400 });
-    if (error?.message === 'STOCK_INVALIDO') return NextResponse.json({ error: 'El stock debe ser un entero no negativo.' }, { status: 400 });
+    if (error?.message === 'STOCK_INVALIDO') return NextResponse.json({ error: 'El stock debe ser un número entero válido.' }, { status: 400 });
     console.error('Error actualizando inventario:', error);
     return NextResponse.json({ error: 'No se pudo actualizar el producto.' }, { status: 500 });
   }

@@ -24,13 +24,18 @@ import {
   AlertOctagon,
   Banknote,
   ArrowRight,
-  ShieldCheck
+  ShieldCheck,
+  Tag,
+  Plus,
+  CreditCard,
+  Smile
 } from "lucide-react";
 
 interface ModalGestionClienteProps {
   isOpen: boolean;
   modo: 'editar' | 'eliminar';
   cliente: Cliente | null;
+  clientesExistentes?: Cliente[];
   onClose: () => void;
   onSuccess: (clienteActualizado?: Cliente, fueEliminado?: boolean) => void;
 }
@@ -39,6 +44,7 @@ export default function ModalGestionCliente({
   isOpen,
   modo,
   cliente,
+  clientesExistentes = [],
   onClose,
   onSuccess
 }: ModalGestionClienteProps) {
@@ -46,10 +52,17 @@ export default function ModalGestionCliente({
   const { datosSesion } = useAuth() || {};
   const [pasoEdicion, setPasoEdicion] = useState<'autenticar' | 'formulario'>('formulario');
   const [mostrarConfirmacionGuardar, setMostrarConfirmacionGuardar] = useState(false);
+  const [duplicadoDocModal, setDuplicadoDocModal] = useState<Cliente | null>(null);
+  const [duplicadoCelModal, setDuplicadoCelModal] = useState<Cliente | null>(null);
   const [nombre, setNombre] = useState("");
+  const [apodo, setApodo] = useState("");
+  const [tipoDocumento, setTipoDocumento] = useState<string>("CC");
+  const [numeroDocumento, setNumeroDocumento] = useState("");
   const [celular, setCelular] = useState("");
   const [direccion, setDireccion] = useState("");
   const [notas, setNotas] = useState("");
+  const [etiquetas, setEtiquetas] = useState<string[]>([]);
+  const [nuevaEtiqueta, setNuevaEtiqueta] = useState("");
   const [password, setPassword] = useState("");
   const [textoConfirmacion, setTextoConfirmacion] = useState("");
   const [checkboxResponsabilidad, setCheckboxResponsabilidad] = useState(false);
@@ -64,9 +77,14 @@ export default function ModalGestionCliente({
   useEffect(() => {
     if (cliente && isOpen) {
       setNombre(cliente.nombre || "");
+      setApodo(cliente.apodo || "");
+      setTipoDocumento(cliente.tipoDocumento || "CC");
+      setNumeroDocumento(cliente.numeroDocumento || "");
       setCelular(cliente.celular || "");
       setDireccion(cliente.direccion || "");
       setNotas(cliente.notas || "");
+      setEtiquetas(Array.isArray(cliente.etiquetas) ? [...cliente.etiquetas] : []);
+      setNuevaEtiqueta("");
       setPassword("");
       setTextoConfirmacion("");
       setCheckboxResponsabilidad(false);
@@ -85,6 +103,26 @@ export default function ModalGestionCliente({
   const deuda = cliente.deudaTotal || 0;
   const tieneDeuda = deuda > 0;
 
+  const handleAgregarEtiqueta = (tagTexto?: string) => {
+    const tag = (tagTexto ?? nuevaEtiqueta).trim();
+    if (!tag) return;
+    if (tag.length > 25) {
+      toast.error("La categoría no debe superar 25 caracteres.");
+      return;
+    }
+    const existe = etiquetas.some(e => e.toLowerCase() === tag.toLowerCase());
+    if (existe) {
+      toast.error(`La categoría "${tag}" ya está asignada.`);
+      return;
+    }
+    setEtiquetas(prev => [...prev, tag]);
+    setNuevaEtiqueta("");
+  };
+
+  const handleEliminarEtiqueta = (tagIndex: number) => {
+    setEtiquetas(prev => prev.filter((_, idx) => idx !== tagIndex));
+  };
+
   // 1. Manejar pre-guardado: abre el modal de confirmación
   const handlePreGuardar = (e: React.FormEvent) => {
     e.preventDefault();
@@ -94,11 +132,60 @@ export default function ModalGestionCliente({
       return;
     }
 
+    // Validar si el número de documento ya pertenece a otro cliente (bloqueo estricto con ventana modal diseñada)
+    const docLimpio = numeroDocumento.trim();
+    if (docLimpio) {
+      const duplicado = clientesExistentes.find(c => 
+        c.id !== cliente.id && 
+        c.numeroDocumento && 
+        c.numeroDocumento.trim().toLowerCase() === docLimpio.toLowerCase()
+      );
+      if (duplicado) {
+        setDuplicadoDocModal(duplicado);
+        return;
+      }
+    }
+
+    // Validar si el celular coincide con otro cliente (ventana modal interactiva que advierte y permite continuar)
+    const celLimpio = celular.replace(/[^\d]/g, '');
+    if (celLimpio && celLimpio.length >= 7) {
+      const duplicadoCel = clientesExistentes.find(c => 
+        c.id !== cliente.id && 
+        c.celular && 
+        c.celular.replace(/[^\d]/g, '') === celLimpio
+      );
+      if (duplicadoCel) {
+        setDuplicadoCelModal(duplicadoCel);
+        return;
+      }
+    }
+
+    // Consolidar nuevaEtiqueta si el usuario no dio clic en "+"
+    let tagsNuevasActual = [...etiquetas];
+    if (nuevaEtiqueta.trim()) {
+      nuevaEtiqueta.split(/[,;-]/).forEach(t => {
+        const clean = t.trim();
+        if (clean && !tagsNuevasActual.some(exist => exist.toLowerCase() === clean.toLowerCase())) {
+          tagsNuevasActual.push(clean);
+        }
+      });
+      setEtiquetas(tagsNuevasActual);
+      setNuevaEtiqueta("");
+    }
+
+    const tagsOriginales = Array.isArray(cliente.etiquetas) ? [...cliente.etiquetas].sort() : [];
+    const tagsNuevas = [...tagsNuevasActual].sort();
+    const etiquetasCambiadas = JSON.stringify(tagsOriginales) !== JSON.stringify(tagsNuevas);
+
     const huboCambios = 
       nombre.trim() !== (cliente.nombre || "").trim() || 
+      apodo.trim() !== (cliente.apodo || "").trim() ||
+      (tipoDocumento || 'CC') !== (cliente.tipoDocumento || 'CC') ||
+      numeroDocumento.trim() !== (cliente.numeroDocumento || '').trim() ||
       celular.trim() !== (cliente.celular || "").trim() ||
       direccion.trim() !== (cliente.direccion || "").trim() ||
-      notas.trim() !== (cliente.notas || "").trim();
+      notas.trim() !== (cliente.notas || "").trim() ||
+      etiquetasCambiadas;
 
     if (!huboCambios) {
       toast("No se detectaron cambios en el cliente.", { icon: "ℹ️" });
@@ -114,28 +201,46 @@ export default function ModalGestionCliente({
   const handleEjecutarGuardar = async () => {
     setProcesando(true);
     try {
-      const datosActualizados: Partial<Cliente> = {
+      const token = await auth.currentUser?.getIdToken();
+      if (!token) throw new Error('Sesión no válida.');
+
+      const datosActualizados = {
+        id: cliente.id,
         nombre: nombre.trim(),
+        apodo: apodo.trim(),
+        tipoDocumento: tipoDocumento || 'CC',
+        numeroDocumento: numeroDocumento.trim(),
         celular: celular.trim(),
         direccion: direccion.trim(),
-        notas: notas.trim()
+        notas: notas.trim(),
+        etiquetas: etiquetas
       };
 
-      await API_DB.actualizarCliente(cliente.id, datosActualizados);
+      const resp = await fetch('/api/clientes/actualizar', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify(datosActualizados)
+      });
+
+      const resJson = await resp.json();
+      if (!resp.ok) {
+        throw new Error(resJson.error || 'No se pudo actualizar el cliente.');
+      }
+
       notificar.exito("Los datos del cliente se guardaron correctamente.", {
         titulo: "Cliente actualizado"
       });
       
       const clienteFinal: Cliente = {
         ...cliente,
-        ...datosActualizados
+        ...(resJson.cliente || datosActualizados)
       };
       setMostrarConfirmacionGuardar(false);
       onSuccess(clienteFinal, false);
       onClose();
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error al actualizar cliente:", error);
-      notificar.error("No se pudieron guardar los cambios en la cuenta del cliente.", {
+      notificar.error(error.message || "No se pudieron guardar los cambios en la cuenta del cliente.", {
         titulo: "Error al actualizar"
       });
     } finally {
@@ -298,6 +403,51 @@ export default function ModalGestionCliente({
 
             <div>
               <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
+                <Smile size={14} className="text-amber-500" /> Apodo / Alias (Opcional)
+              </label>
+              <input
+                type="text"
+                value={apodo}
+                onChange={(e) => setApodo(e.target.value)}
+                placeholder="Ej: Cachaco, El Paisa, Doña Mary..."
+                className="w-full p-4 bg-slate-50 dark:bg-[#020617] border border-slate-200 dark:border-slate-800 rounded-2xl outline-none focus:border-blue-500 dark:text-white font-medium text-base transition-colors"
+              />
+            </div>
+
+            {/* DOCUMENTO (CC / NIT / CE) */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+              <div className="sm:col-span-1">
+                <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
+                  <CreditCard size={14} className="text-blue-500" /> Tipo Doc.
+                </label>
+                <select
+                  value={tipoDocumento}
+                  onChange={(e) => setTipoDocumento(e.target.value)}
+                  className="w-full p-4 bg-slate-50 dark:bg-[#020617] border border-slate-200 dark:border-slate-800 rounded-2xl outline-none focus:border-blue-500 dark:text-white font-bold text-sm transition-colors cursor-pointer"
+                >
+                  <option value="CC">CC (Cédula)</option>
+                  <option value="NIT">NIT</option>
+                  <option value="CE">CE (Extranjería)</option>
+                  <option value="PP">Pasaporte</option>
+                  <option value="TI">TI</option>
+                </select>
+              </div>
+              <div className="sm:col-span-2">
+                <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1.5">
+                  Cédula / Documento (Opcional)
+                </label>
+                <input
+                  type="text"
+                  value={numeroDocumento}
+                  onChange={(e) => setNumeroDocumento(e.target.value)}
+                  placeholder="Ej: 1020304050"
+                  className="w-full p-4 bg-slate-50 dark:bg-[#020617] border border-slate-200 dark:border-slate-800 rounded-2xl outline-none focus:border-blue-500 dark:text-white font-medium text-base transition-colors"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
                 <Phone size={14} /> WhatsApp / Celular
               </label>
               <input
@@ -321,18 +471,97 @@ export default function ModalGestionCliente({
             </div>
 
             <div>
-              <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1.5">Notas / Referencia / Apodo</label>
+              <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">Notas / Referencia (Opcional)</label>
               <textarea
                 value={notas}
                 onChange={(e) => setNotas(e.target.value)}
-                placeholder="Ej: Apodo (Cachaco), parentesco (Hermana de Juan), referencia..."
-                rows={3}
-                className="w-full p-4 bg-slate-50 dark:bg-[#020617] border border-slate-200 dark:border-slate-800 rounded-2xl outline-none focus:border-blue-500 dark:text-white font-medium text-base transition-colors resize-none"
+                placeholder="Ej: Parentesco (Hermana de Juan), casa frente al parque, horario de cobro..."
+                rows={2}
+                className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-[#020617] border border-slate-200 dark:border-slate-800 rounded-xl outline-none focus:border-blue-500 dark:text-white font-medium text-xs sm:text-sm transition-colors resize-none"
               />
             </div>
 
+            {/* CATEGORÍAS / ETIQUETAS PERSONALIZADAS */}
+            <div className="space-y-2">
+              <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
+                <Tag size={14} className="text-violet-500" /> Categorías / Etiquetas Personalizadas
+              </label>
+
+              {/* Lista de etiquetas actuales */}
+              {etiquetas.length > 0 && (
+                <div className="flex flex-wrap gap-1.5 p-2 bg-slate-50 dark:bg-[#020617] rounded-xl border border-slate-200 dark:border-slate-800">
+                  {etiquetas.map((tag, idx) => (
+                    <span 
+                      key={idx}
+                      className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold bg-violet-100 dark:bg-violet-950/60 text-violet-700 dark:text-violet-300 border border-violet-200 dark:border-violet-800 shadow-2xs"
+                    >
+                      <Tag size={11} className="shrink-0" />
+                      <span>{tag}</span>
+                      <button
+                        type="button"
+                        onClick={() => handleEliminarEtiqueta(idx)}
+                        className="hover:text-rose-500 transition cursor-pointer p-0.5 rounded-full"
+                        title="Quitar categoría"
+                      >
+                        <X size={12} />
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              )}
+
+              {/* Input para agregar nueva etiqueta */}
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={nuevaEtiqueta}
+                  onChange={(e) => setNuevaEtiqueta(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      handleAgregarEtiqueta();
+                    }
+                  }}
+                  placeholder="Ej: Mayorista, Vecino, Familia, Especial..."
+                  maxLength={25}
+                  className="flex-1 p-3 bg-slate-50 dark:bg-[#020617] border border-slate-200 dark:border-slate-800 rounded-xl outline-none focus:border-violet-500 dark:text-white font-medium text-xs transition-colors"
+                />
+                <button
+                  type="button"
+                  onClick={() => handleAgregarEtiqueta()}
+                  disabled={!nuevaEtiqueta.trim()}
+                  className="px-3 py-2 bg-violet-600 hover:bg-violet-700 disabled:opacity-40 text-white font-bold text-xs rounded-xl flex items-center gap-1 transition cursor-pointer shrink-0"
+                >
+                  <Plus size={14} /> Agregar
+                </button>
+              </div>
+
+              {/* Sugerencias rápidas si no tiene etiquetas asignadas */}
+              {etiquetas.length === 0 && (
+                <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
+                  <span className="text-[10px] text-slate-400 font-semibold">Sugerencias:</span>
+                  {['Mayorista', 'Vecino', 'Familia', 'Empleado', 'Especial'].map((sug) => (
+                    <button
+                      key={sug}
+                      type="button"
+                      onClick={() => handleAgregarEtiqueta(sug)}
+                      className="px-2 py-0.5 text-[10px] font-bold rounded-md bg-slate-100 hover:bg-violet-50 dark:bg-slate-800 dark:hover:bg-violet-950/40 text-slate-600 dark:text-slate-300 hover:text-violet-600 dark:hover:text-violet-300 border border-slate-200/60 dark:border-slate-700 transition cursor-pointer"
+                    >
+                      + {sug}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
             {/* Aviso sutil de cambio detectado */}
-            {(nombre.trim() !== (cliente.nombre || "").trim() || celular.trim() !== (cliente.celular || "").trim() || direccion.trim() !== (cliente.direccion || "").trim() || notas.trim() !== (cliente.notas || "").trim()) && (
+            {(
+              nombre.trim() !== (cliente.nombre || "").trim() || 
+              celular.trim() !== (cliente.celular || "").trim() || 
+              direccion.trim() !== (cliente.direccion || "").trim() || 
+              notas.trim() !== (cliente.notas || "").trim() ||
+              JSON.stringify(Array.isArray(cliente.etiquetas) ? [...cliente.etiquetas].sort() : []) !== JSON.stringify([...etiquetas].sort())
+            ) && (
               <div className="p-3 bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-800/80 rounded-2xl text-xs text-blue-800 dark:text-blue-300 flex items-center gap-2">
                 <ShieldAlert size={16} className="shrink-0 text-blue-600 dark:text-blue-400" />
                 <span>
@@ -543,6 +772,23 @@ export default function ModalGestionCliente({
                   </div>
                 </div>
               )}
+
+              {JSON.stringify(Array.isArray(cliente.etiquetas) ? [...cliente.etiquetas].sort() : []) !== JSON.stringify([...etiquetas].sort()) && (
+                <div className="pt-2 border-t border-slate-200/60 dark:border-slate-800/60">
+                  <span className="text-[10px] uppercase font-bold text-slate-400 block mb-0.5">Categorías / Etiquetas</span>
+                  <div className="flex flex-wrap gap-1 mt-1">
+                    {etiquetas.length === 0 ? (
+                      <span className="text-slate-400 italic text-[11px]">(Sin categorías)</span>
+                    ) : (
+                      etiquetas.map((t, i) => (
+                        <span key={i} className="px-2 py-0.5 text-[10px] font-bold rounded-md bg-violet-100 text-violet-700 dark:bg-violet-950/60 dark:text-violet-300">
+                          {t}
+                        </span>
+                      ))
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
 
             <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-relaxed text-center">
@@ -568,6 +814,224 @@ export default function ModalGestionCliente({
               </button>
             </div>
 
+          </div>
+        </div>
+      )}
+
+      {/* =========================================================================
+          SUB-MODAL: ALERTA DE CÉDULA / DOCUMENTO DUPLICADO (DISEÑO PREMIUM)
+          ========================================================================= */}
+      {duplicadoDocModal && (
+        <div 
+          onClick={() => setDuplicadoDocModal(null)}
+          className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-xs animate-in fade-in duration-200"
+        >
+          <div 
+            onClick={(e) => e.stopPropagation()}
+            className="bg-white dark:bg-[#0f172a] rounded-3xl max-w-md w-full p-6 border border-slate-100 dark:border-slate-800 shadow-2xl space-y-5 animate-in zoom-in-95 duration-200"
+          >
+            {/* Cabecera con Icono Destacado */}
+            <div className="flex items-start gap-4">
+              <div className="w-12 h-12 rounded-2xl bg-amber-100 dark:bg-amber-950/50 text-amber-600 dark:text-amber-400 flex items-center justify-center shrink-0 shadow-xs border border-amber-200/60 dark:border-amber-800/60">
+                <AlertTriangle size={24} />
+              </div>
+              <div className="flex-1 min-w-0">
+                <span className="inline-block px-2 py-0.5 rounded-md bg-amber-100 dark:bg-amber-950/80 text-amber-800 dark:text-amber-300 text-[10px] font-black uppercase tracking-wider mb-1">
+                  Documento ya registrado
+                </span>
+                <h4 className="text-base font-black text-slate-900 dark:text-white leading-snug">
+                  Esta identificación ya pertenece a otro cliente
+                </h4>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                  Cada cliente debe contar con un número de documento único en tu negocio.
+                </p>
+              </div>
+            </div>
+
+            {/* Tarjeta de Comparación y Conflicto */}
+            <div className="bg-slate-50 dark:bg-[#020617] rounded-2xl p-4 border border-slate-200/70 dark:border-slate-800/80 space-y-3.5">
+              
+              {/* Documento ingresado en conflicto */}
+              <div className="flex items-center justify-between pb-3 border-b border-slate-200/60 dark:border-slate-800/60">
+                <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400">
+                  Documento ingresado:
+                </span>
+                <span className="px-2.5 py-1 rounded-lg bg-amber-500/10 text-amber-700 dark:text-amber-300 font-black text-xs tracking-wider border border-amber-500/20">
+                  {tipoDocumento} {numeroDocumento.trim()}
+                </span>
+              </div>
+
+              {/* Ficha del cliente que ya tiene esta cédula */}
+              <div className="space-y-1.5">
+                <span className="text-[10px] uppercase font-bold text-slate-400 block tracking-wider">
+                  Asignado actualmente a:
+                </span>
+
+                <div className="p-3 rounded-xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 flex items-center justify-between gap-3 shadow-xs">
+                  <div className="min-w-0 flex-1">
+                    <p className="font-black text-xs text-slate-900 dark:text-white truncate">
+                      {duplicadoDocModal.nombre}
+                    </p>
+                    {duplicadoDocModal.apodo && (
+                      <p className="text-[11px] font-bold text-amber-600 dark:text-amber-400 truncate">
+                        Alias: &ldquo;{duplicadoDocModal.apodo}&rdquo;
+                      </p>
+                    )}
+                    {duplicadoDocModal.celular && (
+                      <p className="text-[10px] text-slate-400 truncate mt-0.5">
+                        📱 {duplicadoDocModal.celular}
+                      </p>
+                    )}
+                  </div>
+                  {(duplicadoDocModal.deudaTotal || 0) > 0 && (
+                    <div className="text-right shrink-0">
+                      <span className="text-[9px] uppercase font-bold text-rose-500 block">Deuda actual</span>
+                      <span className="font-black text-xs text-rose-600 dark:text-rose-400">
+                        ${(duplicadoDocModal.deudaTotal || 0).toLocaleString('es-CO')}
+                      </span>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Cliente que estás editando */}
+              <div className="pt-2 border-t border-slate-200/60 dark:border-slate-800/60 text-[11px] text-slate-500 dark:text-slate-400 flex items-center justify-between">
+                <span>Cliente que estás editando:</span>
+                <span className="font-bold text-slate-800 dark:text-slate-200 truncate max-w-[180px]">
+                  {cliente.nombre}
+                </span>
+              </div>
+
+            </div>
+
+            {/* Mensaje de recomendación */}
+            <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-relaxed text-center">
+              Revisa si hubo una equivocación al escribir el documento, o busca en tu lista a <strong className="text-slate-700 dark:text-slate-300">&ldquo;{duplicadoDocModal.nombre}&rdquo;</strong> si se trata del mismo usuario.
+            </p>
+
+            {/* Botón de acción */}
+            <button
+              type="button"
+              onClick={() => setDuplicadoDocModal(null)}
+              className="w-full py-3.5 rounded-2xl bg-amber-600 hover:bg-amber-700 text-white text-xs font-black shadow-lg shadow-amber-600/20 transition cursor-pointer flex items-center justify-center gap-2"
+            >
+              <span>Entendido, Corregir Documento</span>
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* =========================================================================
+          SUB-MODAL: ALERTA DE CELULAR DUPLICADO (DISEÑO PREMIUM CON OPCIÓN CONTINUAR)
+          ========================================================================= */}
+      {duplicadoCelModal && (
+        <div 
+          onClick={() => setDuplicadoCelModal(null)}
+          className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-xs animate-in fade-in duration-200"
+        >
+          <div 
+            onClick={(e) => e.stopPropagation()}
+            className="bg-white dark:bg-[#0f172a] rounded-3xl max-w-md w-full p-6 border border-slate-100 dark:border-slate-800 shadow-2xl space-y-5 animate-in zoom-in-95 duration-200"
+          >
+            {/* Cabecera con Icono de Celular */}
+            <div className="flex items-start gap-4">
+              <div className="w-12 h-12 rounded-2xl bg-blue-100 dark:bg-blue-950/50 text-blue-600 dark:text-blue-400 flex items-center justify-center shrink-0 shadow-xs border border-blue-200/60 dark:border-blue-800/60">
+                <Phone size={24} />
+              </div>
+              <div className="flex-1 min-w-0">
+                <span className="inline-block px-2 py-0.5 rounded-md bg-blue-100 dark:bg-blue-950/80 text-blue-800 dark:text-blue-300 text-[10px] font-black uppercase tracking-wider mb-1">
+                  Celular compartido
+                </span>
+                <h4 className="text-base font-black text-slate-900 dark:text-white leading-snug">
+                  Este número de celular ya está registrado
+                </h4>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                  Puedes continuar si es una línea compartida o corregirlo si fue un error.
+                </p>
+              </div>
+            </div>
+
+            {/* Tarjeta de Comparación */}
+            <div className="bg-slate-50 dark:bg-[#020617] rounded-2xl p-4 border border-slate-200/70 dark:border-slate-800/80 space-y-3.5">
+              
+              {/* Celular ingresado */}
+              <div className="flex items-center justify-between pb-3 border-b border-slate-200/60 dark:border-slate-800/60">
+                <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400">
+                  Celular ingresado:
+                </span>
+                <span className="px-2.5 py-1 rounded-lg bg-blue-500/10 text-blue-700 dark:text-blue-300 font-black text-xs tracking-wider border border-blue-500/20">
+                  📱 {celular.trim()}
+                </span>
+              </div>
+
+              {/* Ficha del cliente que ya tiene este celular */}
+              <div className="space-y-1.5">
+                <span className="text-[10px] uppercase font-bold text-slate-400 block tracking-wider">
+                  Asociado actualmente a:
+                </span>
+
+                <div className="p-3 rounded-xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 flex items-center justify-between gap-3 shadow-xs">
+                  <div className="min-w-0 flex-1">
+                    <p className="font-black text-xs text-slate-900 dark:text-white truncate">
+                      {duplicadoCelModal.nombre}
+                    </p>
+                    {duplicadoCelModal.apodo && (
+                      <p className="text-[11px] font-bold text-amber-600 dark:text-amber-400 truncate">
+                        Alias: &ldquo;{duplicadoCelModal.apodo}&rdquo;
+                      </p>
+                    )}
+                    {duplicadoCelModal.numeroDocumento && (
+                      <p className="text-[10px] text-slate-400 truncate mt-0.5">
+                        Doc: {duplicadoCelModal.tipoDocumento || 'CC'} {duplicadoCelModal.numeroDocumento}
+                      </p>
+                    )}
+                  </div>
+                  {((duplicadoCelModal.deudaTotal || 0) > 0) && (
+                    <div className="text-right shrink-0">
+                      <span className="text-[9px] uppercase font-bold text-rose-500 block">Deuda actual</span>
+                      <span className="font-black text-xs text-rose-600 dark:text-rose-400">
+                        ${(duplicadoCelModal.deudaTotal || 0).toLocaleString('es-CO')}
+                      </span>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Cliente que estás editando */}
+              <div className="pt-2 border-t border-slate-200/60 dark:border-slate-800/60 text-[11px] text-slate-500 dark:text-slate-400 flex items-center justify-between">
+                <span>Cliente que estás editando:</span>
+                <span className="font-bold text-slate-800 dark:text-slate-200 truncate max-w-[180px]">
+                  {cliente.nombre}
+                </span>
+              </div>
+
+            </div>
+
+            {/* Mensaje de orientación */}
+            <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-relaxed text-center">
+              Si ambos clientes son familiares o comparten el mismo teléfono, puedes continuar. Si fue una equivocación, puedes corregirlo ahora.
+            </p>
+
+            {/* Botones de acción: Corregir vs Continuar */}
+            <div className="grid grid-cols-2 gap-2.5 pt-1">
+              <button
+                type="button"
+                onClick={() => setDuplicadoCelModal(null)}
+                className="py-3 px-3 rounded-xl border border-slate-200 dark:border-slate-700 text-xs font-bold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition cursor-pointer text-center"
+              >
+                Corregir Celular
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setDuplicadoCelModal(null);
+                  setMostrarConfirmacionGuardar(true);
+                }}
+                className="py-3 px-3 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-black shadow-md shadow-blue-600/20 transition cursor-pointer text-center"
+              >
+                Continuar de todos modos
+              </button>
+            </div>
           </div>
         </div>
       )}

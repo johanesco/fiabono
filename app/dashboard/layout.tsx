@@ -1,7 +1,7 @@
 "use client";
 import { useState, useEffect } from "react";
 import { useRouter, usePathname } from "next/navigation";
-import { Home, BarChart3, Clock, Settings, LogOut, ChevronLeft, ChevronRight, Package, Receipt, Bookmark, Users, Crown } from 'lucide-react';
+import { Home, BarChart3, Clock, Settings, LogOut, ChevronLeft, ChevronRight, Package, Receipt, Bookmark, Users, Crown, Pin } from 'lucide-react';
 import { collection, query, where, onSnapshot } from "firebase/firestore";
 import { db, auth as firebaseAuth } from "../../firebase";
 import { useAuth } from "@/hooks/AuthContext";
@@ -15,11 +15,11 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const authContext = useAuth();
   const router = useRouter();
   const pathname = usePathname();
-  const [fijadoExpandido, setFijadoExpandido] = useState(false);
-  const [hoverSidebar, setHoverSidebar] = useState(false);
-  const [esPantallaAncha, setEsPantallaAncha] = useState(false);
-  const [tieneMouse, setTieneMouse] = useState(false);
-  const estaExpandido = fijadoExpandido || hoverSidebar;
+  const [menuFijo, setMenuFijo] = useState<boolean>(true);
+  const [hoverSidebar, setHoverSidebar] = useState<boolean>(false);
+  const [esPantallaAncha, setEsPantallaAncha] = useState<boolean>(false);
+  const [tieneMouse, setTieneMouse] = useState<boolean>(false);
+  const estaExpandido = menuFijo || hoverSidebar;
   const menuColapsado = !estaExpandido;
   const [ordenesPendientesCount, setOrdenesPendientesCount] = useState(0);
   const [separesActivosCount, setSeparesActivosCount] = useState(0);
@@ -121,17 +121,52 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     return () => unsub();
   }, [cuentaPrincipalId, esAdmin, datosSesion?.permisos?.planSepare]);
 
-  // Adaptabilidad Inteligente: en tablets inicia colapsado, en pantallas grandes (1280px+) puede iniciar expandido
+  // Cargar preferencia persistente de menú fijo desde localStorage
+  useEffect(() => {
+    try {
+      const guardado = localStorage.getItem('fiabono_sidebar_fijo');
+      if (guardado !== null) {
+        setMenuFijo(guardado === 'true');
+      } else {
+        const ancha = window.innerWidth >= 1280;
+        setMenuFijo(ancha);
+      }
+    } catch {
+      setMenuFijo(true);
+    }
+  }, []);
+
+  const alternarFijarMenu = () => {
+    const nuevo = !menuFijo;
+    setMenuFijo(nuevo);
+    if (!nuevo) {
+      setHoverSidebar(false);
+    }
+    try {
+      localStorage.setItem('fiabono_sidebar_fijo', String(nuevo));
+    } catch {}
+  };
+
+  const alternarColapsar = () => {
+    if (estaExpandido) {
+      setMenuFijo(false);
+      setHoverSidebar(false);
+      try {
+        localStorage.setItem('fiabono_sidebar_fijo', 'false');
+      } catch {}
+    } else {
+      setMenuFijo(true);
+      try {
+        localStorage.setItem('fiabono_sidebar_fijo', 'true');
+      } catch {}
+    }
+  };
+
+  // Adaptabilidad Inteligente según tamaño de pantalla y soporte de cursor físico
   useEffect(() => {
     const handleResize = () => {
       const ancha = window.innerWidth >= 1280;
       setEsPantallaAncha(ancha);
-      if (window.innerWidth >= 768 && window.innerWidth < 1280) {
-        setFijadoExpandido(false);
-      } else if (window.innerWidth >= 1280) {
-        setFijadoExpandido(true);
-      }
-      // Solo permitir hover si el dispositivo cuenta con cursor físico (mouse/trackpad)
       const mediaHover = window.matchMedia('(hover: hover) and (pointer: fine)');
       setTieneMouse(mediaHover.matches);
     };
@@ -140,13 +175,12 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  // En pantallas no anchas (tablets / iPads), cerrar el drawer flotante al navegar
+  // En pantallas no anchas (tablets / iPads), cerrar el drawer flotante al navegar si no está fijo
   useEffect(() => {
-    if (!esPantallaAncha) {
-      setFijadoExpandido(false);
+    if (!esPantallaAncha && !menuFijo) {
       setHoverSidebar(false);
     }
-  }, [pathname, esPantallaAncha]);
+  }, [pathname, esPantallaAncha, menuFijo]);
 
   const nombreNegocio = datosSesion?.nombreNegocio || "Mi Negocio";
   const rutaActiva = (ruta: string) => pathname === ruta;
@@ -171,7 +205,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       {!esPantallaAncha && estaExpandido && (
         <div 
           onClick={() => {
-            setFijadoExpandido(false);
+            setMenuFijo(false);
             setHoverSidebar(false);
           }}
           className="fixed inset-0 bg-slate-950/30 backdrop-blur-xs z-40 lg:block hidden animate-in fade-in duration-200 cursor-pointer"
@@ -200,7 +234,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             : (estaExpandido ? 'w-64 shrink-0 z-30 relative' : 'w-20 shrink-0 z-30 relative')
         }`}
       >
-        <div className={`p-4 flex items-center border-b border-slate-100 dark:border-slate-800/60 ${!estaExpandido ? 'justify-center flex-col gap-2' : 'justify-between'}`}>
+        <div className={`p-4 flex items-center border-b border-slate-100 dark:border-slate-800/60 ${!estaExpandido ? 'justify-center flex-col gap-2.5' : 'justify-between'}`}>
           {estaExpandido ? (
             <div className="min-w-0 pr-2 animate-in fade-in duration-200">
               <LogoFiabono size={30} showText={true} showBadge={false} />
@@ -211,20 +245,43 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               <IsotipoFiabono size={40} />
             </div>
           )}
-          <button
-            onClick={() => {
-              if (estaExpandido) {
-                setFijadoExpandido(false);
-                setHoverSidebar(false);
-              } else {
-                setFijadoExpandido(true);
-              }
-            }}
-            title={estaExpandido ? "Colapsar menú" : "Expandir menú"}
-            className="p-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-500 dark:text-slate-400 transition-all active:scale-95 cursor-pointer"
-          >
-            {estaExpandido ? <ChevronLeft size={16} /> : <ChevronRight size={16} />}
-          </button>
+
+          {estaExpandido ? (
+            <div className="flex items-center gap-1 shrink-0 animate-in fade-in duration-200">
+              {/* Botón para Fijar / Desfijar Menú Lateral */}
+              <button
+                type="button"
+                onClick={alternarFijarMenu}
+                title={menuFijo ? "Menú fijado permanentemente (haz clic para contraer con el cursor)" : "Fijar menú siempre abierto"}
+                className={`p-1.5 rounded-xl transition-all active:scale-95 cursor-pointer flex items-center justify-center ${
+                  menuFijo
+                    ? "bg-emerald-50 text-emerald-600 dark:bg-emerald-500/15 dark:text-emerald-400 border border-emerald-200/80 dark:border-emerald-800/60 shadow-xs hover:bg-emerald-100 dark:hover:bg-emerald-500/25"
+                    : "bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+                }`}
+              >
+                <Pin size={15} className={`transition-transform duration-200 ${menuFijo ? "fill-emerald-500/30 dark:fill-emerald-400/30 -rotate-45" : "rotate-0"}`} />
+              </button>
+
+              {/* Botón para colapsar */}
+              <button
+                type="button"
+                onClick={alternarColapsar}
+                title="Colapsar menú lateral"
+                className="p-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-500 dark:text-slate-400 transition-all active:scale-95 cursor-pointer"
+              >
+                <ChevronLeft size={16} />
+              </button>
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={alternarColapsar}
+              title="Expandir y fijar menú lateral"
+              className="p-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-500 dark:text-slate-400 transition-all active:scale-95 cursor-pointer hover:text-emerald-600 dark:hover:text-emerald-400"
+            >
+              <ChevronRight size={16} />
+            </button>
+          )}
         </div>
 
         <nav className="flex-1 p-2.5 space-y-1 overflow-y-auto">

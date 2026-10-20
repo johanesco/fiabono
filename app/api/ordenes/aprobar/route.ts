@@ -119,9 +119,7 @@ export async function POST(request: Request) {
         }
         const producto = productoSnap.data() as any;
         const stock = Number(producto.stock || 0);
-        if (producto.tipoProducto !== 'servicio' && producto.inventariable !== false && Number(item.cantidad) > stock) {
-          throw new Error(`SIN_STOCK:${producto.nombre || item.productoId}`);
-        }
+        if (!Number.isFinite(stock)) throw new Error('STOCK_INVALIDO');
         stockDocs.set(item.productoId, { ref: productoRef, data: producto });
       }
 

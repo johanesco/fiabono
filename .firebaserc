@@ -1,0 +1,7 @@
+{
+  "projects": {
+    "default": "fiabono-dev-qa",
+    "dev": "fiabono-dev-qa",
+    "prod": "fiabono"
+  }
+}

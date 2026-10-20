@@ -76,6 +76,10 @@ async function run() {
     nombre: 'Cliente actualizado',
   }));
 
+  await assertSucceeds(updateDoc(doc(cajero, 'clientes', 'cliente-1'), {
+    etiquetas: ['frecuente', 'vip'],
+  }));
+
   await assertFails(updateDoc(doc(cajero, 'inventario', 'producto-1'), {
     stock: 99,
   }));

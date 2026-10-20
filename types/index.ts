@@ -192,6 +192,8 @@ export interface Cliente {
   dv?: string;
   email?: string;
   razonSocial?: string;
+  etiquetas?: string[];
+  apodo?: string;
 }
 
 export interface DetalleMovimiento {
@@ -199,6 +201,9 @@ export interface DetalleMovimiento {
   valor: number;
   cantidad: number;
   valorUnitario: number;
+  productoId?: string;
+  costoUnitario?: number;
+  categoria?: string;
 }
 
 export type TipoMetodoPago = 'efectivo' | 'transferencia' | 'datafono' | 'credito_externo' | 'fiado';

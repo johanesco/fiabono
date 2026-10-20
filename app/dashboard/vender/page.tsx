@@ -872,22 +872,18 @@ function VenderContenido() {
         const fila = nuevasFilas[indexExistente];
         const cantEnOtras = nuevasFilas.reduce((acc, f, i) => i !== indexExistente && f.descripcion.toLowerCase() === productoEncontrado.nombre.toLowerCase() ? acc + f.cantidad : acc, 0);
         const stockDisp = (productoEncontrado.stock || 0) - cantEnOtras;
-
-        if (productoEncontrado.tipoProducto !== 'servicio' && productoEncontrado.inventariable !== false && fila.cantidad + 1 > stockDisp) {
-          dispararFeedback('error', `⚠️ Límite de stock: ${productoEncontrado.nombre}`);
-          return prevFilas;
-        }
+        const superaStock = productoEncontrado.tipoProducto !== 'servicio' && productoEncontrado.inventariable !== false && fila.cantidad + 1 > stockDisp;
 
         fila.cantidad += 1;
         cantResultante = fila.cantidad;
-        dispararFeedback('exito', `✓ +1 ${productoEncontrado.nombre} (Total: ${fila.cantidad})`);
+        if (superaStock) {
+          dispararFeedback('exito', `⚠️ +1 ${productoEncontrado.nombre} (En déficit: sin stock en sistema)`);
+        } else {
+          dispararFeedback('exito', `✓ +1 ${productoEncontrado.nombre} (Total: ${fila.cantidad})`);
+        }
       } else {
         const indexVacio = nuevasFilas.findIndex(f => f.descripcion.trim() === "" && (parseFloat(f.valor || "0") === 0 || f.valor === ""));
-
-        if (productoEncontrado.tipoProducto !== 'servicio' && productoEncontrado.inventariable !== false && (productoEncontrado.stock || 0) <= 0) {
-          dispararFeedback('error', `❌ Agotado: ${productoEncontrado.nombre}`);
-          return prevFilas;
-        }
+        const sinStockSistema = productoEncontrado.tipoProducto !== 'servicio' && productoEncontrado.inventariable !== false && (productoEncontrado.stock || 0) <= 0;
 
         if (indexVacio !== -1) {
           nuevasFilas[indexVacio] = {
@@ -903,7 +899,11 @@ function VenderContenido() {
           });
         }
         cantResultante = 1;
-        dispararFeedback('exito', `✓ Añadido: ${productoEncontrado.nombre}`);
+        if (sinStockSistema) {
+          dispararFeedback('exito', `⚠️ Añadido: ${productoEncontrado.nombre} (Stock 0 en sistema)`);
+        } else {
+          dispararFeedback('exito', `✓ Añadido: ${productoEncontrado.nombre}`);
+        }
       }
 
       setUltimoProductoEscaneado({
@@ -988,7 +988,7 @@ function VenderContenido() {
     
     if (nuevaCant < 1) return;
 
-    if (filaActual.descripcion.trim() !== "") {
+    if (delta > 0 && filaActual.descripcion.trim() !== "") {
       const descLim = filaActual.descripcion.toLowerCase().trim().normalize('NFD').replace(/\p{Diacritic}/gu, '');
       const productoEnInventario = inventario.find(p => 
         p.nombre.toLowerCase().trim().normalize('NFD').replace(/\p{Diacritic}/gu, '') === descLim ||
@@ -1012,13 +1012,7 @@ function VenderContenido() {
         const stockTotalPermitido = (productoEnInventario.stock || 0) - cantidadEnOtrasFilas;
 
         if (nuevaCant > stockTotalPermitido) {
-          const totalYaEnLista = cantidadEnOtrasFilas + filaActual.cantidad;
-          if (totalYaEnLista >= (productoEnInventario.stock || 0)) {
-            toast.error(`⚠️ Ya tienes todas las unidades disponibles de "${productoEnInventario.nombre}" en tu lista (${productoEnInventario.stock || 0} en total).`, { position: 'bottom-center', icon: '🚫' });
-          } else {
-            toast.error(`⚠️ Solo puedes agregar ${Math.max(0, stockTotalPermitido - filaActual.cantidad)} unidad(es) más de "${productoEnInventario.nombre}".`, { position: 'bottom-center', icon: '🚫' });
-          }
-          return;
+          toast(`⚠️ "${productoEnInventario.nombre}" sin stock suficiente en sistema (${productoEnInventario.stock || 0}). Se registrará en déficit temporal por cuadrar.`, { position: 'bottom-center', icon: '📦', duration: 2500 });
         }
       }
     }
@@ -1072,23 +1066,6 @@ function VenderContenido() {
     const filasValidas = filasConDescripcion.filter(f => parseFloat(f.valor) > 0);
     if (filasValidas.length !== filasConDescripcion.length) return toast.error("Hay artículos con precio en cero o vacío. Complétalos o quítalos antes de continuar.");
     if (!cuentaPrincipalId) return;
-
-    // Validar stock antes de enviar orden
-    for (const fila of filasValidas) {
-      const descTrim = fila.descripcion.toLowerCase().trim();
-      const item = inventario.find(p => p.nombre.toLowerCase().trim() === descTrim);
-      const esInventariable = item && item.tipoProducto !== 'servicio' && item.inventariable !== false;
-      if (esInventariable) {
-        const totalRequerido = filasValidas
-          .filter(f => f.descripcion.toLowerCase().trim() === descTrim)
-          .reduce((sum, f) => sum + f.cantidad, 0);
-
-        if (totalRequerido > (item.stock || 0)) {
-          toast.error(`⚠️ Sin existencias suficientes para "${item.nombre}". Solicitas ${totalRequerido} pero quedan ${item.stock || 0} en stock.`);
-          return;
-        }
-      }
-    }
 
     const pagadoRaw = pagoCliente.replace(/\D/g, '');
     if (pagadoRaw === "" && totalNetoACobrar > 0) {
@@ -1153,22 +1130,6 @@ function VenderContenido() {
     const filasValidas = filasRegistro.filter(f => parseFloat(f.valor) > 0);
     if (filasValidas.length === 0) return toast.error("Ingresa al menos un monto válido en los artículos.");
 
-    for (const fila of filasValidas) {
-      const descTrim = fila.descripcion.toLowerCase().trim();
-      const item = inventario.find(p => p.nombre.toLowerCase().trim() === descTrim);
-      const esInventariable = item && item.tipoProducto !== 'servicio' && item.inventariable !== false;
-      if (esInventariable) {
-        const totalRequerido = filasRegistro
-          .filter(f => f.descripcion.toLowerCase().trim() === descTrim)
-          .reduce((sum, f) => sum + f.cantidad, 0);
-
-        if (totalRequerido > (item.stock || 0)) {
-          toast.error(`⚠️ Sin existencias suficientes para "${item.nombre}". Solicitas ${totalRequerido} pero quedan ${item.stock || 0} en stock.`);
-          return;
-        }
-      }
-    }
-
     const pagadoRaw = pagoCliente.replace(/\D/g, '');
     const pagadoNum = pagadoRaw === "" ? 0 : parseFloat(pagadoRaw);
     const faltanteNeto = Math.max(0, totalNetoACobrar - pagadoNum);
@@ -1211,22 +1172,6 @@ function VenderContenido() {
         setGuardandoVenta(false);
         isSubmittingVentaRef.current = false;
         return;
-      }
-      
-      for (const fila of filasValidas) {
-        const descTrim = fila.descripcion.toLowerCase().trim();
-        const item = inventario.find(p => p.nombre.toLowerCase().trim() === descTrim);
-        const esInventariable = item && item.tipoProducto !== 'servicio' && item.inventariable !== false;
-        if (esInventariable) {
-          const totalRequerido = filasValidas
-            .filter(f => f.descripcion.toLowerCase().trim() === descTrim)
-            .reduce((sum, f) => sum + f.cantidad, 0);
-
-          if (totalRequerido > (item.stock || 0)) {
-            toast.error(`⚠️ Sin existencias suficientes para "${item.nombre}". Solicitas ${totalRequerido} pero quedan ${item.stock || 0} en stock.`);
-            return;
-          }
-        }
       }
 
       const pagadoRaw = pagoCliente.replace(/\D/g, '');
@@ -1652,8 +1597,7 @@ Estamos atentos para cualquier consulta.
     }, 0);
 
     if (esInventariable && (cantidadEnCarrito + 1) > (producto.stock || 0)) {
-      toast.error(`⚠️ Agotado. Solo tienes ${producto.stock || 0} de "${producto.nombre}".`, { duration: 2000, position: 'bottom-center', icon: '🚫' });
-      return;
+      toast(`⚠️ "${producto.nombre}" sin stock en sistema (${producto.stock || 0}). Añadido en déficit temporal.`, { duration: 2200, position: 'bottom-center', icon: '📦' });
     }
 
     setFilasRegistro(prev => {
@@ -1691,8 +1635,7 @@ Estamos atentos para cualquier consulta.
 
       const stockTotalPermitido = (prodInv.stock || 0) - cantidadEnOtrasFilas;
       if (esInventariable && (fila.cantidad + delta) > stockTotalPermitido) {
-         toast.error(`⚠️ Agotado. Solo tienes ${prodInv.stock || 0} de "${prodInv.nombre}".`, { duration: 2000, position: 'bottom-center', icon: '🚫' });
-         return;
+         toast(`⚠️ "${prodInv.nombre}" sin stock en sistema (${prodInv.stock || 0}). Se registrará en déficit temporal.`, { duration: 2200, position: 'bottom-center', icon: '📦' });
       }
     }
 
@@ -1781,13 +1724,7 @@ Estamos atentos para cualquier consulta.
             return (
               <div 
                 key={prod.id} 
-                onClick={() => {
-                  if (estaAgotado) {
-                    toast.error(`"${prod.nombre}" no tiene existencias disponibles.`, { duration: 2000, position: 'bottom-center' });
-                    return;
-                  }
-                  agregarProductoVisual(prod);
-                }}
+                onClick={() => agregarProductoVisual(prod)}
                 className={`flex flex-col bg-white dark:bg-[#0f172a] rounded-2xl border ${cantidadCarrito > 0 ? 'border-emerald-500 ring-2 ring-emerald-500/25 shadow-sm' : 'border-slate-200 dark:border-slate-800'} p-2 transition-all shadow-xs hover:shadow-md cursor-pointer select-none group justify-between gap-1`}
               >
                 {/* Miniatura / Foto o Iniciales Grandes */}
@@ -1831,10 +1768,16 @@ Estamos atentos para cualquier consulta.
                   <div>
                     {!esInv ? (
                       <span className="text-[9px] font-bold text-indigo-600 dark:text-indigo-400">Servicio</span>
-                    ) : estaAgotado ? (
-                      <span className="text-[9px] font-bold text-rose-500">Agotado</span>
+                    ) : stockDisp < 0 ? (
+                      <span className="text-[9px] font-bold text-orange-600 dark:text-orange-400">Déficit ({stockDisp})</span>
+                    ) : stockDisp === 0 ? (
+                      <span className="text-[9px] font-bold text-slate-500 dark:text-slate-400">0 en sistema</span>
+                    ) : stockDisp <= 5 ? (
+                      <span className="text-[9px] font-bold text-amber-600 dark:text-amber-400">
+                        {stockDisp} en stock
+                      </span>
                     ) : (
-                      <span className={`text-[9px] font-bold ${stockDisp <= 5 ? 'text-amber-500' : 'text-slate-400'}`}>
+                      <span className="text-[9px] font-bold text-emerald-600 dark:text-emerald-400">
                         {stockDisp} en stock
                       </span>
                     )}
@@ -2873,8 +2816,7 @@ Estamos atentos para cualquier consulta.
                               const stockDisp = (p.stock || 0) - cantEnOtras;
 
                               if (p.tipoProducto !== 'servicio' && p.inventariable !== false && stockDisp <= 0) {
-                                toast.error("Sin stock disponible de " + p.nombre, { duration: 2000 });
-                                return;
+                                toast("Sin stock en sistema — Añadido en déficit temporal", { icon: '⚠️', duration: 2500 });
                               }
 
                               const nuevas = [...filasRegistro];
@@ -2918,13 +2860,12 @@ Estamos atentos para cualquier consulta.
                                 key={p.id} 
                                 onClick={() => {
                                   if (estaAgotado) {
-                                    toast.error(`⚠️ "${p.nombre}" no tiene existencias disponibles.`, { duration: 2000, position: 'bottom-center', icon: '🚫' });
-                                    return;
+                                    toast(`⚠️ "${p.nombre}" sin stock en sistema — Añadido en déficit temporal.`, { duration: 2500, position: 'bottom-center' });
                                   }
                                   const nuevas = [...filasRegistro];
                                   nuevas[index].descripcion = p.nombre;
                                   nuevas[index].valor = p.precioVenta.toString();
-                                  nuevas[index].cantidad = esInv ? Math.min(1, stockDisp) : 1;
+                                  nuevas[index].cantidad = 1;
                                   setFilasRegistro(nuevas);
                                   setBusquedaProductoIndex(null);
                                   setTimeout(() => {
@@ -2933,15 +2874,15 @@ Estamos atentos para cualquier consulta.
                                     }
                                   }, 100);
                                 }}
-                                className={`p-3 transition-all flex justify-between items-center text-xs sm:text-sm ${
+                                className={`p-3 transition-all flex justify-between items-center text-xs sm:text-sm cursor-pointer active:scale-[0.99] ${
                                   estaAgotado 
-                                    ? 'bg-rose-50/50 dark:bg-rose-950/20 opacity-60 cursor-not-allowed hover:bg-rose-100/60 border-l-4 border-rose-500' 
-                                    : 'hover:bg-emerald-50/80 dark:hover:bg-slate-800/80 cursor-pointer active:scale-[0.99]'
+                                    ? 'bg-amber-50/40 dark:bg-amber-950/20 hover:bg-amber-100/50 dark:hover:bg-amber-950/40 border-l-4 border-amber-500' 
+                                    : 'hover:bg-emerald-50/80 dark:hover:bg-slate-800/80'
                                 }`}
                               >
                                 <div className="min-w-0 pr-3">
                                   <div className="flex items-center gap-2 min-w-0">
-                                    <span className={`font-bold block truncate ${estaAgotado ? 'text-slate-500 line-through' : 'text-slate-800 dark:text-slate-100'}`}>
+                                    <span className="font-bold block truncate text-slate-800 dark:text-slate-100">
                                       {p.nombre}
                                     </span>
                                     {p.sku && (
@@ -2956,9 +2897,13 @@ Estamos atentos para cualquier consulta.
                                       <span className="text-[10px] font-bold text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-500/20 px-2 py-0.5 rounded-full inline-flex items-center gap-1">
                                         🛠️ Servicio / Ilimitado
                                       </span>
-                                    ) : estaAgotado ? (
-                                      <span className="text-[10px] font-bold text-rose-700 dark:text-rose-400 bg-rose-100 dark:bg-rose-500/20 px-2.5 py-0.5 rounded-full inline-flex items-center gap-1">
-                                        🚫 Agotado ({cantEnOtras > 0 ? `${cantEnOtras} en tu lista` : '0 disponibles'})
+                                    ) : stockDisp < 0 ? (
+                                      <span className="text-[10px] font-bold text-orange-800 dark:text-orange-300 bg-orange-100 dark:bg-orange-500/20 px-2.5 py-0.5 rounded-full inline-flex items-center gap-1">
+                                        ⚡ Déficit ({stockDisp})
+                                      </span>
+                                    ) : stockDisp === 0 ? (
+                                      <span className="text-[10px] font-bold text-slate-700 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 px-2.5 py-0.5 rounded-full inline-flex items-center gap-1">
+                                        📦 0 en sistema (Vender en déficit)
                                       </span>
                                     ) : stockDisp <= 5 ? (
                                       <span className="text-[10px] font-bold text-amber-700 dark:text-amber-300 bg-amber-100 dark:bg-amber-500/20 px-2.5 py-0.5 rounded-full inline-flex items-center gap-1">
@@ -2973,7 +2918,7 @@ Estamos atentos para cualquier consulta.
                                   </div>
                                 </div>
                                 
-                                <span className={`font-black shrink-0 ${estaAgotado ? 'text-slate-400' : 'text-emerald-600 dark:text-emerald-400'}`}>
+                                <span className="font-black shrink-0 text-emerald-600 dark:text-emerald-400">
                                   ${p.precioVenta.toLocaleString('es-CO')}
                                 </span>
                               </div>

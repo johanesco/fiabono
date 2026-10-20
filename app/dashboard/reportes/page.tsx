@@ -42,6 +42,7 @@ import { API_DB } from "../../../servicios/db";
 import { Cliente, Movimiento } from "../../../types";
 import ModalSuscripcion from "@/components/ModalSuscripcion";
 import ModalExportarReporte from "@/components/ModalExportarReporte";
+import VistaProductos from "@/components/reportes/VistaProductos";
 import { FileDown } from "lucide-react";
 
 const NOMBRES_MESES = [
@@ -84,6 +85,8 @@ export default function ReportesPage() {
   const [planInicialSuscripcion, setPlanInicialSuscripcion] = useState<'comercio' | 'pro'>('pro');
   // Estado del Live Data Inspector — ítem de gráfica actualmente inspeccionado
   const [itemInspeccionado, setItemInspeccionado] = useState<any | null>(null);
+  // Vista activa del panel: resumen financiero o analítica de productos
+  const [vistaReporte, setVistaReporte] = useState<'resumen' | 'productos'>('resumen');
 
   // Route Guard para cajeros sin permiso
   useEffect(() => {
@@ -1116,6 +1119,29 @@ export default function ReportesPage() {
         </div>
       </div>
 
+      {/* SELECTOR DE VISTA: RESUMEN FINANCIERO / PRODUCTOS */}
+      <div className="flex shrink-0 bg-white dark:bg-[#0f172a] p-1.5 rounded-2xl border border-slate-100 dark:border-slate-800/60 shadow-sm w-full sm:w-fit overflow-x-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
+        {([
+          { id: 'resumen', label: 'Resumen financiero', icon: BarChart3 },
+          { id: 'productos', label: 'Productos y Categorías', icon: ShoppingBag }
+        ] as const).map(v => (
+          <button
+            key={v.id}
+            type="button"
+            onClick={() => setVistaReporte(v.id)}
+            className={`flex-1 sm:flex-initial shrink-0 px-4 py-2.5 text-xs sm:text-sm font-black rounded-xl transition-all whitespace-nowrap cursor-pointer inline-flex items-center justify-center gap-2 ${
+              vistaReporte === v.id
+                ? 'bg-slate-900 dark:bg-white text-white dark:text-slate-900 shadow-md'
+                : 'text-slate-500 hover:text-slate-900 dark:hover:text-slate-200'
+            }`}
+          >
+            <v.icon size={16} /> {v.label}
+          </button>
+        ))}
+      </div>
+
+      {vistaReporte === 'resumen' && (
+      <>
       {/* BLOQUE 1: CARTERA EN LA CALLE & SALUD DE COBRO */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
         {/* Tarjeta Cartera */}
@@ -1981,6 +2007,19 @@ export default function ReportesPage() {
           )}
         </div>
       </div>
+
+      </>
+      )}
+
+      {/* VISTA: PRODUCTOS Y CATEGORÍAS */}
+      {vistaReporte === 'productos' && (
+        <VistaProductos
+          movimientos={movimientosGenerales}
+          todosMovimientos={todosMovimientos}
+          inventario={inventario}
+          periodoLabel={metaPeriodo.rangoDescriptivo}
+        />
+      )}
 
       <ModalSuscripcion 
         isOpen={modalSuscripcionOpen} 
