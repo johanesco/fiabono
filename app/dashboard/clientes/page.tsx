@@ -1,6 +1,7 @@
 "use client";
 import { obtenerNombreCercano } from "@/utils/whatsapp";
 import React, { useState, useEffect, useMemo, Suspense } from "react";
+import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import { 
   collection, 
@@ -113,6 +114,8 @@ function ClientesContenido() {
   const [etiquetasNuevas, setEtiquetasNuevas] = useState<string[]>([]);
   const [inputEtiquetaNueva, setInputEtiquetaNueva] = useState("");
   const [guardandoCliente, setGuardandoCliente] = useState(false);
+  const [mounted, setMounted] = useState(false);
+  const [mostrarMasOpcionesNuevo, setMostrarMasOpcionesNuevo] = useState(false);
 
   // Modales Importar y Exportar
   const [modalExportarAbierto, setModalExportarAbierto] = useState(false);
@@ -160,6 +163,7 @@ function ClientesContenido() {
       setEsTabletTactil(esIPad || (esTabletTactilMedia && window.innerWidth < 1280));
     };
     detectarTablet();
+    setMounted(true);
     window.addEventListener('resize', detectarTablet);
     return () => window.removeEventListener('resize', detectarTablet);
   }, []);
@@ -2350,14 +2354,14 @@ Gracias por seguir con nosotros.
       )}
 
       {/* =========================================================================
-          MODAL: REGISTRAR NUEVO CLIENTE (DISEÑO RESPONSIVO CON CABECERA Y BOTONES FIJOS)
+          MODAL: REGISTRAR NUEVO CLIENTE (PORTAL DIRECTO CON CABECERA Y FOOTER FIJOS)
           ========================================================================= */}
-      {modalNuevoAbierto && (
+      {mounted && modalNuevoAbierto && createPortal(
         <div 
-          onClick={(e) => { if (e.target === e.currentTarget) setModalNuevoAbierto(false); }}
-          className="fixed inset-0 z-[160] flex items-center justify-center p-3 sm:p-4 bg-slate-950/70 backdrop-blur-xs animate-in fade-in duration-200 overflow-y-auto"
+          onClick={(e) => { if (e.target === e.currentTarget && !guardandoCliente) setModalNuevoAbierto(false); }}
+          className="fixed inset-0 z-[999999] flex items-center justify-center p-3 sm:p-4 bg-slate-950/80 backdrop-blur-md animate-in fade-in duration-200 overflow-y-auto"
         >
-          <div className="bg-white dark:bg-[#0f172a] rounded-[2rem] max-w-lg w-full border border-slate-100 dark:border-slate-800 shadow-2xl flex flex-col max-h-[92vh] overflow-hidden my-auto animate-in zoom-in-95 duration-200">
+          <div className="bg-white dark:bg-[#0f172a] rounded-[2rem] max-w-lg w-full border border-slate-100 dark:border-slate-800 shadow-2xl flex flex-col max-h-[88dvh] overflow-hidden my-auto animate-in zoom-in-95 duration-200">
             {/* Header Fijo */}
             <div className="flex items-center justify-between p-4 sm:p-5 border-b border-slate-100 dark:border-slate-800 shrink-0 bg-white dark:bg-[#0f172a]">
               <div className="flex items-center gap-2.5">
@@ -2383,6 +2387,7 @@ Gracias por seguir con nosotros.
             {/* Formulario con cuerpo scrolleable y botones fijos abajo */}
             <form onSubmit={handleGuardarNuevoCliente} className="flex flex-col flex-1 min-h-0 overflow-hidden">
               <div className="p-4 sm:p-5 overflow-y-auto flex-1 space-y-3.5 scrollbar-thin">
+                {/* 1. NOMBRES Y APELLIDOS (ESENCIAL) */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                   <div>
                     <label className="text-xs font-bold text-slate-600 dark:text-slate-300 block mb-1">
@@ -2419,52 +2424,7 @@ Gracias por seguir con nosotros.
                   </div>
                 </div>
 
-                <div>
-                  <label className="text-xs font-bold text-slate-600 dark:text-slate-300 block mb-1 flex items-center gap-1.5">
-                    <Smile size={13} className="text-amber-500" /> Apodo / Alias (Opcional)
-                  </label>
-                  <input
-                    type="text"
-                    value={apodoNuevo}
-                    onChange={(e) => setApodoNuevo(e.target.value)}
-                    placeholder="Ej: Cachaco, El Paisa, Doña Mary..."
-                    className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3.5 py-2.5 text-sm font-semibold text-slate-800 dark:text-white focus:ring-2 focus:ring-emerald-500 focus:outline-hidden"
-                  />
-                </div>
-
-                {/* Documento (CC / NIT / CE) */}
-                <div className="grid grid-cols-3 gap-2">
-                  <div className="col-span-1">
-                    <label className="text-xs font-bold text-slate-600 dark:text-slate-300 block mb-1">
-                      Tipo Doc.
-                    </label>
-                    <select
-                      value={tipoDocumentoNuevo}
-                      onChange={(e) => setTipoDocumentoNuevo(e.target.value)}
-                      className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-2.5 py-2.5 text-xs font-bold text-slate-800 dark:text-white focus:ring-2 focus:ring-emerald-500 focus:outline-hidden cursor-pointer"
-                    >
-                      <option value="CC">CC</option>
-                      <option value="NIT">NIT</option>
-                      <option value="CE">CE</option>
-                      <option value="PP">Pasaporte</option>
-                      <option value="TI">TI</option>
-                    </select>
-                  </div>
-                  <div className="col-span-2">
-                    <label className="text-xs font-bold text-slate-600 dark:text-slate-300 block mb-1">
-                      Cédula / Documento (Opcional)
-                    </label>
-                    <input
-                      type="text"
-                      value={numeroDocumentoNuevo}
-                      onChange={(e) => setNumeroDocumentoNuevo(e.target.value)}
-                      placeholder="Ej: 1020304050"
-                      className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3.5 py-2.5 text-sm font-semibold text-slate-800 dark:text-white focus:ring-2 focus:ring-emerald-500 focus:outline-hidden"
-                    />
-                  </div>
-                </div>
-
-                {/* Celular y Dirección agrupados en 2 columnas en pantallas medianas */}
+                {/* 2. CONTACTO: CELULAR Y DIRECCIÓN */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                   <div>
                     <label className="text-xs font-bold text-slate-600 dark:text-slate-300 block mb-1">
@@ -2493,135 +2453,200 @@ Gracias por seguir con nosotros.
                   </div>
                 </div>
 
-                {/* Saldo Inicial Pendiente Opcional */}
-                <div>
-                  <label className="text-xs font-bold text-slate-600 dark:text-slate-300 block mb-1 flex items-center justify-between">
-                    <span className="flex items-center gap-1.5">
-                      <DollarSign size={13} className="text-amber-500" /> Saldo Inicial Pendiente (Opcional)
-                    </span>
-                    <span className="text-[10px] text-slate-400 font-normal">Si ya te debía dinero</span>
-                  </label>
-                  <div className="relative">
-                    <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-xs">$</span>
-                    <input
-                      type="text"
-                      value={saldoInicialNuevo ? Number(saldoInicialNuevo).toLocaleString('es-CO') : ''}
-                      onChange={(e) => {
-                        const val = e.target.value.replace(/[^\d]/g, '');
-                        setSaldoInicialNuevo(val);
-                      }}
-                      placeholder="0"
-                      className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl pl-8 pr-3.5 py-2.5 text-sm font-bold text-amber-600 dark:text-amber-400 focus:ring-2 focus:ring-amber-500 focus:outline-hidden"
-                    />
-                  </div>
-                </div>
+                {/* 3. BOTÓN ACORDEÓN: MÁS DATOS OPCIONALES (EVITA SATURAR EL SISTEMA) */}
+                <button
+                  type="button"
+                  onClick={() => setMostrarMasOpcionesNuevo(prev => !prev)}
+                  className="w-full py-2.5 px-3.5 rounded-xl border border-dashed border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800/50 text-slate-500 dark:text-slate-400 font-bold text-xs flex items-center justify-between transition cursor-pointer"
+                >
+                  <span className="flex items-center gap-2">
+                    <span>{mostrarMasOpcionesNuevo ? "Ocultar datos adicionales" : "+ Más datos (Apodo, Documento, Saldo, Etiquetas)"}</span>
+                    {(apodoNuevo || numeroDocumentoNuevo || saldoInicialNuevo || notasNuevas || etiquetasNuevas.length > 0) && (
+                      <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" title="Tiene datos adicionales" />
+                    )}
+                  </span>
+                  <ChevronDown size={14} className={`transition-transform duration-200 ${mostrarMasOpcionesNuevo ? 'rotate-180' : ''}`} />
+                </button>
 
-                <div>
-                  <label className="text-xs font-bold text-slate-600 dark:text-slate-300 block mb-1">
-                    Notas / Referencias (Opcional)
-                  </label>
-                  <textarea
-                    rows={2}
-                    value={notasNuevas}
-                    onChange={(e) => setNotasNuevas(e.target.value)}
-                    placeholder="Ej: Parentesco (Hermana de Juan), casa azul frente al parque..."
-                    className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3.5 py-2 text-xs font-semibold text-slate-800 dark:text-white focus:ring-2 focus:ring-emerald-500 focus:outline-hidden resize-none"
-                  />
-                </div>
+                {/* 4. SECCIÓN DESPLEGABLE OPCIONAL */}
+                {mostrarMasOpcionesNuevo && (
+                  <div className="space-y-3 pt-1 border-t border-slate-100 dark:border-slate-800/80 animate-in fade-in slide-in-from-top-2 duration-150">
+                    <div>
+                      <label className="text-xs font-bold text-slate-600 dark:text-slate-300 block mb-1 flex items-center gap-1.5">
+                        <Smile size={13} className="text-amber-500" /> Apodo / Alias (Opcional)
+                      </label>
+                      <input
+                        type="text"
+                        value={apodoNuevo}
+                        onChange={(e) => setApodoNuevo(e.target.value)}
+                        placeholder="Ej: Cachaco, El Paisa, Doña Mary..."
+                        className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3.5 py-2.5 text-sm font-semibold text-slate-800 dark:text-white focus:ring-2 focus:ring-emerald-500 focus:outline-hidden"
+                      />
+                    </div>
 
-                {/* Etiquetas en Modal Nuevo Cliente */}
-                <div>
-                  <label className="text-xs font-bold text-slate-600 dark:text-slate-300 block mb-1 flex items-center gap-1.5">
-                    <Tag size={13} className="text-violet-500" /> Etiquetas Personalizadas (Opcional)
-                  </label>
-                  {etiquetasNuevas.length > 0 && (
-                    <div className="flex flex-wrap gap-1 mb-2">
-                      {etiquetasNuevas.map((t, idx) => (
-                        <span key={idx} className="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-md bg-violet-100 dark:bg-violet-950/60 text-violet-700 dark:text-violet-300 border border-violet-200 dark:border-violet-800">
-                          🏷️ {t}
-                          <button
-                            type="button"
-                            onClick={() => setEtiquetasNuevas(prev => prev.filter((_, i) => i !== idx))}
-                            className="hover:text-rose-500 p-0.5 cursor-pointer"
-                          >
-                            <X size={11} />
-                          </button>
+                    {/* Documento (CC / NIT / CE) */}
+                    <div className="grid grid-cols-3 gap-2">
+                      <div className="col-span-1">
+                        <label className="text-xs font-bold text-slate-600 dark:text-slate-300 block mb-1">
+                          Tipo Doc.
+                        </label>
+                        <select
+                          value={tipoDocumentoNuevo}
+                          onChange={(e) => setTipoDocumentoNuevo(e.target.value)}
+                          className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-2.5 py-2.5 text-xs font-bold text-slate-800 dark:text-white focus:ring-2 focus:ring-emerald-500 focus:outline-hidden cursor-pointer"
+                        >
+                          <option value="CC">CC</option>
+                          <option value="NIT">NIT</option>
+                          <option value="CE">CE</option>
+                          <option value="PP">Pasaporte</option>
+                          <option value="TI">TI</option>
+                        </select>
+                      </div>
+                      <div className="col-span-2">
+                        <label className="text-xs font-bold text-slate-600 dark:text-slate-300 block mb-1">
+                          Cédula / Documento (Opcional)
+                        </label>
+                        <input
+                          type="text"
+                          value={numeroDocumentoNuevo}
+                          onChange={(e) => setNumeroDocumentoNuevo(e.target.value)}
+                          placeholder="Ej: 1020304050"
+                          className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3.5 py-2.5 text-sm font-semibold text-slate-800 dark:text-white focus:ring-2 focus:ring-emerald-500 focus:outline-hidden"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Saldo Inicial Pendiente Opcional */}
+                    <div>
+                      <label className="text-xs font-bold text-slate-600 dark:text-slate-300 block mb-1 flex items-center justify-between">
+                        <span className="flex items-center gap-1.5">
+                          <DollarSign size={13} className="text-amber-500" /> Saldo Inicial Pendiente (Opcional)
                         </span>
-                      ))}
+                        <span className="text-[10px] text-slate-400 font-normal">Si ya te debía dinero</span>
+                      </label>
+                      <div className="relative">
+                        <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-xs">$</span>
+                        <input
+                          type="text"
+                          value={saldoInicialNuevo ? Number(saldoInicialNuevo).toLocaleString('es-CO') : ''}
+                          onChange={(e) => {
+                            const val = e.target.value.replace(/[^\d]/g, '');
+                            setSaldoInicialNuevo(val);
+                          }}
+                          placeholder="0"
+                          className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl pl-8 pr-3.5 py-2.5 text-sm font-bold text-amber-600 dark:text-amber-400 focus:ring-2 focus:ring-amber-500 focus:outline-hidden"
+                        />
+                      </div>
                     </div>
-                  )}
-                  <div className="flex gap-2">
-                    <input
-                      type="text"
-                      value={inputEtiquetaNueva}
-                      onChange={(e) => setInputEtiquetaNueva(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter' || e.key === ',') {
-                          e.preventDefault();
-                          const valor = inputEtiquetaNueva.trim();
-                          if (valor) {
-                            const partes = valor.split(/[,;-]/).map(t => t.trim()).filter(Boolean);
-                            setEtiquetasNuevas(prev => {
-                              const lista = [...prev];
-                              partes.forEach(p => {
-                                if (!lista.some(exist => exist.toLowerCase() === p.toLowerCase())) {
-                                  lista.push(p);
-                                }
-                              });
-                              return lista;
-                            });
-                            setInputEtiquetaNueva("");
-                          }
-                        }
-                      }}
-                      placeholder="Ej: Mayorista, Vecino, Familia (o escribe y da Guardar)"
-                      className="flex-1 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs font-semibold text-slate-800 dark:text-white focus:ring-2 focus:ring-violet-500 focus:outline-hidden"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const valor = inputEtiquetaNueva.trim();
-                        if (valor) {
-                          const partes = valor.split(/[,;-]/).map(t => t.trim()).filter(Boolean);
-                          setEtiquetasNuevas(prev => {
-                            const lista = [...prev];
-                            partes.forEach(p => {
-                              if (!lista.some(exist => exist.toLowerCase() === p.toLowerCase())) {
-                                lista.push(p);
+
+                    <div>
+                      <label className="text-xs font-bold text-slate-600 dark:text-slate-300 block mb-1">
+                        Notas / Referencias (Opcional)
+                      </label>
+                      <textarea
+                        rows={2}
+                        value={notasNuevas}
+                        onChange={(e) => setNotasNuevas(e.target.value)}
+                        placeholder="Ej: Parentesco (Hermana de Juan), casa azul frente al parque..."
+                        className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3.5 py-2 text-xs font-semibold text-slate-800 dark:text-white focus:ring-2 focus:ring-emerald-500 focus:outline-hidden resize-none"
+                      />
+                    </div>
+
+                    {/* Etiquetas en Modal Nuevo Cliente */}
+                    <div>
+                      <label className="text-xs font-bold text-slate-600 dark:text-slate-300 block mb-1 flex items-center gap-1.5">
+                        <Tag size={13} className="text-violet-500" /> Etiquetas Personalizadas (Opcional)
+                      </label>
+                      {etiquetasNuevas.length > 0 && (
+                        <div className="flex flex-wrap gap-1 mb-2">
+                          {etiquetasNuevas.map((t, idx) => (
+                            <span key={idx} className="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-md bg-violet-100 dark:bg-violet-950/60 text-violet-700 dark:text-violet-300 border border-violet-200 dark:border-violet-800">
+                              🏷️ {t}
+                              <button
+                                type="button"
+                                onClick={() => setEtiquetasNuevas(prev => prev.filter((_, i) => i !== idx))}
+                                className="hover:text-rose-500 p-0.5 cursor-pointer"
+                              >
+                                <X size={11} />
+                              </button>
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                      <div className="flex gap-2">
+                        <input
+                          type="text"
+                          value={inputEtiquetaNueva}
+                          onChange={(e) => setInputEtiquetaNueva(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter' || e.key === ',') {
+                              e.preventDefault();
+                              const valor = inputEtiquetaNueva.trim();
+                              if (valor) {
+                                const partes = valor.split(/[,;-]/).map(t => t.trim()).filter(Boolean);
+                                setEtiquetasNuevas(prev => {
+                                  const lista = [...prev];
+                                  partes.forEach(p => {
+                                    if (!lista.some(exist => exist.toLowerCase() === p.toLowerCase())) {
+                                      lista.push(p);
+                                    }
+                                  });
+                                  return lista;
+                                });
+                                setInputEtiquetaNueva("");
                               }
-                            });
-                            return lista;
-                          });
-                          setInputEtiquetaNueva("");
-                        }
-                      }}
-                      disabled={!inputEtiquetaNueva.trim()}
-                      className="px-3 py-2 bg-violet-600 hover:bg-violet-700 disabled:opacity-40 text-white font-bold text-xs rounded-xl flex items-center gap-1 transition cursor-pointer shrink-0"
-                    >
-                      <Plus size={13} /> Agregar
-                    </button>
-                  </div>
-                  {todasLasEtiquetas.some(cat => !etiquetasNuevas.some(e => e.toLowerCase() === cat.nombre.toLowerCase())) && (
-                    <div className="flex flex-wrap items-center gap-1 pt-1.5">
-                      <span className="text-[10px] text-slate-400 font-semibold">Existentes:</span>
-                      {todasLasEtiquetas
-                        .filter(cat => !etiquetasNuevas.some(e => e.toLowerCase() === cat.nombre.toLowerCase()))
-                        .slice(0, 6)
-                        .map((cat) => (
-                          <button
-                            key={cat.nombre}
-                            type="button"
-                            onClick={() => {
-                              setEtiquetasNuevas(prev => [...prev, cat.nombre]);
-                            }}
-                            className="px-2 py-0.5 text-[10px] font-bold rounded-md bg-slate-100 hover:bg-violet-50 dark:bg-slate-800 dark:hover:bg-violet-950/40 text-slate-600 dark:text-slate-300 hover:text-violet-600 dark:hover:text-violet-300 border border-slate-200/60 dark:border-slate-700 transition cursor-pointer"
-                          >
-                            + {cat.nombre}
-                          </button>
-                      ))}
+                            }
+                          }}
+                          placeholder="Ej: Mayorista, Vecino, Familia (o escribe y da Guardar)"
+                          className="flex-1 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs font-semibold text-slate-800 dark:text-white focus:ring-2 focus:ring-violet-500 focus:outline-hidden"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const valor = inputEtiquetaNueva.trim();
+                            if (valor) {
+                              const partes = valor.split(/[,;-]/).map(t => t.trim()).filter(Boolean);
+                              setEtiquetasNuevas(prev => {
+                                const lista = [...prev];
+                                partes.forEach(p => {
+                                  if (!lista.some(exist => exist.toLowerCase() === p.toLowerCase())) {
+                                    lista.push(p);
+                                  }
+                                });
+                                return lista;
+                              });
+                              setInputEtiquetaNueva("");
+                            }
+                          }}
+                          disabled={!inputEtiquetaNueva.trim()}
+                          className="px-3 py-2 bg-violet-600 hover:bg-violet-700 disabled:opacity-40 text-white font-bold text-xs rounded-xl flex items-center gap-1 transition cursor-pointer shrink-0"
+                        >
+                          <Plus size={13} /> Agregar
+                        </button>
+                      </div>
+                      {todasLasEtiquetas.some(cat => !etiquetasNuevas.some(e => e.toLowerCase() === cat.nombre.toLowerCase())) && (
+                        <div className="flex flex-wrap items-center gap-1 pt-1.5">
+                          <span className="text-[10px] text-slate-400 font-semibold">Existentes:</span>
+                          {todasLasEtiquetas
+                            .filter(cat => !etiquetasNuevas.some(e => e.toLowerCase() === cat.nombre.toLowerCase()))
+                            .slice(0, 6)
+                            .map((cat) => (
+                              <button
+                                key={cat.nombre}
+                                type="button"
+                                onClick={() => {
+                                  setEtiquetasNuevas(prev => [...prev, cat.nombre]);
+                                }}
+                                className="px-2 py-0.5 text-[10px] font-bold rounded-md bg-slate-100 hover:bg-violet-50 dark:bg-slate-800 dark:hover:bg-violet-950/40 text-slate-600 dark:text-slate-300 hover:text-violet-600 dark:hover:text-violet-300 border border-slate-200/60 dark:border-slate-700 transition cursor-pointer"
+                              >
+                                + {cat.nombre}
+                              </button>
+                          ))}
+                        </div>
+                      )}
                     </div>
-                  )}
-                </div>
+                  </div>
+                )}
               </div>
 
               {/* Footer Fijo con Botones */}
@@ -2629,6 +2654,7 @@ Gracias por seguir con nosotros.
                 <button
                   type="button"
                   onClick={() => setModalNuevoAbierto(false)}
+                  disabled={guardandoCliente}
                   className="flex-1 py-3 rounded-xl border border-slate-200 dark:border-slate-700 text-xs font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer"
                 >
                   Cancelar
@@ -2643,16 +2669,17 @@ Gracias por seguir con nosotros.
               </div>
             </form>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* =========================================================================
           SUB-MODAL: ALERTA DE CÉDULA / DOCUMENTO DUPLICADO AL CREAR (DISEÑO PREMIUM)
           ========================================================================= */}
-      {clienteDocDuplicadoNuevo && (
+      {mounted && clienteDocDuplicadoNuevo && createPortal(
         <div 
           onClick={() => setClienteDocDuplicadoNuevo(null)}
-          className="fixed inset-0 z-[210] flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-xs animate-in fade-in duration-200"
+          className="fixed inset-0 z-[9999999] flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-xs animate-in fade-in duration-200"
         >
           <div 
             onClick={(e) => e.stopPropagation()}
@@ -2739,16 +2766,17 @@ Gracias por seguir con nosotros.
               <span>Entendido, Corregir Documento</span>
             </button>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* =========================================================================
           SUB-MODAL: ALERTA DE CELULAR DUPLICADO AL CREAR (DISEÑO PREMIUM CON OPCIÓN CONTINUAR)
           ========================================================================= */}
-      {clienteCelDuplicadoNuevo && (
+      {mounted && clienteCelDuplicadoNuevo && createPortal(
         <div 
           onClick={() => setClienteCelDuplicadoNuevo(null)}
-          className="fixed inset-0 z-[210] flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-xs animate-in fade-in duration-200"
+          className="fixed inset-0 z-[9999999] flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-xs animate-in fade-in duration-200"
         >
           <div 
             onClick={(e) => e.stopPropagation()}
@@ -2854,7 +2882,8 @@ Gracias por seguir con nosotros.
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* =========================================================================
@@ -2918,10 +2947,10 @@ Gracias por seguir con nosotros.
       {/* =========================================================================
           MODAL: GESTIONAR ETIQUETAS PERSONALIZADAS
           ========================================================================= */}
-      {modalCategoriasAbierto && (
+      {mounted && modalCategoriasAbierto && createPortal(
         <div 
           onClick={(e) => { if (e.target === e.currentTarget) setModalCategoriasAbierto(false); }}
-          className="fixed inset-0 z-[160] flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-xs animate-in fade-in duration-200"
+          className="fixed inset-0 z-[999999] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md animate-in fade-in duration-200"
         >
           <div className="bg-white dark:bg-[#0f172a] rounded-3xl max-w-lg w-full p-6 border border-slate-100 dark:border-slate-800 shadow-2xl space-y-4 max-h-[90vh] flex flex-col">
             <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800 shrink-0">
@@ -3089,7 +3118,8 @@ Gracias por seguir con nosotros.
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* =========================================================================
