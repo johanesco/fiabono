@@ -622,6 +622,39 @@ Gracias por seguir con nosotros.
     return true; 
   });
 
+  // Determinar con precisión si realmente puede haber más registros para el filtro activo:
+  const puedeHaberMasParaFiltro = (() => {
+    if (!hayMasMovimientos || todosMovimientos.length === 0) return false;
+    
+    const filtroForzado = (!puedeVerReportes || planActual === 'basico') ? 'hoy' : filtroTiempoHistorial;
+
+    const ultimoCargado = todosMovimientos[todosMovimientos.length - 1];
+    const msUltimoCargado = ultimoCargado?.fecha?.toMillis 
+      ? ultimoCargado.fecha.toMillis() 
+      : (ultimoCargado?.fecha ? new Date(ultimoCargado.fecha).getTime() : 0);
+
+    const inicioHoy = new Date(hoyDate.getFullYear(), hoyDate.getMonth(), hoyDate.getDate()).getTime();
+    const inicioSemana = inicioSemanaDate.getTime();
+    const inicioMes = new Date(hoyDate.getFullYear(), hoyDate.getMonth(), 1).getTime();
+
+    // Como los movimientos vienen ordenados descendentemente (los más recientes primero):
+    // Si se está filtrando por "hoy" y el lote actual ya alcanzó fechas anteriores a hoy,
+    // es imposible que en lotes siguientes haya más movimientos de hoy.
+    if (filtroForzado === 'hoy' && msUltimoCargado < inicioHoy) {
+      return false;
+    }
+
+    if (filtroForzado === 'semana' && msUltimoCargado < inicioSemana) {
+      return false;
+    }
+
+    if (filtroForzado === 'mes' && msUltimoCargado < inicioMes) {
+      return false;
+    }
+
+    return true;
+  })();
+
   return (
     <div className="flex flex-col animate-in fade-in slide-in-from-bottom-4 duration-500 bg-white dark:bg-[#0f172a] rounded-[2rem] shadow-sm border border-slate-100 dark:border-slate-800/60 overflow-hidden h-full">
       <div className="bg-slate-50 dark:bg-[#0f172a] p-4 md:py-3 md:px-5 border-b border-slate-100 dark:border-slate-800/60 flex flex-col gap-3 md:gap-2.5 sticky top-0 z-10 shrink-0">
@@ -869,7 +902,7 @@ Gracias por seguir con nosotros.
           onReintentarNC={puedeHacerDevolucion ? reintentarNotaCredito : undefined}
         />
 
-        {hayMasMovimientos && (
+        {puedeHaberMasParaFiltro && (
           <div className="p-5 text-center">
             <button
               type="button"
