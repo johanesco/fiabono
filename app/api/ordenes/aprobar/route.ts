@@ -166,6 +166,22 @@ export async function POST(request: Request) {
         if (movimientoAbonoSepare) {
           const movimientoRef = adminDb.collection('movimientos').doc();
           transaction.create(movimientoRef, { ...movimientoAbonoSepare, idSepareOrigen: separeRef.id });
+        } else {
+          const movimientoRef = adminDb.collection('movimientos').doc();
+          transaction.create(movimientoRef, {
+            clienteId: payloadSepare.clienteId || null,
+            clienteNombre: payloadSepare.clienteNombre || 'Cliente',
+            usuarioId: decodedToken.uid,
+            tipo: 'abono',
+            subtipo: 'apertura_separe_sin_abono',
+            monto: 0,
+            descripcion: `Apertura Plan Separe (Sin abono inicial) - ${payloadSepare.clienteNombre || 'Cliente'}`,
+            detalles: payloadSepare.items || [],
+            fecha: aFecha(payloadSepare.fechaCreacion || orden.fecha) || new Date(),
+            registradoPor: orden.nombreColaborador || orden.vendedor || decodedToken.email || 'Usuario',
+            metodoPago: 'separe',
+            idSepareOrigen: separeRef.id
+          });
         }
       } else if (movimientoPrincipal) {
         const movimientoRef = adminDb.collection('movimientos').doc();

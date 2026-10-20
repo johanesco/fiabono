@@ -173,28 +173,58 @@ export default function InicioPage() {
         where("usuarioId", "==", cuentaPrincipalId),
         where("clienteId", "==", clienteId)
       );
-      const snapM = await getDocs(qM);
-      const lista: any[] = [];
-      snapM.forEach(doc => lista.push({ id: doc.id, ...doc.data() }));
-      lista.sort((a, b) => (b.fecha?.toMillis ? b.fecha.toMillis() : 0) - (a.fecha?.toMillis ? a.fecha.toMillis() : 0));
-      setMovimientosCliente(lista);
-    } catch (e) {
-      console.error("Error cargando movimientos del cliente:", e);
-    }
-
-    try {
       const qS = query(
         collection(db, "separes"),
         where("usuarioId", "==", cuentaPrincipalId),
         where("clienteId", "==", clienteId)
       );
-      const snapS = await getDocs(qS);
+      const [snapM, snapS] = await Promise.all([getDocs(qM), getDocs(qS)]);
+      const lista: any[] = [];
+      snapM.forEach(doc => lista.push({ id: doc.id, ...doc.data() }));
+
       const listaS: any[] = [];
       snapS.forEach(doc => listaS.push({ id: doc.id, ...doc.data() }));
       listaS.sort((a, b) => (b.fechaCreacion?.toMillis ? b.fechaCreacion.toMillis() : 0) - (a.fechaCreacion?.toMillis ? a.fechaCreacion.toMillis() : 0));
       setSeparesCliente(listaS);
+
+      const idsSeparesConMov = new Set(
+        lista.filter(m => m.idSepareOrigen || (m as any).separeId).map(m => m.idSepareOrigen || (m as any).separeId)
+      );
+
+      for (const sep of listaS) {
+        if (!idsSeparesConMov.has(sep.id)) {
+          lista.push({
+            id: `sep-apertura-${sep.id}`,
+            clienteId: clienteId,
+            clienteNombre: sep.clienteNombre || 'Cliente',
+            usuarioId: cuentaPrincipalId,
+            tipo: 'abono',
+            subtipo: (sep.montoPagado && sep.montoPagado > 0) ? 'abono_inicial_separe' : 'apertura_separe_sin_abono',
+            monto: sep.montoPagado || 0,
+            descripcion: `Plan Separe (${sep.estado === 'activo' ? 'Activo' : (sep.estado === 'completado' ? 'Entregado' : 'Cancelado')}) - ${sep.items?.map((i: any) => `${i.cantidad > 1 ? `${i.cantidad}x ` : ''}${i.descripcion}`).join(', ') || 'Productos'}`,
+            detalles: (sep.items || []).map((it: any) => ({
+              descripcion: it.descripcion,
+              cantidad: it.cantidad || 1,
+              valor: it.valor || 0,
+              valorUnitario: it.valorUnitario ?? it.valor ?? 0
+            })),
+            fecha: sep.fechaCreacion || sep.fecha || new Date(),
+            idSepareOrigen: sep.id,
+            saldoResultanteSepare: sep.saldoPendiente,
+            registradoPor: (sep as any).creadoPor || (sep as any).vendedor || 'Sistema',
+            metodoPago: sep.metodoPago || 'separe'
+          });
+        }
+      }
+
+      lista.sort((a, b) => {
+        const tA = (a.fecha as any)?.toMillis ? (a.fecha as any).toMillis() : (a.fecha ? new Date(a.fecha as any).getTime() : 0);
+        const tB = (b.fecha as any)?.toMillis ? (b.fecha as any).toMillis() : (b.fecha ? new Date(b.fecha as any).getTime() : 0);
+        return tB - tA;
+      });
+      setMovimientosCliente(lista);
     } catch (e) {
-      console.error("Error cargando separes del cliente:", e);
+      console.error("Error cargando historial de movimientos del cliente:", e);
     }
   };
 
@@ -1145,13 +1175,18 @@ Quedamos pendientes para revisar detalles o responder cualquier duda.
                     const esEgreso = mov.tipo === 'egreso';
                     const esDevolucion = mov.tipo === 'devolucion';
                     const esVentaOFiado = mov.tipo === 'venta' || mov.tipo === 'fiado';
+                    const esSepare = Boolean((mov as any).idSepareOrigen || (mov as any).separeId) || 
+                                     mov.tipo === 'entrega_separe' || 
+                                     mov.subtipo?.includes('separe') || 
+                                     Boolean(mov.descripcion && mov.descripcion.toLowerCase().includes('separe'));
+                    const esEntregaSepare = mov.tipo === 'entrega_separe';
                     const devolucionesAsociadas = movimientosCliente.filter((m: any) => m.tipo === 'devolucion' && m.movimientoOrigenId === mov.id);
                     const tieneDevolucion = devolucionesAsociadas.length > 0;
 
                     return (
                       <div key={mov.id} className={`p-4 md:p-5 bg-slate-50 dark:bg-[#020617] rounded-2xl border ${esDevolucion ? 'border-amber-200 dark:border-amber-800/50' : 'border-slate-100 dark:border-slate-800'} shadow-sm relative overflow-hidden space-y-2 md:space-y-3`}>
                         <div className={`absolute left-0 top-0 bottom-0 w-1.5 ${
-                          esDevolucion ? 'bg-amber-500' : (esDevolucionSepare ? 'bg-amber-500' : (esEgreso ? 'bg-orange-500' : (mov.tipo === 'fiado' ? 'bg-rose-500' : (mov.tipo === 'venta' ? 'bg-emerald-500' : 'bg-blue-500'))))
+                          esDevolucion ? 'bg-amber-500' : (esDevolucionSepare ? 'bg-amber-500' : (esEgreso ? 'bg-orange-500' : (esEntregaSepare ? 'bg-purple-600' : (esSepare ? 'bg-violet-600' : (mov.tipo === 'fiado' ? 'bg-rose-500' : (mov.tipo === 'venta' ? 'bg-emerald-500' : 'bg-blue-500'))))))
                         }`}></div>
                         
                         <div className="pl-1 md:pl-2">
@@ -1162,10 +1197,14 @@ Quedamos pendientes para revisar detalles o responder cualquier duda.
                                   ? 'bg-amber-100 text-amber-800 dark:bg-amber-500/20 dark:text-amber-300'
                                   : (esEgreso
                                     ? 'bg-orange-100 text-orange-800 dark:bg-orange-500/20 dark:text-orange-300'
-                                    : (mov.tipo === 'fiado' ? 'bg-rose-100 text-rose-700 dark:bg-rose-500/20 dark:text-rose-300' : (mov.tipo === 'venta' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300' : 'bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-300')))
+                                    : (esEntregaSepare
+                                      ? 'bg-purple-100 text-purple-700 dark:bg-purple-950/40 dark:text-purple-300'
+                                      : (esSepare
+                                        ? 'bg-violet-100 text-violet-700 dark:bg-violet-950/40 dark:text-violet-300'
+                                        : (mov.tipo === 'fiado' ? 'bg-rose-100 text-rose-700 dark:bg-rose-500/20 dark:text-rose-300' : (mov.tipo === 'venta' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300' : 'bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-300')))))
                               }`}>
                                 {(esDevolucion || esDevolucionSepare) && <RotateCcw size={10} />}
-                                {esDevolucion ? 'DEVOLUCIÓN' : (esDevolucionSepare ? 'DEV. SEPARE' : (esEgreso ? 'EGRESO' : mov.tipo))}
+                                {esDevolucion ? 'DEVOLUCIÓN' : (esDevolucionSepare ? 'DEV. SEPARE' : (esEgreso ? 'EGRESO' : (esEntregaSepare ? '📦 SEPARE ENTREGADO' : (esSepare ? (mov.subtipo === 'abono_inicial_separe' ? '🔖 SEPARE INICIAL' : (mov.subtipo === 'apertura_separe_sin_abono' || mov.monto === 0 ? '🔖 NUEVO SEPARE' : '🔖 ABONO SEPARE')) : (mov.tipo === 'abono' ? 'ABONO CUENTA' : mov.tipo)))))}
                               </span>
 
                               {tieneDevolucion && (
@@ -1240,10 +1279,10 @@ Quedamos pendientes para revisar detalles o responder cualquier duda.
                                   <Printer size={14} />
                                 </button>
                               )}
-                              <span className={`text-base md:text-xl ${
-                                esDevolucion || esDevolucionSepare || esEgreso ? 'text-amber-600 dark:text-amber-400' : (mov.tipo === 'fiado' ? 'text-rose-500' : (mov.tipo === 'venta' ? 'text-emerald-500' : 'text-blue-500'))
+                              <span className={`text-base md:text-xl font-black ${
+                                esDevolucion || esDevolucionSepare || esEgreso ? 'text-amber-600 dark:text-amber-400' : (esEntregaSepare ? 'text-purple-600 dark:text-purple-400' : (esSepare ? 'text-violet-600 dark:text-violet-400' : (mov.tipo === 'fiado' ? 'text-rose-500' : (mov.tipo === 'venta' ? 'text-emerald-500' : 'text-blue-500'))))
                               }`}>
-                                {mov.tipo === 'fiado' || esDevolucion || esDevolucionSepare || esEgreso ? '-' : '+'}${mov.monto.toLocaleString('es-CO')}
+                                {esEntregaSepare ? 'Entregado' : (mov.subtipo === 'apertura_separe_sin_abono' || (mov.monto === 0 && esSepare) ? 'Reservado ($0)' : `${mov.tipo === 'fiado' || esDevolucion || esDevolucionSepare || esEgreso ? '-' : '+'}${Math.round(mov.monto || 0).toLocaleString('es-CO')}`)}
                               </span>
                             </div>
                           </div>

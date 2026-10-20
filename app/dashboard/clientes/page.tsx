@@ -251,19 +251,57 @@ function ClientesContenido() {
         (m) => m.clienteId === c.id || (m.clienteNombre && m.clienteNombre.trim().toLowerCase() === c.nombre.trim().toLowerCase())
       );
 
+      // Asegurar que cada Separe del cliente esté representado en su historial (incluso creados con $0 o previos)
+      const idsSeparesConMov = new Set(
+        movsCliente.filter(m => m.idSepareOrigen || (m as any).separeId).map(m => m.idSepareOrigen || (m as any).separeId)
+      );
+
+      const separesCliente = separes.filter(
+        s => s.clienteId === c.id || (s.clienteNombre && s.clienteNombre.trim().toLowerCase() === c.nombre.trim().toLowerCase())
+      );
+
+      const movsSinteticosSepare: Movimiento[] = [];
+      for (const sep of separesCliente) {
+        if (!idsSeparesConMov.has(sep.id)) {
+          movsSinteticosSepare.push({
+            id: `sep-apertura-${sep.id}`,
+            clienteId: c.id,
+            clienteNombre: c.nombre,
+            usuarioId: c.usuarioId,
+            tipo: 'abono',
+            subtipo: (sep.montoPagado && sep.montoPagado > 0) ? 'abono_inicial_separe' : 'apertura_separe_sin_abono',
+            monto: sep.montoPagado || 0,
+            descripcion: `Plan Separe (${sep.estado === 'activo' ? 'Activo' : (sep.estado === 'completado' ? 'Entregado' : 'Cancelado')}) - ${sep.items?.map((i: any) => `${i.cantidad > 1 ? `${i.cantidad}x ` : ''}${i.descripcion}`).join(', ') || 'Productos'}`,
+            detalles: (sep.items || []).map((it: any) => ({
+              descripcion: it.descripcion,
+              cantidad: it.cantidad || 1,
+              valor: it.valor || 0,
+              valorUnitario: it.valorUnitario ?? it.valor ?? 0
+            })),
+            fecha: sep.fechaCreacion || (sep as any).fecha || new Date(),
+            idSepareOrigen: sep.id,
+            saldoResultanteSepare: sep.saldoPendiente,
+            registradoPor: (sep as any).creadoPor || (sep as any).vendedor || 'Sistema',
+            metodoPago: (sep as any).metodoPago || 'separe'
+          } as unknown as Movimiento);
+        }
+      }
+
+      const todosMovsCliente = [...movsCliente, ...movsSinteticosSepare];
+
       // Total comprado histórico (ventas + fiados)
-      const totalComprado = movsCliente
+      const totalComprado = todosMovsCliente
         .filter((m) => m.tipo === 'venta' || m.tipo === 'fiado')
         .reduce((acc, m) => acc + (m.monto || 0), 0);
 
-      // Total abonado histórico
-      const totalAbonado = movsCliente
+      // Total abonado histórico (abonos con monto > 0)
+      const totalAbonado = todosMovsCliente
         .filter((m) => m.tipo === 'abono')
         .reduce((acc, m) => acc + (m.monto || 0), 0);
 
       // Último abono
-      const abonosOrdenados = movsCliente
-        .filter((m) => m.tipo === 'abono' && m.fecha)
+      const abonosOrdenados = todosMovsCliente
+        .filter((m) => m.tipo === 'abono' && m.fecha && (m.monto || 0) > 0)
         .sort((a, b) => {
           const tA = obtenerFechaJS(a.fecha)?.getTime() || 0;
           const tB = obtenerFechaJS(b.fecha)?.getTime() || 0;
@@ -274,7 +312,7 @@ function ClientesContenido() {
       const fechaUltimoAbono = ultimoAbonoMov ? obtenerFechaJS(ultimoAbonoMov.fecha) : null;
 
       // Último movimiento en general
-      const movsOrdenados = [...movsCliente].sort((a, b) => {
+      const movsOrdenados = [...todosMovsCliente].sort((a, b) => {
         const tA = obtenerFechaJS(a.fecha)?.getTime() || 0;
         const tB = obtenerFechaJS(b.fecha)?.getTime() || 0;
         return tB - tA;
@@ -327,7 +365,7 @@ function ClientesContenido() {
         deuda,
         totalComprado,
         totalAbonado,
-        movimientosCount: movsCliente.length,
+        movimientosCount: todosMovsCliente.length,
         fechaUltimoAbono,
         fechaUltimoMov,
         diasSinAbonar,
@@ -338,7 +376,7 @@ function ClientesContenido() {
         movimientosHistorial: movsOrdenados
       };
     });
-  }, [clientes, movimientos, hoyMs]);
+  }, [clientes, movimientos, separes, hoyMs]);
 
   // 4. Métricas Consolidadas Macro
   const metricasMacro = useMemo(() => {
@@ -764,7 +802,7 @@ Quedamos pendientes para revisar detalles o responder cualquier duda.
       : filtroTipoMov === 'separe'
         ? todosMovs.filter((m: any) => Boolean(m.idSepareOrigen || m.separeId) || m.tipo === 'entrega_separe' || m.subtipo?.includes('separe') || (m.descripcion && m.descripcion.toLowerCase().includes('separe')))
         : filtroTipoMov === 'abono'
-          ? todosMovs.filter((m: any) => m.tipo === 'abono' && !(Boolean(m.idSepareOrigen || m.separeId) || m.subtipo?.includes('separe') || (m.descripcion && m.descripcion.toLowerCase().includes('separe'))))
+          ? todosMovs.filter((m: any) => m.tipo === 'abono' && (m.monto > 0 || m.subtipo !== 'apertura_separe_sin_abono'))
           : todosMovs.filter((m: Movimiento) => m.tipo === filtroTipoMov);
 
     // Renderizador común de tarjetas de movimientos
@@ -817,7 +855,7 @@ Quedamos pendientes para revisar detalles o responder cualquier duda.
                           ? 'bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-300'
                           : esEntregaSepare
                           ? 'bg-violet-100 text-violet-700 dark:bg-violet-950/60 dark:text-violet-300'
-                          : esAbonoSepare
+                          : esSepare
                           ? 'bg-violet-100 text-violet-700 dark:bg-violet-950/60 dark:text-violet-300'
                           : mov.tipo === 'fiado' 
                           ? 'bg-rose-100 text-rose-700 dark:bg-rose-500/20 dark:text-rose-300' 
@@ -827,7 +865,7 @@ Quedamos pendientes para revisar detalles o responder cualquier duda.
                       }`}>
                         {mov.tipo === 'devolucion' ? '↩ DEVOLUCIÓN' :
                          esEntregaSepare ? '📦 SEPARE ENTREGADO' :
-                         esAbonoSepare ? (
+                         esSepare ? (
                            mov.subtipo === 'abono_inicial_separe' ? '🔖 SEPARE INICIAL' :
                            (mov.subtipo === 'apertura_separe_sin_abono' || mov.monto === 0 ? '🔖 NUEVO SEPARE' : '🔖 ABONO SEPARE')
                          ) :
@@ -925,7 +963,7 @@ Quedamos pendientes para revisar detalles o responder cualquier duda.
                         esSepare ? 'text-violet-600 dark:text-violet-400' :
                         mov.tipo === 'fiado' ? 'text-rose-500' : (mov.tipo === 'venta' ? 'text-emerald-500' : 'text-blue-500')
                       }`}>
-                        {esEntregaSepare ? 'Entregado' : (mov.subtipo === 'apertura_separe_sin_abono' || (mov.monto === 0 && esSepare) ? 'Reservado ($0)' : `${mov.tipo === 'fiado' || mov.tipo === 'devolucion' ? '-' : '+'}\${Math.round(mov.monto || 0).toLocaleString('es-CO')}`)}
+                        {esEntregaSepare ? 'Entregado' : (mov.subtipo === 'apertura_separe_sin_abono' || (mov.monto === 0 && esSepare) ? 'Reservado ($0)' : `${mov.tipo === 'fiado' || mov.tipo === 'devolucion' ? '-' : '+'}$${Math.round(mov.monto || 0).toLocaleString('es-CO')}`)}
                       </span>
                     </div>
                   </div>

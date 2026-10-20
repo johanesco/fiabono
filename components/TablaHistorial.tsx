@@ -100,7 +100,8 @@ export default function TablaHistorial({ movimientos, getNombreCliente, onRowCli
                     mov.tipo === 'devolucion' ? 'bg-amber-100 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300' :
                     mov.tipo === 'egreso' ? 'bg-amber-100 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300' :
                     mov.tipo === 'entrega_separe' ? 'bg-purple-100 text-purple-700 dark:bg-purple-950/40 dark:text-purple-300' :
-                    mov.separeId || mov.descripcion?.toLowerCase().includes('separe') ? 'bg-violet-100 text-violet-700 dark:bg-violet-950/40 dark:text-violet-300' :
+                    esEntregaSepare ? 'bg-purple-100 text-purple-700 dark:bg-purple-950/40 dark:text-purple-300' :
+                    esSepare ? 'bg-violet-100 text-violet-700 dark:bg-violet-950/40 dark:text-violet-300' :
                     mov.tipo === 'fiado' ? 'bg-rose-100 text-rose-600 dark:bg-rose-950/40 dark:text-rose-300' : 
                     mov.tipo === 'venta' ? 'bg-emerald-100 text-emerald-600 dark:bg-emerald-950/40 dark:text-emerald-300' : 'bg-blue-100 text-blue-600 dark:bg-blue-950/40 dark:text-blue-300'
                   }`}>
@@ -118,8 +119,13 @@ export default function TablaHistorial({ movimientos, getNombreCliente, onRowCli
                       'EGRESO'
                     ) : mov.tipo === 'entrega_separe' ? (
                       'ENTREGA'
-                    ) : (mov.separeId || mov.descripcion?.toLowerCase().includes('separe')) ? (
-                      'SEPARE'
+                    ) : esEntregaSepare ? (
+                      'ENTREGA SEPARE'
+                    ) : esSepare ? (
+                      mov.subtipo === 'abono_inicial_separe' ? 'SEPARE INICIAL' :
+                      (mov.subtipo === 'apertura_separe_sin_abono' || mov.monto === 0 ? 'NUEVO SEPARE' : 'ABONO SEPARE')
+                    ) : mov.tipo === 'abono' ? (
+                      'ABONO CUENTA'
                     ) : (
                       mov.tipo
                     )}
@@ -131,10 +137,11 @@ export default function TablaHistorial({ movimientos, getNombreCliente, onRowCli
                   mov.tipo === 'egreso' ? 'text-amber-600 dark:text-amber-400' :
                   mov.tipo === 'fiado' ? 'text-rose-500' : 
                   mov.tipo === 'entrega_separe' ? 'text-purple-600 dark:text-purple-400' :
-                  mov.separeId || mov.descripcion?.toLowerCase().includes('separe') ? 'text-violet-600 dark:text-violet-400' :
+                  esEntregaSepare ? 'text-purple-600 dark:text-purple-400' :
+                  esSepare ? 'text-violet-600 dark:text-violet-400' :
                   mov.tipo === 'venta' ? 'text-emerald-500' : 'text-blue-500'
                 }`}>
-                  {esIngresoInv ? `+${(mov as any).cantidadAgregada || 1} un.` : `${mov.tipo === 'fiado' || mov.tipo === 'egreso' || mov.tipo === 'devolucion' ? '-' : '+'}$${mov.monto.toLocaleString('es-CO')}`}
+                  {esIngresoInv ? `+${(mov as any).cantidadAgregada || 1} un.` : (esEntregaSepare ? 'Entregado' : (mov.subtipo === 'apertura_separe_sin_abono' || (mov.monto === 0 && esSepare) ? 'Reservado ($0)' : `${mov.tipo === 'fiado' || mov.tipo === 'egreso' || mov.tipo === 'devolucion' ? '-' : '+'}${Math.round(mov.monto || 0).toLocaleString('es-CO')}`))}
                 </td>
                 <td className="py-2.5 px-2.5 sm:px-3 lg:px-4 text-center whitespace-nowrap min-w-[70px]" onClick={(e) => e.stopPropagation()}>
                   <div className="flex items-center justify-center gap-1.5">
