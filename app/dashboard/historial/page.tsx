@@ -2,7 +2,7 @@
 import { useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
-import { collection, getDocs, query, where } from "firebase/firestore";
+import { collection, getDocs, query, where, onSnapshot, orderBy, limit } from "firebase/firestore";
 import { db, auth } from "../../../firebase";
 import { Search, X, Clock, MessageCircle, Star, Users, Store, Printer, Edit3, Trash2, Bookmark, ChevronRight, Package, ArrowRight, User, RotateCcw, Smartphone, Calendar, ChevronDown } from 'lucide-react';
 import toast from "react-hot-toast";
@@ -76,9 +76,37 @@ export default function HistorialPage() {
   const scrollHistorialRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (cuentaPrincipalId) {
+    if (!cuentaPrincipalId) return;
+
+    // Carga inicial de clientes
+    API_DB.obtenerClientes(cuentaPrincipalId).then(listaC => {
+      listaC.sort((a, b) => a.nombre.localeCompare(b.nombre));
+      setClientes(listaC);
+    }).catch(e => console.error("Error cargando clientes en historial:", e));
+
+    // Listener en tiempo real de movimientos recientes (actualiza inmediatamente fiados, separes y ventas)
+    const qM = query(
+      collection(db, "movimientos"),
+      where("usuarioId", "==", cuentaPrincipalId),
+      orderBy("fecha", "desc"),
+      limit(35)
+    );
+
+    const unsubM = onSnapshot(qM, (snap) => {
+      const movs: Movimiento[] = [];
+      snap.forEach(d => {
+        movs.push({ id: d.id, ...d.data() } as Movimiento);
+      });
+      setTodosMovimientos(movs);
+      if (snap.docs.length > 0) {
+        setUltimoDocSnapshot(snap.docs[snap.docs.length - 1]);
+      }
+    }, (err) => {
+      console.warn("Fallo listener en tiempo real de movimientos, cargando estático:", err);
       cargarDatosHistorial(cuentaPrincipalId);
-    }
+    });
+
+    return () => unsubM();
   }, [cuentaPrincipalId]);
 
   const cargarDatosHistorial = async (uid: string) => {
@@ -284,46 +312,87 @@ export default function HistorialPage() {
   };
 
   const generarTextoComprobante = (tipo: 'estado' | 'comprobante' = 'estado', cliente: any = {}, accion?: 'fiado' | 'abono' | 'venta' | null, detallesArray?: any[], totalMov?: number) => {
-    const saldoFormat = `$${Math.abs(cliente.deudaTotal || 0).toLocaleString('es-CO')}`;
+    const deuda = cliente.deudaTotal !== undefined ? cliente.deudaTotal : (cliente.deuda || 0);
+    const saldoFormat = `$${Math.abs(deuda).toLocaleString('es-CO')}`;
     const nombreCliente = cliente.nombre || 'Cliente';
     const nombreTienda = nombreNegocio || 'nuestra tienda';
+
+    const separesActivos = separesCliente.filter((s: any) => s.estado === 'activo');
+    const saldoSeparesActivos = separesActivos.reduce((acc: number, s: any) => acc + (s.saldoPendiente || 0), 0);
+    const totalCompromiso = deuda < 0 ? deuda : (deuda + saldoSeparesActivos);
+
     let texto = '';
 
     if (tipo === 'estado') {
-      texto = `¡Hola, *${nombreCliente}*! Te saludamos de *${nombreTienda}*.
-
-===================
-*ESTADO DE CUENTA*
-===================
-
-• Actualmente presentas un saldo pendiente de: *${saldoFormat}*
-
-Quedamos pendientes para revisar detalles o responder cualquier duda.
-
-*¡Que tengas un gran día!*`;
-
-      if ((cliente.deudaTotal || 0) === 0) {
+      if (deuda > 0 && saldoSeparesActivos > 0) {
         texto = `¡Hola, *${nombreCliente}*! Te saludamos de *${nombreTienda}*.
 
 ===================
 *ESTADO DE CUENTA*
 ===================
 
-• Tu cuenta se encuentra al día.
+💰 *SALDO TOTAL PENDIENTE: ${Math.round(totalCompromiso).toLocaleString('es-CO')}*
+
+📋 *Resumen de tu cuenta:*
+• *Deuda en fiados:* ${Math.round(deuda).toLocaleString('es-CO')}
+• *Saldo en Planes Separe:* ${Math.round(saldoSeparesActivos).toLocaleString('es-CO')}
+
+🔖 *Tus Planes Separe activos:*
+${separesActivos.map((s: any) => `• ${s.items?.map((it: any) => `${it.cantidad > 1 ? `${it.cantidad}x ` : ''}${it.descripcion}`).join(', ') || 'Productos'} (Saldo: ${Math.round(s.saldoPendiente || 0).toLocaleString('es-CO')})`).join('\n')}
+
+Quedamos a tu disposición para revisar cualquier detalle o realizar abonos.
+
+*¡Que tengas un gran día!*`;
+      } else if (deuda <= 0 && saldoSeparesActivos > 0) {
+        texto = `¡Hola, *${nombreCliente}*! Te saludamos de *${nombreTienda}*.
+
+===================
+*ESTADO DE CUENTA*
+===================
+
+💰 *SALDO EN PLANES SEPARE: ${Math.round(saldoSeparesActivos).toLocaleString('es-CO')}*
+• Tu cuenta de fiados se encuentra al día.
+
+🔖 *Tus artículos reservados:*
+${separesActivos.map((s: any) => `• ${s.items?.map((it: any) => `${it.cantidad > 1 ? `${it.cantidad}x ` : ''}${it.descripcion}`).join(', ') || 'Productos'} (Saldo: ${Math.round(s.saldoPendiente || 0).toLocaleString('es-CO')} | Pagado: ${Math.round(s.montoPagado || 0).toLocaleString('es-CO')})`).join('\n')}
+
+Quedamos a tu disposición para abonar y retirar tus productos.
+
+*¡Que tengas un gran día!*`;
+      } else if (deuda > 0) {
+        texto = `¡Hola, *${nombreCliente}*! Te saludamos de *${nombreTienda}*.
+
+===================
+*ESTADO DE CUENTA*
+===================
+
+• Actualmente presentas un saldo pendiente de: *${Math.round(deuda).toLocaleString('es-CO')}*
+
+Quedamos pendientes para revisar detalles o responder cualquier duda.
+
+*¡Que tengas un gran día!*`;
+      } else if (deuda < 0) {
+        texto = `¡Hola, *${nombreCliente}*! Te saludamos de *${nombreTienda}*.
+
+===================
+*ESTADO DE CUENTA*
+===================
+
+• Actualmente tienes un saldo a favor de: *${Math.round(Math.abs(deuda)).toLocaleString('es-CO')}*
+
+Quedamos pendientes para revisar detalles o responder cualquier duda.
+
+*¡Que tengas un gran día!*`;
+      } else {
+        texto = `¡Hola, *${nombreCliente}*! Te saludamos de *${nombreTienda}*.
+
+===================
+*ESTADO DE CUENTA*
+===================
+
+• Tu cuenta se encuentra totalmente al día.
 
 Gracias por seguir con nosotros.
-
-*¡Que tengas un gran día!*`;
-      } else if ((cliente.deudaTotal || 0) < 0) {
-        texto = `¡Hola, *${nombreCliente}*! Te saludamos de *${nombreTienda}*.
-
-===================
-*ESTADO DE CUENTA*
-===================
-
-• Actualmente tienes un saldo a favor de: *${saldoFormat}*
-
-Quedamos pendientes para revisar detalles o responder cualquier duda.
 
 *¡Que tengas un gran día!*`;
       }

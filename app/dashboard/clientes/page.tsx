@@ -260,6 +260,11 @@ function ClientesContenido() {
         s => s.clienteId === c.id || (s.clienteNombre && s.clienteNombre.trim().toLowerCase() === c.nombre.trim().toLowerCase())
       );
 
+      const separesActivos = separesCliente.filter((s: any) => s.estado === 'activo');
+      const saldoSeparesActivos = separesActivos.reduce((acc: number, s: any) => acc + (s.saldoPendiente || 0), 0);
+      const tieneSaldoAFavor = deuda < 0;
+      const totalCompromiso = tieneSaldoAFavor ? deuda : (deuda + saldoSeparesActivos);
+
       const movsSinteticosSepare: Movimiento[] = [];
       for (const sep of separesCliente) {
         if (!idsSeparesConMov.has(sep.id)) {
@@ -363,6 +368,9 @@ function ClientesContenido() {
       return {
         ...c,
         deuda,
+        saldoSeparesActivos,
+        totalCompromiso,
+        separesActivosCount: separesActivos.length,
         totalComprado,
         totalAbonado,
         movimientosCount: todosMovsCliente.length,
@@ -381,14 +389,14 @@ function ClientesContenido() {
   // 4. Métricas Consolidadas Macro
   const metricasMacro = useMemo(() => {
     const totalClientes = clientesConAnalisis.length;
-    const conDeuda = clientesConAnalisis.filter((c) => c.deuda > 0);
-    const carteraTotal = conDeuda.reduce((acc, c) => acc + c.deuda, 0);
+    const conDeuda = clientesConAnalisis.filter((c) => (c.totalCompromiso || 0) > 0);
+    const carteraTotal = conDeuda.reduce((acc, c) => acc + (c.totalCompromiso || 0), 0);
 
     const enRiesgo = clientesConAnalisis.filter((c) => c.semaforo === 'riesgo');
-    const dineroEnRiesgo = enRiesgo.reduce((acc, c) => acc + c.deuda, 0);
+    const dineroEnRiesgo = enRiesgo.reduce((acc, c) => acc + (c.totalCompromiso || 0), 0);
 
     const vips = clientesConAnalisis.filter((c) => c.esVip);
-    const alDia = clientesConAnalisis.filter((c) => c.deuda === 0);
+    const alDia = clientesConAnalisis.filter((c) => (c.totalCompromiso || 0) === 0);
 
     return {
       totalClientes,
@@ -447,17 +455,17 @@ function ClientesContenido() {
       }
 
       // Filtro de pestaña
-      if (filtroActivo === 'con_deuda') return c.deuda > 0;
+      if (filtroActivo === 'con_deuda') return (c.totalCompromiso || 0) > 0;
       if (filtroActivo === 'en_riesgo') return c.semaforo === 'riesgo';
-      if (filtroActivo === 'mayor_deuda') return c.deuda > 0;
+      if (filtroActivo === 'mayor_deuda') return (c.totalCompromiso || 0) > 0;
       if (filtroActivo === 'vip') return c.esVip;
-      if (filtroActivo === 'al_dia') return c.deuda === 0;
+      if (filtroActivo === 'al_dia') return (c.totalCompromiso || 0) === 0;
 
       return true;
     }).sort((a, b) => {
       // Ordenar por prioridad: primero los de mayor riesgo/deuda
       if (filtroActivo === 'en_riesgo' || filtroActivo === 'con_deuda' || filtroActivo === 'mayor_deuda') {
-        return b.deuda - a.deuda;
+        return (b.totalCompromiso || 0) - (a.totalCompromiso || 0);
       }
       if (filtroActivo === 'vip') {
         return b.totalComprado - a.totalComprado;
@@ -509,46 +517,93 @@ function ClientesContenido() {
   // Mensaje de comprobante / estado de cuenta idéntico al estándar oficial de Historial e Inicio
   const generarTextoComprobante = (tipo: 'estado' | 'comprobante' = 'estado', cliente: any = {}) => {
     const deuda = cliente.deudaTotal !== undefined ? cliente.deudaTotal : (cliente.deuda || 0);
-    const saldoFormat = `$${Math.abs(deuda).toLocaleString('es-CO')}`;
     const nombreCliente = cliente.nombre || 'Cliente';
     const nombreTienda = nombreNegocio || 'nuestra tienda';
+    
+    // Obtener separes activos de la clienta
+    const separesCliente = separes.filter(
+      (s: any) => (s.clienteId === cliente.id || (s.clienteNombre && s.clienteNombre.trim().toLowerCase() === cliente.nombre?.trim().toLowerCase())) && s.estado === 'activo'
+    );
+    const saldoSeparesActivos = separesCliente.reduce((acc: number, s: any) => acc + (s.saldoPendiente || 0), 0);
+    const totalCompromiso = deuda < 0 ? deuda : (deuda + saldoSeparesActivos);
+
     let texto = '';
 
     if (tipo === 'estado') {
-      texto = `¡Hola, *${nombreCliente}*! Te saludamos de *${nombreTienda}*.
-
-===================
-*ESTADO DE CUENTA*
-===================
-
-• Actualmente presentas un saldo pendiente de: *${saldoFormat}*
-
-Quedamos pendientes para revisar detalles o responder cualquier duda.
-
-*¡Que tengas un gran día!*`;
-
-      if (deuda === 0) {
+      if (deuda > 0 && saldoSeparesActivos > 0) {
+        // Caso 1: Tiene fiados y también tiene Planes Separe activos
         texto = `¡Hola, *${nombreCliente}*! Te saludamos de *${nombreTienda}*.
 
 ===================
 *ESTADO DE CUENTA*
 ===================
 
-• Tu cuenta se encuentra al día.
+💰 *SALDO TOTAL PENDIENTE: ${Math.round(totalCompromiso).toLocaleString('es-CO')}*
 
-Gracias por seguir con nosotros.
+📋 *Resumen de tu cuenta:*
+• *Deuda en fiados:* ${Math.round(deuda).toLocaleString('es-CO')}
+• *Saldo en Planes Separe:* ${Math.round(saldoSeparesActivos).toLocaleString('es-CO')}
+
+🔖 *Tus Planes Separe activos:*
+${separesCliente.map((s: any) => `• ${s.items?.map((it: any) => `${it.cantidad > 1 ? `${it.cantidad}x ` : ''}${it.descripcion}`).join(', ') || 'Productos'} (Saldo: ${Math.round(s.saldoPendiente || 0).toLocaleString('es-CO')})`).join('\n')}
+
+Quedamos a tu disposición para revisar cualquier detalle o realizar abonos.
+
+*¡Que tengas un gran día!*`;
+      } else if (deuda <= 0 && saldoSeparesActivos > 0) {
+        // Caso 2: Solo tiene Planes Separe activos (cuenta de fiados al día)
+        texto = `¡Hola, *${nombreCliente}*! Te saludamos de *${nombreTienda}*.
+
+===================
+*ESTADO DE CUENTA*
+===================
+
+💰 *SALDO EN PLANES SEPARE: ${Math.round(saldoSeparesActivos).toLocaleString('es-CO')}*
+• Tu cuenta de fiados se encuentra al día.
+
+🔖 *Tus artículos reservados:*
+${separesCliente.map((s: any) => `• ${s.items?.map((it: any) => `${it.cantidad > 1 ? `${it.cantidad}x ` : ''}${it.descripcion}`).join(', ') || 'Productos'} (Saldo: ${Math.round(s.saldoPendiente || 0).toLocaleString('es-CO')} | Pagado: ${Math.round(s.montoPagado || 0).toLocaleString('es-CO')})`).join('\n')}
+
+Quedamos a tu disposición para abonar y retirar tus productos.
+
+*¡Que tengas un gran día!*`;
+      } else if (deuda > 0) {
+        // Caso 3: Solo fiados (sin separes)
+        texto = `¡Hola, *${nombreCliente}*! Te saludamos de *${nombreTienda}*.
+
+===================
+*ESTADO DE CUENTA*
+===================
+
+• Actualmente presentas un saldo pendiente de: *${Math.round(deuda).toLocaleString('es-CO')}*
+
+Quedamos pendientes para revisar detalles o responder cualquier duda.
 
 *¡Que tengas un gran día!*`;
       } else if (deuda < 0) {
+        // Caso 4: Saldo a favor
         texto = `¡Hola, *${nombreCliente}*! Te saludamos de *${nombreTienda}*.
 
 ===================
 *ESTADO DE CUENTA*
 ===================
 
-• Actualmente tienes un saldo a favor de: *${saldoFormat}*
+• Actualmente tienes un saldo a favor de: *${Math.round(Math.abs(deuda)).toLocaleString('es-CO')}*
 
 Quedamos pendientes para revisar detalles o responder cualquier duda.
+
+*¡Que tengas un gran día!*`;
+      } else {
+        // Caso 5: Totalmente al día
+        texto = `¡Hola, *${nombreCliente}*! Te saludamos de *${nombreTienda}*.
+
+===================
+*ESTADO DE CUENTA*
+===================
+
+• Tu cuenta se encuentra totalmente al día.
+
+Gracias por seguir con nosotros.
 
 *¡Que tengas un gran día!*`;
       }
@@ -559,7 +614,7 @@ Quedamos pendientes para revisar detalles o responder cualquier duda.
           .filter((mov: any) => mov.tipo === 'abono' && mov.fecha)
           .sort((a: any, b: any) => (obtenerFechaJS(b.fecha)?.getTime() || 0) - (obtenerFechaJS(a.fecha)?.getTime() || 0))[0]
       : undefined;
-    return agregarMediosPagoAlEstado(texto, datosSesion?.mediosPago, nombreTienda, deuda, ultimoAbono);
+    return agregarMediosPagoAlEstado(texto, datosSesion?.mediosPago, nombreTienda, totalCompromiso, ultimoAbono);
   };
 
   // Abrir comprobante en modal térmico
@@ -2203,20 +2258,24 @@ Quedamos pendientes para revisar detalles o responder cualquier duda.
                       {/* Saldo / Estado */}
                       <div className="text-right">
                         <span className={`text-sm sm:text-base font-black tracking-tight block ${
-                          c.deuda > 0 
-                            ? c.semaforo === 'riesgo' 
-                              ? 'text-rose-600 dark:text-rose-400' 
-                              : 'text-amber-600 dark:text-amber-400' 
-                            : c.deuda < 0
+                          (c.totalCompromiso || 0) > 0 
+                            ? c.deuda > 0
+                              ? (c.semaforo === 'riesgo' ? 'text-rose-600 dark:text-rose-400' : 'text-amber-600 dark:text-amber-400')
+                              : 'text-violet-600 dark:text-violet-400'
+                            : (c.totalCompromiso || 0) < 0
                               ? 'text-emerald-600 dark:text-emerald-400'
                               : 'text-slate-400 dark:text-slate-500'
                         }`}>
-                          ${Math.round(Math.abs(c.deuda)).toLocaleString('es-CO')}
+                          ${Math.round(Math.abs(c.totalCompromiso || 0)).toLocaleString('es-CO')}
                         </span>
                         <span className={`text-[10px] block font-bold ${
-                          c.deuda < 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-400 font-medium'
+                          (c.totalCompromiso || 0) < 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-400 font-medium'
                         }`}>
-                          {c.deuda > 0 ? (
+                          {c.deuda > 0 && (c.saldoSeparesActivos || 0) > 0 ? (
+                            `Fiado ${Math.round(c.deuda).toLocaleString('es-CO')} • Separe ${Math.round(c.saldoSeparesActivos).toLocaleString('es-CO')}`
+                          ) : (c.saldoSeparesActivos || 0) > 0 && c.deuda <= 0 ? (
+                            <span className="text-violet-600 dark:text-violet-400 font-bold">🔖 Separe activo</span>
+                          ) : c.deuda > 0 ? (
                             c.diasSinAbonar > 0 ? `Hace ${c.diasSinAbonar}d` : 'Fiado reciente'
                           ) : c.deuda < 0 ? (
                             'Saldo a favor'
