@@ -6,18 +6,43 @@ import ServiceWorkerRegistrar from "@/components/ServiceWorkerRegistrar";
 import InstallPrompt from "@/components/InstallPrompt";
 
 export const metadata = {
-  title: "Fiabono | Software POS para Tiendas de Barrio, Control de Fiados y Plan Separe",
-  description: "El sistema POS más fácil de Colombia para tiendas de barrio, minimarkets y almacenes de ropa. Controla ventas, inventario, cobro de fiados por WhatsApp y Plan Separe desde tu celular o computador.",
+  metadataBase: new URL("https://www.fiabono.com"),
+  title: "Fiabono | Software POS para Almacenes y Tiendas de Barrio, Control de Fiados y Plan Separe",
+  description: "El sistema POS más fácil de Colombia para almacenes, tiendas de barrio y minimarkets. Controla ventas, inventario, cobro de fiados por WhatsApp y Plan Separe desde tu celular o computador.",
   keywords: [
     "sistema pos colombia",
+    "software para almacenes",
+    "software pos almacenes de ropa",
     "software para tienda de barrio",
     "control de fiados",
     "plan separe ropa y calzado",
     "software pos gratis",
-    "programa para tienda",
+    "programa para tienda y almacen",
     "facturas por whatsapp",
     "control de inventario facil"
   ],
+  openGraph: {
+    title: "Fiabono | Software POS para Almacenes y Tiendas de Barrio, Control de Fiados y Plan Separe",
+    description: "El sistema POS más fácil de Colombia para almacenes, tiendas de barrio y minimarkets. Controla ventas, inventario, cobro de fiados por WhatsApp y Plan Separe desde tu celular o computador.",
+    url: "https://www.fiabono.com",
+    siteName: "Fiabono",
+    locale: "es_CO",
+    type: "website",
+    images: [
+      {
+        url: "/logo-verde-linea-blanca-grande.png",
+        width: 512,
+        height: 512,
+        alt: "Fiabono - Software POS para Almacenes y Tiendas",
+      },
+    ],
+  },
+  twitter: {
+    card: "summary",
+    title: "Fiabono | Software POS para Almacenes y Tiendas de Barrio, Control de Fiados y Plan Separe",
+    description: "El sistema POS más fácil de Colombia para almacenes, tiendas de barrio y minimarkets. Controla ventas, inventario, cobro de fiados por WhatsApp y Plan Separe desde tu celular o computador.",
+    images: ["/logo-verde-linea-blanca-grande.png"],
+  },
   manifest: "/manifest.json",
   icons: {
     icon: [
