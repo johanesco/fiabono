@@ -146,6 +146,21 @@ function ClientesContenido() {
   // Filtro de movimientos en historial: 'todos' | 'venta' | 'fiado' | 'abono'
   const [filtroTipoMov, setFiltroTipoMov] = useState<'todos' | 'venta' | 'fiado' | 'abono'>('todos');
 
+  // Detección de dispositivo tablet táctil (iPad u otras tablets táctiles en horizontal)
+  const [esTabletTactil, setEsTabletTactil] = useState(false);
+  useEffect(() => {
+    const detectarTablet = () => {
+      if (typeof window === 'undefined') return;
+      const esIPad = /iPad/i.test(navigator.userAgent) || 
+        (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+      const esTabletTactilMedia = window.matchMedia('(pointer: coarse) and (hover: none)').matches;
+      setEsTabletTactil(esIPad || (esTabletTactilMedia && window.innerWidth < 1280));
+    };
+    detectarTablet();
+    window.addEventListener('resize', detectarTablet);
+    return () => window.removeEventListener('resize', detectarTablet);
+  }, []);
+
   // 1. Cargar Clientes en Tiempo Real
   useEffect(() => {
     if (!cuentaPrincipalId || !puedeVerCartera) return;
@@ -1225,10 +1240,10 @@ Quedamos pendientes para revisar detalles o responder cualquier duda.
         </div>
 
         {/* =========================================================================
-            B. VISTA TABLET EN HORIZONTAL (1024px a 1279px, iPad landscape)
+            B. VISTA TABLET EN HORIZONTAL (1024px a 1279px, iPad landscape táctil)
             Barra superior compacta (sin textos truncados) + Historial ancho abajo
             ========================================================================= */}
-        <div className="hidden lg:flex xl:hidden flex-col h-full overflow-hidden bg-white dark:bg-[#0f172a]">
+        <div className={`hidden ${esTabletTactil ? 'lg:flex' : 'hidden'} flex-col h-full overflow-hidden bg-white dark:bg-[#0f172a]`}>
           
           {/* Cabecera Tablet Compacta: Nombre completo, Saldo y Acciones Rápidas */}
           <div className="shrink-0 p-3.5 bg-slate-50/80 dark:bg-[#020617]/90 border-b border-slate-200 dark:border-slate-800 space-y-2.5 backdrop-blur-xs">
@@ -1413,20 +1428,21 @@ Quedamos pendientes para revisar detalles o responder cualquier duda.
         </div>
 
         {/* =========================================================================
-            C. VISTA ESCRITORIO PANORÁMICA (>= 1280px)
-            Diseño Ejecutivo Dividido: Perfil a la izquierda + Historial a la derecha
-            100% de la altura del monitor aprovechada
+            C. VISTA ESCRITORIO (>= 1024px en PC / Laptops)
+            Diseño Clásico Dividido idéntico a la versión original de escritorio:
+            Perfil (5 cols) a la izquierda + Historial (7 cols) a la derecha
+            100% fiel a la distribución original solicitada por el usuario
             ========================================================================= */}
-        <div className="hidden xl:grid xl:grid-cols-12 h-full divide-x divide-slate-100 dark:divide-slate-800 overflow-hidden bg-white dark:bg-[#0f172a]">
+        <div className={`hidden ${!esTabletTactil ? 'lg:grid' : 'hidden'} lg:grid-cols-12 h-full divide-x divide-slate-100 dark:divide-slate-800 overflow-hidden bg-white dark:bg-[#0f172a]`}>
           {/* Sub-columna Izquierda (5 cols): Perfil, Saldo, Botones, Separes y Notas */}
-          <div className="xl:col-span-5 h-full overflow-y-auto bg-slate-50/40 dark:bg-[#020617]/40 p-5 space-y-4 pb-12 overscroll-contain">
+          <div className="lg:col-span-5 h-full overflow-y-auto bg-slate-50/40 dark:bg-[#020617]/40 p-4 sm:p-5 space-y-4 pb-12 overscroll-contain">
             {/* Nombre y opciones */}
             <div className="text-center pt-1 px-2">
               <span className="inline-flex items-center gap-1 text-[10px] font-black uppercase tracking-widest text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/50 px-2.5 py-0.5 rounded-full mb-1.5">
                 👤 CLIENTE
               </span>
               <div className="flex items-center justify-center gap-2 flex-wrap">
-                <h2 className="text-2xl font-black text-slate-900 dark:text-white tracking-tight leading-tight break-words">
+                <h2 className="text-[22px] sm:text-[26px] font-black text-slate-900 dark:text-white tracking-tight leading-tight break-words">
                   {cliente.nombre}
                 </h2>
                 {cliente.apodo && (
@@ -1491,8 +1507,8 @@ Quedamos pendientes para revisar detalles o responder cualquier duda.
               </div>
             </div>
 
-            {/* Saldo Destacado en tarjeta amplia */}
-            <div className="p-3.5 rounded-2xl bg-slate-50/80 dark:bg-[#020617] border border-slate-200 dark:border-slate-800 shadow-xs">
+            {/* Fila 2: Saldo Destacado en tarjeta blanca (idéntico a la versión clásica) */}
+            <div className="p-3.5 sm:p-4 rounded-2xl bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-800 shadow-xs">
               <div className="flex items-center justify-between">
                 <span className={`text-[10px] font-black uppercase tracking-wider block ${
                   tieneSaldoAFavor 
@@ -1501,7 +1517,7 @@ Quedamos pendientes para revisar detalles o responder cualquier duda.
                 }`}>
                   {tieneSaldoAFavor ? 'Saldo a Favor' : (totalCompromiso === 0 ? 'Estado' : (saldoSeparesActivos > 0 ? 'Saldo Total Pendiente' : 'Saldo Actual'))}
                 </span>
-                <span className={`text-2xl font-black ${
+                <span className={`text-xl sm:text-2xl font-black ${
                   !tieneSaldoAFavor && totalCompromiso === 0 
                     ? 'text-slate-400' 
                     : (tieneSaldoAFavor ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400')
@@ -1522,7 +1538,7 @@ Quedamos pendientes para revisar detalles o responder cualquier duda.
               )}
             </div>
 
-            {/* Botones de Acción Rápidos (Grilla 2x2 para fácil clic) */}
+            {/* Fila 3: Botones de Acción Rápidos (Grilla 2x2 para fácil clic y sin apretarse) */}
             <div className="grid grid-cols-2 gap-2">
               <button 
                 type="button"
@@ -1564,7 +1580,7 @@ Quedamos pendientes para revisar detalles o responder cualquier duda.
               ) : null}
             </div>
 
-            {/* Botón WhatsApp */}
+            {/* Fila 4: Botón WhatsApp Estado de Cuenta (con borde y estilo de la foto) */}
             {cliente.celular && puedeEnviarWhatsApp && (
               <button 
                 type="button"
@@ -1584,9 +1600,9 @@ Quedamos pendientes para revisar detalles o responder cualquier duda.
           </div>
 
           {/* Sub-columna Derecha (7 cols): Historial de Movimientos 100% vertical */}
-          <div className="xl:col-span-7 h-full flex flex-col min-h-0 overflow-hidden bg-white dark:bg-[#0f172a]">
+          <div className="lg:col-span-7 h-full flex flex-col min-h-0 overflow-hidden bg-white dark:bg-[#0f172a]">
             {/* Cabecera del historial fija arriba */}
-            <div className="p-3.5 sm:px-5 sm:py-3.5 bg-slate-50/90 dark:bg-[#020617] border-b border-slate-200 dark:border-slate-800 shrink-0 flex flex-wrap items-center justify-between gap-2">
+            <div className="p-3 sm:px-5 sm:py-3.5 bg-slate-50/90 dark:bg-[#020617] border-b border-slate-200 dark:border-slate-800 shrink-0 flex flex-wrap items-center justify-between gap-2">
               <div className="flex items-center gap-2">
                 <Clock size={16} className="text-slate-400" />
                 <span className="font-black text-slate-800 dark:text-white uppercase text-xs tracking-wider">
@@ -2003,7 +2019,7 @@ Quedamos pendientes para revisar detalles o responder cualquier duda.
               )}
             </div>
           ) : (
-            <div className="bg-white dark:bg-[#0f172a] rounded-2xl border border-slate-100 dark:border-slate-800 shadow-2xs overflow-hidden lg:h-[calc(100dvh-295px)] xl:h-[calc(100dvh-265px)] lg:overflow-y-auto overscroll-contain scrollbar-thin">
+            <div className="bg-white dark:bg-[#0f172a] rounded-2xl border border-slate-100 dark:border-slate-800 shadow-2xs overflow-hidden lg:max-h-[calc(100vh-270px)] lg:overflow-y-auto overscroll-contain scrollbar-thin">
               <div className="divide-y divide-slate-100 dark:divide-slate-800/60 pb-20">
                 {clientesFiltrados.map((c) => {
                 const inicial = (c.nombre || 'C').charAt(0).toUpperCase();
@@ -2154,7 +2170,7 @@ Quedamos pendientes para revisar detalles o responder cualquier duda.
         {/* COLUMNA DERECHA: EXPEDIENTE OFICIAL DEL CLIENTE (7 cols en lg, 8 cols en xl+) */}
         <div className="hidden lg:block lg:col-span-7 xl:col-span-8 sticky top-4">
           {clienteActivoDetalle ? (
-            <div className="bg-white dark:bg-[#0f172a] rounded-[2rem] border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden flex flex-col lg:h-[calc(100dvh-295px)] xl:h-[calc(100dvh-265px)]">
+            <div className="bg-white dark:bg-[#0f172a] rounded-[2rem] border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden flex flex-col h-[calc(100vh-140px)]">
               {renderFichaCliente(clienteActivoDetalle, separesClienteActivo, false)}
             </div>
           ) : (
