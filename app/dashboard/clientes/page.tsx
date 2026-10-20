@@ -1225,84 +1225,107 @@ Quedamos pendientes para revisar detalles o responder cualquier duda.
         </div>
 
         {/* =========================================================================
-            B. VISTA ESCRITORIO (>= 1024px)
-            Dos columnas: Izquierda (Ficha + Saldo + Acciones) y Derecha (Historial con scroll 100% independiente)
+            B. VISTA TABLET & ESCRITORIO (>= 1024px)
+            Diseño Ejecutivo Tipo iPadOS Master-Detail:
+            - Cabecera Fija Compacta: Perfil + Saldo + Barra de Acciones y WhatsApp
+            - Cuerpo Inferior Scrolleable: Separes Activos, Notas e Historial de Movimientos a ancho completo
             ========================================================================= */}
-        <div className="hidden lg:grid lg:grid-cols-12 h-full divide-x divide-slate-100 dark:divide-slate-800 overflow-hidden">
-          {/* Columna Izquierda (5 cols): Perfil, Saldo y Acciones con su propio scroll */}
-          <div className="lg:col-span-5 h-full overflow-y-auto bg-slate-50/40 dark:bg-[#020617]/40 p-4 sm:p-5 space-y-4">
-            {/* Fila 1: Nombre del cliente + badge distinguido + opciones de edición */}
-            <div className="text-center pt-1 px-2">
-              <span className="inline-flex items-center gap-1 text-[10px] font-black uppercase tracking-widest text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/50 px-2.5 py-0.5 rounded-full mb-1.5">
-                👤 CLIENTE
-              </span>
-              <div className="flex items-center justify-center gap-2 flex-wrap">
-                <h2 className="text-[22px] sm:text-[26px] font-black text-slate-900 dark:text-white tracking-tight leading-tight break-words">
-                  {cliente.nombre}
-                </h2>
-                {cliente.apodo && (
-                  <span className="text-xs sm:text-sm font-bold text-amber-700 dark:text-amber-400 bg-amber-100/70 dark:bg-amber-950/50 px-2.5 py-0.5 rounded-lg border border-amber-200 dark:border-amber-800/40">
-                    "{cliente.apodo}"
-                  </span>
-                )}
-                {!esCajero && (
-                  <div className="inline-flex items-center gap-1 shrink-0">
-                    <button
-                      type="button"
-                      onClick={() => setModalGestion({ isOpen: true, modo: 'editar', cliente })}
-                      title="Modificar Cliente"
-                      className="p-1 rounded-lg bg-white dark:bg-slate-800 text-slate-500 hover:text-blue-600 shadow-xs border border-slate-200 dark:border-slate-700 cursor-pointer transition"
-                    >
-                      <Edit3 size={14} />
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setModalGestion({ isOpen: true, modo: 'eliminar', cliente })}
-                      title="Eliminar Cliente"
-                      className="p-1 rounded-lg bg-white dark:bg-slate-800 text-slate-500 hover:text-rose-600 shadow-xs border border-slate-200 dark:border-slate-700 cursor-pointer transition"
-                    >
-                      <Trash2 size={14} />
-                    </button>
+        <div className="hidden lg:flex flex-col h-full overflow-hidden bg-white dark:bg-[#0f172a]">
+          
+          {/* Cabecera Ejecutiva Fija: Perfil, Saldo y Acciones Rápidas */}
+          <div className="shrink-0 p-4 sm:p-5 bg-slate-50/80 dark:bg-[#020617]/90 border-b border-slate-200 dark:border-slate-800 space-y-3.5 backdrop-blur-xs">
+            
+            {/* Fila 1: Datos del Cliente (Izquierda) + Saldo Destacado (Derecha) */}
+            <div className="flex items-start justify-between gap-3 min-w-0">
+              
+              {/* Lado Izquierdo: Avatar + Nombre + Apodo + Teléfono + Categorías */}
+              <div className="flex items-start gap-3 min-w-0 flex-1">
+                {/* Avatar con inicial */}
+                <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-blue-600 to-indigo-700 text-white font-black text-lg flex items-center justify-center shrink-0 shadow-xs border border-blue-400/30">
+                  {(cliente.nombre || 'C').charAt(0).toUpperCase()}
+                </div>
+
+                <div className="min-w-0 flex-1 space-y-1">
+                  {/* Badge + Nombre + Apodo + Opciones de edición */}
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="inline-flex items-center gap-1 text-[10px] font-black uppercase tracking-widest text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/50 px-2 py-0.5 rounded-md">
+                      👤 CLIENTE
+                    </span>
+                    <h2 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white tracking-tight leading-tight truncate">
+                      {cliente.nombre}
+                    </h2>
+                    {cliente.apodo && (
+                      <span className="text-xs font-bold text-amber-700 dark:text-amber-400 bg-amber-100/70 dark:bg-amber-950/50 px-2 py-0.5 rounded-lg border border-amber-200 dark:border-amber-800/40 shrink-0">
+                        "{cliente.apodo}"
+                      </span>
+                    )}
+                    {!esCajero && (
+                      <div className="inline-flex items-center gap-1 shrink-0 ml-1">
+                        <button
+                          type="button"
+                          onClick={() => setModalGestion({ isOpen: true, modo: 'editar', cliente })}
+                          title="Modificar Cliente"
+                          className="p-1 rounded-lg bg-white dark:bg-slate-800 text-slate-500 hover:text-blue-600 shadow-xs border border-slate-200 dark:border-slate-700 cursor-pointer transition active:scale-95"
+                        >
+                          <Edit3 size={13} />
+                        </button>
+                        {datosSesion?.esAdmin !== false && (
+                          <button
+                            type="button"
+                            onClick={() => setModalGestion({ isOpen: true, modo: 'eliminar', cliente })}
+                            title="Eliminar Cliente"
+                            className="p-1 rounded-lg bg-white dark:bg-slate-800 text-slate-500 hover:text-rose-600 shadow-xs border border-slate-200 dark:border-slate-700 cursor-pointer transition active:scale-95"
+                          >
+                            <Trash2 size={13} />
+                          </button>
+                        )}
+                      </div>
+                    )}
                   </div>
-                )}
-              </div>
-              <p className="text-slate-500 dark:text-slate-400 text-xs font-semibold mt-1">
-                {cliente.celular ? `📱 ${cliente.celular}` : "Sin celular registrado"}
-              </p>
-              {cliente.direccion && (
-                <p className="text-slate-400 text-[11px] mt-0.5">
-                  📍 {cliente.direccion}
-                </p>
-              )}
 
-              {/* Categorías / Etiquetas personalizadas del cliente en escritorio */}
-              <div className="flex flex-wrap items-center justify-center gap-1.5 mt-2">
-                {(cliente.etiquetas || []).map((tag: string, i: number) => (
-                  <span 
-                    key={i} 
-                    className="inline-flex items-center gap-1 text-[10px] font-bold px-2.5 py-0.5 rounded-lg bg-violet-100 dark:bg-violet-950/60 text-violet-700 dark:text-violet-300 border border-violet-200 dark:border-violet-800 shadow-2xs"
-                  >
-                    <Tag size={11} className="shrink-0" />
-                    <span>{tag}</span>
-                  </span>
-                ))}
-                {!esCajero && (
-                  <button
-                    type="button"
-                    onClick={() => setModalGestion({ isOpen: true, modo: 'editar', cliente })}
-                    className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-lg text-slate-500 hover:text-violet-600 dark:text-slate-400 dark:hover:text-violet-300 hover:bg-violet-50 dark:hover:bg-violet-950/40 border border-dashed border-slate-300 dark:border-slate-700 transition cursor-pointer"
-                    title="Editar categorías del cliente"
-                  >
-                    <Plus size={10} />
-                    <span>{(cliente.etiquetas || []).length === 0 ? "Asignar Categoría" : "Editar"}</span>
-                  </button>
-                )}
-              </div>
-            </div>
+                  {/* Teléfono, Dirección y Categorías */}
+                  <div className="flex items-center gap-3 text-xs flex-wrap">
+                    {cliente.celular ? (
+                      <span className="font-semibold text-slate-600 dark:text-slate-300 inline-flex items-center gap-1">
+                        📱 {cliente.celular}
+                      </span>
+                    ) : (
+                      <span className="italic text-slate-400 text-[11px]">Sin teléfono</span>
+                    )}
 
-            {/* Fila 2: Saldo Destacado en tarjeta compacta */}
-            <div className="p-3 sm:p-3.5 rounded-2xl bg-slate-50/80 dark:bg-[#020617] border border-slate-200 dark:border-slate-800 shadow-xs">
-              <div className="flex items-center justify-between">
+                    {cliente.direccion && (
+                      <span className="text-slate-400 text-[11px] inline-flex items-center gap-1 truncate max-w-xs">
+                        📍 {cliente.direccion}
+                      </span>
+                    )}
+
+                    {/* Categorías / Etiquetas */}
+                    {(cliente.etiquetas || []).map((tag: string, i: number) => (
+                      <span 
+                        key={i} 
+                        className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-md bg-violet-100 dark:bg-violet-950/60 text-violet-700 dark:text-violet-300 border border-violet-200 dark:border-violet-800 shadow-2xs"
+                      >
+                        <Tag size={10} className="shrink-0" />
+                        <span>{tag}</span>
+                      </span>
+                    ))}
+                    {!esCajero && (
+                      <button
+                        type="button"
+                        onClick={() => setModalGestion({ isOpen: true, modo: 'editar', cliente })}
+                        className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-md text-slate-500 hover:text-violet-600 dark:text-slate-400 dark:hover:text-violet-300 hover:bg-violet-50 dark:hover:bg-violet-950/40 border border-dashed border-slate-300 dark:border-slate-700 transition cursor-pointer"
+                        title="Editar categorías del cliente"
+                      >
+                        <Plus size={9} />
+                        <span>{(cliente.etiquetas || []).length === 0 ? "Categoría" : "Editar"}</span>
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Lado Derecho: Tarjeta de Saldo Destacado */}
+              <div className="p-2.5 sm:px-4 sm:py-2.5 rounded-2xl bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-800 shadow-xs shrink-0 text-right min-w-[150px] sm:min-w-[190px]">
                 <span className={`text-[10px] font-black uppercase tracking-wider block ${
                   tieneSaldoAFavor 
                     ? 'text-emerald-600 dark:text-emerald-400' 
@@ -1310,109 +1333,116 @@ Quedamos pendientes para revisar detalles o responder cualquier duda.
                 }`}>
                   {tieneSaldoAFavor ? 'Saldo a Favor' : (totalCompromiso === 0 ? 'Estado' : (saldoSeparesActivos > 0 ? 'Saldo Total Pendiente' : 'Saldo Actual'))}
                 </span>
-                <span className={`text-xl sm:text-2xl font-black ${
+                <span className={`text-xl sm:text-2xl font-black tracking-tight ${
                   !tieneSaldoAFavor && totalCompromiso === 0 
-                    ? 'text-slate-400' 
+                    ? 'text-emerald-600 dark:text-emerald-400' 
                     : (tieneSaldoAFavor ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400')
                 }`}>
                   {!tieneSaldoAFavor && totalCompromiso === 0 ? 'Al Día' : `$${Math.round(Math.abs(totalCompromiso)).toLocaleString('es-CO')}`}
                 </span>
+
+                {saldoSeparesActivos > 0 && (
+                  <div className="flex items-center justify-end gap-2 text-[10px] font-bold text-slate-500 dark:text-slate-400 pt-1 mt-1 border-t border-slate-100 dark:border-slate-800/80">
+                    {tieneSaldoAFavor ? (
+                      <span>A favor: <strong className="text-emerald-600 dark:text-emerald-400">${Math.round(Math.abs(deudaFiado)).toLocaleString('es-CO')}</strong></span>
+                    ) : (
+                      <span>Fiados: <strong className="text-rose-600 dark:text-rose-400">${Math.round(deudaFiado).toLocaleString('es-CO')}</strong></span>
+                    )}
+                    <span>•</span>
+                    <span className="text-violet-600 dark:text-violet-400">Separes: <strong>${Math.round(saldoSeparesActivos).toLocaleString('es-CO')}</strong></span>
+                  </div>
+                )}
               </div>
-
-              {saldoSeparesActivos > 0 && (
-                <div className="flex items-center justify-between text-[11px] font-bold text-slate-500 dark:text-slate-400 pt-2 mt-2 border-t border-slate-200 dark:border-slate-800">
-                  {tieneSaldoAFavor ? (
-                    <span>A favor: <strong className="text-emerald-600 dark:text-emerald-400">${Math.round(Math.abs(deudaFiado)).toLocaleString('es-CO')}</strong></span>
-                  ) : (
-                    <span>Fiados: <strong className="text-rose-600 dark:text-rose-400">${Math.round(deudaFiado).toLocaleString('es-CO')}</strong></span>
-                  )}
-                  <span className="text-violet-600 dark:text-violet-400">Separes: <strong>${Math.round(saldoSeparesActivos).toLocaleString('es-CO')}</strong></span>
-                </div>
-              )}
             </div>
 
-            {/* Fila 3: Botones de Acción Rápidos (Grilla 2x2 para fácil clic y sin apretarse) */}
-            <div className="grid grid-cols-2 gap-2">
-              <button 
-                type="button"
-                onClick={() => router.push(`/dashboard/vender?clienteId=${cliente.id}`)} 
-                className="py-2.5 px-3 bg-emerald-500 hover:bg-emerald-600 text-white font-black rounded-xl text-xs uppercase shadow-xs transition active:scale-95 cursor-pointer text-center flex items-center justify-center gap-1.5"
-              >
-                <span>Vender</span>
-              </button>
-              <button 
-                type="button"
-                onClick={() => router.push(`/dashboard/fiar?clienteId=${cliente.id}`)} 
-                className="py-2.5 px-3 bg-rose-500 hover:bg-rose-600 text-white font-black rounded-xl text-xs uppercase shadow-xs transition active:scale-95 cursor-pointer text-center flex items-center justify-center gap-1.5"
-              >
-                <span>Fiar</span>
-              </button>
-              <button 
-                type="button"
-                onClick={() => router.push(`/dashboard/abonar?clienteId=${cliente.id}`)} 
-                className={`py-2.5 px-3 bg-blue-500 hover:bg-blue-600 text-white font-black rounded-xl text-xs uppercase shadow-xs transition active:scale-95 cursor-pointer text-center flex items-center justify-center gap-1.5 ${(!puedeSepare && separesActivosCliente.length === 0) ? 'col-span-2' : ''}`}
-              >
-                <span>Abonar</span>
-              </button>
-              {puedeSepare ? (
+            {/* Fila 2: Barra de Botones de Acción Táctiles y WhatsApp */}
+            <div className="flex flex-wrap items-center justify-between gap-2.5 pt-1 border-t border-slate-200/60 dark:border-slate-800/60">
+              {/* Botón WhatsApp */}
+              {cliente.celular && puedeEnviarWhatsApp ? (
                 <button 
                   type="button"
-                  onClick={() => router.push(`/dashboard/separe?clienteId=${cliente.id}`)} 
-                  className="py-2.5 px-3 bg-violet-600 hover:bg-violet-700 text-white font-black rounded-xl text-xs uppercase shadow-xs transition active:scale-95 cursor-pointer text-center flex items-center justify-center gap-1.5"
+                  onClick={() => abrirEnlaceWhatsApp(cliente.celular, generarTextoComprobante('estado', cliente))} 
+                  className="py-2 px-3 bg-[#25D366]/15 hover:bg-[#25D366]/25 text-[#128C7E] dark:text-[#25D366] font-bold rounded-xl border border-[#25D366]/40 transition active:scale-95 cursor-pointer flex items-center gap-1.5 text-xs shadow-xs"
+                  title="Enviar estado de cuenta a WhatsApp"
                 >
-                  <span>Separe</span>
+                  <MessageCircle size={15} className="text-[#25D366] fill-[#25D366]/30" />
+                  <span>WhatsApp</span>
                 </button>
-              ) : separesActivosCliente.length > 0 ? (
+              ) : <div />}
+
+              {/* Botones POS Rápidos */}
+              <div className="flex items-center gap-2">
                 <button 
                   type="button"
-                  onClick={() => router.push(`/dashboard/separes?tab=activos&busqueda=${encodeURIComponent(cliente.nombre)}`)} 
-                  className="py-2.5 px-3 bg-violet-600 hover:bg-violet-700 text-white font-black rounded-xl text-xs uppercase shadow-xs transition active:scale-95 cursor-pointer text-center flex items-center justify-center gap-1.5"
+                  onClick={() => router.push(`/dashboard/vender?clienteId=${cliente.id}`)} 
+                  className="py-2 px-3.5 bg-emerald-500 hover:bg-emerald-600 text-white font-black rounded-xl text-xs uppercase shadow-xs transition active:scale-95 cursor-pointer flex items-center gap-1.5"
                 >
-                  <span>Ver Separes</span>
+                  <span>Vender</span>
                 </button>
-              ) : null}
+                <button 
+                  type="button"
+                  onClick={() => router.push(`/dashboard/fiar?clienteId=${cliente.id}`)} 
+                  className="py-2 px-3.5 bg-rose-500 hover:bg-rose-600 text-white font-black rounded-xl text-xs uppercase shadow-xs transition active:scale-95 cursor-pointer flex items-center gap-1.5"
+                >
+                  <span>Fiar</span>
+                </button>
+                <button 
+                  type="button"
+                  onClick={() => router.push(`/dashboard/abonar?clienteId=${cliente.id}`)} 
+                  className="py-2 px-3.5 bg-blue-500 hover:bg-blue-600 text-white font-black rounded-xl text-xs uppercase shadow-xs transition active:scale-95 cursor-pointer flex items-center gap-1.5"
+                >
+                  <span>Abonar</span>
+                </button>
+                {puedeSepare ? (
+                  <button 
+                    type="button"
+                    onClick={() => router.push(`/dashboard/separe?clienteId=${cliente.id}`)} 
+                    className="py-2 px-3.5 bg-violet-600 hover:bg-violet-700 text-white font-black rounded-xl text-xs uppercase shadow-xs transition active:scale-95 cursor-pointer flex items-center gap-1.5"
+                  >
+                    <span>Separe</span>
+                  </button>
+                ) : separesActivosCliente.length > 0 ? (
+                  <button 
+                    type="button"
+                    onClick={() => router.push(`/dashboard/separes?tab=activos&busqueda=${encodeURIComponent(cliente.nombre)}`)} 
+                    className="py-2 px-3.5 bg-violet-600 hover:bg-violet-700 text-white font-black rounded-xl text-xs uppercase shadow-xs transition active:scale-95 cursor-pointer flex items-center gap-1.5"
+                  >
+                    <span>Ver Separes</span>
+                  </button>
+                ) : null}
+              </div>
             </div>
 
-            {/* Fila 4: Botón de WhatsApp oficial */}
-            {cliente.celular && puedeEnviarWhatsApp && (
-              <button 
-                type="button"
-                onClick={() => abrirEnlaceWhatsApp(cliente.celular, generarTextoComprobante('estado', cliente))} 
-                className="w-full py-2.5 px-3 bg-[#25D366]/15 hover:bg-[#25D366]/25 text-[#128C7E] dark:text-[#25D366] font-black rounded-xl border border-[#25D366]/40 transition active:scale-98 cursor-pointer flex items-center justify-center gap-2 text-xs shadow-xs"
-              >
-                <MessageCircle size={16} className="text-[#25D366] fill-[#25D366]/30" />
-                <span>Enviar estado de cuenta por WhatsApp</span>
-              </button>
-            )}
-
-            {/* Separes Activos en Escritorio */}
-            {seccionSeparesActivos}
-
-            {/* Notas del cliente en Escritorio */}
-            {seccionNotas}
           </div>
 
-          {/* Columna Derecha (7 cols): Historial de Movimientos con Scroll 100% Independiente */}
-          <div className="lg:col-span-7 h-full flex flex-col min-h-0 overflow-hidden bg-white dark:bg-[#0f172a]">
-            {/* Cabecera del historial fija arriba */}
-            <div className="p-3 sm:px-5 sm:py-3.5 bg-slate-50/90 dark:bg-[#020617] border-b border-slate-200 dark:border-slate-800 shrink-0 flex flex-wrap items-center justify-between gap-2">
-              <div className="flex items-center gap-2">
-                <Clock size={16} className="text-slate-400" />
-                <span className="font-black text-slate-800 dark:text-white uppercase text-xs tracking-wider">
-                  Historial de Movimientos
-                </span>
-                <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
-                  {cliente.movimientosHistorial?.length || 0}
-                </span>
-              </div>
-              {chipsFiltrosHistorial}
-            </div>
+          {/* Cuerpo Scrolleable a Ancho Completo: Separes, Notas e Historial */}
+          <div className="flex-1 min-h-0 overflow-y-auto p-4 sm:p-5 space-y-4 pb-8 overscroll-contain">
+            {/* Separes activos */}
+            {seccionSeparesActivos}
 
-            {/* Contenedor scrolleable 100% independiente para transacciones */}
-            <div className="flex-1 min-h-0 overflow-y-auto p-4 space-y-3 pb-8">
+            {/* Notas del cliente */}
+            {seccionNotas}
+
+            {/* Cabecera del Historial con Filtros */}
+            <div className="space-y-3 pt-1">
+              <div className="flex flex-wrap items-center justify-between gap-2 pb-2 border-b border-slate-100 dark:border-slate-800">
+                <div className="flex items-center gap-2">
+                  <Clock size={16} className="text-slate-400" />
+                  <span className="font-black text-slate-800 dark:text-white uppercase text-xs tracking-wider">
+                    Historial de Movimientos
+                  </span>
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
+                    {cliente.movimientosHistorial?.length || 0}
+                  </span>
+                </div>
+                {chipsFiltrosHistorial}
+              </div>
+
+              {/* Lista de movimientos espaciosa y sin compresión */}
               {renderListaMovimientos(movimientosFiltrados)}
             </div>
           </div>
+
         </div>
 
       </div>
@@ -1776,8 +1806,8 @@ Quedamos pendientes para revisar detalles o responder cualquier duda.
           ========================================================================= */}
       <div className="lg:grid lg:grid-cols-12 lg:gap-6 items-start w-full">
         
-        {/* COLUMNA IZQUIERDA: LISTA DE CLIENTES / DIRECTORIO (5 cols en lg, 4 cols en xl+) */}
-        <div className="lg:col-span-5 xl:col-span-4 space-y-3">
+        {/* COLUMNA IZQUIERDA: LISTA DE CLIENTES / DIRECTORIO (4 cols en lg/xl) */}
+        <div className="lg:col-span-4 xl:col-span-4 space-y-3">
           <div className="flex items-center justify-between px-1">
             <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">
               Contactos ({clientesFiltrados.length})
@@ -1812,7 +1842,7 @@ Quedamos pendientes para revisar detalles o responder cualquier duda.
               )}
             </div>
           ) : (
-            <div className="bg-white dark:bg-[#0f172a] rounded-2xl border border-slate-100 dark:border-slate-800 shadow-2xs divide-y divide-slate-100 dark:divide-slate-800/60 overflow-hidden lg:max-h-[calc(100vh-270px)] lg:overflow-y-auto">
+            <div className="bg-white dark:bg-[#0f172a] rounded-2xl border border-slate-100 dark:border-slate-800 shadow-2xs divide-y divide-slate-100 dark:divide-slate-800/60 overflow-hidden lg:h-[calc(100vh-210px)] lg:overflow-y-auto overscroll-contain">
               {clientesFiltrados.map((c) => {
                 const inicial = (c.nombre || 'C').charAt(0).toUpperCase();
                 const estaSeleccionado = clienteFicha?.id === c.id;
@@ -1953,10 +1983,10 @@ Quedamos pendientes para revisar detalles o responder cualquier duda.
           )}
         </div>
 
-        {/* COLUMNA DERECHA: EXPEDIENTE OFICIAL DEL CLIENTE (7 cols en lg, 8 cols en xl+) */}
-        <div className="hidden lg:block lg:col-span-7 xl:col-span-8 sticky top-4">
+        {/* COLUMNA DERECHA: EXPEDIENTE OFICIAL DEL CLIENTE (8 cols en lg/xl) */}
+        <div className="hidden lg:block lg:col-span-8 xl:col-span-8 sticky top-4">
           {clienteActivoDetalle ? (
-            <div className="bg-white dark:bg-[#0f172a] rounded-[2rem] border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden flex flex-col h-[calc(100vh-140px)]">
+            <div className="bg-white dark:bg-[#0f172a] rounded-[2rem] border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden flex flex-col lg:h-[calc(100vh-210px)]">
               {renderFichaCliente(clienteActivoDetalle, separesClienteActivo, false)}
             </div>
           ) : (
