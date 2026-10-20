@@ -5,7 +5,7 @@ import { getAdminDb } from '@/lib/firebase-admin';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
-export const alt = 'Comprobante digital de Fiabono';
+export const alt = 'Comprobante digital';
 export const size = { width: 1200, height: 630 };
 export const contentType = 'image/png';
 
@@ -37,7 +37,7 @@ const obtenerLogoFallbackComoDataUri = async (): Promise<string> => {
   return `data:image/png;base64,${buffer.toString('base64')}`;
 };
 
-const obtenerLogoYNegocio = async (id: string) => {
+const obtenerDatosNegocio = async (id: string) => {
   try {
     const db = getAdminDb();
     const movimiento = await db.collection('movimientos').doc(id).get();
@@ -53,6 +53,9 @@ const obtenerLogoYNegocio = async (id: string) => {
         if (adminSnap.exists) datos = adminSnap.data();
       }
 
+      const planNormalizado = (datos?.plan || 'gratis').toLowerCase();
+      const esPago = planNormalizado === 'pro' || planNormalizado === 'comercio' || datos?.esPro === true || datos?.esComercio === true;
+
       const logoUrl = typeof datos?.logoUrl === 'string' && datos.logoUrl.trim()
         ? datos.logoUrl.trim()
         : typeof datos?.logoNegocio === 'string' && datos.logoNegocio.trim()
@@ -64,26 +67,32 @@ const obtenerLogoYNegocio = async (id: string) => {
       return {
         nombreNegocio: datos?.nombreNegocio || 'Comprobante digital',
         logoUrl,
+        esPago,
       };
     }
   } catch (error) {
-    console.error('[OG] Error al generar imagen del comprobante:', error);
+    console.error('[OG] Error al consultar datos del comprobante:', error);
   }
 
-  return { nombreNegocio: 'Comprobante digital', logoUrl: null };
+  return { nombreNegocio: 'Comprobante digital', logoUrl: null, esPago: false };
 };
 
 export default async function OpenGraphImage({ params }: Props) {
   const { id } = await params;
-  const { logoUrl } = await obtenerLogoYNegocio(id);
+  const { logoUrl, esPago } = await obtenerDatosNegocio(id);
 
-  // logoUrl puede ya venir en Base64 (campo antiguo "logoNegocio"), en cuyo
-  // caso se usa directo; si es una URL de Storage, se descarga aqui.
   let logo: string | null = null;
   if (logoUrl) {
     logo = logoUrl.startsWith('data:') ? logoUrl : await obtenerLogoComoDataUri(logoUrl);
   }
+
+  // Si el negocio no tiene logo propio:
+  // - En plan de pago: 100% limpio (no muestra imagen).
+  // - En plan gratuito: muestra el logo de Fiabono como respaldo publicitario.
   if (!logo) {
+    if (esPago) {
+      return new Response(null, { status: 404 });
+    }
     logo = await obtenerLogoFallbackComoDataUri();
   }
 

@@ -110,3 +110,52 @@ export function contactarFiabonoWhatsApp(parametros: ParametrosContactoFiabono) 
   const mensaje = generarMensajeFiabono(parametros);
   abrirEnlaceWhatsApp(NUMERO_WHATSAPP_FIABONO, mensaje);
 }
+
+
+/**
+ * Obtiene el nombre más cercano, natural y cálido del cliente para mensajes de WhatsApp.
+ * - Si el cliente tiene 'nombres' guardado por separado, devuelve 'nombres' (excluyendo apellidos).
+ * - Respeta formas de cortesía colombianas/latinas: 'Doña Carmen', 'Don Pedro', 'Señor Carlos'.
+ * - Respeta nombres compuestos habituales: 'Juan David', 'María José', 'Ana María'.
+ * - Por defecto, extrae el primer nombre del cliente.
+ */
+export function obtenerNombreCercano(cliente: any): string {
+  if (!cliente) return 'Cliente';
+  if (typeof cliente === 'string') {
+    return extraerPrimerNombre(cliente);
+  }
+  if (cliente.nombres && typeof cliente.nombres === 'string' && cliente.nombres.trim()) {
+    return cliente.nombres.trim();
+  }
+  const nombreCompleto = cliente.nombre || cliente.clienteNombre || '';
+  return extraerPrimerNombre(nombreCompleto);
+}
+
+function capitalizar(str: string): string {
+  if (!str) return '';
+  return str.charAt(0).toUpperCase() + str.slice(1);
+}
+
+export function extraerPrimerNombre(nombreCompleto: string): string {
+  const limpio = (nombreCompleto || '').trim();
+  if (!limpio || limpio.toLowerCase() === 'mostrador' || limpio.toLowerCase() === 'consumidor final') {
+    return 'Cliente';
+  }
+
+  // Casos especiales de cortesía: 'Doña Carmen', 'Don Pedro', 'Señor Carlos'
+  const regexRespeto = /^(doña|dona|don|sr\.|sra\.|señor|señora)\s+([^\s]+)/i;
+  const matchRespeto = limpio.match(regexRespeto);
+  if (matchRespeto) {
+    return `${capitalizar(matchRespeto[1])} ${capitalizar(matchRespeto[2])}`;
+  }
+
+  // Nombres compuestos cotidianos frecuentes
+  const regexCompuesto = /^(juan\s+(?:david|carlos|pablo|manuel|esteban|josé|jose)|maría\s+(?:josé|jose|camila|alejandra|fernanda|paula|elena)|maria\s+(?:jose|josé|camila|alejandra|fernanda|paula|elena)|ana\s+(?:maría|maria|lucía|lucia|sofía|sofia))\b/i;
+  const matchCompuesto = limpio.match(regexCompuesto);
+  if (matchCompuesto) {
+    return matchCompuesto[1].split(/\s+/).map(capitalizar).join(' ');
+  }
+
+  const partes = limpio.split(/\s+/);
+  return capitalizar(partes[0]) || 'Cliente';
+}

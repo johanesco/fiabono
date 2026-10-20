@@ -1,4 +1,5 @@
 "use client";
+import { obtenerNombreCercano } from "@/utils/whatsapp";
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { collection, getDocs, query, where, doc, onSnapshot, addDoc, increment } from "firebase/firestore";

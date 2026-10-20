@@ -1,4 +1,5 @@
 "use client";
+import { obtenerNombreCercano } from "@/utils/whatsapp";
 import { useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
@@ -39,6 +40,7 @@ export default function HistorialPage() {
   const [filtroTiempoHistorial, setFiltroTiempoHistorial] = useState<'hoy' | 'semana' | 'mes' | 'todos'>('hoy');
   const [filtroTipoHistorial, setFiltroTipoHistorial] = useState<'todos' | 'venta' | 'abono' | 'separe' | 'fiado' | 'devolucion' | 'ingreso_inventario'>('todos');
   const [filtroVendedorHistorial, setFiltroVendedorHistorial] = useState<string>('todos');
+  const [colaboradoresNegocio, setColaboradoresNegocio] = useState<string[]>([]);
   
   const [movimientoInventarioDetalle, setMovimientoInventarioDetalle] = useState<Movimiento | null>(null);
   const [ultimoDocSnapshot, setUltimoDocSnapshot] = useState<any>(null);
@@ -78,35 +80,85 @@ export default function HistorialPage() {
   useEffect(() => {
     if (!cuentaPrincipalId) return;
 
+    // Carga inicial de colaboradores activos del negocio para el selector de vendedores
+    const qColabs = query(
+      collection(db, "usuarios"),
+      where("adminId", "==", cuentaPrincipalId),
+      where("rol", "==", "cajero")
+    );
+    getDocs(qColabs).then(snap => {
+      const nombres: string[] = [];
+      snap.forEach(docSnap => {
+        const d = docSnap.data();
+        if (d.activo !== false && !d.esCajaMostrador && !d.esTerminalMultivendedor) {
+          const nom = d.nombreUsuario || d.nombre;
+          if (nom && !nombres.includes(nom)) nombres.push(nom);
+        }
+      });
+      setColaboradoresNegocio(nombres);
+    }).catch(e => console.error("Error cargando colaboradores en historial:", e));
+
     // Carga inicial de clientes
     API_DB.obtenerClientes(cuentaPrincipalId).then(listaC => {
       listaC.sort((a, b) => a.nombre.localeCompare(b.nombre));
       setClientes(listaC);
     }).catch(e => console.error("Error cargando clientes en historial:", e));
 
-    // Listener en tiempo real de movimientos recientes (actualiza inmediatamente fiados, separes y ventas)
+    // Listener en tiempo real de movimientos recientes (primer lote de 15 transacciones)
+    let unsubFallback: (() => void) | null = null;
     const qM = query(
       collection(db, "movimientos"),
       where("usuarioId", "==", cuentaPrincipalId),
       orderBy("fecha", "desc"),
-      limit(35)
+      limit(16)
     );
 
     const unsubM = onSnapshot(qM, (snap) => {
+      const docs = snap.docs;
+      const hayMas = docs.length > 15;
+      const docsAProcesar = hayMas ? docs.slice(0, 15) : docs;
       const movs: Movimiento[] = [];
-      snap.forEach(d => {
+      docsAProcesar.forEach(d => {
         movs.push({ id: d.id, ...d.data() } as Movimiento);
       });
       setTodosMovimientos(movs);
-      if (snap.docs.length > 0) {
-        setUltimoDocSnapshot(snap.docs[snap.docs.length - 1]);
+      if (docsAProcesar.length > 0) {
+        setUltimoDocSnapshot(docsAProcesar[docsAProcesar.length - 1]);
       }
+      setHayMasMovimientos(hayMas);
     }, (err) => {
-      console.warn("Fallo listener en tiempo real de movimientos, cargando estático:", err);
-      cargarDatosHistorial(cuentaPrincipalId);
+      console.warn("Listener indexado de movimientos no disponible, usando listener en tiempo real con ordenamiento local:", err?.message || err);
+      try {
+        const qFallback = query(
+          collection(db, "movimientos"),
+          where("usuarioId", "==", cuentaPrincipalId)
+        );
+        unsubFallback = onSnapshot(qFallback, (snap) => {
+          const movs: Movimiento[] = [];
+          snap.forEach(d => {
+            movs.push({ id: d.id, ...d.data() } as Movimiento);
+          });
+          movs.sort((a, b) => (b.fecha?.toMillis ? b.fecha.toMillis() : 0) - (a.fecha?.toMillis ? a.fecha.toMillis() : 0));
+          const hayMas = movs.length > 15;
+          const primeros = movs.slice(0, 15);
+          setTodosMovimientos(primeros);
+          if (primeros.length > 0) {
+            setUltimoDocSnapshot({ id: primeros[primeros.length - 1].id });
+          }
+          setHayMasMovimientos(hayMas);
+        }, (err2) => {
+          console.warn("Fallo listener fallback, cargando estático:", err2);
+          cargarDatosHistorial(cuentaPrincipalId);
+        });
+      } catch (e) {
+        cargarDatosHistorial(cuentaPrincipalId);
+      }
     });
 
-    return () => unsubM();
+    return () => {
+      unsubM();
+      if (unsubFallback) unsubFallback();
+    };
   }, [cuentaPrincipalId]);
 
   const cargarDatosHistorial = async (uid: string) => {
@@ -115,7 +167,7 @@ export default function HistorialPage() {
       listaC.sort((a, b) => a.nombre.localeCompare(b.nombre));
       setClientes(listaC);
       
-      const resPaginada = await API_DB.obtenerMovimientosPaginados(uid, 30);
+      const resPaginada = await API_DB.obtenerMovimientosPaginados(uid, 15);
       setTodosMovimientos(resPaginada.movimientos);
       setUltimoDocSnapshot(resPaginada.ultimoDoc);
       setHayMasMovimientos(resPaginada.hayMas);
@@ -152,8 +204,12 @@ export default function HistorialPage() {
     if (!cuentaPrincipalId || cargandoMas || !hayMasMovimientos) return;
     setCargandoMas(true);
     try {
-      const res = await API_DB.obtenerMovimientosPaginados(cuentaPrincipalId, 30, ultimoDocSnapshot);
-      setTodosMovimientos(prev => [...prev, ...res.movimientos]);
+      const res = await API_DB.obtenerMovimientosPaginados(cuentaPrincipalId, 15, ultimoDocSnapshot);
+      setTodosMovimientos(prev => {
+        const idsExistentes = new Set(prev.map(m => m.id));
+        const nuevos = res.movimientos.filter(m => !idsExistentes.has(m.id));
+        return [...prev, ...nuevos];
+      });
       setUltimoDocSnapshot(res.ultimoDoc);
       setHayMasMovimientos(res.hayMas);
     } catch (error) {
@@ -201,11 +257,15 @@ export default function HistorialPage() {
     setModalTicketFactura({ visible: true, datos: datosTicket });
   };
 
-  const getNombreCliente = (id?: string, tipo?: string) => {
+  const getNombreCliente = (id?: string, tipo?: string, fallbackNombre?: string) => {
     if (tipo === 'ingreso_inventario') return 'Entrada de Mercancía';
     if (!id) return 'Entrada de Stock';
-    if (id === 'mostrador') return 'Consumidor Final';
-    return clientes.find(c => c.id === id)?.nombre || "Cliente Eliminado";
+    if (id === 'mostrador') return fallbackNombre && fallbackNombre !== 'Mostrador' ? fallbackNombre : 'Consumidor Final';
+    const cli = clientes.find(c => c.id === id);
+    if (cli) return cli.nombre;
+    if (fallbackNombre && fallbackNombre !== 'Mostrador') return fallbackNombre;
+    if (clientes.length === 0) return '...';
+    return "Cliente Eliminado";
   };
 
   const reintentarNotaCredito = async (mov: Movimiento) => {
@@ -314,7 +374,7 @@ export default function HistorialPage() {
   const generarTextoComprobante = (tipo: 'estado' | 'comprobante' = 'estado', cliente: any = {}, accion?: 'fiado' | 'abono' | 'venta' | null, detallesArray?: any[], totalMov?: number) => {
     const deuda = cliente.deudaTotal !== undefined ? cliente.deudaTotal : (cliente.deuda || 0);
     const saldoFormat = `$${Math.abs(deuda).toLocaleString('es-CO')}`;
-    const nombreCliente = cliente.nombre || 'Cliente';
+    const nombreCliente = obtenerNombreCercano(cliente);
     const nombreTienda = nombreNegocio || 'nuestra tienda';
 
     const separesActivos = separesCliente.filter((s: any) => s.estado === 'activo');
@@ -397,7 +457,7 @@ Gracias por seguir con nosotros.
 *¡Que tengas un gran día!*`;
       }
     } else if (tipo === 'comprobante') {
-      const nombreDestino = cliente.id === 'mostrador' || !cliente.nombre ? 'Cliente' : cliente.nombre;
+      const nombreDestino = cliente.id === 'mostrador' || !cliente.nombre ? 'Cliente' : obtenerNombreCercano(cliente);
       texto = `¡Hola, *${nombreDestino}*! Gracias por tu compra en *${nombreTienda}*.
 
 ===================
@@ -468,14 +528,12 @@ Gracias por seguir con nosotros.
   // Permiso para gestionar y consultar ingresos de inventario
   const puedeGestionarInventario = esAdmin || Boolean(datosSesion?.permisos?.editarInventario || datosSesion?.permisos?.ingresoInventario);
 
-  // Lista de vendedores únicos presentes en los movimientos
+  // Lista de vendedores reales del negocio (Admin + Colaboradores activos configurados en Ajustes)
+  const adminNombre = (datosSesion?.nombreUsuario || '').trim();
   const listaVendedores = Array.from(
-    new Set(
-      todosMovimientos
-        .map(m => m.registradoPor || (m as any).vendedor)
-        .filter((v): v is string => Boolean(v && typeof v === 'string' && v.trim().length > 0))
-    )
-  ).sort((a, b) => a.localeCompare(b));
+    new Set([adminNombre, ...colaboradoresNegocio])
+  ).filter((v): v is string => Boolean(v && typeof v === 'string' && v.trim().length > 0))
+   .sort((a, b) => a.localeCompare(b));
 
   const historialFiltrado = todosMovimientos.filter(mov => {
     const filtroForzado = (!puedeVerReportes || planActual === 'basico') ? 'hoy' : filtroTiempoHistorial;
@@ -498,7 +556,7 @@ Gracias por seguir con nosotros.
     const clienteMov = clientes.find(c => c.id === mov.clienteId);
     const nombreCliente = esIngresoInv 
       ? 'Entrada de Mercancía' 
-      : (clienteMov?.nombre || (mov.clienteId === 'mostrador' ? (mov.clienteNombre && mov.clienteNombre !== 'Mostrador' ? mov.clienteNombre : 'Consumidor Final') : 'Cliente Eliminado'));
+      : (clienteMov?.nombre || (mov.clienteId === 'mostrador' ? (mov.clienteNombre && mov.clienteNombre !== 'Mostrador' ? mov.clienteNombre : 'Consumidor Final') : (mov.clienteNombre || (clientes.length === 0 ? '' : 'Cliente Eliminado'))));
     const celularCliente = clienteMov?.celular || '';
     const vendedorMov = (mov.registradoPor || (mov as any).vendedor || '').toString();
     
@@ -698,7 +756,7 @@ Gracias por seguir con nosotros.
                       </div>
                     ) : (
                       <>
-                        <p className="font-bold text-lg text-slate-900 dark:text-slate-200 truncate">{getNombreCliente(mov.clienteId, mov.tipo)}</p>
+                        <p className="font-bold text-lg text-slate-900 dark:text-slate-200 truncate">{getNombreCliente(mov.clienteId, mov.tipo, mov.clienteNombre)}</p>
                         <p className="text-sm text-slate-500 dark:text-slate-400 truncate mt-0.5">{mov.descripcion}</p>
                       </>
                     )}
@@ -812,14 +870,21 @@ Gracias por seguir con nosotros.
         />
 
         {hayMasMovimientos && (
-          <div className="p-6 text-center">
+          <div className="p-5 text-center">
             <button
               type="button"
               onClick={cargarMasMovimientos}
               disabled={cargandoMas}
-              className="px-6 py-3.5 bg-white dark:bg-[#0f172a] hover:bg-slate-50 dark:hover:bg-slate-800 text-blue-600 dark:text-blue-400 font-black rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm transition-all text-sm disabled:opacity-50 inline-flex items-center gap-2"
+              className="px-6 py-2.5 bg-white dark:bg-[#0f172a] hover:bg-blue-50/50 dark:hover:bg-slate-800 text-blue-600 dark:text-blue-400 font-bold rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs hover:border-blue-300 dark:hover:border-blue-500/50 transition-all text-xs sm:text-sm disabled:opacity-50 inline-flex items-center gap-2 cursor-pointer"
             >
-              {cargandoMas ? "Cargando más movimientos..." : "Cargar más movimientos ⟳"}
+              {cargandoMas ? (
+                <>
+                  <RotateCcw className="w-3.5 h-3.5 animate-spin" />
+                  <span>Cargando más movimientos...</span>
+                </>
+              ) : (
+                <span>Cargar más movimientos (+15) ↓</span>
+              )}
             </button>
           </div>
         )}

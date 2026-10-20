@@ -1,4 +1,5 @@
 "use client";
+import { obtenerNombreCercano } from "@/utils/whatsapp";
 import { useState, useEffect, Suspense, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { collection, addDoc, getDocs, query, doc, updateDoc, where, arrayUnion, increment } from "firebase/firestore";
@@ -53,6 +54,8 @@ function AbonarContenido() {
   const [modalConfirmacionExceso, setModalConfirmacionExceso] = useState<{ visible: boolean; abonoReal: number } | null>(null);
   
   const [nombreNuevo, setNombreNuevo] = useState("");
+  const [nombresNuevo, setNombresNuevo] = useState("");
+  const [apellidosNuevo, setApellidosNuevo] = useState("");
   const [celularNuevo, setCelularNuevo] = useState("");
   const [direccionNuevo, setDireccionNuevo] = useState("");
   const [notasNuevo, setNotasNuevo] = useState("");
@@ -155,7 +158,8 @@ function AbonarContenido() {
   };
 
   const guardarClienteNuevo = async () => {
-    if (!nombreNuevo.trim()) return toast.error("El nombre del cliente es obligatorio.");
+    const nombreCalculado = apellidosNuevo.trim() ? (nombresNuevo.trim() + ' ' + apellidosNuevo.trim()) : (nombresNuevo.trim() || nombreNuevo.trim());
+    if (!nombreCalculado) return toast.error("El nombre del cliente es obligatorio.");
     setGuardandoCliente(true);
     try {
       const token = await auth.currentUser?.getIdToken();
@@ -164,7 +168,9 @@ function AbonarContenido() {
         method: 'POST', 
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, 
         body: JSON.stringify({ 
-          nombre: nombreNuevo.trim(), 
+          nombre: nombreCalculado,
+          nombres: nombresNuevo.trim(),
+          apellidos: apellidosNuevo.trim(), 
           celular: celularNuevo.trim(),
           direccion: direccionNuevo.trim(),
           notas: notasNuevo.trim()
@@ -175,6 +181,8 @@ function AbonarContenido() {
       const nuevoObj = resultado.cliente;
       setModalNuevoCliente(false); 
       setNombreNuevo(""); 
+      setNombresNuevo(""); 
+      setApellidosNuevo(""); 
       setCelularNuevo(""); 
       setDireccionNuevo("");
       setNotasNuevo("");
@@ -962,16 +970,36 @@ Estamos atentos para cualquier consulta.
               <UserCog size={28} className="text-blue-600 dark:text-blue-400" /> Crear Cliente
             </h3>
             <div className="flex flex-col gap-3.5 mb-6">
-              <div>
-                <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-1">Nombre Completo *</label>
-                <input 
-                  type="text" 
-                  value={nombreNuevo} 
-                  onChange={(e) => setNombreNuevo(e.target.value)} 
-                  placeholder="Ej: Juan Pérez" 
-                  className="w-full p-3.5 sm:p-4 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl outline-none focus:border-blue-500 font-bold text-base text-slate-900 dark:text-white" 
-                  autoFocus
-                />
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                <div>
+                  <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-1">Nombres *</label>
+                  <input 
+                    type="text" 
+                    value={nombresNuevo} 
+                    onChange={(e) => {
+                      setNombresNuevo(e.target.value);
+                      const full = apellidosNuevo.trim() ? (e.target.value.trim() + ' ' + apellidosNuevo.trim()) : e.target.value.trim();
+                      setNombreNuevo(full);
+                    }} 
+                    placeholder="Ej: Juan" 
+                    className="w-full p-3 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl outline-none focus:border-blue-500 font-bold text-sm text-slate-900 dark:text-white" 
+                    autoFocus
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-1">Apellidos (Opcional)</label>
+                  <input 
+                    type="text" 
+                    value={apellidosNuevo} 
+                    onChange={(e) => {
+                      setApellidosNuevo(e.target.value);
+                      const full = e.target.value.trim() ? (nombresNuevo.trim() + ' ' + e.target.value.trim()) : nombresNuevo.trim();
+                      setNombreNuevo(full);
+                    }} 
+                    placeholder="Ej: Pérez" 
+                    className="w-full p-3 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl outline-none focus:border-blue-500 font-bold text-sm text-slate-900 dark:text-white" 
+                  />
+                </div>
               </div>
               <div>
                 <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-1">WhatsApp / Celular (Opcional)</label>

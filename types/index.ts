@@ -181,6 +181,8 @@ export interface UsuarioBD {
 export interface Cliente {
   id: string;
   nombre: string;
+  nombres?: string;
+  apellidos?: string;
   celular: string;
   deudaTotal: number;
   usuarioId: string;

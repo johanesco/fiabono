@@ -84,7 +84,7 @@ export const API_DB = {
 
   obtenerMovimientosPaginados: async (
     usuarioId: string,
-    tamanoPagina: number = 30,
+    tamanoPagina: number = 15,
     ultimoDocSnapshot?: any,
     clienteId?: string
   ): Promise<{ movimientos: Movimiento[]; ultimoDoc: any; hayMas: boolean }> => {
@@ -145,26 +145,29 @@ export const API_DB = {
         hayMas
       };
     } catch (error: any) {
-      console.warn("Consulta paginada usando fallback acotado:", error?.message || error);
-      // PARCHE P1-PERF: Nunca descargar la colección entera sin límite.
-      // Se acota a máximo (tamanoPagina * 2) para proteger la memoria y cuota.
-      const maxDocsFallback = Math.min(tamanoPagina * 2, 60);
-      const qFallback = query(
-        collection(db, "movimientos"), 
-        where("usuarioId", "==", usuarioId),
-        limit(maxDocsFallback)
-      );
+      console.warn("Consulta paginada usando fallback resiliente:", error?.message || error);
+      const qFallback = (clienteId && clienteId !== 'todos')
+        ? query(collection(db, "movimientos"), where("usuarioId", "==", usuarioId), where("clienteId", "==", clienteId))
+        : query(collection(db, "movimientos"), where("usuarioId", "==", usuarioId));
       const snapFallback = await getDocs(qFallback);
       let listaM: Movimiento[] = [];
       snapFallback.forEach((d) => listaM.push({ id: d.id, ...d.data() } as Movimiento));
-      if (clienteId && clienteId !== 'todos') {
-        listaM = listaM.filter(m => m.clienteId === clienteId);
-      }
       listaM.sort((a, b) => (b.fecha?.toMillis ? b.fecha.toMillis() : 0) - (a.fecha?.toMillis ? a.fecha.toMillis() : 0));
+
+      let startIndex = 0;
+      if (ultimoDocSnapshot && (ultimoDocSnapshot.id || typeof ultimoDocSnapshot === 'string')) {
+        const targetId = typeof ultimoDocSnapshot === 'string' ? ultimoDocSnapshot : ultimoDocSnapshot.id;
+        const idx = listaM.findIndex(m => m.id === targetId);
+        if (idx !== -1) startIndex = idx + 1;
+      }
+      const sliceDocs = listaM.slice(startIndex, startIndex + tamanoPagina);
+      const hayMas = (startIndex + tamanoPagina) < listaM.length;
+      const nuevoUltimoDoc = sliceDocs.length > 0 ? { id: sliceDocs[sliceDocs.length - 1].id } : null;
+
       return {
-        movimientos: listaM.slice(0, tamanoPagina),
-        ultimoDoc: null,
-        hayMas: false
+        movimientos: sliceDocs,
+        ultimoDoc: nuevoUltimoDoc,
+        hayMas
       };
     }
   },

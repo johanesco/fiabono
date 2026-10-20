@@ -15,7 +15,12 @@ export async function POST(request: Request) {
     if (!cuentaPrincipalId || (usuario.rol === 'cajero' && usuario.activo === false)) return NextResponse.json({ error: 'Cuenta no habilitada.' }, { status: 403 });
 
     const body = await request.json();
-    const nombre = typeof body.nombre === 'string' ? body.nombre.trim() : '';
+    const nombres = typeof body.nombres === 'string' ? body.nombres.trim() : '';
+    const apellidos = typeof body.apellidos === 'string' ? body.apellidos.trim() : '';
+    let nombre = typeof body.nombre === 'string' ? body.nombre.trim() : '';
+    if (!nombre && nombres) {
+      nombre = apellidos ? (nombres + ' ' + apellidos).trim() : nombres;
+    }
     if (!nombre) return NextResponse.json({ error: 'El nombre del cliente es obligatorio.' }, { status: 400 });
 
     const numeroDocLimpio = typeof body.numeroDocumento === 'string' ? body.numeroDocumento.trim() : '';
@@ -69,6 +74,8 @@ export async function POST(request: Request) {
     const clienteRef = adminDb.collection('clientes').doc();
     const cliente = {
       nombre,
+      nombres: nombres || '',
+      apellidos: apellidos || '',
       celular: typeof body.celular === 'string' ? body.celular.trim() : '',
       apodo: typeof body.apodo === 'string' ? body.apodo.trim() : '',
       direccion: typeof body.direccion === 'string' ? body.direccion.trim() : '',

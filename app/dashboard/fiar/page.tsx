@@ -1,4 +1,5 @@
 "use client";
+import { obtenerNombreCercano } from "@/utils/whatsapp";
 import { useState, useEffect, Suspense, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { collection, addDoc, getDocs, getDoc, query, doc, updateDoc, where, increment, writeBatch } from "firebase/firestore";
@@ -510,6 +511,8 @@ function FiarContenido() {
     const ultimoScanRef = useRef<{ sku: string; timestamp: number } | null>(null);
 
     const [nombreNuevo, setNombreNuevo] = useState("");
+    const [nombresNuevo, setNombresNuevo] = useState("");
+    const [apellidosNuevo, setApellidosNuevo] = useState("");
     const [celularNuevo, setCelularNuevo] = useState("");
     const [direccionNuevo, setDireccionNuevo] = useState("");
     const [notasNuevo, setNotasNuevo] = useState("");
@@ -1246,7 +1249,8 @@ function FiarContenido() {
     };
 
     const guardarClienteNuevo = async () => {
-        if (!nombreNuevo.trim()) return toast.error("El nombre del cliente es obligatorio.");
+        const nombreCalculado = apellidosNuevo.trim() ? (nombresNuevo.trim() + ' ' + apellidosNuevo.trim()) : (nombresNuevo.trim() || nombreNuevo.trim());
+    if (!nombreCalculado) return toast.error("El nombre del cliente es obligatorio.");
         setGuardandoCliente(true);
         try {
             const token = await auth.currentUser?.getIdToken();
@@ -1255,7 +1259,9 @@ function FiarContenido() {
                 method: 'POST', 
                 headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, 
                 body: JSON.stringify({ 
-                    nombre: nombreNuevo.trim(), 
+                    nombre: nombreCalculado,
+          nombres: nombresNuevo.trim(),
+          apellidos: apellidosNuevo.trim(), 
                     celular: celularNuevo.trim(),
                     direccion: direccionNuevo.trim(),
                     notas: notasNuevo.trim()
@@ -1266,6 +1272,8 @@ function FiarContenido() {
             const nuevoObj = resultado.cliente;
             setModalNuevoCliente(false); 
             setNombreNuevo(""); 
+            setNombresNuevo("");
+            setApellidosNuevo("");
             setCelularNuevo(""); 
             setDireccionNuevo("");
             setNotasNuevo("");
@@ -1622,7 +1630,7 @@ function FiarContenido() {
           enlaceTexto = `\n\n*Ver o descargar comprobante digital:*\n${window.location.origin}/t/${idTransaccion}`;
         }
 
-        const texto = `¡Hola, *${cliente.nombre}*! Gracias por tu confianza en *${nombreNegocio || 'nuestra tienda'}*.
+        const texto = `¡Hola, *${obtenerNombreCercano(cliente)}*! Gracias por tu confianza en *${nombreNegocio || 'nuestra tienda'}*.
 
 ===================
 *DETALLE DEL CREDITO*
@@ -2233,6 +2241,9 @@ Estamos atentos para cualquier consulta.
                                                     setBusquedaRegistro("");
                                                     setMostrarResultadosBuscador(false);
                                                 } else if (busquedaRegistro.trim()) {
+                                                    const partes = busquedaRegistro.trim().split(/\s+/);
+                                                    setNombresNuevo(partes[0] || "");
+                                                    setApellidosNuevo(partes.slice(1).join(" ") || "");
                                                     setNombreNuevo(busquedaRegistro.trim());
                                                     setModalNuevoCliente(true);
                                                     setMostrarResultadosBuscador(false);
@@ -2265,7 +2276,14 @@ Estamos atentos para cualquier consulta.
                                                     </div>
                                                 ))}
                                                 {!clientesFiltradosRegistro.some(c => c.nombre.toLowerCase() === busquedaRegistro.toLowerCase()) && (
-                                                    <button onClick={() => { setNombreNuevo(busquedaRegistro); setModalNuevoCliente(true); setMostrarResultadosBuscador(false); }} className="w-full text-left p-2.5 bg-rose-50 text-rose-700 text-xs font-bold">
+                                                    <button onClick={() => { 
+                                                        const partes = busquedaRegistro.trim().split(/\s+/);
+                                                        setNombresNuevo(partes[0] || "");
+                                                        setApellidosNuevo(partes.slice(1).join(" ") || "");
+                                                        setNombreNuevo(busquedaRegistro); 
+                                                        setModalNuevoCliente(true); 
+                                                        setMostrarResultadosBuscador(false); 
+                                                    }} className="w-full text-left p-2.5 bg-rose-50 text-rose-700 text-xs font-bold">
                                                         + Crear "{busquedaRegistro}"
                                                     </button>
                                                 )}
@@ -2519,7 +2537,12 @@ Estamos atentos para cualquier consulta.
                                             if (soloNumeros.length >= 7) {
                                                 setCelularNuevo(busquedaRegistro);
                                                 setNombreNuevo("");
+                                                setNombresNuevo("");
+                                                setApellidosNuevo("");
                                             } else {
+                                                const partes = busquedaRegistro.trim().split(/\s+/);
+                                                setNombresNuevo(partes[0] || "");
+                                                setApellidosNuevo(partes.slice(1).join(" ") || "");
                                                 setNombreNuevo(busquedaRegistro);
                                                 setCelularNuevo("");
                                             }
@@ -2560,15 +2583,35 @@ Estamos atentos para cualquier consulta.
                         </div>
 
                         <div className="flex flex-col gap-3.5 mb-6">
-                            <div>
-                                <label className="text-xs font-bold text-slate-600 dark:text-slate-300 block mb-1">Nombre Completo *</label>
-                                <input 
-                                    type="text" 
-                                    value={nombreNuevo} 
-                                    onChange={(e) => setNombreNuevo(e.target.value)} 
-                                    placeholder="Ej: Doña Carmen, Andrés..." 
-                                    className="w-full p-3.5 bg-slate-50 dark:bg-[#020617] border border-slate-200 dark:border-slate-700 rounded-2xl outline-none focus:border-rose-500 font-bold text-sm text-slate-900 dark:text-white" 
-                                />
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                                <div>
+                                    <label className="text-xs font-bold text-slate-600 dark:text-slate-300 block mb-1">Nombres *</label>
+                                    <input 
+                                        type="text" 
+                                        value={nombresNuevo} 
+                                        onChange={(e) => {
+                                            setNombresNuevo(e.target.value);
+                                            const full = apellidosNuevo.trim() ? (e.target.value.trim() + ' ' + apellidosNuevo.trim()) : e.target.value.trim();
+                                            setNombreNuevo(full);
+                                        }} 
+                                        placeholder="Ej: Doña Carmen, Andrés..." 
+                                        className="w-full p-3.5 bg-slate-50 dark:bg-[#020617] border border-slate-200 dark:border-slate-700 rounded-2xl outline-none focus:border-rose-500 font-bold text-sm text-slate-900 dark:text-white" 
+                                    />
+                                </div>
+                                <div>
+                                    <label className="text-xs font-bold text-slate-600 dark:text-slate-300 block mb-1">Apellidos (Opcional)</label>
+                                    <input 
+                                        type="text" 
+                                        value={apellidosNuevo} 
+                                        onChange={(e) => {
+                                            setApellidosNuevo(e.target.value);
+                                            const full = e.target.value.trim() ? (nombresNuevo.trim() + ' ' + e.target.value.trim()) : nombresNuevo.trim();
+                                            setNombreNuevo(full);
+                                        }} 
+                                        placeholder="Ej: Gómez, Pérez..." 
+                                        className="w-full p-3.5 bg-slate-50 dark:bg-[#020617] border border-slate-200 dark:border-slate-700 rounded-2xl outline-none focus:border-rose-500 font-bold text-sm text-slate-900 dark:text-white" 
+                                    />
+                                </div>
                             </div>
                             <div>
                                 <label className="text-xs font-bold text-slate-600 dark:text-slate-300 block mb-1">Celular (WhatsApp)</label>

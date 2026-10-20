@@ -1,4 +1,5 @@
 "use client";
+import { obtenerNombreCercano } from "@/utils/whatsapp";
 import { useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
@@ -281,7 +282,7 @@ export default function InicioPage() {
   const generarTextoComprobante = (tipo: 'estado' | 'comprobante' = 'estado', cliente: any = {}, accion?: 'fiado' | 'abono' | 'venta' | null, detallesArray?: any[], totalMov?: number) => {
     const deuda = cliente.deudaTotal !== undefined ? cliente.deudaTotal : (cliente.deuda || 0);
     const saldoFormat = `$${Math.abs(deuda).toLocaleString('es-CO')}`;
-    const nombreCliente = cliente.nombre || 'Cliente';
+    const nombreCliente = obtenerNombreCercano(cliente);
     const nombreTienda = nombreNegocio || 'nuestra tienda';
 
     const separesActivos = separesCliente.filter((s: any) => s.estado === 'activo');
@@ -364,7 +365,7 @@ Gracias por seguir con nosotros.
 *¡Que tengas un gran día!*`;
       }
     } else if (tipo === 'comprobante') {
-      const nombreDestino = cliente.id === 'mostrador' || !cliente.nombre ? 'Cliente' : cliente.nombre;
+      const nombreDestino = cliente.id === 'mostrador' || !cliente.nombre ? 'Cliente' : obtenerNombreCercano(cliente);
       texto = `¡Hola, *${nombreDestino}*! Gracias por tu compra en *${nombreTienda}*.
 
 ===================

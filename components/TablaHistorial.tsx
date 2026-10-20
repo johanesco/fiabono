@@ -4,7 +4,7 @@ import { Printer, RotateCcw, Package, User } from "lucide-react";
 
 interface TablaHistorialProps {
   movimientos: Movimiento[];
-  getNombreCliente: (id?: string, tipo?: string) => string;
+  getNombreCliente: (id?: string, tipo?: string, fallbackNombre?: string) => string;
   onRowClick?: (clienteId?: string, tipo?: string) => void;
   onMovimientoClick?: (mov: Movimiento) => void;
   onImprimir?: (mov: Movimiento) => void;
@@ -75,10 +75,10 @@ export default function TablaHistorial({ movimientos, getNombreCliente, onRowCli
                     </span>
                   ) : (
                     <span 
-                      title={getNombreCliente(mov.clienteId, mov.tipo)}
+                      title={getNombreCliente(mov.clienteId, mov.tipo, mov.clienteNombre)}
                       className="truncate block max-w-[120px] sm:max-w-[160px] lg:max-w-[240px]"
                     >
-                      {getNombreCliente(mov.clienteId, mov.tipo)}
+                      {getNombreCliente(mov.clienteId, mov.tipo, mov.clienteNombre)}
                     </span>
                   )}
                 </td>

@@ -38,7 +38,12 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'No tienes permisos para modificar este cliente.' }, { status: 403 });
     }
 
-    const nombre = typeof body.nombre === 'string' ? body.nombre.trim() : clienteData.nombre;
+    const nombres = typeof body.nombres === 'string' ? body.nombres.trim() : (clienteData.nombres || '');
+    const apellidos = typeof body.apellidos === 'string' ? body.apellidos.trim() : (clienteData.apellidos || '');
+    let nombre = typeof body.nombre === 'string' ? body.nombre.trim() : clienteData.nombre;
+    if (body.nombres !== undefined) {
+      nombre = apellidos ? (nombres + ' ' + apellidos).trim() : nombres;
+    }
     if (!nombre) {
       return NextResponse.json({ error: 'El nombre del cliente no puede estar vacío.' }, { status: 400 });
     }
@@ -79,6 +84,8 @@ export async function POST(request: Request) {
 
     const datosActualizar: Record<string, any> = {
       nombre,
+      nombres,
+      apellidos,
       apodo: typeof body.apodo === 'string' ? body.apodo.trim() : (clienteData.apodo || ''),
       tipoDocumento: typeof body.tipoDocumento === 'string' ? body.tipoDocumento.trim() : (clienteData.tipoDocumento || 'CC'),
       numeroDocumento: typeof body.numeroDocumento === 'string' ? body.numeroDocumento.trim() : (clienteData.numeroDocumento || ''),

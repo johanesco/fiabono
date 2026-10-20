@@ -1,4 +1,5 @@
 "use client";
+import { obtenerNombreCercano } from "@/utils/whatsapp";
 import { useState, useEffect, Suspense, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { 
@@ -510,7 +511,7 @@ function SeparesContenido() {
 
   // Enviar comprobante de abono por WhatsApp (formato estructurado)
   const enviarWhatsAppAbono = (sep: any, montoAbonado: number, nuevoSaldo: number) => {
-    let texto = `¡Hola, *${sep.clienteNombre}*! Gracias por tu abono en *${nombreNegocio || 'nuestra tienda'}*.
+    let texto = `¡Hola, *${obtenerNombreCercano(sep.clienteNombre)}*! Gracias por tu abono en *${nombreNegocio || 'nuestra tienda'}*.
 
 ===================
 *COMPROBANTE DE ABONO*
@@ -616,7 +617,7 @@ Estamos atentos para cualquier consulta.
 
   // Enviar mensaje de entrega por WhatsApp (formato estructurado)
   const enviarWhatsAppEntrega = (sep: any) => {
-    let texto = `¡Hola, *${sep.clienteNombre}*! Felicitaciones por completar tu plan separe en *${nombreNegocio || 'nuestra tienda'}*.
+    let texto = `¡Hola, *${obtenerNombreCercano(sep.clienteNombre)}*! Felicitaciones por completar tu plan separe en *${nombreNegocio || 'nuestra tienda'}*.
 
 ===================
 *ENTREGA DE PLAN SEPARE*
@@ -756,7 +757,7 @@ Gracias por tu compra y preferencia.
 
   // Enviar mensaje de Entrega Parcial por WhatsApp con redacción clara y profesional
   const enviarWhatsAppEntregaParcial = (sep: any, itemsEntregados: any[], valorEntregadoHoy: number) => {
-    let texto = `¡Hola, *${sep.clienteNombre}*! 👋
+    let texto = `¡Hola, *${obtenerNombreCercano(sep.clienteNombre)}*! 👋
 Te compartimos el comprobante de *entrega parcial* de tu Plan Separe en *${nombreNegocio || 'nuestra tienda'}*.
 
 ━━━━━━━━━━━━━━━━━━━━━
@@ -1105,7 +1106,7 @@ ${window.location.origin}/t/${sep.id}`;
     montoDevuelto: number;
     motivo: string;
   }) => {
-    let texto = `¡Hola, *${datos.clienteNombre}*! Información sobre tu plan separe en *${nombreNegocio || 'nuestra tienda'}*.
+    let texto = `¡Hola, *${obtenerNombreCercano(datos.clienteNombre)}*! Información sobre tu plan separe en *${nombreNegocio || 'nuestra tienda'}*.
 
 ===================
 *CANCELACIÓN DE PLAN SEPARE*

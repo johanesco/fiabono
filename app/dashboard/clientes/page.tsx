@@ -1,4 +1,5 @@
 "use client";
+import { obtenerNombreCercano } from "@/utils/whatsapp";
 import React, { useState, useEffect, useMemo, Suspense } from "react";
 import { useRouter } from "next/navigation";
 import { 
@@ -100,6 +101,8 @@ function ClientesContenido() {
   // Modales
   const [modalNuevoAbierto, setModalNuevoAbierto] = useState(false);
   const [nombreNuevo, setNombreNuevo] = useState("");
+  const [nombresNuevo, setNombresNuevo] = useState("");
+  const [apellidosNuevo, setApellidosNuevo] = useState("");
   const [apodoNuevo, setApodoNuevo] = useState("");
   const [tipoDocumentoNuevo, setTipoDocumentoNuevo] = useState<string>("CC");
   const [numeroDocumentoNuevo, setNumeroDocumentoNuevo] = useState("");
@@ -517,7 +520,7 @@ function ClientesContenido() {
   // Mensaje de comprobante / estado de cuenta idéntico al estándar oficial de Historial e Inicio
   const generarTextoComprobante = (tipo: 'estado' | 'comprobante' = 'estado', cliente: any = {}) => {
     const deuda = cliente.deudaTotal !== undefined ? cliente.deudaTotal : (cliente.deuda || 0);
-    const nombreCliente = cliente.nombre || 'Cliente';
+    const nombreCliente = obtenerNombreCercano(cliente);
     const nombreTienda = nombreNegocio || 'nuestra tienda';
     
     // Obtener separes activos de la clienta
@@ -673,11 +676,14 @@ Gracias por seguir con nosotros.
       setGuardandoCliente(true);
       const token = await auth.currentUser?.getIdToken();
       if (!token) throw new Error('Sesión inválida.');
+      const nombreCalculado = apellidosNuevo.trim() ? (nombresNuevo.trim() + ' ' + apellidosNuevo.trim()) : nombresNuevo.trim();
       const respuesta = await fetch('/api/clientes/crear', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({ 
-          nombre: nombreNuevo, 
+          nombre: nombreCalculado,
+          nombres: nombresNuevo.trim(),
+          apellidos: apellidosNuevo.trim(),
           apodo: apodoNuevo.trim(),
           tipoDocumento: tipoDocumentoNuevo || 'CC',
           numeroDocumento: numeroDocumentoNuevo.trim(),
@@ -712,6 +718,8 @@ Gracias por seguir con nosotros.
       toast.success(`Cliente ${nombreNuevo.trim()} registrado con éxito ✨`);
       setModalNuevoAbierto(false);
       setNombreNuevo("");
+      setNombresNuevo("");
+      setApellidosNuevo("");
       setApodoNuevo("");
       setTipoDocumentoNuevo("CC");
       setNumeroDocumentoNuevo("");
@@ -732,7 +740,9 @@ Gracias por seguir con nosotros.
   // 7. Acción: Crear Nuevo Cliente
   const handleGuardarNuevoCliente = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!nombreNuevo.trim()) {
+    const nombreCalculado = apellidosNuevo.trim() ? (nombresNuevo.trim() + ' ' + apellidosNuevo.trim()) : nombresNuevo.trim();
+    setNombreNuevo(nombreCalculado);
+    if (!nombresNuevo.trim()) {
       toast.error("El nombre del cliente es obligatorio.");
       return;
     }
@@ -1530,7 +1540,7 @@ Gracias por seguir con nosotros.
           </div>
 
           {/* Cuerpo Scrolleable en Tablet: Separes, Notas e Historial a Ancho Completo */}
-          <div className="flex-1 min-h-0 overflow-y-auto p-4 space-y-3.5 pb-16 overscroll-contain">
+          <div className="flex-1 min-h-0 overflow-y-auto p-4 space-y-3.5 pb-16">
             {seccionSeparesActivos}
             {seccionNotas}
 
@@ -1562,7 +1572,7 @@ Gracias por seguir con nosotros.
             ========================================================================= */}
         <div className={`hidden ${!esTabletTactil ? 'lg:grid' : 'hidden'} lg:grid-cols-12 h-full divide-x divide-slate-100 dark:divide-slate-800 overflow-hidden bg-white dark:bg-[#0f172a]`}>
           {/* Sub-columna Izquierda (5 cols): Perfil, Saldo, Botones, Separes y Notas */}
-          <div className="lg:col-span-5 h-full overflow-y-auto bg-slate-50/40 dark:bg-[#020617]/40 p-4 sm:p-5 space-y-4 pb-12 overscroll-contain">
+          <div className="lg:col-span-5 h-full overflow-y-auto bg-slate-50/40 dark:bg-[#020617]/40 p-4 sm:p-5 space-y-4 pb-12">
             {/* Nombre y opciones */}
             <div className="text-center pt-1 px-2">
               <span className="inline-flex items-center gap-1 text-[10px] font-black uppercase tracking-widest text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/50 px-2.5 py-0.5 rounded-full mb-1.5">
@@ -1743,7 +1753,7 @@ Gracias por seguir con nosotros.
             </div>
 
             {/* Contenedor scrolleable 100% independiente para transacciones */}
-            <div className="flex-1 min-h-0 overflow-y-auto p-4 space-y-3 pb-12 overscroll-contain">
+            <div className="flex-1 min-h-0 overflow-y-auto p-4 space-y-3 pb-12">
               {renderListaMovimientos(movimientosFiltrados)}
             </div>
           </div>
@@ -1758,7 +1768,7 @@ Gracias por seguir con nosotros.
   }
 
   return (
-    <div className="min-h-screen pb-24 lg:pb-8 pt-1 px-2 sm:px-4 w-full space-y-4">
+    <div className="w-full space-y-4 pb-24 lg:pb-8 pt-1 px-2 sm:px-4">
 
       {/* 1. HEADER COMPACTO Y ELEGANTE */}
       <div className="flex items-center justify-between gap-3 bg-white dark:bg-[#0f172a] p-3.5 sm:p-4 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-xs">
@@ -2146,7 +2156,7 @@ Gracias por seguir con nosotros.
               )}
             </div>
           ) : (
-            <div className="bg-white dark:bg-[#0f172a] rounded-2xl border border-slate-100 dark:border-slate-800 shadow-2xs overflow-hidden lg:max-h-[calc(100vh-270px)] lg:overflow-y-auto overscroll-contain scrollbar-thin">
+            <div className="bg-white dark:bg-[#0f172a] rounded-2xl border border-slate-100 dark:border-slate-800 shadow-2xs overflow-hidden lg:max-h-[calc(100vh-200px)] lg:overflow-y-auto scrollbar-thin">
               <div className="divide-y divide-slate-100 dark:divide-slate-800/60 pb-20">
                 {clientesFiltrados.map((c) => {
                 const inicial = (c.nombre || 'C').charAt(0).toUpperCase();
@@ -2340,17 +2350,18 @@ Gracias por seguir con nosotros.
       )}
 
       {/* =========================================================================
-          MODAL: REGISTRAR NUEVO CLIENTE
+          MODAL: REGISTRAR NUEVO CLIENTE (DISEÑO RESPONSIVO CON CABECERA Y BOTONES FIJOS)
           ========================================================================= */}
       {modalNuevoAbierto && (
         <div 
           onClick={(e) => { if (e.target === e.currentTarget) setModalNuevoAbierto(false); }}
-          className="fixed inset-0 z-[160] flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-xs animate-in fade-in duration-200"
+          className="fixed inset-0 z-[160] flex items-center justify-center p-3 sm:p-4 bg-slate-950/70 backdrop-blur-xs animate-in fade-in duration-200 overflow-y-auto"
         >
-          <div className="bg-white dark:bg-[#0f172a] rounded-3xl max-w-md w-full p-6 border border-slate-100 dark:border-slate-800 shadow-2xl space-y-4">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
+          <div className="bg-white dark:bg-[#0f172a] rounded-[2rem] max-w-lg w-full border border-slate-100 dark:border-slate-800 shadow-2xl flex flex-col max-h-[92vh] overflow-hidden my-auto animate-in zoom-in-95 duration-200">
+            {/* Header Fijo */}
+            <div className="flex items-center justify-between p-4 sm:p-5 border-b border-slate-100 dark:border-slate-800 shrink-0 bg-white dark:bg-[#0f172a]">
               <div className="flex items-center gap-2.5">
-                <div className="w-9 h-9 rounded-xl bg-emerald-100 dark:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 flex items-center justify-center font-black">
+                <div className="w-10 h-10 rounded-xl bg-emerald-100 dark:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 flex items-center justify-center font-black shrink-0">
                   <UserPlus size={18} />
                 </div>
                 <div>
@@ -2363,163 +2374,212 @@ Gracias por seguir con nosotros.
               <button
                 type="button"
                 onClick={() => setModalNuevoAbierto(false)}
-                className="p-2 text-slate-400 hover:text-slate-600 dark:hover:text-white rounded-xl cursor-pointer"
+                className="p-1.5 text-slate-400 hover:text-slate-600 dark:hover:text-white rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer"
               >
                 <X size={18} />
               </button>
             </div>
 
-            <form onSubmit={handleGuardarNuevoCliente} className="space-y-3.5">
-              <div>
-                <label className="text-xs font-bold text-slate-600 dark:text-slate-300 block mb-1">
-                  Nombre Completo *
-                </label>
-                <input
-                  type="text"
-                  required
-                  value={nombreNuevo}
-                  onChange={(e) => setNombreNuevo(e.target.value)}
-                  placeholder="Ej: Doña Carmen, Andrés Pérez..."
-                  className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3.5 py-2.5 text-sm font-semibold text-slate-800 dark:text-white focus:ring-2 focus:ring-emerald-500 focus:outline-hidden"
-                />
-              </div>
-
-              <div>
-                <label className="text-xs font-bold text-slate-600 dark:text-slate-300 block mb-1 flex items-center gap-1.5">
-                  <Smile size={13} className="text-amber-500" /> Apodo / Alias (Opcional)
-                </label>
-                <input
-                  type="text"
-                  value={apodoNuevo}
-                  onChange={(e) => setApodoNuevo(e.target.value)}
-                  placeholder="Ej: Cachaco, El Paisa, Doña Mary..."
-                  className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3.5 py-2.5 text-sm font-semibold text-slate-800 dark:text-white focus:ring-2 focus:ring-emerald-500 focus:outline-hidden"
-                />
-              </div>
-
-              {/* Documento (CC / NIT / CE) */}
-              <div className="grid grid-cols-3 gap-2">
-                <div className="col-span-1">
-                  <label className="text-xs font-bold text-slate-600 dark:text-slate-300 block mb-1">
-                    Tipo Doc.
-                  </label>
-                  <select
-                    value={tipoDocumentoNuevo}
-                    onChange={(e) => setTipoDocumentoNuevo(e.target.value)}
-                    className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-2.5 py-2.5 text-xs font-bold text-slate-800 dark:text-white focus:ring-2 focus:ring-emerald-500 focus:outline-hidden cursor-pointer"
-                  >
-                    <option value="CC">CC</option>
-                    <option value="NIT">NIT</option>
-                    <option value="CE">CE</option>
-                    <option value="PP">Pasaporte</option>
-                    <option value="TI">TI</option>
-                  </select>
+            {/* Formulario con cuerpo scrolleable y botones fijos abajo */}
+            <form onSubmit={handleGuardarNuevoCliente} className="flex flex-col flex-1 min-h-0 overflow-hidden">
+              <div className="p-4 sm:p-5 overflow-y-auto flex-1 space-y-3.5 scrollbar-thin">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                  <div>
+                    <label className="text-xs font-bold text-slate-600 dark:text-slate-300 block mb-1">
+                      Nombres *
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={nombresNuevo}
+                      onChange={(e) => {
+                        setNombresNuevo(e.target.value);
+                        const full = apellidosNuevo.trim() ? (e.target.value.trim() + ' ' + apellidosNuevo.trim()) : e.target.value.trim();
+                        setNombreNuevo(full);
+                      }}
+                      placeholder="Ej: Carlos"
+                      className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3.5 py-2.5 text-sm font-semibold text-slate-800 dark:text-white focus:ring-2 focus:ring-emerald-500 focus:outline-hidden"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs font-bold text-slate-600 dark:text-slate-300 block mb-1">
+                      Apellidos (Opcional)
+                    </label>
+                    <input
+                      type="text"
+                      value={apellidosNuevo}
+                      onChange={(e) => {
+                        setApellidosNuevo(e.target.value);
+                        const full = e.target.value.trim() ? (nombresNuevo.trim() + ' ' + e.target.value.trim()) : nombresNuevo.trim();
+                        setNombreNuevo(full);
+                      }}
+                      placeholder="Ej: Mendoza"
+                      className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3.5 py-2.5 text-sm font-semibold text-slate-800 dark:text-white focus:ring-2 focus:ring-emerald-500 focus:outline-hidden"
+                    />
+                  </div>
                 </div>
-                <div className="col-span-2">
-                  <label className="text-xs font-bold text-slate-600 dark:text-slate-300 block mb-1">
-                    Cédula / Documento (Opcional)
+
+                <div>
+                  <label className="text-xs font-bold text-slate-600 dark:text-slate-300 block mb-1 flex items-center gap-1.5">
+                    <Smile size={13} className="text-amber-500" /> Apodo / Alias (Opcional)
                   </label>
                   <input
                     type="text"
-                    value={numeroDocumentoNuevo}
-                    onChange={(e) => setNumeroDocumentoNuevo(e.target.value)}
-                    placeholder="Ej: 1020304050"
+                    value={apodoNuevo}
+                    onChange={(e) => setApodoNuevo(e.target.value)}
+                    placeholder="Ej: Cachaco, El Paisa, Doña Mary..."
                     className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3.5 py-2.5 text-sm font-semibold text-slate-800 dark:text-white focus:ring-2 focus:ring-emerald-500 focus:outline-hidden"
                   />
                 </div>
-              </div>
 
-              <div>
-                <label className="text-xs font-bold text-slate-600 dark:text-slate-300 block mb-1">
-                  Celular (WhatsApp)
-                </label>
-                <input
-                  type="tel"
-                  value={celularNuevo}
-                  onChange={(e) => setCelularNuevo(e.target.value)}
-                  placeholder="Ej: 3101234567"
-                  className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3.5 py-2.5 text-sm font-semibold text-slate-800 dark:text-white focus:ring-2 focus:ring-emerald-500 focus:outline-hidden"
-                />
-              </div>
+                {/* Documento (CC / NIT / CE) */}
+                <div className="grid grid-cols-3 gap-2">
+                  <div className="col-span-1">
+                    <label className="text-xs font-bold text-slate-600 dark:text-slate-300 block mb-1">
+                      Tipo Doc.
+                    </label>
+                    <select
+                      value={tipoDocumentoNuevo}
+                      onChange={(e) => setTipoDocumentoNuevo(e.target.value)}
+                      className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-2.5 py-2.5 text-xs font-bold text-slate-800 dark:text-white focus:ring-2 focus:ring-emerald-500 focus:outline-hidden cursor-pointer"
+                    >
+                      <option value="CC">CC</option>
+                      <option value="NIT">NIT</option>
+                      <option value="CE">CE</option>
+                      <option value="PP">Pasaporte</option>
+                      <option value="TI">TI</option>
+                    </select>
+                  </div>
+                  <div className="col-span-2">
+                    <label className="text-xs font-bold text-slate-600 dark:text-slate-300 block mb-1">
+                      Cédula / Documento (Opcional)
+                    </label>
+                    <input
+                      type="text"
+                      value={numeroDocumentoNuevo}
+                      onChange={(e) => setNumeroDocumentoNuevo(e.target.value)}
+                      placeholder="Ej: 1020304050"
+                      className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3.5 py-2.5 text-sm font-semibold text-slate-800 dark:text-white focus:ring-2 focus:ring-emerald-500 focus:outline-hidden"
+                    />
+                  </div>
+                </div>
 
-              <div>
-                <label className="text-xs font-bold text-slate-600 dark:text-slate-300 block mb-1">
-                  Dirección o Referencia
-                </label>
-                <input
-                  type="text"
-                  value={direccionNueva}
-                  onChange={(e) => setDireccionNueva(e.target.value)}
-                  placeholder="Ej: Carrera 5 # 12-30 / Casa esquinera"
-                  className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3.5 py-2.5 text-sm font-semibold text-slate-800 dark:text-white focus:ring-2 focus:ring-emerald-500 focus:outline-hidden"
-                />
-              </div>
+                {/* Celular y Dirección agrupados en 2 columnas en pantallas medianas */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                  <div>
+                    <label className="text-xs font-bold text-slate-600 dark:text-slate-300 block mb-1">
+                      Celular (WhatsApp)
+                    </label>
+                    <input
+                      type="tel"
+                      value={celularNuevo}
+                      onChange={(e) => setCelularNuevo(e.target.value)}
+                      placeholder="Ej: 3101234567"
+                      className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3.5 py-2.5 text-sm font-semibold text-slate-800 dark:text-white focus:ring-2 focus:ring-emerald-500 focus:outline-hidden"
+                    />
+                  </div>
 
-              {/* Saldo Inicial Pendiente Opcional */}
-              <div>
-                <label className="text-xs font-bold text-slate-600 dark:text-slate-300 block mb-1 flex items-center justify-between">
-                  <span className="flex items-center gap-1.5">
-                    <DollarSign size={13} className="text-amber-500" /> Saldo Inicial Pendiente (Opcional)
-                  </span>
-                  <span className="text-[10px] text-slate-400 font-normal">Si ya te debía dinero</span>
-                </label>
-                <div className="relative">
-                  <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-xs">$</span>
-                  <input
-                    type="text"
-                    value={saldoInicialNuevo ? Number(saldoInicialNuevo).toLocaleString('es-CO') : ''}
-                    onChange={(e) => {
-                      const val = e.target.value.replace(/[^\d]/g, '');
-                      setSaldoInicialNuevo(val);
-                    }}
-                    placeholder="0"
-                    className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl pl-8 pr-3.5 py-2.5 text-sm font-bold text-amber-600 dark:text-amber-400 focus:ring-2 focus:ring-amber-500 focus:outline-hidden"
+                  <div>
+                    <label className="text-xs font-bold text-slate-600 dark:text-slate-300 block mb-1">
+                      Dirección o Referencia
+                    </label>
+                    <input
+                      type="text"
+                      value={direccionNueva}
+                      onChange={(e) => setDireccionNueva(e.target.value)}
+                      placeholder="Ej: Carrera 5 # 12-30"
+                      className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3.5 py-2.5 text-sm font-semibold text-slate-800 dark:text-white focus:ring-2 focus:ring-emerald-500 focus:outline-hidden"
+                    />
+                  </div>
+                </div>
+
+                {/* Saldo Inicial Pendiente Opcional */}
+                <div>
+                  <label className="text-xs font-bold text-slate-600 dark:text-slate-300 block mb-1 flex items-center justify-between">
+                    <span className="flex items-center gap-1.5">
+                      <DollarSign size={13} className="text-amber-500" /> Saldo Inicial Pendiente (Opcional)
+                    </span>
+                    <span className="text-[10px] text-slate-400 font-normal">Si ya te debía dinero</span>
+                  </label>
+                  <div className="relative">
+                    <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-xs">$</span>
+                    <input
+                      type="text"
+                      value={saldoInicialNuevo ? Number(saldoInicialNuevo).toLocaleString('es-CO') : ''}
+                      onChange={(e) => {
+                        const val = e.target.value.replace(/[^\d]/g, '');
+                        setSaldoInicialNuevo(val);
+                      }}
+                      placeholder="0"
+                      className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl pl-8 pr-3.5 py-2.5 text-sm font-bold text-amber-600 dark:text-amber-400 focus:ring-2 focus:ring-amber-500 focus:outline-hidden"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="text-xs font-bold text-slate-600 dark:text-slate-300 block mb-1">
+                    Notas / Referencias (Opcional)
+                  </label>
+                  <textarea
+                    rows={2}
+                    value={notasNuevas}
+                    onChange={(e) => setNotasNuevas(e.target.value)}
+                    placeholder="Ej: Parentesco (Hermana de Juan), casa azul frente al parque..."
+                    className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3.5 py-2 text-xs font-semibold text-slate-800 dark:text-white focus:ring-2 focus:ring-emerald-500 focus:outline-hidden resize-none"
                   />
                 </div>
-              </div>
 
-              <div>
-                <label className="text-xs font-bold text-slate-600 dark:text-slate-300 block mb-1">
-                  Notas / Referencias (Opcional)
-                </label>
-                <textarea
-                  rows={2}
-                  value={notasNuevas}
-                  onChange={(e) => setNotasNuevas(e.target.value)}
-                  placeholder="Ej: Parentesco (Hermana de Juan), casa azul frente al parque..."
-                  className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3.5 py-2 text-xs font-semibold text-slate-800 dark:text-white focus:ring-2 focus:ring-emerald-500 focus:outline-hidden resize-none"
-                />
-              </div>
-
-              {/* Etiquetas en Modal Nuevo Cliente */}
-              <div>
-                <label className="text-xs font-bold text-slate-600 dark:text-slate-300 block mb-1 flex items-center gap-1.5">
-                  <Tag size={13} className="text-violet-500" /> Etiquetas Personalizadas (Opcional)
-                </label>
-                {etiquetasNuevas.length > 0 && (
-                  <div className="flex flex-wrap gap-1 mb-2">
-                    {etiquetasNuevas.map((t, idx) => (
-                      <span key={idx} className="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-md bg-violet-100 dark:bg-violet-950/60 text-violet-700 dark:text-violet-300 border border-violet-200 dark:border-violet-800">
-                        🏷️ {t}
-                        <button
-                          type="button"
-                          onClick={() => setEtiquetasNuevas(prev => prev.filter((_, i) => i !== idx))}
-                          className="hover:text-rose-500 p-0.5 cursor-pointer"
-                        >
-                          <X size={11} />
-                        </button>
-                      </span>
-                    ))}
-                  </div>
-                )}
-                <div className="flex gap-2">
-                  <input
-                    type="text"
-                    value={inputEtiquetaNueva}
-                    onChange={(e) => setInputEtiquetaNueva(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' || e.key === ',') {
-                        e.preventDefault();
+                {/* Etiquetas en Modal Nuevo Cliente */}
+                <div>
+                  <label className="text-xs font-bold text-slate-600 dark:text-slate-300 block mb-1 flex items-center gap-1.5">
+                    <Tag size={13} className="text-violet-500" /> Etiquetas Personalizadas (Opcional)
+                  </label>
+                  {etiquetasNuevas.length > 0 && (
+                    <div className="flex flex-wrap gap-1 mb-2">
+                      {etiquetasNuevas.map((t, idx) => (
+                        <span key={idx} className="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-md bg-violet-100 dark:bg-violet-950/60 text-violet-700 dark:text-violet-300 border border-violet-200 dark:border-violet-800">
+                          🏷️ {t}
+                          <button
+                            type="button"
+                            onClick={() => setEtiquetasNuevas(prev => prev.filter((_, i) => i !== idx))}
+                            className="hover:text-rose-500 p-0.5 cursor-pointer"
+                          >
+                            <X size={11} />
+                          </button>
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={inputEtiquetaNueva}
+                      onChange={(e) => setInputEtiquetaNueva(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === ',') {
+                          e.preventDefault();
+                          const valor = inputEtiquetaNueva.trim();
+                          if (valor) {
+                            const partes = valor.split(/[,;-]/).map(t => t.trim()).filter(Boolean);
+                            setEtiquetasNuevas(prev => {
+                              const lista = [...prev];
+                              partes.forEach(p => {
+                                if (!lista.some(exist => exist.toLowerCase() === p.toLowerCase())) {
+                                  lista.push(p);
+                                }
+                              });
+                              return lista;
+                            });
+                            setInputEtiquetaNueva("");
+                          }
+                        }
+                      }}
+                      placeholder="Ej: Mayorista, Vecino, Familia (o escribe y da Guardar)"
+                      className="flex-1 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs font-semibold text-slate-800 dark:text-white focus:ring-2 focus:ring-violet-500 focus:outline-hidden"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => {
                         const valor = inputEtiquetaNueva.trim();
                         if (valor) {
                           const partes = valor.split(/[,;-]/).map(t => t.trim()).filter(Boolean);
@@ -2534,69 +2594,49 @@ Gracias por seguir con nosotros.
                           });
                           setInputEtiquetaNueva("");
                         }
-                      }
-                    }}
-                    placeholder="Ej: Mayorista, Vecino, Familia (o escribe y da Guardar)"
-                    className="flex-1 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs font-semibold text-slate-800 dark:text-white focus:ring-2 focus:ring-violet-500 focus:outline-hidden"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const valor = inputEtiquetaNueva.trim();
-                      if (valor) {
-                        const partes = valor.split(/[,;-]/).map(t => t.trim()).filter(Boolean);
-                        setEtiquetasNuevas(prev => {
-                          const lista = [...prev];
-                          partes.forEach(p => {
-                            if (!lista.some(exist => exist.toLowerCase() === p.toLowerCase())) {
-                              lista.push(p);
-                            }
-                          });
-                          return lista;
-                        });
-                        setInputEtiquetaNueva("");
-                      }
-                    }}
-                    disabled={!inputEtiquetaNueva.trim()}
-                    className="px-3 py-2 bg-violet-600 hover:bg-violet-700 disabled:opacity-40 text-white font-bold text-xs rounded-xl flex items-center gap-1 transition cursor-pointer shrink-0"
-                  >
-                    <Plus size={13} /> Agregar
-                  </button>
-                </div>
-                {todasLasEtiquetas.some(cat => !etiquetasNuevas.some(e => e.toLowerCase() === cat.nombre.toLowerCase())) && (
-                  <div className="flex flex-wrap items-center gap-1 pt-1.5">
-                    <span className="text-[10px] text-slate-400 font-semibold">Existentes:</span>
-                    {todasLasEtiquetas
-                      .filter(cat => !etiquetasNuevas.some(e => e.toLowerCase() === cat.nombre.toLowerCase()))
-                      .slice(0, 6)
-                      .map((cat) => (
-                        <button
-                          key={cat.nombre}
-                          type="button"
-                          onClick={() => {
-                            setEtiquetasNuevas(prev => [...prev, cat.nombre]);
-                          }}
-                          className="px-2 py-0.5 text-[10px] font-bold rounded-md bg-slate-100 hover:bg-violet-50 dark:bg-slate-800 dark:hover:bg-violet-950/40 text-slate-600 dark:text-slate-300 hover:text-violet-600 dark:hover:text-violet-300 border border-slate-200/60 dark:border-slate-700 transition cursor-pointer"
-                        >
-                          + {cat.nombre}
-                        </button>
-                    ))}
+                      }}
+                      disabled={!inputEtiquetaNueva.trim()}
+                      className="px-3 py-2 bg-violet-600 hover:bg-violet-700 disabled:opacity-40 text-white font-bold text-xs rounded-xl flex items-center gap-1 transition cursor-pointer shrink-0"
+                    >
+                      <Plus size={13} /> Agregar
+                    </button>
                   </div>
-                )}
+                  {todasLasEtiquetas.some(cat => !etiquetasNuevas.some(e => e.toLowerCase() === cat.nombre.toLowerCase())) && (
+                    <div className="flex flex-wrap items-center gap-1 pt-1.5">
+                      <span className="text-[10px] text-slate-400 font-semibold">Existentes:</span>
+                      {todasLasEtiquetas
+                        .filter(cat => !etiquetasNuevas.some(e => e.toLowerCase() === cat.nombre.toLowerCase()))
+                        .slice(0, 6)
+                        .map((cat) => (
+                          <button
+                            key={cat.nombre}
+                            type="button"
+                            onClick={() => {
+                              setEtiquetasNuevas(prev => [...prev, cat.nombre]);
+                            }}
+                            className="px-2 py-0.5 text-[10px] font-bold rounded-md bg-slate-100 hover:bg-violet-50 dark:bg-slate-800 dark:hover:bg-violet-950/40 text-slate-600 dark:text-slate-300 hover:text-violet-600 dark:hover:text-violet-300 border border-slate-200/60 dark:border-slate-700 transition cursor-pointer"
+                          >
+                            + {cat.nombre}
+                          </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </div>
 
-              <div className="pt-2 flex items-center gap-3">
+              {/* Footer Fijo con Botones */}
+              <div className="p-4 sm:p-5 border-t border-slate-100 dark:border-slate-800 shrink-0 bg-slate-50/80 dark:bg-[#020617]/80 flex items-center gap-3">
                 <button
                   type="button"
                   onClick={() => setModalNuevoAbierto(false)}
-                  className="flex-1 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 text-xs font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition cursor-pointer"
+                  className="flex-1 py-3 rounded-xl border border-slate-200 dark:border-slate-700 text-xs font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer"
                 >
                   Cancelar
                 </button>
                 <button
                   type="submit"
                   disabled={guardandoCliente}
-                  className="flex-1 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black shadow-md shadow-emerald-600/20 transition disabled:opacity-50 cursor-pointer"
+                  className="flex-1 py-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black shadow-md shadow-emerald-600/20 transition disabled:opacity-50 cursor-pointer"
                 >
                   {guardandoCliente ? "Guardando..." : "Guardar Cliente"}
                 </button>

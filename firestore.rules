@@ -151,7 +151,7 @@ service cloud.firestore {
       allow create: if false;
       allow update: if estaAutenticado() && perteneceAlNegocio(resource.data)
         && request.resource.data.usuarioId == resource.data.usuarioId
-        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['nombre', 'celular', 'direccion', 'notas', 'tipoDocumento', 'numeroDocumento', 'dv', 'email', 'razonSocial', 'etiquetas', 'apodo']);
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['nombre', 'nombres', 'apellidos', 'celular', 'direccion', 'notas', 'tipoDocumento', 'numeroDocumento', 'dv', 'email', 'razonSocial', 'etiquetas', 'apodo']);
       allow delete: if estaAutenticado() && esDuenioDelNegocio(resource.data);
     }
 

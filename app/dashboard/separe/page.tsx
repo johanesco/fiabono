@@ -1,4 +1,5 @@
 "use client";
+import { obtenerNombreCercano } from "@/utils/whatsapp";
 import { useState, useEffect, Suspense, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { collection, addDoc, getDocs, getDoc, query, where, Timestamp, doc, updateDoc, increment } from "firebase/firestore";
@@ -186,6 +187,8 @@ function SepareContenido() {
   const [mostrarResultadosCliente, setMostrarResultadosCliente] = useState(false);
   const [modalNuevoCliente, setModalNuevoCliente] = useState(false);
   const [nombreNuevo, setNombreNuevo] = useState("");
+  const [nombresNuevo, setNombresNuevo] = useState("");
+  const [apellidosNuevo, setApellidosNuevo] = useState("");
   const [celularNuevo, setCelularNuevo] = useState("");
   const [direccionNuevo, setDireccionNuevo] = useState("");
   const [notasNuevo, setNotasNuevo] = useState("");
@@ -694,7 +697,8 @@ function SepareContenido() {
 
   // Crear cliente rápido
   const guardarNuevoCliente = async () => {
-    if (!nombreNuevo.trim()) {
+    const nombreCalculado = apellidosNuevo.trim() ? (nombresNuevo.trim() + ' ' + apellidosNuevo.trim()) : (nombresNuevo.trim() || nombreNuevo.trim());
+    if (!nombreCalculado) {
       toast.error("El nombre del cliente es obligatorio");
       return;
     }
@@ -706,7 +710,9 @@ function SepareContenido() {
         method: 'POST', 
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, 
         body: JSON.stringify({ 
-          nombre: nombreNuevo.trim(), 
+          nombre: nombreCalculado,
+          nombres: nombresNuevo.trim(),
+          apellidos: apellidosNuevo.trim(),
           celular: celularNuevo.trim(),
           direccion: direccionNuevo.trim(),
           notas: notasNuevo.trim()
@@ -717,7 +723,9 @@ function SepareContenido() {
       const docRef = { id: resultado.id };
       const nuevo = {
         id: docRef.id,
-        nombre: nombreNuevo.trim(),
+        nombre: nombreCalculado,
+        nombres: nombresNuevo.trim(),
+        apellidos: apellidosNuevo.trim(),
         celular: celularNuevo.trim(),
         direccion: direccionNuevo.trim(),
         notas: notasNuevo.trim(),
@@ -728,6 +736,8 @@ function SepareContenido() {
       setClienteSeleccionado(nuevo);
       setModalNuevoCliente(false);
       setNombreNuevo("");
+      setNombresNuevo("");
+      setApellidosNuevo("");
       setCelularNuevo("");
       setDireccionNuevo("");
       setNotasNuevo("");
@@ -2070,7 +2080,7 @@ function SepareContenido() {
         itemsTexto += `- ${cant}x ${f.descripcion.trim()}\n  Precio unitario: *$${precio.toLocaleString('es-CO')}*\n  Total: *$${subtotal.toLocaleString('es-CO')}*\n\n`;
       });
 
-    let texto = `¡Hola, *${cli.nombre}*! Gracias por separar con nosotros en *${nombreNegocio}*.
+    let texto = `¡Hola, *${obtenerNombreCercano(cli)}*! Gracias por separar con nosotros en *${nombreNegocio}*.
 
 ===================
 *COMPROBANTE DE PLAN SEPARE*
@@ -2814,6 +2824,9 @@ Estamos atentos para cualquier consulta.
                           setBusquedaCliente("");
                           setMostrarResultadosCliente(false);
                         } else if (busquedaCliente.trim()) {
+                          const partes = busquedaCliente.trim().split(/\s+/);
+                          setNombresNuevo(partes[0] || "");
+                          setApellidosNuevo(partes.slice(1).join(" ") || "");
                           setNombreNuevo(busquedaCliente.trim());
                           setModalNuevoCliente(true);
                           setMostrarResultadosCliente(false);
@@ -2849,7 +2862,14 @@ Estamos atentos para cualquier consulta.
                       ))}
                       {!clientesFiltrados.some(c => c.nombre.toLowerCase() === busquedaCliente.toLowerCase()) && (
                         <button
-                          onClick={() => { setNombreNuevo(busquedaCliente.trim()); setModalNuevoCliente(true); setMostrarResultadosCliente(false); }}
+                          onClick={() => { 
+                            const partes = busquedaCliente.trim().split(/\s+/);
+                            setNombresNuevo(partes[0] || "");
+                            setApellidosNuevo(partes.slice(1).join(" ") || "");
+                            setNombreNuevo(busquedaCliente.trim()); 
+                            setModalNuevoCliente(true); 
+                            setMostrarResultadosCliente(false); 
+                          }}
                           className="w-full text-left p-2 bg-violet-50 text-violet-700 text-xs font-bold"
                         >
                           + Crear cliente "{busquedaCliente}"
@@ -3277,15 +3297,35 @@ Estamos atentos para cualquier consulta.
             </div>
 
             <div className="space-y-3">
-              <div>
-                <label className="text-xs font-bold text-slate-600 dark:text-slate-300 block mb-1">Nombre Completo *</label>
-                <input
-                  type="text"
-                  value={nombreNuevo}
-                  onChange={(e) => setNombreNuevo(e.target.value)}
-                  placeholder="Ej: Doña Carmen, Andrés..."
-                  className="w-full p-3.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl font-bold text-sm text-slate-900 dark:text-white outline-none focus:border-violet-500"
-                />
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                <div>
+                  <label className="text-xs font-bold text-slate-600 dark:text-slate-300 block mb-1">Nombres *</label>
+                  <input
+                    type="text"
+                    value={nombresNuevo}
+                    onChange={(e) => {
+                      setNombresNuevo(e.target.value);
+                      const full = apellidosNuevo.trim() ? (e.target.value.trim() + ' ' + apellidosNuevo.trim()) : e.target.value.trim();
+                      setNombreNuevo(full);
+                    }}
+                    placeholder="Ej: Doña Carmen, Andrés..."
+                    className="w-full p-3.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl font-bold text-sm text-slate-900 dark:text-white outline-none focus:border-violet-500"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-bold text-slate-600 dark:text-slate-300 block mb-1">Apellidos (Opcional)</label>
+                  <input
+                    type="text"
+                    value={apellidosNuevo}
+                    onChange={(e) => {
+                      setApellidosNuevo(e.target.value);
+                      const full = e.target.value.trim() ? (nombresNuevo.trim() + ' ' + e.target.value.trim()) : nombresNuevo.trim();
+                      setNombreNuevo(full);
+                    }}
+                    placeholder="Ej: Gómez, Pérez..."
+                    className="w-full p-3.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl font-bold text-sm text-slate-900 dark:text-white outline-none focus:border-violet-500"
+                  />
+                </div>
               </div>
               <div>
                 <label className="text-xs font-bold text-slate-600 dark:text-slate-300 block mb-1">Celular (WhatsApp)</label>

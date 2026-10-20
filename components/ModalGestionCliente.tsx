@@ -55,6 +55,8 @@ export default function ModalGestionCliente({
   const [duplicadoDocModal, setDuplicadoDocModal] = useState<Cliente | null>(null);
   const [duplicadoCelModal, setDuplicadoCelModal] = useState<Cliente | null>(null);
   const [nombre, setNombre] = useState("");
+  const [nombres, setNombres] = useState("");
+  const [apellidos, setApellidos] = useState("");
   const [apodo, setApodo] = useState("");
   const [tipoDocumento, setTipoDocumento] = useState<string>("CC");
   const [numeroDocumento, setNumeroDocumento] = useState("");
@@ -76,7 +78,21 @@ export default function ModalGestionCliente({
 
   useEffect(() => {
     if (cliente && isOpen) {
-      setNombre(cliente.nombre || "");
+      const nomComp = cliente.nombre || "";
+      setNombre(nomComp);
+      if (cliente.nombres !== undefined) {
+        setNombres(cliente.nombres || "");
+        setApellidos(cliente.apellidos || "");
+      } else {
+        const partes = nomComp.trim().split(/\s+/);
+        if (partes.length > 1) {
+          setNombres(partes[0]);
+          setApellidos(partes.slice(1).join(" "));
+        } else {
+          setNombres(nomComp);
+          setApellidos("");
+        }
+      }
       setApodo(cliente.apodo || "");
       setTipoDocumento(cliente.tipoDocumento || "CC");
       setNumeroDocumento(cliente.numeroDocumento || "");
@@ -127,10 +143,12 @@ export default function ModalGestionCliente({
   const handlePreGuardar = (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!nombre.trim()) {
+    if (!nombres.trim()) {
       toast.error("El nombre del cliente no puede estar vacío.");
       return;
     }
+    const nombreFinal = apellidos.trim() ? (nombres.trim() + ' ' + apellidos.trim()) : nombres.trim();
+    setNombre(nombreFinal);
 
     // Validar si el número de documento ya pertenece a otro cliente (bloqueo estricto con ventana modal diseñada)
     const docLimpio = numeroDocumento.trim();
@@ -204,9 +222,12 @@ export default function ModalGestionCliente({
       const token = await auth.currentUser?.getIdToken();
       if (!token) throw new Error('Sesión no válida.');
 
+      const nombreFinal = apellidos.trim() ? (nombres.trim() + ' ' + apellidos.trim()) : nombres.trim();
       const datosActualizados = {
         id: cliente.id,
-        nombre: nombre.trim(),
+        nombre: nombreFinal,
+        nombres: nombres.trim(),
+        apellidos: apellidos.trim(),
         apodo: apodo.trim(),
         tipoDocumento: tipoDocumento || 'CC',
         numeroDocumento: numeroDocumento.trim(),
@@ -385,20 +406,35 @@ export default function ModalGestionCliente({
 
         {/* CASO 1: MODO EDITAR (FORMULARIO LIMPIO CON PRE-GUARDADO) */}
         {modo === 'editar' && (
-          <form onSubmit={handlePreGuardar} className="p-5 sm:p-6 space-y-4 animate-in fade-in duration-200 overflow-y-auto">
-            <div>
-              <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
-                <User size={14} /> Nombre del Cliente
-              </label>
-              <input
-                type="text"
-                value={nombre}
-                onChange={(e) => setNombre(e.target.value)}
-                placeholder="Nombre completo"
-                required
-                autoFocus
-                className="w-full p-4 bg-slate-50 dark:bg-[#020617] border border-slate-200 dark:border-slate-800 rounded-2xl outline-none focus:border-blue-500 dark:text-white font-bold text-base transition-colors"
-              />
+          <form onSubmit={handlePreGuardar} className="flex flex-col flex-1 min-h-0 overflow-hidden animate-in fade-in duration-200">
+            <div className="p-5 sm:p-6 space-y-4 overflow-y-auto flex-1 scrollbar-thin">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
+                  <User size={14} /> Nombres *
+                </label>
+                <input
+                  type="text"
+                  value={nombres}
+                  onChange={(e) => setNombres(e.target.value)}
+                  placeholder="Ej: Carlos"
+                  required
+                  autoFocus
+                  className="w-full p-3.5 bg-slate-50 dark:bg-[#020617] border border-slate-200 dark:border-slate-800 rounded-2xl outline-none focus:border-blue-500 dark:text-white font-bold text-base transition-colors"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
+                  <User size={14} /> Apellidos (Opcional)
+                </label>
+                <input
+                  type="text"
+                  value={apellidos}
+                  onChange={(e) => setApellidos(e.target.value)}
+                  placeholder="Ej: Mendoza"
+                  className="w-full p-3.5 bg-slate-50 dark:bg-[#020617] border border-slate-200 dark:border-slate-800 rounded-2xl outline-none focus:border-blue-500 dark:text-white font-bold text-base transition-colors"
+                />
+              </div>
             </div>
 
             <div>
@@ -570,19 +606,21 @@ export default function ModalGestionCliente({
               </div>
             )}
 
-            <div className="grid grid-cols-2 gap-3 pt-3">
+            </div>
+
+            <div className="p-4 sm:p-5 border-t border-slate-100 dark:border-slate-800 shrink-0 bg-slate-50/80 dark:bg-[#020617]/80 flex items-center gap-3">
               <button
                 type="button"
                 onClick={onClose}
                 disabled={procesando}
-                className="w-full py-4 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 font-bold rounded-2xl transition-colors text-sm cursor-pointer"
+                className="flex-1 py-3 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 font-bold rounded-2xl transition-colors text-sm cursor-pointer"
               >
                 Cancelar
               </button>
               <button
                 type="submit"
                 disabled={procesando || !nombre.trim()}
-                className="w-full py-4 bg-blue-600 hover:bg-blue-700 text-white font-black rounded-2xl shadow-lg shadow-blue-500/20 flex justify-center items-center gap-2 text-sm transition-all active:scale-95 disabled:opacity-50 cursor-pointer"
+                className="flex-1 py-3 bg-blue-600 hover:bg-blue-700 text-white font-black rounded-2xl shadow-lg shadow-blue-500/20 flex justify-center items-center gap-2 text-sm transition-all active:scale-95 disabled:opacity-50 cursor-pointer"
               >
                 Guardar <ArrowRight size={18} />
               </button>
