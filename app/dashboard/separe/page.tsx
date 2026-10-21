@@ -16,6 +16,7 @@ import toast from "react-hot-toast";
 import { useAuth } from "@/hooks/AuthContext";
 import TicketFacturaModal, { DatosFacturaProps } from "@/components/TicketFacturaModal";
 import ModalSuscripcion from "@/components/ModalSuscripcion";
+import ModalNuevoCliente from "@/components/ModalNuevoCliente";
 import { Html5Qrcode } from "html5-qrcode";
 import { abrirEnlaceWhatsApp } from "@/utils/whatsapp";
 import { API_DB } from "../../../servicios/db";
@@ -3277,108 +3278,19 @@ Estamos atentos para cualquier consulta.
       )}
 
       {/* MODAL NUEVO CLIENTE RÁPIDO */}
-      {modalNuevoCliente && (
-        <div 
-          onClick={(e) => { if (e.target === e.currentTarget) setModalNuevoCliente(false); }}
-          className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 z-[210]"
-        >
-          <div className="bg-white dark:bg-[#0f172a] p-6 sm:p-7 rounded-[2.5rem] w-full max-w-md shadow-2xl border border-slate-100 dark:border-slate-800 space-y-4 animate-in zoom-in-95 duration-200">
-            <div className="flex items-center justify-between pb-1">
-              <h3 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white flex items-center gap-2">
-                <UserCog size={24} className="text-violet-600" /> Registrar Cliente
-              </h3>
-              <button 
-                type="button" 
-                onClick={() => setModalNuevoCliente(false)}
-                className="p-1.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-400 hover:text-slate-700 dark:hover:text-white transition-colors cursor-pointer"
-              >
-                <X size={18} />
-              </button>
-            </div>
-
-            <div className="space-y-3">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-                <div>
-                  <label className="text-xs font-bold text-slate-600 dark:text-slate-300 block mb-1">Nombres *</label>
-                  <input
-                    type="text"
-                    value={nombresNuevo}
-                    onChange={(e) => {
-                      setNombresNuevo(e.target.value);
-                      const full = apellidosNuevo.trim() ? (e.target.value.trim() + ' ' + apellidosNuevo.trim()) : e.target.value.trim();
-                      setNombreNuevo(full);
-                    }}
-                    placeholder="Ej: Doña Carmen, Andrés..."
-                    className="w-full p-3.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl font-bold text-sm text-slate-900 dark:text-white outline-none focus:border-violet-500"
-                  />
-                </div>
-                <div>
-                  <label className="text-xs font-bold text-slate-600 dark:text-slate-300 block mb-1">Apellidos (Opcional)</label>
-                  <input
-                    type="text"
-                    value={apellidosNuevo}
-                    onChange={(e) => {
-                      setApellidosNuevo(e.target.value);
-                      const full = e.target.value.trim() ? (nombresNuevo.trim() + ' ' + e.target.value.trim()) : nombresNuevo.trim();
-                      setNombreNuevo(full);
-                    }}
-                    placeholder="Ej: Gómez, Pérez..."
-                    className="w-full p-3.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl font-bold text-sm text-slate-900 dark:text-white outline-none focus:border-violet-500"
-                  />
-                </div>
-              </div>
-              <div>
-                <label className="text-xs font-bold text-slate-600 dark:text-slate-300 block mb-1">Celular (WhatsApp)</label>
-                <input
-                  type="tel"
-                  value={celularNuevo}
-                  onChange={(e) => setCelularNuevo(e.target.value)}
-                  placeholder="Ej: 3101234567"
-                  className="w-full p-3.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl font-bold text-sm text-slate-900 dark:text-white outline-none focus:border-violet-500"
-                />
-              </div>
-              <div>
-                <label className="text-xs font-bold text-slate-600 dark:text-slate-300 block mb-1">Dirección o Referencia</label>
-                <input
-                  type="text"
-                  value={direccionNuevo}
-                  onChange={(e) => setDireccionNuevo(e.target.value)}
-                  placeholder="Ej: Carrera 5 # 12-30"
-                  className="w-full p-3.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl font-bold text-sm text-slate-900 dark:text-white outline-none focus:border-violet-500"
-                />
-              </div>
-              <div>
-                <label className="text-xs font-bold text-slate-600 dark:text-slate-300 block mb-1">Notas / Referencia / Apodo</label>
-                <textarea
-                  rows={2}
-                  value={notasNuevo}
-                  onChange={(e) => setNotasNuevo(e.target.value)}
-                  placeholder="Ej: Apodo (Cachaco), parentesco, notas..."
-                  className="w-full p-3 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl font-medium text-xs text-slate-900 dark:text-white outline-none focus:border-violet-500 resize-none"
-                />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-3 pt-2">
-              <button
-                type="button"
-                onClick={() => setModalNuevoCliente(false)}
-                className="bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold py-3.5 rounded-xl text-sm transition-colors cursor-pointer"
-              >
-                Cancelar
-              </button>
-              <button
-                type="button"
-                onClick={guardarNuevoCliente}
-                disabled={guardandoCliente}
-                className="bg-violet-600 hover:bg-violet-700 text-white font-bold py-3.5 rounded-xl shadow-md text-sm transition-all active:scale-95 disabled:opacity-50 cursor-pointer"
-              >
-                {guardandoCliente ? "Guardando..." : "Guardar"}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <ModalNuevoCliente
+        isOpen={modalNuevoCliente}
+        onClose={() => setModalNuevoCliente(false)}
+        nombreInicial={nombreNuevo || busquedaCliente}
+        onClienteCreado={async (nuevo) => {
+          setClientes(prev => [...prev.filter(c => c.id !== nuevo.id), nuevo].sort((a, b) => a.nombre.localeCompare(b.nombre)));
+          setClienteSeleccionado(nuevo);
+          setBusquedaCliente("");
+          setNombreNuevo("");
+          setNombresNuevo("");
+          setApellidosNuevo("");
+        }}
+      />
 
       {/* MODAL DE ÉXITO CON WHATSAPP Y TICKET */}
       {modalExito?.visible && (

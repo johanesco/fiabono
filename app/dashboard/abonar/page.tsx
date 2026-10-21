@@ -8,6 +8,7 @@ import { Search, CheckCircle2, ChevronRight, X, AlertCircle, UserCog, ArrowLeft,
 import { useAuth } from "../../../hooks/AuthContext";
 import { API_DB } from "../../../servicios/db";
 import TicketFacturaModal from "@/components/TicketFacturaModal";
+import ModalNuevoCliente from "@/components/ModalNuevoCliente";
 import toast from 'react-hot-toast';
 import { abrirEnlaceWhatsApp } from "@/utils/whatsapp";
 import { agregarMediosPagoAlEstado } from "@/utils/mediosPago";
@@ -953,105 +954,20 @@ Estamos atentos para cualquier consulta.
       </div>
 
 
-      {/* MODAL NUEVO CLIENTE (Con detección de Teléfono) */}
-      {modalNuevoCliente && (
-        <div 
-          onClick={(e) => { if (e.target === e.currentTarget) setModalNuevoCliente(false); }}
-          className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 z-[950] animate-in fade-in duration-200"
-        >
-          <div className="bg-white dark:bg-[#0f172a] p-6 sm:p-8 rounded-3xl sm:rounded-[2.5rem] w-full max-w-md shadow-2xl border border-slate-100 dark:border-slate-800 animate-in zoom-in-95 duration-200 relative">
-            <button 
-              onClick={() => setModalNuevoCliente(false)}
-              className="absolute top-5 right-5 p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition-colors"
-            >
-              <X size={20} />
-            </button>
-            <h3 className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-white mb-6 flex items-center gap-2">
-              <UserCog size={28} className="text-blue-600 dark:text-blue-400" /> Crear Cliente
-            </h3>
-            <div className="flex flex-col gap-3.5 mb-6">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                <div>
-                  <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-1">Nombres *</label>
-                  <input 
-                    type="text" 
-                    value={nombresNuevo} 
-                    onChange={(e) => {
-                      setNombresNuevo(e.target.value);
-                      const full = apellidosNuevo.trim() ? (e.target.value.trim() + ' ' + apellidosNuevo.trim()) : e.target.value.trim();
-                      setNombreNuevo(full);
-                    }} 
-                    placeholder="Ej: Juan" 
-                    className="w-full p-3 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl outline-none focus:border-blue-500 font-bold text-sm text-slate-900 dark:text-white" 
-                    autoFocus
-                  />
-                </div>
-                <div>
-                  <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-1">Apellidos (Opcional)</label>
-                  <input 
-                    type="text" 
-                    value={apellidosNuevo} 
-                    onChange={(e) => {
-                      setApellidosNuevo(e.target.value);
-                      const full = e.target.value.trim() ? (nombresNuevo.trim() + ' ' + e.target.value.trim()) : nombresNuevo.trim();
-                      setNombreNuevo(full);
-                    }} 
-                    placeholder="Ej: Pérez" 
-                    className="w-full p-3 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl outline-none focus:border-blue-500 font-bold text-sm text-slate-900 dark:text-white" 
-                  />
-                </div>
-              </div>
-              <div>
-                <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-1">WhatsApp / Celular (Opcional)</label>
-                <input 
-                  type="tel" 
-                  value={celularNuevo} 
-                  onChange={(e) => setCelularNuevo(e.target.value)} 
-                  placeholder="Ej: 3001234567" 
-                  className="w-full p-3.5 sm:p-4 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl outline-none focus:border-blue-500 font-bold text-base text-slate-900 dark:text-white" 
-                />
-              </div>
-              <div>
-                <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-1">Dirección (Opcional)</label>
-                <input 
-                  type="text" 
-                  value={direccionNuevo} 
-                  onChange={(e) => setDireccionNuevo(e.target.value)} 
-                  placeholder="Ej: Calle 10 # 5-20" 
-                  className="w-full p-3.5 sm:p-4 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl outline-none focus:border-blue-500 font-bold text-base text-slate-900 dark:text-white" 
-                />
-              </div>
-              <div>
-                <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-1">Notas / Referencia / Apodo (Opcional)</label>
-                <input 
-                  type="text" 
-                  value={notasNuevo} 
-                  onChange={(e) => setNotasNuevo(e.target.value)} 
-                  placeholder="Ej: Apodo (Cachaco), parentesco, referencia..." 
-                  className="w-full p-3.5 sm:p-4 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl outline-none focus:border-blue-500 font-bold text-base text-slate-900 dark:text-white" 
-                />
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-3 sm:gap-4">
-              <button 
-                type="button"
-                onClick={() => setModalNuevoCliente(false)} 
-                className="bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold py-3.5 rounded-xl text-base transition-colors"
-              >
-                Cancelar
-              </button>
-              <button 
-                type="button"
-                onClick={guardarClienteNuevo} 
-                disabled={guardandoCliente} 
-                className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3.5 rounded-xl shadow-lg flex justify-center items-center gap-2 text-base disabled:opacity-50 transition-colors"
-              >
-                {guardandoCliente ? "Guardando..." : "Guardar"} <CheckCircle2 size={18}/>
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* MODAL NUEVO CLIENTE UNIFICADO */}
+      <ModalNuevoCliente
+        isOpen={modalNuevoCliente}
+        onClose={() => setModalNuevoCliente(false)}
+        nombreInicial={nombreNuevo || busquedaRegistro}
+        onClienteCreado={async (nuevoObj) => {
+          setBusquedaRegistro("");
+          await cargarDatosGlobales(cuentaPrincipalId!);
+          setClienteTransaccion(nuevoObj);
+          setNombreNuevo("");
+          setNombresNuevo("");
+          setApellidosNuevo("");
+        }}
+      />
 
       {modalExito && modalExito.visible && (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 z-[950] animate-in zoom-in duration-300">
