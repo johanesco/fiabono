@@ -1171,11 +1171,15 @@ export default function ReportesPage() {
           <div className="absolute right-0 top-0 bottom-0 w-2 bg-slate-800 dark:bg-slate-500"></div>
           <div className="min-w-0 flex-1 pr-2">
             <span className="text-[10px] xl:text-xs font-extrabold text-slate-400 uppercase tracking-widest block whitespace-normal">Directorio</span>
-            <div className="flex items-end gap-2 mt-1 whitespace-nowrap overflow-visible">
-              <span className="text-lg sm:text-2xl lg:text-lg xl:text-2xl font-black text-slate-900 dark:text-white leading-none">{totalClientesRegistrados}</span>
-              <span className="text-xs text-slate-400 font-bold mb-1 leading-none">REGIST.</span>
-              <span className="text-lg sm:text-2xl lg:text-lg xl:text-2xl font-black text-rose-500 leading-none ml-1">{clientesConCredito}</span>
-              <span className="text-xs text-rose-400 font-bold mb-1 leading-none">DEUDORES</span>
+            <div className="flex items-start gap-4 mt-1.5">
+              <div className="flex flex-col min-w-0">
+                <span className="text-lg sm:text-2xl lg:text-lg xl:text-2xl font-black text-slate-900 dark:text-white leading-none">{totalClientesRegistrados}</span>
+                <span className="text-[10px] text-slate-400 font-bold uppercase leading-tight mt-1">Registrados</span>
+              </div>
+              <div className="flex flex-col min-w-0">
+                <span className="text-lg sm:text-2xl lg:text-lg xl:text-2xl font-black text-rose-500 leading-none">{clientesConCredito}</span>
+                <span className="text-[10px] text-rose-400 font-bold uppercase leading-tight mt-1">Deudores</span>
+              </div>
             </div>
           </div>
           <div className="p-3 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 rounded-2xl shrink-0"><Users size={24} className="xl:w-[28px] xl:h-[28px]" /></div>
@@ -1186,14 +1190,14 @@ export default function ReportesPage() {
           <div className="absolute right-0 top-0 bottom-0 w-2 bg-emerald-500"></div>
           <div className="min-w-0 flex-1 pr-2">
             <span className="text-[10px] xl:text-xs font-extrabold text-slate-400 uppercase tracking-widest block whitespace-normal">Salud Cartera</span>
-            <div className="flex items-end gap-2 mt-1 whitespace-nowrap overflow-visible">
+            <div className="flex flex-wrap items-end gap-x-2 gap-y-0.5 mt-1">
               <span className={`text-lg sm:text-2xl lg:text-lg xl:text-2xl font-black leading-none ${
                 Number(ratioRecaudo) > 100 ? 'text-emerald-500' :
                 Number(ratioRecaudo) > 50 ? 'text-amber-500' : 'text-rose-500'
               }`}>
                 {ratioRecaudo}%
               </span>
-              <span className="text-[9px] xl:text-[10px] text-slate-400 font-bold mb-1 leading-tight whitespace-normal max-w-[60px]">tasa recaudo</span>
+              <span className="text-[9px] xl:text-[10px] text-slate-400 font-bold mb-1 leading-tight whitespace-normal">tasa recaudo</span>
             </div>
             <p className="text-[10px] xl:text-xs text-slate-500 dark:text-slate-400 mt-1 font-medium whitespace-normal">Abonos recibidos vs créditos.</p>
           </div>

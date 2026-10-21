@@ -1505,10 +1505,10 @@ export default function MasterPage() {
                     className={`${theme.card} rounded-3xl p-4 sm:p-6 border transition-all shadow-sm space-y-4 hover:border-slate-700/60`}
                   >
                     {/* Fila Principal */}
-                    <div className="flex flex-col lg:flex-row justify-between lg:items-center gap-4">
+                    <div className="flex flex-col xl:flex-row justify-between xl:items-center gap-4">
                       
                       {/* Información de la Tienda */}
-                      <div className="flex items-start gap-3 min-w-0">
+                      <div className="flex items-start gap-3 min-w-0 flex-1">
                         <div className={`p-3 rounded-2xl shrink-0 mt-0.5 ${
                           isPro 
                             ? 'bg-purple-500/15 text-purple-600 dark:text-purple-400 border border-purple-500/30' 
@@ -1521,7 +1521,7 @@ export default function MasterPage() {
 
                         <div className="min-w-0 flex-1">
                           <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
-                            <h3 className={`font-black ${theme.textMain} text-base sm:text-lg tracking-tight truncate`}>
+                            <h3 className={`font-black ${theme.textMain} text-base sm:text-lg tracking-tight break-words`}>
                               {u.nombreNegocio || "Negocio sin nombre"}
                             </h3>
                             <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider ${
@@ -1580,9 +1580,9 @@ export default function MasterPage() {
 
                           <div className={`flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs ${theme.textMuted} mt-1.5`}>
                             <span className="flex items-center gap-1">
-                              <User size={12} className="shrink-0" /> <strong className={`${theme.textMain} truncate`}>{u.nombreUsuario || 'Sin usuario'}</strong>
+                              <User size={12} className="shrink-0" /> <strong className={`${theme.textMain} break-words`}>{u.nombreUsuario || 'Sin usuario'}</strong>
                             </span>
-                            <span className="flex items-center gap-1 break-all">
+                            <span className="flex items-center gap-1 break-words min-w-0">
                               <Mail size={12} className="shrink-0" /> {u.email}
                             </span>
                             {(u.telefonoNegocio || u.celular) && (
@@ -1609,7 +1609,7 @@ export default function MasterPage() {
                       </div>
 
                       {/* Botonera de Acciones Rápidas */}
-                      <div className={`grid grid-cols-2 sm:flex sm:flex-wrap items-center gap-2 shrink-0 pt-3 lg:pt-0 border-t lg:border-t-0 ${theme.border} w-full lg:w-auto`}>
+                      <div className={`grid grid-cols-2 sm:flex sm:flex-wrap items-center gap-2 pt-3 xl:pt-0 border-t xl:border-t-0 ${theme.border} w-full xl:w-auto xl:max-w-[46%] xl:justify-end`}>
                         {/* WhatsApp CRM */}
                         {(u.telefonoNegocio || u.celular) && (
                           <button

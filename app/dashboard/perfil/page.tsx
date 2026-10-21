@@ -466,6 +466,20 @@ export default function PerfilPage() {
     }
   };
 
+  const alternarModuloSepare = async (nuevoValor: boolean) => {
+    if (!usuarioAuth) return;
+    const valorAnterior = moduloSepareActivo;
+    setModuloSepareActivo(nuevoValor);
+    try {
+      await updateDoc(doc(db, "usuarios", usuarioAuth.uid), { moduloSepareActivo: nuevoValor });
+      setDatosSesion((prev: any) => ({ ...prev, moduloSepareActivo: nuevoValor }));
+      toast.success(nuevoValor ? "Plan Separe habilitado. Ya aparece en tu menú e inicio." : "Plan Separe oculto. Puedes volver a activarlo aquí cuando quieras.");
+    } catch (error) {
+      setModuloSepareActivo(valorAnterior);
+      toast.error("No se pudo actualizar el Plan Separe. Intenta de nuevo.");
+    }
+  };
+
   const procesarCambioPassword = async () => {
     setPassErrores({ actual: "", nueva: "", confirmar: "", general: "" });
     setMensajePerfil({ texto: "", tipo: "" });
@@ -1370,8 +1384,8 @@ export default function PerfilPage() {
               </button>
             </div>
 
-            <h2 className="text-2xl font-black text-slate-900 dark:text-white truncate">{nombreNegocio}</h2>
-            <p className="text-slate-500 dark:text-slate-400 font-medium mb-4 truncate">{correoNegocio}</p>
+            <h2 className="text-2xl font-black text-slate-900 dark:text-white break-words">{nombreNegocio}</h2>
+            <p className="text-slate-500 dark:text-slate-400 font-medium mb-4 break-all">{correoNegocio}</p>
             
             {/* ESTADO DE SUSCRIPCIÓN */}
             <div className="flex flex-col items-center justify-center gap-2.5 mt-4">
@@ -1706,7 +1720,7 @@ export default function PerfilPage() {
                         <div className="flex justify-between items-start gap-2">
                           <div className="min-w-0 flex-1">
                             <div className="flex items-center gap-2 flex-wrap">
-                              <p className="font-bold text-slate-800 dark:text-slate-200 text-lg truncate">{c.nombreUsuario}</p>
+                              <p className="font-bold text-slate-800 dark:text-slate-200 text-lg break-words">{c.nombreUsuario}</p>
                               <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded-full ${
                                 esGratis 
                                   ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400' 
@@ -2548,7 +2562,7 @@ export default function PerfilPage() {
             </div>
           </div>
 
-          {/* PERFIL DEL NEGOCIO Y MARCA (EXPANDIBLE / RECOGIDO POR DEFECTO) */}
+                    {/* PERFIL DEL NEGOCIO Y MARCA (EXPANDIBLE / RECOGIDO POR DEFECTO) */}
           <div className="bg-white dark:bg-[#0f172a] p-6 sm:p-8 rounded-[2rem] shadow-sm border border-slate-100 dark:border-slate-800/60 transition-all">
             <div className="flex justify-between items-center border-b border-slate-100 dark:border-slate-800/60 pb-4 cursor-pointer select-none" onClick={() => setMostrarPerfilNegocio(!mostrarPerfilNegocio)}>
               <div className="flex items-center gap-2">
@@ -2981,55 +2995,6 @@ export default function PerfilPage() {
                       )}
                     </div>
 
-                    {/* INTERRUPTOR MÓDULO PLAN SEPARE */}
-                    <div className="p-4 rounded-2xl bg-violet-50/60 dark:bg-violet-950/20 border border-violet-100 dark:border-violet-900/40">
-                      <div className="flex items-center justify-between gap-4">
-                        <div>
-                          <div className="flex items-center gap-2">
-                            <h4 className="font-bold text-sm text-slate-900 dark:text-white flex items-center gap-1.5">
-                              <Bookmark size={16} className="text-violet-600 dark:text-violet-400" /> Módulo Plan Separe (Apartados con Abonos)
-                            </h4>
-                            {!datosSesion?.esPro && (
-                              <span className="bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300 text-[10px] font-black px-2 py-0.5 rounded-md uppercase tracking-wider">
-                                Exclusivo PRO
-                              </span>
-                            )}
-                          </div>
-                          <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                            {datosSesion?.esPro 
-                              ? "Muestra el acceso a Planes Separe en la pantalla de inicio y catálogos. Desactívalo si eres tienda de barrio y solo usas ventas y fiados."
-                              : "La creación de apartados está disponible en el Plan PRO. Tus apartados anteriores se mantienen intactos en modo liquidación para abonar y entregar."}
-                          </p>
-                        </div>
-                        <label 
-                          className="relative inline-flex items-center cursor-pointer shrink-0"
-                          onClick={(e) => {
-                            if (!datosSesion?.esPro) {
-                              e.preventDefault();
-                              toast.error("El módulo Plan Separe está disponible exclusivamente en el Plan PRO.");
-                              setModalSuscripcionOpen(true);
-                            }
-                          }}
-                        >
-                          <input 
-                            type="checkbox" 
-                            checked={datosSesion?.esPro ? moduloSepareActivo : false} 
-                            onChange={(e) => {
-                              if (!datosSesion?.esPro) {
-                                toast.error("El módulo Plan Separe está disponible exclusivamente en el Plan PRO.");
-                                setModalSuscripcionOpen(true);
-                                return;
-                              }
-                              setModuloSepareActivo(e.target.checked);
-                            }} 
-                            disabled={!datosSesion?.esPro}
-                            className="sr-only peer" 
-                          />
-                          <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer dark:bg-slate-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-violet-600 peer-disabled:opacity-50 peer-disabled:cursor-not-allowed"></div>
-                        </label>
-                      </div>
-                    </div>
-
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2 border-t border-slate-100 dark:border-slate-800/60">
                       <div>
                         <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1.5">Tu Nombre de Usuario</label>
@@ -3051,39 +3016,39 @@ export default function PerfilPage() {
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                       <div className="min-w-0">
                         <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1 flex items-center gap-1.5"><Building2 size={13} className="text-blue-500" /> Negocio</p>
-                        <p className="font-bold text-slate-800 dark:text-slate-200 text-lg truncate">{nombreNegocio}</p>
+                        <p className="font-bold text-slate-800 dark:text-slate-200 text-lg break-words">{nombreNegocio}</p>
                       </div>
                       <div className="min-w-0">
                         <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1 flex items-center gap-1.5"><Store size={13} className="text-blue-500" /> Rubro / Tipo</p>
-                        <p className="font-bold text-slate-800 dark:text-slate-200 text-lg truncate">
+                        <p className="font-bold text-slate-800 dark:text-slate-200 text-lg break-words">
                           {RUBROS_NEGOCIOS.find(r => r.id === rubroNegocio)?.nombre || "Moda y Ropa"}
                         </p>
                       </div>
                       <div className="min-w-0">
                         <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1 flex items-center gap-1.5"><Receipt size={13} className="text-blue-500" /> NIT / RUT</p>
-                        <p className="font-bold text-slate-800 dark:text-slate-200 text-lg truncate">{nitNegocio || "No registrado"}</p>
+                        <p className="font-bold text-slate-800 dark:text-slate-200 text-lg break-words">{nitNegocio || "No registrado"}</p>
                       </div>
                       <div className="min-w-0">
                         <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1 flex items-center gap-1.5"><MapPin size={13} className="text-blue-500" /> Dirección</p>
-                        <p className="font-bold text-slate-800 dark:text-slate-200 text-lg truncate">{direccionNegocio || "No registrada"}</p>
+                        <p className="font-bold text-slate-800 dark:text-slate-200 text-lg break-words">{direccionNegocio || "No registrada"}</p>
                       </div>
                       <div className="min-w-0">
                         <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1 flex items-center gap-1.5"><PhoneCall size={13} className="text-blue-500" /> WhatsApp / Teléfono</p>
-                        <p className="font-bold text-slate-800 dark:text-slate-200 text-lg truncate">{telefonoNegocio || "No registrado"}</p>
+                        <p className="font-bold text-slate-800 dark:text-slate-200 text-lg break-words">{telefonoNegocio || "No registrado"}</p>
                       </div>
                       <div className="min-w-0">
                         <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1 flex items-center gap-1.5"><UserCog size={13} className="text-blue-500" /> Administrador</p>
-                        <p className="font-bold text-slate-800 dark:text-slate-200 text-lg truncate">{nombreUsuario}</p>
+                        <p className="font-bold text-slate-800 dark:text-slate-200 text-lg break-words">{nombreUsuario}</p>
                       </div>
                       <div className="min-w-0">
                         <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1 flex items-center gap-1.5"><Receipt size={13} className="text-blue-500" /> Impuestos / IVA</p>
-                        <p className="font-bold text-slate-800 dark:text-slate-200 text-base truncate">
+                        <p className="font-bold text-slate-800 dark:text-slate-200 text-base break-words">
                           {habilitarIva ? `Activo (${porcentajeIva}%)` : "Precios finales (Sin IVA)"}
                         </p>
                       </div>
                       <div className="min-w-0">
                         <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1 flex items-center gap-1.5"><Bookmark size={13} className="text-violet-500" /> Plan Separe</p>
-                        <p className="font-bold text-slate-800 dark:text-slate-200 text-base truncate">
+                        <p className="font-bold text-slate-800 dark:text-slate-200 text-base break-words">
                           {moduloSepareActivo ? "Habilitado en Inicio" : "Oculto en Inicio"}
                         </p>
                       </div>
@@ -3101,7 +3066,7 @@ export default function PerfilPage() {
 
                       <div className="min-w-0 md:col-span-2">
                         <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1 flex items-center gap-1.5"><Receipt size={13} className="text-blue-500" /> Pie de Factura</p>
-                        <p className="font-bold text-slate-800 dark:text-slate-200 text-base truncate">{mensajePieTicket || "¡GRACIAS POR SU COMPRA!"}</p>
+                        <p className="font-bold text-slate-800 dark:text-slate-200 text-base break-words">{mensajePieTicket || "¡GRACIAS POR SU COMPRA!"}</p>
                       </div>
 
                       <div className="min-w-0 md:col-span-2 pt-2 border-t border-slate-100 dark:border-slate-800/40">
@@ -3150,6 +3115,69 @@ export default function PerfilPage() {
                 )}
               </div>
             )}
+          </div>
+
+          {/* MÓDULO PLAN SEPARE (VISIBLE, FUERA DEL MODO EDICIÓN) */}
+          <div className={`p-5 sm:p-6 rounded-[2rem] border shadow-sm ${
+            datosSesion?.esPro && moduloSepareActivo
+              ? 'bg-violet-50/70 dark:bg-violet-950/20 border-violet-200 dark:border-violet-900/50'
+              : 'bg-white dark:bg-[#0f172a] border-slate-100 dark:border-slate-800/60'
+          }`}>
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div className="flex items-start gap-3 min-w-0">
+                <div className="p-2.5 rounded-xl bg-violet-100 dark:bg-violet-500/15 text-violet-600 dark:text-violet-400 shrink-0">
+                  <Bookmark size={22} />
+                </div>
+                <div className="min-w-0">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <h3 className="font-black text-base text-slate-900 dark:text-white">Módulo Plan Separe</h3>
+                    {!datosSesion?.esPro ? (
+                      <span className="bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300 text-[10px] font-black px-2 py-0.5 rounded-md uppercase tracking-wider">Exclusivo PRO</span>
+                    ) : (
+                      <span className={`text-[10px] font-black px-2 py-0.5 rounded-md uppercase tracking-wider ${
+                        moduloSepareActivo
+                          ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300'
+                          : 'bg-slate-200 text-slate-600 dark:bg-slate-800 dark:text-slate-300'
+                      }`}>
+                        {moduloSepareActivo ? 'Activo' : 'Oculto'}
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-1 leading-relaxed">
+                    {!datosSesion?.esPro
+                      ? "Apartados con abonos para tus clientes. Mejora al Plan PRO para crear nuevos apartados. Los que ya tienes se mantienen para abonar y entregar."
+                      : moduloSepareActivo
+                        ? "Apartados con abonos visibles en tu menú e inicio. Desactívalo si solo usas ventas y fiados."
+                        : "Está oculto en tu menú e inicio. Actívalo cuando quieras ofrecer apartados con abonos."}
+                  </p>
+                </div>
+              </div>
+
+              {!datosSesion?.esPro ? (
+                <button
+                  type="button"
+                  onClick={() => setModalSuscripcionOpen(true)}
+                  className="px-4 py-2.5 rounded-xl text-xs font-black text-white bg-gradient-to-r from-purple-600 to-indigo-600 shadow-md hover:scale-105 transition-transform cursor-pointer flex items-center justify-center gap-1.5 shrink-0"
+                >
+                  <Crown size={14} className="text-amber-300" /> Mejorar a PRO
+                </button>
+              ) : (
+                <label className="flex items-center gap-3 cursor-pointer shrink-0 self-start sm:self-auto">
+                  <span className="text-xs font-black text-slate-600 dark:text-slate-300">
+                    {moduloSepareActivo ? 'Habilitado' : 'Habilitar'}
+                  </span>
+                  <span className="relative inline-flex items-center">
+                    <input
+                      type="checkbox"
+                      checked={moduloSepareActivo}
+                      onChange={(e) => alternarModuloSepare(e.target.checked)}
+                      className="sr-only peer"
+                    />
+                    <span className="w-12 h-7 bg-slate-300 peer-focus:outline-none rounded-full peer dark:bg-slate-700 peer-checked:after:translate-x-5 after:content-[''] after:absolute after:top-[3px] after:left-[3px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-violet-600"></span>
+                  </span>
+                </label>
+              )}
+            </div>
           </div>
 
           <div className="bg-white dark:bg-[#0f172a] p-6 sm:p-8 rounded-[2rem] shadow-sm border border-slate-100 dark:border-slate-800/60">
