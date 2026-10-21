@@ -225,7 +225,21 @@ export default function ModalNuevoCliente({
               </div>
             </div>
 
-            {/* 2. CONTACTO: CELULAR Y DIRECCIÓN */}
+            {/* 2. APODO / ALIAS (ABAJO DE APELLIDO) */}
+            <div>
+              <label className="text-xs font-bold text-slate-600 dark:text-slate-300 block mb-1 flex items-center gap-1.5">
+                <Smile size={13} className="text-amber-500" /> Apodo / Alias (Opcional)
+              </label>
+              <input
+                type="text"
+                value={apodo}
+                onChange={(e) => setApodo(e.target.value)}
+                placeholder="Ej: Don Beto, Cachaco, El Paisa..."
+                className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3.5 py-2.5 text-sm font-semibold text-slate-800 dark:text-white focus:ring-2 focus:ring-emerald-500 focus:outline-hidden"
+              />
+            </div>
+
+            {/* 3. CONTACTO: CELULAR Y DIRECCIÓN */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
               <div>
                 <label className="text-xs font-bold text-slate-600 dark:text-slate-300 block mb-1">
@@ -254,7 +268,7 @@ export default function ModalNuevoCliente({
               </div>
             </div>
 
-            {/* 3. BOTÓN ACORDEÓN: MÁS DATOS (NO SATURA EL SISTEMA) */}
+            {/* 4. BOTÓN ACORDEÓN: MÁS DATOS (NO SATURA EL SISTEMA) */}
             {permitirOpcionesAvanzadas && (
               <>
                 <button
@@ -263,8 +277,8 @@ export default function ModalNuevoCliente({
                   className="w-full py-2.5 px-3.5 rounded-xl border border-dashed border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800/50 text-slate-500 dark:text-slate-400 font-bold text-xs flex items-center justify-between transition cursor-pointer"
                 >
                   <span className="flex items-center gap-2">
-                    <span>{mostrarMasOpciones ? "Ocultar datos adicionales" : "+ Más datos (Apodo, Documento, Saldo, Etiquetas)"}</span>
-                    {(apodo || numeroDocumento || saldoInicial || notas || etiquetas.length > 0) && (
+                    <span>{mostrarMasOpciones ? "Ocultar datos adicionales" : "+ Más datos (Documento, Saldo inicial, Etiquetas)"}</span>
+                    {(numeroDocumento || saldoInicial || notas || etiquetas.length > 0) && (
                       <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" title="Tiene datos adicionales" />
                     )}
                   </span>
@@ -273,19 +287,6 @@ export default function ModalNuevoCliente({
 
                 {mostrarMasOpciones && (
                   <div className="space-y-3 pt-1 border-t border-slate-100 dark:border-slate-800/80 animate-in fade-in slide-in-from-top-2 duration-150">
-                    <div>
-                      <label className="text-xs font-bold text-slate-600 dark:text-slate-300 block mb-1 flex items-center gap-1.5">
-                        <Smile size={13} className="text-amber-500" /> Apodo / Alias (Opcional)
-                      </label>
-                      <input
-                        type="text"
-                        value={apodo}
-                        onChange={(e) => setApodo(e.target.value)}
-                        placeholder="Ej: Cachaco, El Paisa, Doña Mary..."
-                        className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3.5 py-2.5 text-sm font-semibold text-slate-800 dark:text-white focus:ring-2 focus:ring-emerald-500 focus:outline-hidden"
-                      />
-                    </div>
-
                     {/* Documento (CC / NIT / CE) */}
                     <div className="grid grid-cols-3 gap-2">
                       <div className="col-span-1">
