@@ -2,6 +2,7 @@
 'use client';
 
 import React, { useState, useEffect, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import { 
   X, CheckCircle2, AlertTriangle, Calculator, RefreshCw, 
   Send, Printer, ArrowDownRight, ArrowUpRight, Lock, 
@@ -84,6 +85,11 @@ export default function ModalCierreCaja({ isOpen, onClose, onCierreExitoso }: Mo
   const [guardandoApertura, setGuardandoApertura] = useState(false);
   const [guardandoArqueoParcial, setGuardandoArqueoParcial] = useState(false);
   const [cierreGuardado, setCierreGuardado] = useState<CierreCaja | null>(null);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   // Al abrir el modal, consultar estado de la caja y movimientos
   useEffect(() => {
@@ -594,12 +600,12 @@ export default function ModalCierreCaja({ isOpen, onClose, onCierreExitoso }: Mo
     }, 250);
   };
 
-  if (!isOpen) return null;
+  if (!isOpen || !mounted) return null;
 
-  return (
-    <div className="fixed inset-0 z-[99999] flex items-center justify-center p-2 sm:p-4 bg-slate-900/80 backdrop-blur-sm animate-in fade-in duration-200 overflow-y-auto">
+  return createPortal(
+    <div className="fixed inset-0 z-[999999] flex items-center justify-center p-2 sm:p-4 bg-slate-900/80 backdrop-blur-sm animate-in fade-in duration-200 overflow-y-auto pb-safe">
       {/* CONTENEDOR MODAL: 2 columnas en desktop para evitar todo scroll */}
-      <div className="bg-white dark:bg-[#0f172a] rounded-3xl w-full max-w-lg md:max-w-4xl max-h-[96vh] md:max-h-[92vh] flex flex-col shadow-2xl border border-slate-100 dark:border-slate-800 my-auto overflow-hidden">
+      <div className="bg-white dark:bg-[#0f172a] rounded-3xl w-full max-w-lg md:max-w-4xl max-h-[90dvh] md:max-h-[92vh] flex flex-col shadow-2xl border border-slate-100 dark:border-slate-800 my-auto overflow-hidden">
         
         {/* CABECERA COMPACTA */}
         <div className="px-4 py-3 sm:px-5 sm:py-3.5 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between shrink-0 bg-gradient-to-r from-slate-900 via-slate-800 to-indigo-950 text-white">
@@ -640,7 +646,7 @@ export default function ModalCierreCaja({ isOpen, onClose, onCierreExitoso }: Mo
         </div>
 
         {/* CONTENIDO PRINCIPAL */}
-        <div className="p-3 sm:p-5 overflow-y-auto md:overflow-visible flex-1 text-slate-800 dark:text-slate-100">
+        <div className="p-3 sm:p-5 pb-8 sm:pb-5 overflow-y-auto md:overflow-visible flex-1 text-slate-800 dark:text-slate-100">
           
           {cargandoDatos ? (
             <div className="py-16 flex flex-col items-center justify-center gap-2 text-slate-400">
@@ -1133,7 +1139,7 @@ export default function ModalCierreCaja({ isOpen, onClose, onCierreExitoso }: Mo
                 </div>
 
                 {/* Botones de Acción: Arqueo Parcial vs Cierre Definitivo */}
-                <div className="space-y-2 pt-1">
+                <div className="space-y-2 pt-1 pb-4 sm:pb-0">
                   {cajaAbierta ? (
                     <div className="grid grid-cols-2 gap-2">
                       <button
@@ -1594,6 +1600,7 @@ export default function ModalCierreCaja({ isOpen, onClose, onCierreExitoso }: Mo
         </div>
       )}
 
-    </div>
+    </div>,
+    document.body
   );
 }

@@ -1,7 +1,8 @@
 // components/modals/ModalAnularAbono.tsx
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { X, RotateCcw, AlertTriangle, CheckCircle2 } from 'lucide-react';
 import { auth } from '@/firebase';
 import toast from 'react-hot-toast';
@@ -34,16 +35,21 @@ export default function ModalAnularAbono({
   const [motivo, setMotivo] = useState<string>('Abono registrado por error o duplicado');
   const [fase, setFase] = useState<'formulario' | 'confirmacion'>('formulario');
   const [procesando, setProcesando] = useState(false);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   // Resetear fase al abrir o cambiar movimiento
-  React.useEffect(() => {
+  useEffect(() => {
     if (isOpen) {
       setFase('formulario');
       setMotivo('Abono registrado por error o duplicado');
     }
   }, [isOpen, movimiento?.id]);
 
-  if (!isOpen || !movimiento) return null;
+  if (!isOpen || !movimiento || !mounted) return null;
 
   const esSepare = Boolean(movimiento.idSepareOrigen || movimiento.separeId || movimiento.descripcion?.toLowerCase().includes('separe'));
   const nombreFinal = clienteNombre || movimiento.clienteNombre || 'Cliente';
@@ -84,8 +90,8 @@ export default function ModalAnularAbono({
     }
   };
 
-  return (
-    <div className="fixed inset-0 z-[100000] flex items-center justify-center p-3 sm:p-4 bg-black/60 backdrop-blur-xs animate-in fade-in">
+  return createPortal(
+    <div className="fixed inset-0 z-[1000000] flex items-center justify-center p-3 sm:p-4 bg-black/60 backdrop-blur-xs animate-in fade-in">
       <div className="bg-white dark:bg-[#0f172a] rounded-3xl w-full max-w-md p-5 sm:p-6 border border-slate-100 dark:border-slate-800 shadow-2xl space-y-4">
         
         {/* Cabecera */}
@@ -241,6 +247,7 @@ export default function ModalAnularAbono({
         )}
 
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

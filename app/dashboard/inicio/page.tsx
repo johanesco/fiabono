@@ -948,7 +948,7 @@ Gracias por seguir con nosotros.
                               className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-blue-600 text-slate-200 hover:text-white transition-colors cursor-pointer flex items-center gap-1.5 text-xs font-bold border border-slate-700 shadow-xs"
                             >
                               <Edit3 size={14} />
-                              <span>Editar Cliente</span>
+                              <span>Editar</span>
                             </button>
                             <button
                               type="button"
@@ -1089,35 +1089,16 @@ Gracias por seguir con nosotros.
                   </button>
 
                   {/* Fila 1: Nombre del cliente centrado + badge distinguido + opciones de edición */}
-                  <div className="pt-1 px-14 text-center">
+                  <div className="pt-1 px-8 text-center">
                     <span className="inline-flex items-center gap-1 text-[10px] font-black uppercase tracking-widest text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/50 px-2.5 py-0.5 rounded-full mb-1">
                       <User size={11} /> CLIENTE
                     </span>
-                    <div className="flex items-center justify-center gap-2 flex-wrap">
-                      <h2 className="text-[26px] sm:text-3xl font-black text-slate-900 dark:text-white tracking-tight leading-tight break-words">
-                        {clienteActivo.nombre}
-                      </h2>
-                      {datosSesion?.rol !== 'cajero' && (
-                        <div className="inline-flex items-center gap-1 shrink-0 ml-1">
-                          <button
-                            type="button"
-                            onClick={() => setModalGestionCliente({ visible: true, modo: 'editar', cliente: clienteActivo })}
-                            className="px-2.5 py-1 rounded-lg bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400 border border-blue-200/80 dark:border-blue-800/60 font-bold text-xs flex items-center gap-1 cursor-pointer"
-                          >
-                            <Edit3 size={12} />
-                            <span>Editar</span>
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => setModalGestionCliente({ visible: true, modo: 'eliminar', cliente: clienteActivo })}
-                            title="Eliminar Cliente"
-                            className="p-1 rounded-lg bg-white dark:bg-slate-800 text-slate-400 hover:text-rose-600 shadow-xs border border-slate-200 dark:border-slate-700 cursor-pointer"
-                          >
-                            <Trash2 size={13} />
-                          </button>
-                        </div>
-                      )}
-                    </div>
+
+                    {/* Nombre centrado limpio y sin elementos al lado */}
+                    <h2 className="text-[26px] sm:text-3xl font-black text-slate-900 dark:text-white tracking-tight leading-tight break-words text-center">
+                      {clienteActivo.nombre}
+                    </h2>
+
                     <p className="text-slate-500 dark:text-slate-400 text-xs font-semibold mt-1 flex items-center justify-center gap-1">
                       {clienteActivo.celular ? (
                         <>
@@ -1128,6 +1109,28 @@ Gracias por seguir con nosotros.
                         "Sin celular registrado"
                       )}
                     </p>
+
+                    {/* Acciones de edición y eliminación centradas y estéticas */}
+                    {datosSesion?.rol !== 'cajero' && (
+                      <div className="flex items-center justify-center gap-1.5 mt-2">
+                        <button
+                          type="button"
+                          onClick={() => setModalGestionCliente({ visible: true, modo: 'editar', cliente: clienteActivo })}
+                          className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-200/80 dark:border-slate-700 transition cursor-pointer active:scale-95 shadow-2xs"
+                        >
+                          <Edit3 size={12} className="shrink-0 text-slate-500 dark:text-slate-400" />
+                          <span>Editar</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setModalGestionCliente({ visible: true, modo: 'eliminar', cliente: clienteActivo })}
+                          title="Eliminar Cliente"
+                          className="p-1 rounded-full bg-slate-100 hover:bg-rose-50 dark:bg-slate-800 dark:hover:bg-rose-950/40 text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 border border-slate-200/80 dark:border-slate-700 cursor-pointer transition active:scale-95 shadow-2xs"
+                        >
+                          <Trash2 size={12} />
+                        </button>
+                      </div>
+                    )}
                   </div>
 
                   {/* Fila 2: Saldo Destacado en tarjeta compacta */}
