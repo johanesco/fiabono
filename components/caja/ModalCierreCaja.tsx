@@ -618,11 +618,14 @@ export default function ModalCierreCaja({ isOpen, onClose, onCierreExitoso }: Mo
               <Calculator size={18} />
             </div>
             <div className="min-w-0">
-              <div className="flex items-center gap-2">
-                <h2 className="text-sm sm:text-base font-black tracking-tight text-white truncate">
-                  Cierre de Caja y Arqueo
-                </h2>
-                <span className={`text-[10px] font-bold px-1.5 py-0.2 rounded-md border flex items-center gap-1 ${
+              <h2 className="text-sm sm:text-base font-black tracking-tight text-white truncate">
+                Cierre de Caja y Arqueo
+              </h2>
+              <div className="flex items-center gap-2 mt-0.5">
+                <p className="text-[11px] text-slate-300 truncate">
+                  Cajero: <span className="font-bold text-amber-400">{nombreUsuario}</span>
+                </p>
+                <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-md border inline-flex items-center gap-1 shrink-0 whitespace-nowrap ${
                   cajaAbierta
                     ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30'
                     : 'bg-amber-500/20 text-amber-300 border-amber-500/30'
@@ -631,9 +634,6 @@ export default function ModalCierreCaja({ isOpen, onClose, onCierreExitoso }: Mo
                   {cajaAbierta ? 'Caja Abierta' : 'Sin Apertura'}
                 </span>
               </div>
-              <p className="text-[11px] text-slate-300 truncate">
-                Cajero: <span className="font-bold text-amber-400">{nombreUsuario}</span>
-              </p>
             </div>
           </div>
           <button

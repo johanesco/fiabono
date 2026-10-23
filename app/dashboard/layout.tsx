@@ -9,6 +9,7 @@ import BottomNav from "../../components/BottomNav";
 import ScrollIndicator from "../../components/ScrollIndicator";
 import GlobalExpirationWarning from "@/components/GlobalExpirationWarning";
 import GlobalAnnouncements from "@/components/GlobalAnnouncements";
+import ModalConfirmarCerrarSesion from "@/components/modals/ModalConfirmarCerrarSesion";
 import LogoFiabono, { IsotipoFiabono } from "@/components/LogoFiabono";
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
@@ -23,6 +24,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const menuColapsado = !estaExpandido;
   const [ordenesPendientesCount, setOrdenesPendientesCount] = useState(0);
   const [separesActivosCount, setSeparesActivosCount] = useState(0);
+  const [modalCerrarSesionOpen, setModalCerrarSesionOpen] = useState(false);
+  const [cerrandoSesion, setCerrandoSesion] = useState(false);
 
   const datosSesion = authContext?.datosSesion;
   const cerrarSesion = authContext?.cerrarSesion || (() => {});
@@ -410,7 +413,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           )}
 
           <button
-            onClick={cerrarSesion}
+            onClick={() => setModalCerrarSesionOpen(true)}
             title="Cerrar Sesión"
             className={`w-full flex items-center gap-3.5 py-2.5 px-3 rounded-2xl font-bold text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-500/10 transition-all active:scale-95 ${menuColapsado ? 'justify-center' : ''}`}
           >
@@ -448,8 +451,16 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               </div>
             )}
 
-            {/* Indicador inteligente de desplazamiento arriba/abajo */}
-            {/* !esRutaPOS && <ScrollIndicator /> */}
+            {/* Modal de confirmación al cerrar sesión */}
+            <ModalConfirmarCerrarSesion
+              isOpen={modalCerrarSesionOpen}
+              onClose={() => setModalCerrarSesionOpen(false)}
+              onConfirm={async () => {
+                setCerrandoSesion(true);
+                await cerrarSesion();
+              }}
+              procesando={cerrandoSesion}
+            />
           </main>
         );
       })()}

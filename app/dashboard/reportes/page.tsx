@@ -1142,24 +1142,26 @@ export default function ReportesPage() {
         </div>
       </div>
 
-      {/* SELECTOR DE VISTA: RESUMEN FINANCIERO / PRODUCTOS / AUDITORÍA DE CIERRES */}
-      <div className="flex shrink-0 bg-white dark:bg-[#0f172a] p-1.5 rounded-2xl border border-slate-100 dark:border-slate-800/60 shadow-sm w-full sm:w-fit overflow-x-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
+      {/* SELECTOR DE VISTA: RESUMEN FINANCIERO / PRODUCTOS / AUDITORÍA DE CIERRES (3 COLUMNAS VISIBLES EN MÓVIL) */}
+      <div className="grid grid-cols-3 sm:flex shrink-0 bg-white dark:bg-[#0f172a] p-1 sm:p-1.5 rounded-2xl border border-slate-100 dark:border-slate-800/60 shadow-sm w-full sm:w-fit gap-1">
         {([
-          { id: 'resumen', label: 'Resumen financiero', icon: BarChart3 },
-          { id: 'productos', label: 'Productos y Categorías', icon: ShoppingBag },
-          { id: 'cierres', label: 'Auditoría de Cierres', icon: Calculator }
+          { id: 'resumen', labelMovil: 'Financiero', labelDesktop: 'Resumen financiero', icon: BarChart3 },
+          { id: 'productos', labelMovil: 'Productos', labelDesktop: 'Productos y Categorías', icon: ShoppingBag },
+          { id: 'cierres', labelMovil: 'Cierres', labelDesktop: 'Auditoría de Cierres', icon: Calculator }
         ] as const).map(v => (
           <button
             key={v.id}
             type="button"
             onClick={() => setVistaReporte(v.id)}
-            className={`flex-1 sm:flex-initial shrink-0 px-4 py-2.5 text-xs sm:text-sm font-black rounded-xl transition-all whitespace-nowrap cursor-pointer inline-flex items-center justify-center gap-2 ${
+            className={`px-2 sm:px-4 py-2 sm:py-2.5 text-xs sm:text-sm font-black rounded-xl transition-all cursor-pointer inline-flex items-center justify-center gap-1.5 text-center ${
               vistaReporte === v.id
                 ? 'bg-slate-900 dark:bg-white text-white dark:text-slate-900 shadow-md'
-                : 'text-slate-500 hover:text-slate-900 dark:hover:text-slate-200'
+                : 'text-slate-500 hover:text-slate-900 dark:hover:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800/40'
             }`}
           >
-            <v.icon size={16} /> {v.label}
+            <v.icon size={15} className="shrink-0" />
+            <span className="sm:hidden text-[11px] truncate">{v.labelMovil}</span>
+            <span className="hidden sm:inline whitespace-nowrap">{v.labelDesktop}</span>
           </button>
         ))}
       </div>
@@ -1329,9 +1331,20 @@ export default function ReportesPage() {
               </p>
             </div>
           </div>
-          <span className="text-xs font-black text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-500/10 px-3 py-1 rounded-xl border border-emerald-200 dark:border-emerald-500/20">
-            Total en Caja: ${ingresosCaja.toLocaleString('es-CO')}
-          </span>
+          <div className="flex items-center gap-2 flex-wrap w-full sm:w-auto justify-between sm:justify-end">
+            <span className="text-xs font-black text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-500/10 px-3 py-1 rounded-xl border border-emerald-200 dark:border-emerald-500/20">
+              Total en Caja: ${ingresosCaja.toLocaleString('es-CO')}
+            </span>
+            <button
+              type="button"
+              onClick={() => setVistaReporte('cierres')}
+              className="text-xs font-bold text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/40 hover:bg-indigo-100 dark:hover:bg-indigo-900/50 px-3 py-1 rounded-xl border border-indigo-200 dark:border-indigo-800/60 inline-flex items-center gap-1.5 transition active:scale-95 cursor-pointer shadow-2xs"
+            >
+              <Calculator size={13} />
+              <span>Auditar Cierres</span>
+              <ChevronRight size={13} />
+            </button>
+          </div>
         </div>
 
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">

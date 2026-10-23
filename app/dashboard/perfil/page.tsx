@@ -11,6 +11,7 @@ import ModalHorarios from '@/components/ModalHorarios';
 import { useAuth } from "../../../hooks/AuthContext";
 import ModalSuscripcion from "@/components/ModalSuscripcion";
 import ModalAjustarImagen from "@/components/ModalAjustarImagen";
+import ModalConfirmarCerrarSesion from "@/components/modals/ModalConfirmarCerrarSesion";
 import { MediosPagoNegocio, PermisosColaborador } from "@/types";
 import { generarSlugNegocio, limpiarUsuarioColaborador } from "@/utils/slug";
 import { RUBROS_NEGOCIOS } from "@/constants/rubrosCategorias";
@@ -520,7 +521,15 @@ export default function PerfilPage() {
     }
   };
 
-  const handleCerrarSesion = async () => {
+  const [modalCerrarSesionOpen, setModalCerrarSesionOpen] = useState(false);
+  const [cerrandoSesion, setCerrandoSesion] = useState(false);
+
+  const handleCerrarSesion = () => {
+    setModalCerrarSesionOpen(true);
+  };
+
+  const confirmarCierreSesion = async () => {
+    setCerrandoSesion(true);
     try {
       if (cerrarSesion) {
         await cerrarSesion();
@@ -4781,6 +4790,13 @@ export default function PerfilPage() {
           setImagenParaAjustar(null);
         }}
         onAplicar={aplicarLogoRecortado}
+      />
+      {/* MODAL DE CONFIRMACIÓN AL CERRAR SESIÓN */}
+      <ModalConfirmarCerrarSesion
+        isOpen={modalCerrarSesionOpen}
+        onClose={() => setModalCerrarSesionOpen(false)}
+        onConfirm={confirmarCierreSesion}
+        procesando={cerrandoSesion}
       />
     </div>
   );

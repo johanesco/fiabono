@@ -2379,13 +2379,13 @@ Gracias por seguir con nosotros.
           4. FICHA OFICIAL DEL CLIENTE EN MÓVIL (< 1024px)
           Modal bottom sheet con la misma fidelidad estética y sin choques de navegación
           ========================================================================= */}
-      {clienteActivoDetalle && (
+      {mounted && clienteActivoDetalle && createPortal(
         <div 
-          className="lg:hidden fixed inset-0 z-[150] flex items-end md:items-center justify-center bg-slate-950/70 backdrop-blur-xs animate-in fade-in duration-150 p-0 md:p-6"
+          className="lg:hidden fixed inset-0 z-[99999] flex items-end md:items-center justify-center bg-slate-950/70 backdrop-blur-xs animate-in fade-in duration-150 p-0 md:p-6"
           onClick={() => setClienteFicha(null)}
         >
           <div 
-            className="bg-white dark:bg-[#0f172a] w-full md:max-w-2xl rounded-t-[2.5rem] md:rounded-[2.5rem] max-h-[90vh] md:max-h-[85vh] border-t md:border border-slate-200 dark:border-slate-800 shadow-2xl flex flex-col overflow-hidden animate-in slide-in-from-bottom duration-200"
+            className="bg-white dark:bg-[#0f172a] w-full md:max-w-2xl rounded-t-[2.5rem] md:rounded-[2.5rem] max-h-[92dvh] md:max-h-[85vh] border-t md:border border-slate-200 dark:border-slate-800 shadow-2xl flex flex-col overflow-hidden animate-in slide-in-from-bottom duration-200 pb-safe"
             onClick={(e) => e.stopPropagation()}
           >
             {/* Tirador táctil solo en móvil */}
@@ -2394,7 +2394,8 @@ Gracias por seguir con nosotros.
             {/* Ficha idéntica */}
             {renderFichaCliente(clienteActivoDetalle, separesClienteActivo, true)}
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* =========================================================================

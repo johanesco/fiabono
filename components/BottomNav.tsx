@@ -23,6 +23,7 @@ import {
   ExternalLink
 } from 'lucide-react';
 import { useAuth } from "@/hooks/AuthContext";
+import ModalConfirmarCerrarSesion from "@/components/modals/ModalConfirmarCerrarSesion";
 
 interface BottomNavProps {
   puedeVerReportes: boolean;
@@ -46,6 +47,8 @@ export default function BottomNav({
   const pathname = usePathname();
   const { datosSesion, cerrarSesion } = useAuth();
   const [drawerAbierto, setDrawerAbierto] = useState(false);
+  const [mostrarModalCerrarSesion, setMostrarModalCerrarSesion] = useState(false);
+  const [cerrandoSesion, setCerrandoSesion] = useState(false);
   const [temaActual, setTemaActual] = useState<'clara' | 'oscura'>('clara');
 
   // Detectar tema actual
@@ -402,10 +405,7 @@ export default function BottomNav({
             <div className="pt-2 border-t border-slate-100 dark:border-slate-800/80">
               <button
                 type="button"
-                onClick={async () => {
-                  setDrawerAbierto(false);
-                  await cerrarSesion();
-                }}
+                onClick={() => setMostrarModalCerrarSesion(true)}
                 className="w-full py-3.5 px-4 rounded-2xl bg-rose-50 hover:bg-rose-100 dark:bg-rose-500/10 dark:hover:bg-rose-500/20 text-rose-600 dark:text-rose-400 font-bold text-xs flex items-center justify-center gap-2 transition cursor-pointer active:scale-95"
               >
                 <LogOut size={16} />
@@ -416,6 +416,18 @@ export default function BottomNav({
           </div>
         </div>
       )}
+
+      {/* MODAL DE CONFIRMACIÓN AL CERRAR SESIÓN */}
+      <ModalConfirmarCerrarSesion
+        isOpen={mostrarModalCerrarSesion}
+        onClose={() => setMostrarModalCerrarSesion(false)}
+        onConfirm={async () => {
+          setCerrandoSesion(true);
+          setDrawerAbierto(false);
+          await cerrarSesion();
+        }}
+        procesando={cerrandoSesion}
+      />
     </>
   );
 }
