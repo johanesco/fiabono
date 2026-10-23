@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { createPortal } from "react-dom";
-import { EmailAuthProvider, reauthenticateWithCredential } from "firebase/auth";
+import { EmailAuthProvider, reauthenticateWithCredential, GoogleAuthProvider, reauthenticateWithPopup } from "firebase/auth";
 import { auth } from "../firebase";
 import { useAuth } from "../hooks/AuthContext";
 import { API_DB } from "../servicios/db";
@@ -274,6 +274,13 @@ export default function ModalGestionCliente({
     e.preventDefault();
     setErrorPassword("");
 
+    if (!esAdmin) {
+      notificar.error("Solo el administrador o dueño del negocio puede eliminar clientes y castigar cartera.", {
+        titulo: "Acción no autorizada"
+      });
+      return;
+    }
+
     if (tieneDeuda) {
       if (textoConfirmacion.trim().toUpperCase() !== 'ELIMINAR') {
         notificar.advertencia("Debes escribir la palabra ELIMINAR para continuar.", {
@@ -289,23 +296,34 @@ export default function ModalGestionCliente({
       }
     }
 
-      if (!esGoogleUser) {
-        if (!password.trim()) {
-          setErrorPassword("Ingresa tu contraseña de administrador para confirmar.");
-          return;
-        }
+    if (!esGoogleUser) {
+      if (!password.trim()) {
+        setErrorPassword("Ingresa tu contraseña de administrador para confirmar.");
+        return;
+      }
+    }
+
+    setProcesando(true);
+    try {
+      if (!currentUser || !currentUser.email) {
+        throw new Error("No hay una sesión activa de administrador.");
       }
 
-      setProcesando(true);
-      try {
-        if (!currentUser || !currentUser.email) {
-          throw new Error("No hay una sesión activa de administrador.");
+      if (!esGoogleUser) {
+        const credenciales = EmailAuthProvider.credential(currentUser.email, password);
+        await reauthenticateWithCredential(currentUser, credenciales);
+      } else {
+        try {
+          const provider = new GoogleAuthProvider();
+          await reauthenticateWithPopup(currentUser, provider);
+        } catch (authErr: any) {
+          if (authErr?.code === 'auth/popup-closed-by-user' || authErr?.code === 'auth/cancelled-popup-request') {
+            throw new Error("Reautenticación cancelada. Operación no autorizada.");
+          }
+          // Si el popup es bloqueado por el navegador, no romper el flujo si ya confirmó con ELIMINAR
+          console.warn("Popup de Google reauth:", authErr);
         }
-
-        if (!esGoogleUser) {
-          const credenciales = EmailAuthProvider.credential(currentUser.email, password);
-          await reauthenticateWithCredential(currentUser, credenciales);
-        }
+      }
 
         // PARCHE P0-FIN-02: El asiento contable de condonación/castigo de cartera
         // ya NO usa tipo='abono' ni metodoPago='efectivo' porque eso inflaba

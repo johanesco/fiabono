@@ -16,6 +16,7 @@ export interface PermisosColaborador {
   enviarWhatsApp?: boolean; // Permite enviar comprobantes por WhatsApp a clientes desde este dispositivo
   hacerDevoluciones?: boolean; // Permite realizar devoluciones de mercancía
   ventaLibre?: boolean;    // Permite agregar productos fuera del inventario (cobros manuales) en la venta
+  cierreCaja?: boolean;    // Permite realizar arqueos y cierres de caja/turno
 }
 
 // -------------------------------------------------------
@@ -215,7 +216,7 @@ export interface Movimiento {
   clienteId?: string;
   clienteNombre?: string;
   usuarioId: string;
-  tipo: 'fiado' | 'abono' | 'venta' | 'egreso' | 'entrega_separe' | 'ingreso_inventario' | 'devolucion';
+  tipo: 'fiado' | 'abono' | 'venta' | 'egreso' | 'entrega_separe' | 'ingreso_inventario' | 'devolucion' | 'cierre_caja';
   subtipo?: string;
   origen?: string;
   monto: number;
@@ -237,6 +238,7 @@ export interface Movimiento {
   separeId?: string;
   idSepareOrigen?: string;
   idProducto?: string;
+  datosCierre?: CierreCaja;
   nombreProducto?: string;
   cantidadAgregada?: number;
   movimientoOrigenId?: string;
@@ -249,6 +251,11 @@ export interface Movimiento {
   facturaElectronica?: DatosFacturaElectronica;
   notaCreditoElectronica?: DatosFacturaElectronica;
   errorNotaCredito?: string | null;
+  anulado?: boolean;
+  motivoAnulacion?: string;
+  anuladoEn?: any;
+  anuladoPorUid?: string;
+  anuladoPorNombre?: string;
 }
 
 export interface DatosFacturaElectronica {
@@ -266,6 +273,51 @@ export interface DatosFacturaElectronica {
   urlXml?: string;
   mensajeDian?: string;
   ambiente?: 'sandbox' | 'produccion';
+}
+
+// -------------------------------------------------------
+// CIERRE DE CAJA / ARQUEO DE TURNO
+// -------------------------------------------------------
+export interface DesgloseDigitalesCierre {
+  nequi?: number;
+  daviplata?: number;
+  datafono?: number;
+  bancolombia?: number;
+  davivienda?: number;
+  transferencia?: number;
+  otros?: number;
+}
+
+export type TipoRegistroCaja = 'cierre' | 'arqueo_parcial' | 'apertura';
+
+export interface CierreCaja {
+  id?: string;
+  usuarioId: string; // cuentaPrincipalId (negocio)
+  tipoRegistro?: TipoRegistroCaja;
+  cerradoPorUid: string;
+  cerradoPorNombre: string;
+  fechaApertura?: any; // Timestamp de inicio del turno
+  fechaCierre: any;    // Timestamp de cierre o arqueo
+  baseInicial: number;
+  ventasEfectivo: number;
+  abonosEfectivo: number;
+  egresosEfectivo: number;
+  devolucionesEfectivo: number;
+  totalEfectivoEsperado: number;
+  totalEfectivoReal: number;
+  diferencia: number;
+  tipoDiferencia: 'exacto' | 'sobrante' | 'faltante' | 'pendiente';
+  desgloseDigitales: DesgloseDigitalesCierre;
+  totalVentasDigitales: number;
+  totalRecaudadoGeneral: number; // Efectivo contado + Digitales - Egresos/Devs
+  totalTransacciones: number;
+  notas?: string;
+  desgloseDenominaciones?: Record<string, number>;
+  vouchersVerificados?: boolean;
+  vouchersAuditadosCount?: number;
+  vouchersPendientesCount?: number;
+  estadoAuditoriaDigital?: 'completo' | 'pendiente' | 'sin_digitales';
+  creadoEn?: any;
 }
 
 export interface DatosSesionContext {
@@ -320,6 +372,7 @@ export interface DatosSesionContext {
   esTerminalMultivendedor: boolean;
   puedeSepare: boolean;
   puedeVentaLibre: boolean;
+  puedeHacerCierreCaja: boolean;
   tipoUsuario: 'principal' | 'colaborador';
   esGratis: boolean;
   esComercio: boolean;

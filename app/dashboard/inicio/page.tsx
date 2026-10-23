@@ -1,11 +1,11 @@
 "use client";
 import { obtenerNombreCercano } from "@/utils/whatsapp";
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import { collection, addDoc, getDocs, query, where, onSnapshot } from "firebase/firestore";
 import { auth, db } from "../../../firebase";
-import { Search, ShoppingBag, Banknote, Users, CheckCircle2, ChevronRight, X, MessageCircle, UserCog, ShoppingCart, Star, Clock, Store, Printer, Edit3, Trash2, Receipt, Bookmark, Sparkles, RotateCcw, AlertTriangle, Crown, User, Phone, ArrowLeft } from 'lucide-react';
+import { Search, ShoppingBag, Banknote, Users, Calculator, CheckCircle2, ChevronRight, X, MessageCircle, UserCog, ShoppingCart, Star, Clock, Store, Printer, Edit3, Trash2, Receipt, Bookmark, Sparkles, RotateCcw, AlertTriangle, Crown, User, Phone, ArrowLeft, Pencil } from 'lucide-react';
 import toast from "react-hot-toast";
 import { useAuth } from "../../../hooks/AuthContext";
 import TicketFacturaModal, { DatosFacturaProps } from "@/components/TicketFacturaModal";
@@ -13,6 +13,9 @@ import ModalGestionCliente from "@/components/ModalGestionCliente";
 import ModalProcesarDevolucion from "@/components/ModalProcesarDevolucion";
 import ModalTourBienvenida from "@/components/ModalTourBienvenida";
 import ModalNuevoCliente from "@/components/ModalNuevoCliente";
+import ModalAnularAbono from "@/components/modals/ModalAnularAbono";
+import { obtenerEstadoCaja, EstadoTurnoCaja } from "@/utils/cierreCaja";
+import ModalCierreCaja from "@/components/caja/ModalCierreCaja";
 import { abrirEnlaceWhatsApp } from "@/utils/whatsapp";
 import { agregarMediosPagoAlEstado } from "@/utils/mediosPago";
 
@@ -33,8 +36,25 @@ export default function InicioPage() {
   const puedePlanSepare = (datosSesion?.tipoUsuario === 'principal' || datosSesion?.permisos?.planSepare === true) && (moduloSepareActivo || separesActivosTotal > 0);
   const puedeSepare: boolean = datosSesion?.esPro === true && datosSesion?.puedeSepare !== false && moduloSepareActivo;
   const puedeEnviarWhatsApp = datosSesion?.puedeEnviarWhatsApp ?? true;
+  const puedeHacerCierreCaja = datosSesion?.puedeHacerCierreCaja ?? false;
+  const [modalCierreCajaOpen, setModalCierreCajaOpen] = useState(false);
+  const [estadoCaja, setEstadoCaja] = useState<EstadoTurnoCaja | null>(null);
+
+  useEffect(() => {
+    if (!cuentaPrincipalId || !puedeHacerCierreCaja) return;
+    const consultarEstado = async () => {
+      try {
+        const est = await obtenerEstadoCaja(db, cuentaPrincipalId);
+        setEstadoCaja(est);
+      } catch (err) {
+        console.error("Error al consultar estado de caja en inicio:", err);
+      }
+    };
+    consultarEstado();
+  }, [cuentaPrincipalId, puedeHacerCierreCaja, modalCierreCajaOpen]);
 
   const [clientes, setClientes] = useState<any[]>([]);
+  const [separesGlobales, setSeparesGlobales] = useState<any[]>([]);
   const [ordenesPendientes, setOrdenesPendientes] = useState<any[]>([]);
   const [busqueda, setBusqueda] = useState("");
   const [busquedaDirectorio, setBusquedaDirectorio] = useState("");
@@ -48,6 +68,7 @@ export default function InicioPage() {
   const [modalSuscripcion, setModalSuscripcion] = useState({ visible: false, titulo: "", mensaje: "" });
   const [modalTicketFactura, setModalTicketFactura] = useState<{ visible: boolean; datos: DatosFacturaProps | null }>({ visible: false, datos: null });
   const [modalDevolucion, setModalDevolucion] = useState<{ isOpen: boolean, venta: any | null }>({ isOpen: false, venta: null });
+  const [modalAnularAbono, setModalAnularAbono] = useState<{ isOpen: boolean; mov: any | null }>({ isOpen: false, mov: null });
   const [modalGestionCliente, setModalGestionCliente] = useState<{
     visible: boolean;
     modo: 'editar' | 'eliminar';
@@ -129,40 +150,73 @@ export default function InicioPage() {
   };
 
   useEffect(() => {
-    if (cuentaPrincipalId) {
-      cargarDatosGlobales(cuentaPrincipalId);
+    if (!cuentaPrincipalId) return;
 
-      if (esAdmin) {
-        const qOrd = query(
-          collection(db, "ordenes_pendientes"),
-          where("usuarioId", "==", cuentaPrincipalId),
-          where("estado", "==", "pendiente")
-        );
-        const unsub = onSnapshot(qOrd, (snap) => {
-          const lista: any[] = [];
-          snap.forEach(d => lista.push({ id: d.id, ...d.data() }));
-          lista.sort((a, b) => {
-            const timeA = a.fecha?.toMillis ? a.fecha.toMillis() : new Date(a.fecha).getTime();
-            const timeB = b.fecha?.toMillis ? b.fecha.toMillis() : new Date(b.fecha).getTime();
-            return timeB - timeA;
-          });
-          setOrdenesPendientes(lista);
-        });
-        return () => unsub();
-      }
-    }
-  }, [cuentaPrincipalId, esAdmin]);
-
-  const cargarDatosGlobales = async (uid: string) => {
-    try {
-      const qC = query(collection(db, "clientes"), where("usuarioId", "==", uid));
-      const snapC = await getDocs(qC);
+    // 1. Clientes en tiempo real
+    const qC = query(collection(db, "clientes"), where("usuarioId", "==", cuentaPrincipalId));
+    const unsubClientes = onSnapshot(qC, (snapC) => {
       const listaC: any[] = [];
       snapC.forEach((doc) => listaC.push({ id: doc.id, ...doc.data() }));
       listaC.sort((a, b) => a.nombre.localeCompare(b.nombre));
       setClientes(listaC);
-    } catch (error) { console.error(error); }
-  };
+    }, (err) => console.error("Error listener clientes:", err));
+
+    // 2. Separes en tiempo real para sincronizar cartera y separes en buscador y directorio
+    const qS = query(collection(db, "separes"), where("usuarioId", "==", cuentaPrincipalId));
+    const unsubSepares = onSnapshot(qS, (snapS) => {
+      const listaS: any[] = [];
+      snapS.forEach((doc) => listaS.push({ id: doc.id, ...doc.data() }));
+      setSeparesGlobales(listaS);
+    }, (err) => console.error("Error listener separes:", err));
+
+    let unsubOrd: (() => void) | null = null;
+    if (esAdmin) {
+      const qOrd = query(
+        collection(db, "ordenes_pendientes"),
+        where("usuarioId", "==", cuentaPrincipalId),
+        where("estado", "==", "pendiente")
+      );
+      unsubOrd = onSnapshot(qOrd, (snap) => {
+        const lista: any[] = [];
+        snap.forEach(d => lista.push({ id: d.id, ...d.data() }));
+        lista.sort((a, b) => {
+          const timeA = a.fecha?.toMillis ? a.fecha.toMillis() : new Date(a.fecha).getTime();
+          const timeB = b.fecha?.toMillis ? b.fecha.toMillis() : new Date(b.fecha).getTime();
+          return timeB - timeA;
+        });
+        setOrdenesPendientes(lista);
+      });
+    }
+
+    return () => {
+      unsubClientes();
+      unsubSepares();
+      if (unsubOrd) unsubOrd();
+    };
+  }, [cuentaPrincipalId, esAdmin]);
+
+  // Clientes enriquecidos en tiempo real con saldo real de Fiados + Separes activos (sincronizados con Clientes y Cartera)
+  const clientesConTotales = useMemo(() => {
+    return clientes.map(c => {
+      const separesCliente = separesGlobales.filter(
+        s => s.clienteId === c.id || (s.clienteNombre && s.clienteNombre.trim().toLowerCase() === c.nombre.trim().toLowerCase())
+      );
+      const separesActivos = separesCliente.filter((s: any) => s.estado === 'activo');
+      const saldoSeparesActivos = separesActivos.reduce((acc: number, s: any) => acc + (Number(s.saldoPendiente) || 0), 0);
+      const deudaFiado = Number(c.deudaTotal) || 0;
+      const tieneSaldoAFavor = deudaFiado < 0;
+      const totalCompromiso = tieneSaldoAFavor ? deudaFiado : (deudaFiado + saldoSeparesActivos);
+
+      return {
+        ...c,
+        deudaFiado,
+        saldoSeparesActivos,
+        totalCompromiso,
+        tieneSaldoAFavor,
+        separesActivosCount: separesActivos.length
+      };
+    });
+  }, [clientes, separesGlobales]);
 
   const cargarMovimientosClienteDirecto = async (clienteId: string) => {
     try {
@@ -373,7 +427,7 @@ Gracias por seguir con nosotros.
     (str || "").toString().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
 
   const qHomeNorm = normalizarBusqueda(busqueda);
-  const clientesFiltrados = clientes.filter(c =>
+  const clientesFiltrados = clientesConTotales.filter(c =>
     normalizarBusqueda(c.nombre || "").includes(qHomeNorm) ||
     normalizarBusqueda(c.notas || "").includes(qHomeNorm) ||
     normalizarBusqueda(c.direccion || "").includes(qHomeNorm) ||
@@ -381,7 +435,7 @@ Gracias por seguir con nosotros.
   );
 
   const qDirNorm = normalizarBusqueda(busquedaDirectorio);
-  const directorioFiltrado = clientes.filter(c => 
+  const directorioFiltrado = clientesConTotales.filter(c => 
     normalizarBusqueda(c.nombre || "").includes(qDirNorm) ||
     normalizarBusqueda(c.notas || "").includes(qDirNorm) ||
     normalizarBusqueda(c.direccion || "").includes(qDirNorm) ||
@@ -519,9 +573,30 @@ Gracias por seguir con nosotros.
                       </div>
                       {c.celular && <p className="text-xs text-slate-400 dark:text-slate-500 font-medium">{c.celular}</p>}
                     </div>
-                    <span className={`text-base md:text-sm font-black tracking-tight shrink-0 whitespace-nowrap ${c.deudaTotal === 0 ? 'text-slate-400 dark:text-slate-500' : (c.deudaTotal < 0 ? 'text-emerald-500 dark:text-emerald-400' : 'text-rose-500 dark:text-rose-400')}`}>
-                      {c.deudaTotal === 0 ? '$0 (Al día)' : (c.deudaTotal < 0 ? `A favor: $${Math.abs(c.deudaTotal).toLocaleString('es-CO')}` : `Deuda: $${c.deudaTotal.toLocaleString('es-CO')}`)}
-                    </span>
+                    <div className="text-right shrink-0">
+                      <span className={`text-base md:text-sm font-black tracking-tight block whitespace-nowrap ${
+                        c.totalCompromiso === 0 
+                          ? 'text-slate-400 dark:text-slate-500' 
+                          : (c.tieneSaldoAFavor 
+                            ? 'text-emerald-500 dark:text-emerald-400' 
+                            : (c.deudaFiado > 0 ? 'text-rose-500 dark:text-rose-400' : 'text-violet-600 dark:text-violet-400'))
+                      }`}>
+                        {c.tieneSaldoAFavor 
+                          ? `A favor: $${Math.abs(c.totalCompromiso).toLocaleString('es-CO')}` 
+                          : (c.totalCompromiso === 0 ? '$0 (Al día)' : `$${c.totalCompromiso.toLocaleString('es-CO')}`)}
+                      </span>
+                      {c.totalCompromiso > 0 && (
+                        <span className="text-[10px] block font-bold text-slate-400">
+                          {c.deudaFiado > 0 && c.saldoSeparesActivos > 0 ? (
+                            `Fiado $${c.deudaFiado.toLocaleString('es-CO')} • Separe $${c.saldoSeparesActivos.toLocaleString('es-CO')}`
+                          ) : c.saldoSeparesActivos > 0 ? (
+                            '🔖 Separe activo'
+                          ) : (
+                            'Fiado pendiente'
+                          )}
+                        </span>
+                      )}
+                    </div>
                   </div>
                 ))
               ) : (
@@ -633,24 +708,77 @@ Gracias por seguir con nosotros.
           })()}
         </div>
 
-        {/* BOTÓN DIRECTORIO DE CLIENTES (MINIMALISTA Y LIMPIO) */}
-        {puedeVerDirectorio && (
-          <button 
-            onClick={() => setVerTodosClientes(true)}
-            className="w-full bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-800 hover:border-blue-400/50 py-2.5 px-3.5 sm:px-4 rounded-2xl shadow-sm flex items-center justify-between transition-all group cursor-pointer active:scale-[0.99]"
-          >
-            <div className="flex items-center gap-2.5">
-              <div className="p-1.5 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 rounded-xl group-hover:bg-blue-50 dark:group-hover:bg-blue-500/10 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
-                <Users size={16} />
+        {/* FILA DE DIRECTORIO DE CLIENTES Y CIERRE DE CAJA */}
+        <div className={`grid gap-3 sm:gap-4 lg:gap-5 w-full ${puedeVerDirectorio && puedeHacerCierreCaja ? 'grid-cols-1 lg:grid-cols-2' : 'grid-cols-1'}`}>
+          {/* 1. DIRECTORIO DE CLIENTES (PRIMERO: CUBRE TODA LA FILA SI CIERRE NO ESTÁ HABILITADO) */}
+          {puedeVerDirectorio && (
+            <button 
+              onClick={() => setVerTodosClientes(true)}
+              className="w-full bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-800 hover:border-blue-400/50 py-3 sm:py-3.5 px-4 sm:px-5 rounded-2xl shadow-sm flex items-center justify-between transition-all group cursor-pointer active:scale-[0.99]"
+            >
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="w-10 h-10 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 group-hover:bg-blue-50 dark:group-hover:bg-blue-500/10 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors flex items-center justify-center shrink-0">
+                  <Users size={18} />
+                </div>
+                <div className="text-left min-w-0">
+                  <span className="font-bold text-sm sm:text-base text-slate-800 dark:text-slate-200 block group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors truncate">
+                    Directorio de Clientes
+                  </span>
+                  <span className="text-xs text-slate-400 font-medium block truncate">
+                    {clientes.length} {clientes.length === 1 ? 'cliente' : 'clientes'} registrados
+                  </span>
+                </div>
               </div>
-              <h3 className="font-bold text-slate-800 dark:text-slate-200 text-xs sm:text-sm">Directorio de Clientes</h3>
-            </div>
-            <div className="flex items-center gap-1 text-slate-400 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors font-bold text-xs">
-              <span className="hidden sm:inline text-[11px]">Abrir</span>
-              <ChevronRight size={15} />
-            </div>
-          </button>
-        )}
+              <div className="flex items-center gap-1 text-slate-400 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors font-bold text-xs shrink-0">
+                <span className="hidden sm:inline">Ver todos</span>
+                <ChevronRight size={16} className="group-hover:translate-x-0.5 transition-transform" />
+              </div>
+            </button>
+          )}
+
+          {/* 2. CIERRE DE CAJA (SEGUNDO: SOLO SI TIENE PERMISO) */}
+          {puedeHacerCierreCaja && (
+            <button
+              type="button"
+              onClick={() => setModalCierreCajaOpen(true)}
+              className="w-full bg-white dark:bg-[#0f172a] hover:bg-slate-50/80 dark:hover:bg-[#1e293b]/70 border border-slate-200 dark:border-slate-800 hover:border-amber-400/60 dark:hover:border-amber-500/40 py-3 sm:py-3.5 px-4 sm:px-5 rounded-2xl shadow-xs flex items-center justify-between transition-all group cursor-pointer active:scale-[0.99]"
+            >
+              <div className="flex items-center gap-3 min-w-0">
+                <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 border transition-colors ${
+                  estadoCaja?.estaAbierta
+                    ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800/60'
+                    : 'bg-amber-50 dark:bg-amber-950/40 text-amber-600 dark:text-amber-400 border-amber-200 dark:border-amber-800/60'
+                }`}>
+                  <Calculator size={18} />
+                </div>
+                <div className="text-left min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="font-bold text-sm sm:text-base text-slate-900 dark:text-white truncate">
+                      {estadoCaja?.estaAbierta 
+                        ? `Caja Abierta · Base: $${(estadoCaja.baseInicial || 0).toLocaleString('es-CO')}` 
+                        : 'Abrir Caja / Arqueo'}
+                    </span>
+                    <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded-md border flex items-center gap-1 shrink-0 ${
+                      estadoCaja?.estaAbierta
+                        ? 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-500/20 dark:text-emerald-300 dark:border-emerald-500/30'
+                        : 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-500/20 dark:text-amber-300 dark:border-amber-500/30'
+                    }`}>
+                      <span className={`w-1.5 h-1.5 rounded-full ${estadoCaja?.estaAbierta ? 'bg-emerald-500 animate-pulse' : 'bg-amber-500'}`} />
+                      {estadoCaja?.estaAbierta ? 'Turno Activo' : 'Caja'}
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 truncate">
+                    {estadoCaja?.estaAbierta ? 'Arqueo parcial y cierre de jornada' : 'Iniciar turno con base o cuadrar caja'}
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-1 text-slate-400 group-hover:text-amber-600 dark:group-hover:text-amber-400 transition-colors font-bold text-xs shrink-0">
+                <span className="hidden sm:inline">{estadoCaja?.estaAbierta ? 'Ver Caja' : 'Abrir'}</span>
+                <ChevronRight size={16} className="group-hover:translate-x-0.5 transition-transform" />
+              </div>
+            </button>
+          )}
+        </div>
 
       </div>
 
@@ -739,9 +867,30 @@ Gracias por seguir con nosotros.
                       <p className="text-xs text-slate-500 dark:text-slate-400">{c.celular || "Sin celular"}</p>
                     </div>
                     <div className="text-right shrink-0">
-                      {(c.deudaTotal || 0) < 0 && <span className="text-[10px] bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300 font-black px-1.5 py-0.5 rounded mr-1">A favor</span>}
-                      <span className={`font-black text-lg tracking-tight ${c.deudaTotal === 0 ? 'text-slate-400' : ((c.deudaTotal || 0) < 0 ? 'text-emerald-500 dark:text-emerald-400 font-black' : 'text-rose-500')}`}>
-                        {c.deudaTotal === 0 ? '$0' : `$${Math.abs(c.deudaTotal || 0).toLocaleString('es-CO')}`}
+                      {c.tieneSaldoAFavor && (
+                        <span className="text-[10px] bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300 font-black px-1.5 py-0.5 rounded mr-1">
+                          A favor
+                        </span>
+                      )}
+                      <span className={`font-black text-lg tracking-tight block ${
+                        c.totalCompromiso === 0 
+                          ? 'text-slate-400' 
+                          : (c.tieneSaldoAFavor 
+                            ? 'text-emerald-500 dark:text-emerald-400 font-black' 
+                            : (c.deudaFiado > 0 ? 'text-rose-500' : 'text-violet-600 dark:text-violet-400 font-black'))
+                      }`}>
+                        {c.totalCompromiso === 0 ? '$0' : `$${Math.abs(c.totalCompromiso || 0).toLocaleString('es-CO')}`}
+                      </span>
+                      <span className="text-[10px] block font-bold text-slate-400">
+                        {c.deudaFiado > 0 && c.saldoSeparesActivos > 0 ? (
+                          `Fiado $${c.deudaFiado.toLocaleString('es-CO')} • Separe $${c.saldoSeparesActivos.toLocaleString('es-CO')}`
+                        ) : c.saldoSeparesActivos > 0 ? (
+                          '🔖 Separe activo'
+                        ) : c.deudaFiado > 0 ? (
+                          'Fiado pendiente'
+                        ) : (
+                          'Al día'
+                        )}
                       </span>
                     </div>
                   </div>
@@ -796,18 +945,18 @@ Gracias por seguir con nosotros.
                             <button
                               type="button"
                               onClick={() => setModalGestionCliente({ visible: true, modo: 'editar', cliente: clienteActivo })}
-                              title="Modificar Cliente"
-                              className="p-2 rounded-xl bg-slate-800 hover:bg-blue-600/80 text-slate-300 hover:text-white transition-colors cursor-pointer"
+                              className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-blue-600 text-slate-200 hover:text-white transition-colors cursor-pointer flex items-center gap-1.5 text-xs font-bold border border-slate-700 shadow-xs"
                             >
-                              <Edit3 size={16} />
+                              <Edit3 size={14} />
+                              <span>Editar Cliente</span>
                             </button>
                             <button
                               type="button"
                               onClick={() => setModalGestionCliente({ visible: true, modo: 'eliminar', cliente: clienteActivo })}
                               title="Eliminar Cliente"
-                              className="p-2 rounded-xl bg-slate-800 hover:bg-rose-600/80 text-slate-300 hover:text-white transition-colors cursor-pointer"
+                              className="p-1.5 rounded-xl bg-slate-800 hover:bg-rose-600/80 text-slate-400 hover:text-white transition-colors cursor-pointer"
                             >
-                              <Trash2 size={16} />
+                              <Trash2 size={15} />
                             </button>
                           </div>
                         )}
@@ -949,22 +1098,22 @@ Gracias por seguir con nosotros.
                         {clienteActivo.nombre}
                       </h2>
                       {datosSesion?.rol !== 'cajero' && (
-                        <div className="inline-flex items-center gap-1 shrink-0">
+                        <div className="inline-flex items-center gap-1 shrink-0 ml-1">
                           <button
                             type="button"
                             onClick={() => setModalGestionCliente({ visible: true, modo: 'editar', cliente: clienteActivo })}
-                            title="Modificar Cliente"
-                            className="p-1 rounded-lg bg-white dark:bg-slate-800 text-slate-500 hover:text-blue-600 shadow-xs border border-slate-200 dark:border-slate-700 cursor-pointer"
+                            className="px-2.5 py-1 rounded-lg bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400 border border-blue-200/80 dark:border-blue-800/60 font-bold text-xs flex items-center gap-1 cursor-pointer"
                           >
-                            <Edit3 size={14} />
+                            <Edit3 size={12} />
+                            <span>Editar</span>
                           </button>
                           <button
                             type="button"
                             onClick={() => setModalGestionCliente({ visible: true, modo: 'eliminar', cliente: clienteActivo })}
                             title="Eliminar Cliente"
-                            className="p-1 rounded-lg bg-white dark:bg-slate-800 text-slate-500 hover:text-rose-600 shadow-xs border border-slate-200 dark:border-slate-700 cursor-pointer"
+                            className="p-1 rounded-lg bg-white dark:bg-slate-800 text-slate-400 hover:text-rose-600 shadow-xs border border-slate-200 dark:border-slate-700 cursor-pointer"
                           >
-                            <Trash2 size={14} />
+                            <Trash2 size={13} />
                           </button>
                         </div>
                       )}
@@ -1189,10 +1338,12 @@ Gracias por seguir con nosotros.
                         }`}></div>
                         
                         <div className="pl-1 md:pl-2">
-                          <div className="flex flex-wrap sm:flex-nowrap justify-between items-center gap-1.5 pb-1 md:pb-2 md:border-b md:border-slate-100 dark:border-slate-800/80">
-                            <div className="flex items-center gap-2">
+                          <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1.5 pb-1 md:pb-2 md:border-b md:border-slate-100 dark:border-slate-800/80">
+                            <div className="flex items-center gap-1.5 flex-wrap min-w-0">
                               <span className={`text-[10px] md:text-xs font-black uppercase px-2.5 py-0.5 md:px-3 md:py-1 rounded-md md:rounded-lg shrink-0 inline-flex items-center gap-1 ${
-                                esDevolucion || esDevolucionSepare
+                                mov.anulado
+                                  ? 'bg-rose-100 text-rose-700 dark:bg-rose-950/60 dark:text-rose-300 border border-rose-200 dark:border-rose-800/60'
+                                  : esDevolucion || esDevolucionSepare
                                   ? 'bg-amber-100 text-amber-800 dark:bg-amber-500/20 dark:text-amber-300'
                                   : (esEgreso
                                     ? 'bg-orange-100 text-orange-800 dark:bg-orange-500/20 dark:text-orange-300'
@@ -1202,8 +1353,14 @@ Gracias por seguir con nosotros.
                                         ? 'bg-violet-100 text-violet-700 dark:bg-violet-950/40 dark:text-violet-300'
                                         : (mov.tipo === 'fiado' ? 'bg-rose-100 text-rose-700 dark:bg-rose-500/20 dark:text-rose-300' : (mov.tipo === 'venta' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300' : 'bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-300')))))
                               }`}>
-                                {(esDevolucion || esDevolucionSepare) && <RotateCcw size={10} />}
-                                {esDevolucion ? 'DEVOLUCIÓN' : (esDevolucionSepare ? 'DEV. SEPARE' : (esEgreso ? 'EGRESO' : (esEntregaSepare ? '📦 SEPARE ENTREGADO' : (esSepare ? (mov.subtipo === 'abono_inicial_separe' ? '🔖 SEPARE INICIAL' : (mov.subtipo === 'apertura_separe_sin_abono' || mov.monto === 0 ? '🔖 NUEVO SEPARE' : '🔖 ABONO SEPARE')) : (mov.tipo === 'abono' ? 'ABONO CUENTA' : mov.tipo)))))}
+                                {mov.anulado ? (
+                                  '🚫 ABONO ANULADO'
+                                ) : (
+                                  <>
+                                    {(esDevolucion || esDevolucionSepare) && <RotateCcw size={10} />}
+                                    {esDevolucion ? 'DEVOLUCIÓN' : (esDevolucionSepare ? 'DEV. SEPARE' : (esEgreso ? 'EGRESO' : (esEntregaSepare ? '📦 SEPARE ENTREGADO' : (esSepare ? (mov.subtipo === 'abono_inicial_separe' ? '🔖 SEPARE INICIAL' : (mov.subtipo === 'apertura_separe_sin_abono' || mov.monto === 0 ? '🔖 NUEVO SEPARE' : '🔖 ABONO SEPARE')) : (mov.tipo === 'abono' ? 'ABONO CUENTA' : mov.tipo)))))}
+                                  </>
+                                )}
                               </span>
 
                               {tieneDevolucion && (
@@ -1213,7 +1370,7 @@ Gracias por seguir con nosotros.
                               )}
                             </div>
                             
-                            <div className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[10px] md:text-[11px] font-bold uppercase">
+                            <div className="flex items-center gap-x-1.5 text-[10px] md:text-[11px] font-bold uppercase text-slate-400 shrink-0 ml-auto">
                               {mov.registradoPor && (
                                 <span className="text-slate-500 dark:text-slate-400 whitespace-nowrap inline-flex items-center gap-1">
                                   <User size={10} /> {mov.registradoPor}
@@ -1268,6 +1425,16 @@ Gracias por seguir con nosotros.
                                   <RotateCcw size={12} /> <span className="hidden md:inline">Hacer Devolución</span><span className="md:hidden">Devolver</span>
                                 </button>
                               )}
+                              {mov.tipo === 'abono' && Number(mov.monto) > 0 && !mov.anulado && !mov.id.startsWith('sep-apertura-') && (datosSesion?.rol !== 'cajero' || datosSesion?.permisos?.hacerDevoluciones) && (
+                                <button
+                                  type="button"
+                                  onClick={() => setModalAnularAbono({ isOpen: true, mov })}
+                                  className="text-[10px] md:text-[11px] font-bold px-2 py-1 md:px-2.5 md:py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-600 dark:bg-rose-950/40 dark:hover:bg-rose-900/50 dark:text-rose-400 rounded-lg transition-colors cursor-pointer border border-rose-200 dark:border-rose-800 flex items-center gap-1 mr-1"
+                                  title="Anular abono ingresado por error o duplicado"
+                                >
+                                  <RotateCcw size={12} /> <span className="hidden md:inline">Anular Abono</span><span className="md:hidden">Anular</span>
+                                </button>
+                              )}
                               {mov.tipo !== 'egreso' && (
                                 <button
                                   type="button"
@@ -1279,9 +1446,10 @@ Gracias por seguir con nosotros.
                                 </button>
                               )}
                               <span className={`text-base md:text-xl font-black ${
-                                esDevolucion || esDevolucionSepare || esEgreso ? 'text-amber-600 dark:text-amber-400' : (esEntregaSepare ? 'text-purple-600 dark:text-purple-400' : (esSepare ? 'text-violet-600 dark:text-violet-400' : (mov.tipo === 'fiado' ? 'text-rose-500' : (mov.tipo === 'venta' ? 'text-emerald-500' : 'text-blue-500'))))
+                                mov.anulado ? 'line-through text-slate-400 opacity-60' :
+                                (esDevolucion || esDevolucionSepare || esEgreso ? 'text-amber-600 dark:text-amber-400' : (esEntregaSepare ? 'text-purple-600 dark:text-purple-400' : (esSepare ? 'text-violet-600 dark:text-violet-400' : (mov.tipo === 'fiado' ? 'text-rose-500' : (mov.tipo === 'venta' ? 'text-emerald-500' : 'text-blue-500')))))
                               }`}>
-                                {esEntregaSepare ? 'Entregado' : (mov.subtipo === 'apertura_separe_sin_abono' || (mov.monto === 0 && esSepare) ? 'Reservado ($0)' : `${mov.tipo === 'fiado' || esDevolucion || esDevolucionSepare || esEgreso ? '-' : '+'}${Math.round(mov.monto || 0).toLocaleString('es-CO')}`)}
+                                {mov.anulado ? `(Anulado) $${Math.round(mov.monto || 0).toLocaleString('es-CO')}` : (esEntregaSepare ? 'Entregado' : (mov.subtipo === 'apertura_separe_sin_abono' || (mov.monto === 0 && esSepare) ? 'Reservado ($0)' : `${mov.tipo === 'fiado' || esDevolucion || esDevolucionSepare || esEgreso ? '-' : '+'}${Math.round(mov.monto || 0).toLocaleString('es-CO')}`))}
                               </span>
                             </div>
                           </div>
@@ -1321,8 +1489,7 @@ Gracias por seguir con nosotros.
         isOpen={modalNuevoCliente}
         onClose={() => setModalNuevoCliente(false)}
         nombreInicial={nombreNuevo || busqueda}
-        onClienteCreado={async (nuevoCliente) => {
-          await cargarDatosGlobales(cuentaPrincipalId!);
+        onClienteCreado={(nuevoCliente) => {
           setClienteActivo(nuevoCliente);
           cargarMovimientosClienteDirecto(nuevoCliente.id);
           setVerTodosClientes(true);
@@ -1373,7 +1540,6 @@ Gracias por seguir con nosotros.
         ventaOrigen={modalDevolucion.venta as any}
         onClose={() => setModalDevolucion({ isOpen: false, venta: null })}
         onSuccess={(res) => {
-          if (cuentaPrincipalId) cargarDatosGlobales(cuentaPrincipalId);
           if (clienteActivo) {
             if (res.saldoNuevo !== undefined) {
                setClienteActivo({ ...clienteActivo, deudaTotal: res.saldoNuevo });
@@ -1381,6 +1547,24 @@ Gracias por seguir con nosotros.
             cargarMovimientosClienteDirecto(clienteActivo.id);
           }
         }}
+      />
+
+      {/* MODAL PARA ANULAR ABONO POR ERROR */}
+      <ModalAnularAbono
+        isOpen={modalAnularAbono.isOpen}
+        movimiento={modalAnularAbono.mov}
+        onClose={() => setModalAnularAbono({ isOpen: false, mov: null })}
+        onSuccess={() => {
+          if (clienteActivo) {
+            cargarMovimientosClienteDirecto(clienteActivo.id);
+          }
+        }}
+      />
+
+      {/* MODAL CIERRE DE CAJA */}
+      <ModalCierreCaja
+        isOpen={modalCierreCajaOpen}
+        onClose={() => setModalCierreCajaOpen(false)}
       />
 
       {/* MODAL DE TOUR INTERACTIVO DE BIENVENIDA */}

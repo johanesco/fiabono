@@ -1271,6 +1271,12 @@ Muchas gracias por tu compra. Estamos atentos para cualquier consulta.
             referenciaPago: (orden.metodoPago !== 'efectivo' && orden.referenciaPago) ? orden.referenciaPago : null,
             idOrdenOrigen: orden.id
           };
+          if (orden.clienteId && orden.clienteId !== 'mostrador' && orden.metodoPago === 'saldo_interno') {
+            ajusteCliente = {
+              clienteId: orden.clienteId,
+              cambioDeuda: pagoNum
+            };
+          }
         }
 
       } else if (orden.tipo === 'fiado' || (pagoNum === 0 && saldoFavorAplicado === 0)) {
@@ -2861,7 +2867,7 @@ Muchas gracias por tu compra. Estamos atentos para cualquier consulta.
                     {/* SUB-SELECTORES */}
                     {modalEdicion.metodoPago === 'transferencia' && (
                       <div className="flex flex-wrap gap-1 pt-0.5 animate-in fade-in duration-150">
-                        {['Nequi', 'Daviplata', 'Bancolombia', 'PSE', 'Otro'].map((b) => (
+                        {['Nequi', 'Daviplata', 'Bancolombia', 'Davivienda', 'PSE', 'Otro'].map((b) => (
                           <button
                             key={b}
                             type="button"

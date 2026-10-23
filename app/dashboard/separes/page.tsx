@@ -1866,7 +1866,7 @@ Gracias por contactarnos.`;
               {metodoPagoAbono === 'transferencia' && (
                 <div className="animate-in fade-in slide-in-from-top-1 duration-150 pt-0.5">
                   <div className="flex flex-wrap gap-1">
-                    {['Nequi', 'Daviplata', 'PSE', 'Bancolombia', 'Otro'].map(op => (
+                    {['Nequi', 'Daviplata', 'Bancolombia', 'Davivienda', 'PSE', 'Otro'].map(op => (
                       <button
                         key={op}
                         type="button"

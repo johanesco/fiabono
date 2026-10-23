@@ -68,28 +68,45 @@ export async function POST(request: Request) {
       let amortizado = 0;
       let clienteUpdateRef: FirebaseFirestore.DocumentReference | null = null;
       let clienteUpdateSaldo: number | undefined;
+
+      const montoPagadoConSaldo = Number(origen.montoPagadoConSaldoFavor || 0);
+      const esTotalSaldoInterno = origen.metodoPago === 'saldo_interno';
+      const maxEfectivoOriginal = esTotalSaldoInterno ? 0 : Math.max(0, Number(origen.monto || 0) - montoPagadoConSaldo);
+
       if (origen.clienteId && origen.clienteId !== 'mostrador') {
         const clienteRef = adminDb.collection('clientes').doc(origen.clienteId);
         const clienteSnap = await transaction.get(clienteRef);
         if (!clienteSnap.exists || clienteSnap.data()?.usuarioId !== cuentaPrincipalId) throw new Error('CLIENTE_NO_AUTORIZADO');
         const saldoActual = Number(clienteSnap.data()?.deudaTotal || 0);
         if (!Number.isFinite(saldoActual)) throw new Error('SALDO_INVALIDO');
-        if (origen.tipo === 'fiado' || metodoDevolucion === 'saldo_a_favor') {
+
+        if (origen.tipo === 'fiado' || metodoDevolucion === 'saldo_a_favor' || maxEfectivoOriginal <= 0) {
           nuevoSaldo = saldoActual - totalDevolver;
           amortizado = totalDevolver;
           clienteUpdateRef = clienteRef;
           clienteUpdateSaldo = nuevoSaldo;
         } else if (saldoActual > 0) {
           amortizado = Math.min(saldoActual, totalDevolver);
-          efectivo = totalDevolver - amortizado;
-          nuevoSaldo = saldoActual - amortizado;
+          const remanente = totalDevolver - amortizado;
+          efectivo = Math.min(remanente, maxEfectivoOriginal);
+          const reingresoSaldoFavor = remanente - efectivo;
+          nuevoSaldo = saldoActual - amortizado - reingresoSaldoFavor;
+          amortizado += reingresoSaldoFavor;
+
           clienteUpdateRef = clienteRef;
           clienteUpdateSaldo = nuevoSaldo;
         } else {
-          efectivo = totalDevolver;
+          efectivo = Math.min(totalDevolver, maxEfectivoOriginal);
+          const reingresoSaldoFavor = totalDevolver - efectivo;
+          if (reingresoSaldoFavor > 0) {
+            nuevoSaldo = saldoActual - reingresoSaldoFavor;
+            amortizado = reingresoSaldoFavor;
+            clienteUpdateRef = clienteRef;
+            clienteUpdateSaldo = nuevoSaldo;
+          }
         }
       } else {
-        efectivo = totalDevolver;
+        efectivo = Math.min(totalDevolver, maxEfectivoOriginal > 0 ? maxEfectivoOriginal : totalDevolver);
       }
 
       // Firestore exige TODAS las lecturas antes de la primera escritura.

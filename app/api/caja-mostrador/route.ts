@@ -199,6 +199,7 @@ export async function POST(request: Request) {
         modificarPrecios: permisos.modificarPrecios === true,
         aplicarDescuentos: permisos.aplicarDescuentos === true,
         hacerDevoluciones: permisos.hacerDevoluciones === true,
+        cierreCaja: permisos.cierreCaja === true,
         ventaLibre: permisos.ventaLibre === true,
         enviarWhatsApp: permisos.enviarWhatsApp !== false,
       };
@@ -287,6 +288,7 @@ export async function POST(request: Request) {
         modificarPrecios: false,
         aplicarDescuentos: false,
         hacerDevoluciones: false,
+        cierreCaja: false,
         ventaLibre: false,
         enviarWhatsApp: true
       },

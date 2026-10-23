@@ -257,6 +257,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
           esCajaMostrador: data.esCajaMostrador === true,
           esTerminalMultivendedor: esPro && (data.esCajaMostrador === true || permisos?.terminalMultivendedor === true || esAdmin),
           puedeSepare: esPro && (permisos?.planSepare !== false),
+          puedeHacerCierreCaja: esAdmin || permisos?.cierreCaja === true,
           tipoUsuario: data.rol === 'cajero' ? 'colaborador' : 'principal',
           planActual,
           proximoPlan: adminData.proximoPlan || null,

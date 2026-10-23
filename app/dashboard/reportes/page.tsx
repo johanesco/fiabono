@@ -11,6 +11,7 @@ import {
   Award, 
   BarChart3, 
   Calendar, 
+  Calculator, 
   Crown, 
   Sparkles, 
   CheckCircle2, 
@@ -43,6 +44,7 @@ import { Cliente, Movimiento } from "../../../types";
 import ModalSuscripcion from "@/components/ModalSuscripcion";
 import ModalExportarReporte from "@/components/ModalExportarReporte";
 import VistaProductos from "@/components/reportes/VistaProductos";
+import VistaCierresCaja from "@/components/caja/VistaCierresCaja";
 import { FileDown } from "lucide-react";
 
 const NOMBRES_MESES = [
@@ -68,10 +70,10 @@ export default function ReportesPage() {
   const [inventario, setInventario] = useState<any[]>([]);
 
   // Filtros principales
-  const [filtroGeneral, setFiltroGeneral] = useState<'hoy' | 'semana' | 'mes' | 'ano' | 'todos'>('hoy');
+  const [filtroGeneral, setFiltroGeneral] = useState<'hoy' | 'ayer' | 'semana' | 'mes' | 'ano' | 'todos'>('hoy');
   const [filtroGrafica, setFiltroGrafica] = useState<'semana' | 'mes' | 'ano' | 'historico'>('semana');
   const [tipoHistorico, setTipoHistorico] = useState<'mes' | 'ano'>('mes');
-  const [filtroColab, setFiltroColab] = useState<'hoy' | 'semana' | 'mes' | 'ano' | 'todos'>('hoy');
+  const [filtroColab, setFiltroColab] = useState<'hoy' | 'ayer' | 'semana' | 'mes' | 'ano' | 'todos'>('hoy');
   const [criterioColaborador, setCriterioColaborador] = useState<'monto' | 'cantidad'>('monto');
 
   // Selectores históricos (Exclusivos Plan PRO)
@@ -86,7 +88,7 @@ export default function ReportesPage() {
   // Estado del Live Data Inspector — ítem de gráfica actualmente inspeccionado
   const [itemInspeccionado, setItemInspeccionado] = useState<any | null>(null);
   // Vista activa del panel: resumen financiero o analítica de productos
-  const [vistaReporte, setVistaReporte] = useState<'resumen' | 'productos'>('resumen');
+  const [vistaReporte, setVistaReporte] = useState<'resumen' | 'productos' | 'cierres'>('resumen');
 
   // Route Guard para cajeros sin permiso
   useEffect(() => {
@@ -160,16 +162,18 @@ export default function ReportesPage() {
     return new Date(fecha);
   };
 
-  const filtrarPorTiempo = (movs: Movimiento[], tipoFiltro: 'hoy' | 'semana' | 'mes' | 'ano' | 'todos') => {
+  const filtrarPorTiempo = (movs: Movimiento[], tipoFiltro: 'hoy' | 'ayer' | 'semana' | 'mes' | 'ano' | 'todos') => {
     return movs.filter(mov => {
       const fJS = obtenerFechaJS(mov.fecha);
       const ms = fJS.getTime();
       const inicioHoy = new Date(hoyDate.getFullYear(), hoyDate.getMonth(), hoyDate.getDate(), 0, 0, 0, 0).getTime();
+      const inicioAyer = new Date(hoyDate.getFullYear(), hoyDate.getMonth(), hoyDate.getDate() - 1, 0, 0, 0, 0).getTime();
       const inicioSemana = inicioSemanaDate.getTime();
       const inicioMes = new Date(hoyDate.getFullYear(), hoyDate.getMonth(), 1, 0, 0, 0, 0).getTime();
       const inicioAno = new Date(hoyDate.getFullYear(), 0, 1, 0, 0, 0, 0).getTime();
 
       if (tipoFiltro === 'hoy' && ms < inicioHoy) return false;
+      if (tipoFiltro === 'ayer' && (ms < inicioAyer || ms >= inicioHoy)) return false;
       if (tipoFiltro === 'semana' && ms < inicioSemana) return false;
       if (tipoFiltro === 'mes' && ms < inicioMes) return false;
       if (tipoFiltro === 'ano' && ms < inicioAno) return false;
@@ -178,16 +182,28 @@ export default function ReportesPage() {
   };
 
   // Helper de textos y rangos dinámicos
-  const obtenerMetadatosPeriodo = (filtro: 'hoy' | 'semana' | 'mes' | 'ano' | 'todos') => {
+  const obtenerMetadatosPeriodo = (filtro: 'hoy' | 'ayer' | 'semana' | 'mes' | 'ano' | 'todos') => {
     if (filtro === 'hoy') {
       const fHoyStr = hoyDate.toLocaleDateString('es-CO', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
       return {
         etiquetaVentas: "Ventas de Hoy",
         etiquetaFiados: "Fiados de Hoy",
         etiquetaAbonos: "Abonos de Hoy",
-        etiquetaCaja: "Dinero Neto en Caja (Hoy)",
+        etiquetaCaja: "Recaudo Neto Total (Hoy)",
         rangoDescriptivo: fHoyStr.charAt(0).toUpperCase() + fHoyStr.slice(1),
         badgePeriodo: "Hoy"
+      };
+    }
+    if (filtro === 'ayer') {
+      const ayerObj = new Date(hoyDate.getFullYear(), hoyDate.getMonth(), hoyDate.getDate() - 1);
+      const fAyerStr = ayerObj.toLocaleDateString('es-CO', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+      return {
+        etiquetaVentas: "Ventas de Ayer",
+        etiquetaFiados: "Fiados de Ayer",
+        etiquetaAbonos: "Abonos de Ayer",
+        etiquetaCaja: "Recaudo Neto Total (Ayer)",
+        rangoDescriptivo: fAyerStr.charAt(0).toUpperCase() + fAyerStr.slice(1),
+        badgePeriodo: "Ayer"
       };
     }
     if (filtro === 'semana') {
@@ -199,7 +215,7 @@ export default function ReportesPage() {
         etiquetaVentas: "Ventas Esta Semana",
         etiquetaFiados: "Fiados Esta Semana",
         etiquetaAbonos: "Abonos Esta Semana",
-        etiquetaCaja: "Dinero Neto en Caja (Semana)",
+        etiquetaCaja: "Recaudo Neto Total (Semana)",
         rangoDescriptivo: `Semana del ${fInicio} al ${fFin}`,
         badgePeriodo: `Semana (Lun - Dom)`
       };
@@ -305,7 +321,7 @@ export default function ReportesPage() {
     }, 0);
 
   // Dinero Neto en Caja Física: (Ventas Directas Físicas + Abonos Reales) - Egresos de Efectivo - Devoluciones Efectivo
-  const ingresosCaja = Math.max(0, (totalVentasEnDineroFisico + totalAbonosReales) - egresosEfectivo - devolucionesEnEfectivo);
+  // Desglose de ingresos por canal y cuadre consolidado
   const countIngresos = countVentas + movsIngresosReales.filter(m => m.tipo === 'abono').length;
 
   const totalEfectivo = movsIngresosReales
@@ -320,6 +336,12 @@ export default function ReportesPage() {
   const totalCreditoExterno = movsIngresosReales
     .filter(m => m.metodoPago === 'credito_externo')
     .reduce((acc, m) => acc + (m.monto || 0) - (m.montoPagadoConSaldoFavor || 0), 0) - egresosCreditoExterno;
+
+  // Recaudo Neto Consolidado (Cuadre matematico perfecto: Efectivo neto + Bancos netos + Pasarelas netas)
+  const ingresosCaja = Math.max(
+    0,
+    Math.max(0, totalEfectivo) + Math.max(0, totalTransferencia) + Math.max(0, totalDatafono) + Math.max(0, totalCreditoExterno)
+  );
 
   // Tasa de recuperación de crédito / Salud de cartera (Abonos vs Fiados)
   const ratioRecaudo = totalFiados > 0 ? Math.min(100, Math.round((totalAbonos / totalFiados) * 100)) : 100;
@@ -1083,6 +1105,7 @@ export default function ReportesPage() {
           <div className="flex bg-black/50 backdrop-blur-md p-1.5 rounded-2xl w-full sm:w-auto border border-white/15 overflow-x-auto">
             {[
               { id: 'hoy', label: 'Hoy' },
+              { id: 'ayer', label: 'Ayer' },
               { id: 'semana', label: 'Semana' },
               { id: 'mes', label: 'Mes' },
               { id: 'ano', label: 'Año' },
@@ -1119,11 +1142,12 @@ export default function ReportesPage() {
         </div>
       </div>
 
-      {/* SELECTOR DE VISTA: RESUMEN FINANCIERO / PRODUCTOS */}
+      {/* SELECTOR DE VISTA: RESUMEN FINANCIERO / PRODUCTOS / AUDITORÍA DE CIERRES */}
       <div className="flex shrink-0 bg-white dark:bg-[#0f172a] p-1.5 rounded-2xl border border-slate-100 dark:border-slate-800/60 shadow-sm w-full sm:w-fit overflow-x-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
         {([
           { id: 'resumen', label: 'Resumen financiero', icon: BarChart3 },
-          { id: 'productos', label: 'Productos y Categorías', icon: ShoppingBag }
+          { id: 'productos', label: 'Productos y Categorías', icon: ShoppingBag },
+          { id: 'cierres', label: 'Auditoría de Cierres', icon: Calculator }
         ] as const).map(v => (
           <button
             key={v.id}
@@ -1281,6 +1305,10 @@ export default function ReportesPage() {
             <div className="p-2 sm:p-2.5 bg-white/10 backdrop-blur-sm rounded-xl shrink-0"><TrendingUp size={16} className="xl:w-[20px] xl:h-[20px]" /></div>
           </div>
           <p className="text-lg md:text-2xl lg:text-lg xl:text-2xl 2xl:text-3xl font-black tracking-tight mt-2 sm:mt-3 text-emerald-400 whitespace-nowrap overflow-visible leading-none">${ingresosCaja.toLocaleString('es-CO')}</p>
+          <p className="text-[10px] xl:text-xs text-slate-300 font-semibold mt-1.5 flex items-center gap-1">
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0"></span>
+            Efectivo físico: <strong className="text-white">${Math.max(0, totalEfectivo).toLocaleString('es-CO')}</strong>
+          </p>
         </div>
       </div>
 
@@ -1929,7 +1957,7 @@ export default function ReportesPage() {
 
           <div className="flex flex-wrap items-center gap-2.5">
             <div className="flex bg-slate-100 dark:bg-[#020617] p-1.5 rounded-2xl overflow-x-auto">
-              {(['hoy', 'semana', 'mes', 'ano', 'todos'] as const).map(f => (
+              {(['hoy', 'ayer', 'semana', 'mes', 'ano', 'todos'] as const).map(f => (
                 <button 
                   key={f}
                   onClick={() => setFiltroColab(f)}
@@ -2022,6 +2050,15 @@ export default function ReportesPage() {
           todosMovimientos={todosMovimientos}
           inventario={inventario}
           periodoLabel={metaPeriodo.rangoDescriptivo}
+        />
+      )}
+
+      {/* VISTA: AUDITORÍA DE CIERRES DE CAJA */}
+      {vistaReporte === 'cierres' && (
+        <VistaCierresCaja
+          cuentaPrincipalId={cuentaPrincipalId || ''}
+          filtroTiempo={filtroGeneral}
+          mostrarMetricasGlobales={true}
         />
       )}
 

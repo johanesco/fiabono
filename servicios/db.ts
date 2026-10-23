@@ -342,6 +342,10 @@ export const API_DB = {
       let montoEfectivoDevolver = 0;
       let montoAmortizadoDeuda = 0;
 
+      const montoPagadoConSaldo = Number(origenData.montoPagadoConSaldoFavor || 0);
+      const esTotalSaldoInterno = origenData.metodoPago === 'saldo_interno';
+      const maxEfectivoOriginal = esTotalSaldoInterno ? 0 : Math.max(0, Number(origenData.monto || 0) - montoPagadoConSaldo);
+
       if (origenData.clienteId && origenData.clienteId !== 'mostrador') {
         const clienteRef = doc(db, "clientes", origenData.clienteId);
         const clienteSnap = await transaction.get(clienteRef);
@@ -353,27 +357,36 @@ export const API_DB = {
           throw new Error("El saldo actual del cliente no es válido.");
         }
 
-          if (origenData.tipo === 'fiado' || metodoDevolucion === 'saldo_a_favor') {
-            // Amortización total de deuda o incremento de saldo a favor
-            nuevoSaldo = saldoActual - totalDevolver;
+        if (origenData.tipo === 'fiado' || metodoDevolucion === 'saldo_a_favor' || maxEfectivoOriginal <= 0) {
+          // Amortización total de deuda o incremento de saldo a favor
+          nuevoSaldo = saldoActual - totalDevolver;
+          transaction.update(clienteRef, { deudaTotal: nuevoSaldo });
+          montoAmortizadoDeuda = totalDevolver;
+        } else {
+          // metodoDevolucion === 'efectivo'
+          if (saldoActual > 0) {
+            // El cliente debe dinero: se amortiza su deuda pendiente prioritariamente
+            montoAmortizadoDeuda = Math.min(saldoActual, totalDevolver);
+            const remanente = totalDevolver - montoAmortizadoDeuda;
+            montoEfectivoDevolver = Math.min(remanente, maxEfectivoOriginal);
+            const reingresoSaldoFavor = remanente - montoEfectivoDevolver;
+            nuevoSaldo = saldoActual - montoAmortizadoDeuda - reingresoSaldoFavor;
+            montoAmortizadoDeuda += reingresoSaldoFavor;
             transaction.update(clienteRef, { deudaTotal: nuevoSaldo });
-            montoAmortizadoDeuda = totalDevolver;
           } else {
-            // metodoDevolucion === 'efectivo'
-            if (saldoActual > 0) {
-              // El cliente debe dinero: se amortiza su deuda pendiente prioritariamente
-              montoAmortizadoDeuda = Math.min(saldoActual, totalDevolver);
-              montoEfectivoDevolver = totalDevolver - montoAmortizadoDeuda;
-              nuevoSaldo = saldoActual - montoAmortizadoDeuda;
+            // El cliente está al día o tiene saldo a favor: solo recibe efectivo hasta lo pagado en efectivo
+            montoEfectivoDevolver = Math.min(totalDevolver, maxEfectivoOriginal);
+            const reingresoSaldoFavor = totalDevolver - montoEfectivoDevolver;
+            if (reingresoSaldoFavor > 0) {
+              nuevoSaldo = saldoActual - reingresoSaldoFavor;
+              montoAmortizadoDeuda = reingresoSaldoFavor;
               transaction.update(clienteRef, { deudaTotal: nuevoSaldo });
-            } else {
-              // El cliente está al día o tiene saldo a favor: se entrega el efectivo completo
-              montoEfectivoDevolver = totalDevolver;
             }
+          }
         }
       } else {
-        // Venta de mostrador anónima
-        montoEfectivoDevolver = totalDevolver;
+        // Venta de mostrador anónima (topeado por lo ingresado en efectivo)
+        montoEfectivoDevolver = Math.min(totalDevolver, maxEfectivoOriginal > 0 ? maxEfectivoOriginal : totalDevolver);
       }
 
       // 3. Restore inventory
@@ -796,7 +809,26 @@ export const API_DB = {
     movimientoAbonoId?: string;
   }> => {
     return await runTransaction(db, async (transaction) => {
-      // 1. Crear documento de Separe
+      // 1. REGLA FIRESTORE: Lecturas obligatorias primero
+      let clienteRef: any = null;
+      let nuevoSaldoCliente: number | undefined = undefined;
+
+      if (params.metodoPago === 'saldo_interno' && params.abonoInicial > 0 && params.separeData.clienteId) {
+        clienteRef = doc(db, "clientes", params.separeData.clienteId);
+        const clienteSnap = await transaction.get(clienteRef);
+        if (clienteSnap.exists()) {
+          const cData = clienteSnap.data() as any;
+          const deudaActual = Number(cData?.deudaTotal || 0);
+          if (deudaActual >= 0 || Math.abs(deudaActual) < params.abonoInicial) {
+            throw new Error(`El cliente no tiene suficiente Saldo a Favor para cubrir el abono inicial ($${params.abonoInicial.toLocaleString('es-CO')}). Saldo disponible: $${Math.abs(deudaActual < 0 ? deudaActual : 0).toLocaleString('es-CO')}`);
+          }
+          nuevoSaldoCliente = deudaActual + params.abonoInicial;
+        } else {
+          throw new Error("El cliente no fue encontrado para validar su Saldo a Favor.");
+        }
+      }
+
+      // 2. Crear documento de Separe
       const separeRef = doc(collection(db, "separes"));
       const separePayload = {
         ...params.separeData,
@@ -804,7 +836,15 @@ export const API_DB = {
       };
       transaction.set(separeRef, separePayload);
 
-      // 2. Si hubo abono inicial, registrar el ingreso contable indivisible
+      // Si se consumió saldo interno, actualizar deudaTotal del cliente
+      if (clienteRef && nuevoSaldoCliente !== undefined) {
+        transaction.update(clienteRef, {
+          deudaTotal: nuevoSaldoCliente,
+          fechaUltimoMovimiento: new Date()
+        });
+      }
+
+      // 3. Si hubo abono inicial, registrar el ingreso contable indivisible
       let movimientoAbonoId: string | undefined = undefined;
       if (params.abonoInicial > 0) {
         const movRef = doc(collection(db, "movimientos"));

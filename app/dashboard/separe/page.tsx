@@ -10,7 +10,8 @@ import {
   Tag, AlertCircle, Printer, Image as ImageIcon, Banknote, 
   Smartphone, CreditCard, Zap, Trash2, UserCog, RotateCcw, 
   Upload, Package, Store, Check, FileText, Percent, Eye,
-  QrCode, Receipt, Crown, LayoutGrid, List, ShoppingCart, ChevronDown, ArrowRightLeft
+  QrCode, Receipt, Crown, LayoutGrid, List, ShoppingCart, ChevronDown, ArrowRightLeft,
+  Coins, Handshake
 } from 'lucide-react';
 import toast from "react-hot-toast";
 import { useAuth } from "@/hooks/AuthContext";
@@ -288,6 +289,8 @@ function SepareContenido() {
   const [fechaLimite, setFechaLimite] = useState<string>("");
   const [notas, setNotas] = useState<string>("");
   const [abonoInicial, setAbonoInicial] = useState<string>("");
+  const [mostrarModalAbonoRequerido, setMostrarModalAbonoRequerido] = useState(false);
+  const [montoAbonoModalInput, setMontoAbonoModalInput] = useState<string>("");
   const [metodoPago, setMetodoPago] = useState<'efectivo' | 'transferencia' | 'datafono' | 'credito_externo'>('efectivo');
   const [subMetodoPago, setSubMetodoPago] = useState("");
   const [referenciaPago, setReferenciaPago] = useState("");
@@ -1785,7 +1788,28 @@ function SepareContenido() {
   const abonoInicialNum = Math.max(0, parseFloat(abonoInicial.replace(/\D/g, '')) || 0);
   const saldoPendiente = Math.max(0, totalSepare - abonoInicialNum);
 
-  const guardarSepare = async () => {
+  const transferirAFiado = () => {
+    const itemsValidos = filas.filter(f => f.descripcion.trim().length > 0 && parseFloat(f.valor) > 0).map(f => ({
+      descripcion: f.descripcion.trim(),
+      valor: f.valor,
+      cantidad: f.cantidad
+    }));
+    
+    if (itemsValidos.length > 0) {
+      sessionStorage.setItem('fiabono_productos_precargados', JSON.stringify(itemsValidos));
+    }
+    if (clienteSeleccionado) {
+      sessionStorage.setItem('fiabono_cliente_precargado', JSON.stringify(clienteSeleccionado));
+    }
+    setMostrarModalAbonoRequerido(false);
+    toast.success("Artículos y cliente transferidos a Fiado");
+    router.push('/dashboard/fiar');
+  };
+
+  const guardarSepare = async (abonoOverride?: number) => {
+    const abonoEfectivo = typeof abonoOverride === 'number' ? abonoOverride : abonoInicialNum;
+    const saldoPendienteEfectivo = Math.max(0, totalSepare - abonoEfectivo);
+
     if (!datosSesion?.esPro) {
       toast.error("Tu cuenta no tiene activo el Plan PRO para registrar nuevos apartados.", { icon: "👑" });
       router.replace('/dashboard/separes');
@@ -1837,7 +1861,13 @@ function SepareContenido() {
       return;
     }
 
-    if (abonoInicialNum > totalSepare) {
+    if (!abonoEfectivo || abonoEfectivo <= 0) {
+      setMontoAbonoModalInput("");
+      setMostrarModalAbonoRequerido(true);
+      return;
+    }
+
+    if (abonoEfectivo > totalSepare) {
       toast.error("El abono inicial no puede ser mayor que el total del separe");
       return;
     }
@@ -1849,10 +1879,10 @@ function SepareContenido() {
       const todasLasFotos = itemsGuardar.map(i => i.fotoUrl).filter(Boolean);
 
       const abonosIniciales: any[] = [];
-      if (abonoInicialNum > 0) {
+      if (abonoEfectivo > 0) {
         const abonoObj: any = {
           id: `abono_${Date.now()}`,
-          monto: abonoInicialNum,
+          monto: abonoEfectivo,
           metodoPago: metodoPago,
           fecha: new Date(),
           registradoPor: vendedorActivo || nombreUsuario || "Vendedor"
@@ -1876,8 +1906,8 @@ function SepareContenido() {
         descuentoValor: descuentoTipo ? valorDescuentoNum : null,
         montoDescuento: montoDescuento,
         total: totalSepare,
-        montoPagado: abonoInicialNum,
-        saldoPendiente: saldoPendiente,
+        montoPagado: abonoEfectivo,
+        saldoPendiente: saldoPendienteEfectivo,
         metodoPago: metodoPago,
         subMetodoPago: (metodoPago === 'efectivo') ? null : (subMetodoPago || null),
         referenciaPago: (metodoPago === 'efectivo') ? null : (referenciaPago || null),
@@ -1918,7 +1948,7 @@ function SepareContenido() {
           headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
           body: JSON.stringify({
             separeData: payloadSepare,
-            abonoInicial: abonoInicialNum,
+            abonoInicial: abonoEfectivo,
             metodoPago,
             subMetodoPago: subMetodoPago.trim(),
             referenciaPago: referenciaPago.trim(),
@@ -1949,7 +1979,7 @@ function SepareContenido() {
           descuentoValor: descuentoTipo ? valorDescuentoNum : null,
           montoDescuento: montoDescuento,
           total: totalSepare,
-          pagoCliente: abonoInicialNum,
+          pagoCliente: abonoEfectivo,
           metodoPago: metodoPago,
           subMetodoPago: (metodoPago === 'efectivo') ? null : (subMetodoPago || null),
           referenciaPago: (metodoPago === 'efectivo') ? null : (referenciaPago || null),
@@ -1988,8 +2018,8 @@ function SepareContenido() {
         })),
         descripcionGeneral: `Plan Separe: ${itemsGuardar.map(i => i.descripcion).join(', ')}`,
         montoTotal: totalSepare,
-        pagoRecibido: abonoInicialNum,
-        saldoNuevo: saldoPendiente,
+        pagoRecibido: abonoEfectivo,
+        saldoNuevo: saldoPendienteEfectivo,
         idTransaccion: separeIdFinal,
         metodoPago: metodoPago,
         descuentoTipo: descuentoTipo,
@@ -2938,7 +2968,7 @@ Estamos atentos para cualquier consulta.
             <div className="bg-white dark:bg-[#0f172a] p-3 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm space-y-2">
               <div className="flex items-center justify-between">
                 <label className="text-[10px] font-black text-slate-500 uppercase tracking-wider flex items-center gap-1">
-                  <Banknote size={13} className="text-violet-600" /> Abono Inicial (Opcional)
+                  <Banknote size={13} className="text-violet-600" /> Abono Inicial (Obligatorio) *
                 </label>
                 {totalSepare > 0 && (
                   <div className="flex items-center gap-1">
@@ -3000,7 +3030,7 @@ Estamos atentos para cualquier consulta.
               {/* Sub-selector Transferencia */}
               {metodoPago === 'transferencia' && (
                 <div className="flex flex-wrap gap-1 pt-0.5 animate-in fade-in duration-150">
-                  {['Nequi', 'Daviplata', 'Bancolombia', 'PSE', 'Otro'].map((b) => (
+                  {['Nequi', 'Daviplata', 'Bancolombia', 'Davivienda', 'PSE', 'Otro'].map((b) => (
                     <button
                       key={b}
                       type="button"
@@ -3041,9 +3071,14 @@ Estamos atentos para cualquier consulta.
                   inputMode="decimal" pattern="[0-9]*"
                   value={abonoInicial ? parseInt(abonoInicial.replace(/\D/g, '') || '0', 10).toLocaleString('es-CO') : ''}
                   onChange={(e) => setAbonoInicial(e.target.value.replace(/\D/g, ''))}
-                  placeholder="0 (Sin abono inicial)"
+                  placeholder="¿Cuánto abona para separar? (Obligatorio)"
                   className="w-full pl-7 pr-2.5 py-1.5 bg-slate-50 dark:bg-[#020617] border border-slate-200 dark:border-slate-700 rounded-xl font-black text-sm text-slate-900 dark:text-white outline-none focus:border-violet-500 transition-colors"
                 />
+                {!abonoInicialNum && (
+                  <p className="text-[10px] text-amber-600 dark:text-amber-400 font-bold flex items-center gap-1 mt-1">
+                    <AlertCircle size={11} /> El plan separe requiere un abono inicial de entrada
+                  </p>
+                )}
               </div>
 
               {/* Referencia de pago */}
@@ -3098,7 +3133,7 @@ Estamos atentos para cualquier consulta.
 
             {/* Botón Registrar / Enviar */}
             <button
-              onClick={guardarSepare}
+              onClick={() => guardarSepare()}
               disabled={guardando || !clienteSeleccionado || totalSepare <= 0}
               className={`w-full font-black text-xs sm:text-sm py-3 rounded-2xl shadow-lg flex justify-center items-center gap-2 transition-all cursor-pointer ${
                 guardando || !clienteSeleccionado || totalSepare <= 0
@@ -3153,7 +3188,7 @@ Estamos atentos para cualquier consulta.
             <span className="text-base sm:text-xl font-black text-amber-500 whitespace-nowrap overflow-visible leading-none min-w-0">${saldoPendiente.toLocaleString('es-CO')}</span>
           </div>
           <button
-            onClick={guardarSepare}
+            onClick={() => guardarSepare()}
             disabled={guardando || !clienteSeleccionado || totalSepare <= 0}
             className={`flex-1 font-black text-xs sm:text-sm py-3 px-4 rounded-xl shadow-md flex justify-center items-center gap-1.5 transition-all whitespace-nowrap ${
               guardando || !clienteSeleccionado || totalSepare <= 0
@@ -3487,6 +3522,134 @@ Estamos atentos para cualquier consulta.
                 <CheckCircle2 size={16}/>
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL ESTÉTICO: ABONO INICIAL OBLIGATORIO VS FIADO */}
+      {mostrarModalAbonoRequerido && (
+        <div className="fixed inset-0 z-[100000] flex items-center justify-center p-3 sm:p-4 bg-black/60 backdrop-blur-xs animate-in fade-in">
+          <div className="bg-white dark:bg-[#0f172a] rounded-3xl w-full max-w-md p-5 sm:p-6 border border-slate-100 dark:border-slate-800 shadow-2xl space-y-4">
+            
+            {/* Cabecera */}
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-amber-500/15 text-amber-600 dark:text-amber-400 flex items-center justify-center shrink-0 border border-amber-500/30">
+                  <Coins size={22} />
+                </div>
+                <div>
+                  <h3 className="text-base font-black text-slate-900 dark:text-white">
+                    Abono Inicial Requerido
+                  </h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                    Condición para registrar un Plan Separe
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setMostrarModalAbonoRequerido(false)}
+                className="w-8 h-8 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-400 hover:text-slate-600 dark:hover:text-white flex items-center justify-center transition-colors cursor-pointer shrink-0"
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            {/* Mensaje Explicativo Pedagógico */}
+            <div className="p-3.5 rounded-2xl bg-amber-50/80 dark:bg-amber-950/20 border border-amber-200/90 dark:border-amber-800/60 text-xs text-slate-700 dark:text-slate-300 space-y-1.5 leading-relaxed">
+              <p className="font-bold text-amber-900 dark:text-amber-300 flex items-center gap-1.5">
+                <Bookmark size={14} className="shrink-0" /> ¿Por qué se requiere un abono?
+              </p>
+              <p>
+                En un <strong>Plan Separe</strong>, la mercancía se aparta y reserva en tu almacén hasta que el cliente termine de pagarla, por lo que es obligatorio registrar un anticipo inicial mayor a $0.
+              </p>
+              <p className="text-amber-800 dark:text-amber-400 font-medium pt-1 border-t border-amber-200/60 dark:border-amber-800/40">
+                👉 Si el cliente se llevará los productos sin abonar nada de entrada ($0), esta operación debe registrarse como un <strong>Fiado (Venta a Crédito)</strong>.
+              </p>
+            </div>
+
+            {/* Input para ingresar el Abono Inicial */}
+            <div className="space-y-2">
+              <div className="flex justify-between items-center text-xs">
+                <label className="font-bold text-slate-700 dark:text-slate-300">
+                  ¿Cuánto va a abonar el cliente? *
+                </label>
+                <span className="text-slate-400">Total: <strong className="text-violet-600 dark:text-violet-400 font-black">${totalSepare.toLocaleString('es-CO')}</strong></span>
+              </div>
+
+              <div className="relative">
+                <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 font-black text-lg">$</span>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  placeholder="0"
+                  autoFocus
+                  value={montoAbonoModalInput ? parseInt(montoAbonoModalInput.replace(/\D/g, '') || '0', 10).toLocaleString('es-CO') : ''}
+                  onChange={(e) => {
+                    const raw = e.target.value.replace(/\D/g, '');
+                    setMontoAbonoModalInput(raw);
+                  }}
+                  className="w-full pl-8 pr-3 py-2.5 bg-slate-50 dark:bg-[#020617] border-2 border-amber-400/60 focus:border-amber-500 rounded-xl font-black text-slate-900 dark:text-white text-lg outline-none transition-all"
+                />
+              </div>
+
+              {/* Botones de sugerencia rápida (20%, 30%, 50%) */}
+              {totalSepare > 0 && (
+                <div className="flex items-center gap-1.5 pt-1">
+                  <span className="text-[10px] text-slate-400 font-bold uppercase">Sugerir:</span>
+                  {[20, 30, 50].map(porc => {
+                    const sugMonto = Math.round(totalSepare * (porc / 100));
+                    return (
+                      <button
+                        key={porc}
+                        type="button"
+                        onClick={() => setMontoAbonoModalInput(sugMonto.toString())}
+                        className="py-1 px-2 rounded-lg bg-slate-100 hover:bg-violet-50 hover:text-violet-600 dark:bg-slate-800 dark:hover:bg-violet-950/40 text-[11px] font-bold text-slate-600 dark:text-slate-300 transition-colors cursor-pointer"
+                      >
+                        {porc}% (${sugMonto.toLocaleString('es-CO')})
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            {/* Botones de Acción */}
+            <div className="space-y-2 pt-2 border-t border-slate-100 dark:border-slate-800">
+              {/* Botón 1: Confirmar y guardar el separe con este abono */}
+              <button
+                type="button"
+                disabled={!montoAbonoModalInput || parseFloat(montoAbonoModalInput) <= 0 || parseFloat(montoAbonoModalInput) > totalSepare}
+                onClick={() => {
+                  const val = parseFloat(montoAbonoModalInput) || 0;
+                  setAbonoInicial(val.toString());
+                  setMostrarModalAbonoRequerido(false);
+                  guardarSepare(val);
+                }}
+                className="w-full py-3 px-4 bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-700 hover:to-indigo-700 text-white font-black rounded-xl text-xs sm:text-sm shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                <CheckCircle2 size={16} /> Confirmar Abono y Crear Separe
+              </button>
+
+              {/* Botón 2: Pasar a Fiado */}
+              <button
+                type="button"
+                onClick={transferirAFiado}
+                className="w-full py-2.5 px-4 bg-amber-50 hover:bg-amber-100/80 dark:bg-amber-950/30 dark:hover:bg-amber-900/40 border border-amber-300/80 dark:border-amber-700/60 text-amber-800 dark:text-amber-300 font-bold rounded-xl text-xs sm:text-sm transition-all flex items-center justify-center gap-2 cursor-pointer active:scale-95"
+              >
+                <Handshake size={15} /> Pasar a Fiado (Venta a Crédito)
+              </button>
+
+              {/* Botón 3: Cancelar */}
+              <button
+                type="button"
+                onClick={() => setMostrarModalAbonoRequerido(false)}
+                className="w-full py-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 text-xs font-bold transition-colors cursor-pointer text-center"
+              >
+                Cancelar y seguir editando
+              </button>
+            </div>
+
           </div>
         </div>
       )}

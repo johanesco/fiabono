@@ -23,6 +23,7 @@ import ModalProcesarDevolucion from "@/components/ModalProcesarDevolucion";
 import TicketFacturaModal, { DatosFacturaProps } from "@/components/TicketFacturaModal";
 import ModalExportarClientes from "@/components/clientes/ModalExportarClientes";
 import ModalImportarClientes from "@/components/clientes/ModalImportarClientes";
+import ModalAnularAbono from "@/components/modals/ModalAnularAbono";
 import toast from "react-hot-toast";
 import { 
   RotateCcw,
@@ -147,6 +148,15 @@ function ClientesContenido() {
   });
 
   const [modalDevolucion, setModalDevolucion] = useState<{ isOpen: boolean, venta: Movimiento | null }>({ isOpen: false, venta: null });
+  const [modalAnularAbono, setModalAnularAbono] = useState<{
+    isOpen: boolean;
+    movimiento: any | null;
+    cliente: Cliente | null;
+  }>({
+    isOpen: false,
+    movimiento: null,
+    cliente: null
+  });
 
   // Modal Historial / Ficha del Cliente
   const [clienteFicha, setClienteFicha] = useState<any | null>(null);
@@ -918,10 +928,12 @@ Gracias por seguir con nosotros.
                 }`} />
                 
                 <div className="pl-1 sm:pl-1.5">
-                  <div className="flex flex-wrap sm:flex-nowrap justify-between items-center gap-1 pb-1 border-b border-slate-200/60 dark:border-slate-800/80">
-                    <div className="flex items-center gap-2">
-                        <span className={`text-[9px] sm:text-[10px] font-black uppercase px-2 py-0.5 rounded-md shrink-0 ${
-                        mov.tipo === 'devolucion'
+                  <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1 pb-1.5 border-b border-slate-200/60 dark:border-slate-800/80">
+                    <div className="flex items-center gap-1.5 flex-wrap min-w-0">
+                      <span className={`text-[9px] sm:text-[10px] font-black uppercase px-2 py-0.5 rounded-md shrink-0 ${
+                        mov.anulado
+                          ? 'bg-rose-100 text-rose-700 dark:bg-rose-950/60 dark:text-rose-300 border border-rose-200 dark:border-rose-800/60'
+                          : mov.tipo === 'devolucion'
                           ? 'bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-300'
                           : esEntregaSepare
                           ? 'bg-violet-100 text-violet-700 dark:bg-violet-950/60 dark:text-violet-300'
@@ -933,7 +945,8 @@ Gracias por seguir con nosotros.
                             ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300' 
                             : 'bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-300')
                       }`}>
-                        {mov.tipo === 'devolucion' ? '↩ DEVOLUCIÓN' :
+                        {mov.anulado ? '🚫 ABONO ANULADO' :
+                         mov.tipo === 'devolucion' ? '↩ DEVOLUCIÓN' :
                          esEntregaSepare ? '📦 SEPARE ENTREGADO' :
                          esSepare ? (
                            mov.subtipo === 'abono_inicial_separe' ? '🔖 SEPARE INICIAL' :
@@ -956,13 +969,13 @@ Gracias por seguir con nosotros.
                       )}
                     </div>
                     
-                    <div className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[10px] sm:text-[11px] font-bold uppercase">
+                    <div className="flex items-center gap-x-1.5 text-[10px] font-bold uppercase text-slate-400 shrink-0 ml-auto">
                       {mov.registradoPor && (
-                        <span className="text-slate-500 dark:text-slate-400 whitespace-nowrap">
-                          👤  {mov.registradoPor}
+                        <span className="text-slate-500 dark:text-slate-400 truncate max-w-[120px]">
+                          👤 {mov.registradoPor}
                         </span>
                       )}
-                      {mov.registradoPor && <span className="text-slate-300 dark:text-slate-600 whitespace-nowrap">•</span>}
+                      {mov.registradoPor && <span className="text-slate-300 dark:text-slate-600">•</span>}
                       <span className="text-slate-400 whitespace-nowrap">
                         {fechaStr}
                       </span>
@@ -1011,6 +1024,16 @@ Gracias por seguir con nosotros.
                   <div className="flex justify-between items-center pt-1.5 mt-0.5 border-t border-slate-200/60 dark:border-slate-800 font-black">
                     <span className="text-xs text-slate-400 uppercase tracking-wider">Total:</span>
                     <div className="flex items-center gap-2">
+                      {mov.tipo === 'abono' && !mov.anulado && (!esCajero || datosSesion?.permisos?.hacerDevoluciones || datosSesion?.esAdmin !== false) && (
+                        <button
+                          type="button"
+                          onClick={() => setModalAnularAbono({ isOpen: true, movimiento: mov, cliente })}
+                          title="Anular abono registrado por error o duplicado"
+                          className="text-[10px] font-bold px-2 py-1 bg-rose-50 hover:bg-rose-100 text-rose-600 dark:bg-rose-950/40 dark:hover:bg-rose-900/60 dark:text-rose-400 rounded-lg transition-colors cursor-pointer border border-rose-200 dark:border-rose-800 flex items-center gap-1"
+                        >
+                          <RotateCcw size={12} /> Anular Abono
+                        </button>
+                      )}
                       {esVentaOFiado && mov.detalles && mov.detalles.length > 0 && (!esCajero || datosSesion?.permisos?.hacerDevoluciones) && (
                         <button
                           type="button"
@@ -1029,11 +1052,13 @@ Gracias por seguir con nosotros.
                         <Printer size={15} />
                       </button>
                       <span className={`text-base sm:text-lg font-black ${
+                        mov.anulado ? 'line-through text-slate-400 dark:text-slate-500 opacity-60' :
                         mov.tipo === 'devolucion' ? 'text-amber-500' :
                         esSepare ? 'text-violet-600 dark:text-violet-400' :
                         mov.tipo === 'fiado' ? 'text-rose-500' : (mov.tipo === 'venta' ? 'text-emerald-500' : 'text-blue-500')
                       }`}>
-                        {esEntregaSepare ? 'Entregado' : (mov.subtipo === 'apertura_separe_sin_abono' || (mov.monto === 0 && esSepare) ? 'Reservado ($0)' : `${mov.tipo === 'fiado' || mov.tipo === 'devolucion' ? '-' : '+'}$${Math.round(mov.monto || 0).toLocaleString('es-CO')}`)}
+                        {mov.anulado ? `(Anulado) $${Math.round(mov.monto || 0).toLocaleString('es-CO')}` :
+                         esEntregaSepare ? 'Entregado' : (mov.subtipo === 'apertura_separe_sin_abono' || (mov.monto === 0 && esSepare) ? 'Reservado ($0)' : `${mov.tipo === 'fiado' || mov.tipo === 'devolucion' ? '-' : '+'}$${Math.round(mov.monto || 0).toLocaleString('es-CO')}`)}
                       </span>
                     </div>
                   </div>
@@ -1184,51 +1209,57 @@ Gracias por seguir con nosotros.
         <div className="lg:hidden flex flex-col h-full overflow-hidden">
           {/* Cabecera Móvil Fija: Nombre, Saldo y Botones de Acción */}
           <div className="shrink-0 p-3.5 sm:p-4 bg-slate-50/90 dark:bg-[#020617] border-b border-slate-200 dark:border-slate-800 space-y-2.5">
-            {/* Fila 1: Nombre del cliente + botón cerrar */}
-            <div className="relative text-center pt-0.5 px-7">
-              <span className="inline-flex items-center gap-1 text-[10px] font-black uppercase tracking-widest text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/50 px-2.5 py-0.5 rounded-full mb-1">
-                👤 CLIENTE
-              </span>
-              <div className="flex items-center justify-center gap-1.5 flex-wrap">
-                <h2 className="text-xl font-black text-slate-900 dark:text-white tracking-tight leading-tight break-words">
-                  {cliente.nombre}
-                </h2>
-                {cliente.apodo && (
-                  <span className="text-xs font-bold text-amber-700 dark:text-amber-400 bg-amber-100/70 dark:bg-amber-950/50 px-2 py-0.5 rounded-lg border border-amber-200 dark:border-amber-800/40">
-                    "{cliente.apodo}"
-                  </span>
-                )}
+            {/* Fila 1: Nombre del cliente + acciones + botón cerrar */}
+            <div className="relative pt-0.5 px-1">
+              <div className="flex items-center justify-between gap-2 mb-1.5 pr-8">
+                <span className="inline-flex items-center gap-1 text-[10px] font-black uppercase tracking-widest text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/50 px-2 py-0.5 rounded-full">
+                  👤 CLIENTE
+                </span>
                 {!esCajero && (
                   <div className="inline-flex items-center gap-1 shrink-0">
                     <button
                       type="button"
                       onClick={() => setModalGestion({ isOpen: true, modo: 'editar', cliente })}
-                      title="Modificar Cliente"
-                      className="p-1 rounded-lg bg-white dark:bg-slate-800 text-slate-500 hover:text-blue-600 shadow-xs border border-slate-200 dark:border-slate-700 cursor-pointer transition"
+                      className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-200/80 dark:border-slate-700 transition cursor-pointer"
+                      title="Editar datos del cliente"
                     >
-                      <Edit3 size={13} />
+                      <Edit3 size={11} className="shrink-0 text-slate-500 dark:text-slate-400" />
+                      <span>Editar</span>
                     </button>
                     {datosSesion?.esAdmin !== false && (
                       <button
                         type="button"
                         onClick={() => setModalGestion({ isOpen: true, modo: 'eliminar', cliente })}
                         title="Eliminar Cliente"
-                        className="p-1 rounded-lg bg-white dark:bg-slate-800 text-slate-500 hover:text-rose-600 shadow-xs border border-slate-200 dark:border-slate-700 cursor-pointer transition"
+                        className="p-1 rounded-lg bg-slate-100 hover:bg-rose-50 dark:bg-slate-800 dark:hover:bg-rose-950/40 text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 border border-slate-200/80 dark:border-slate-700 cursor-pointer transition"
                       >
-                        <Trash2 size={13} />
+                        <Trash2 size={11} />
                       </button>
                     )}
                   </div>
                 )}
               </div>
-              <p className="text-slate-500 dark:text-slate-400 text-xs font-semibold mt-0.5">
-                {cliente.celular ? `📱 ${cliente.celular}` : "Sin celular registrado"}
-              </p>
-              {cliente.direccion && (
-                <p className="text-slate-400 text-[11px] mt-0.5">
-                  📍 {cliente.direccion}
+
+              <div className="text-center">
+                <div className="flex items-center justify-center gap-1.5 flex-wrap">
+                  <h2 className="text-xl font-black text-slate-900 dark:text-white tracking-tight leading-tight break-words">
+                    {cliente.nombre}
+                  </h2>
+                  {cliente.apodo && (
+                    <span className="text-xs font-bold text-amber-700 dark:text-amber-400 bg-amber-100/70 dark:bg-amber-950/50 px-2 py-0.5 rounded-lg border border-amber-200 dark:border-amber-800/40">
+                      "{cliente.apodo}"
+                    </span>
+                  )}
+                </div>
+                <p className="text-slate-500 dark:text-slate-400 text-xs font-semibold mt-0.5">
+                  {cliente.celular ? `📱 ${cliente.celular}` : "Sin celular registrado"}
                 </p>
-              )}
+                {cliente.direccion && (
+                  <p className="text-slate-400 text-[11px] mt-0.5">
+                    📍 {cliente.direccion}
+                  </p>
+                )}
+              </div>
 
               {/* Categorías / Etiquetas personalizadas del cliente en móvil */}
               <div className="flex flex-wrap items-center justify-center gap-1 mt-1.5">
@@ -1408,20 +1439,26 @@ Gracias por seguir con nosotros.
                       <div className="inline-flex items-center gap-1 shrink-0">
                         <button
                           type="button"
-                          onClick={() => setModalGestion({ isOpen: true, modo: 'editar', cliente })}
-                          title="Modificar Cliente"
-                          className="p-1 rounded-md bg-white dark:bg-slate-800 text-slate-500 hover:text-blue-600 shadow-xs border border-slate-200 dark:border-slate-700 cursor-pointer transition"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setModalGestion({ isOpen: true, modo: 'editar', cliente });
+                          }}
+                          className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-bold bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 hover:bg-blue-100 dark:hover:bg-blue-900/60 border border-blue-200 dark:border-blue-800 transition cursor-pointer"
                         >
-                          <Edit3 size={12} />
+                          <Edit3 size={11} className="shrink-0" />
+                          <span>Editar</span>
                         </button>
                         {datosSesion?.esAdmin !== false && (
                           <button
                             type="button"
-                            onClick={() => setModalGestion({ isOpen: true, modo: 'eliminar', cliente })}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setModalGestion({ isOpen: true, modo: 'eliminar', cliente });
+                            }}
                             title="Eliminar Cliente"
-                            className="p-1 rounded-md bg-white dark:bg-slate-800 text-slate-500 hover:text-rose-600 shadow-xs border border-slate-200 dark:border-slate-700 cursor-pointer transition"
+                            className="p-1 rounded-md bg-white dark:bg-slate-800 text-slate-400 hover:text-rose-600 shadow-xs border border-slate-200 dark:border-slate-700 cursor-pointer transition"
                           >
-                            <Trash2 size={12} />
+                            <Trash2 size={11} />
                           </button>
                         )}
                       </div>
@@ -1578,51 +1615,57 @@ Gracias por seguir con nosotros.
         <div className={`hidden ${!esTabletTactil ? 'lg:grid' : 'hidden'} lg:grid-cols-12 h-full divide-x divide-slate-100 dark:divide-slate-800 overflow-hidden bg-white dark:bg-[#0f172a]`}>
           {/* Sub-columna Izquierda (5 cols): Perfil, Saldo, Botones, Separes y Notas */}
           <div className="lg:col-span-5 h-full overflow-y-auto bg-slate-50/40 dark:bg-[#020617]/40 p-4 sm:p-5 space-y-4 pb-12">
-            {/* Nombre y opciones */}
-            <div className="text-center pt-1 px-2">
-              <span className="inline-flex items-center gap-1 text-[10px] font-black uppercase tracking-widest text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/50 px-2.5 py-0.5 rounded-full mb-1.5">
-                👤 CLIENTE
-              </span>
-              <div className="flex items-center justify-center gap-2 flex-wrap">
-                <h2 className="text-[22px] sm:text-[26px] font-black text-slate-900 dark:text-white tracking-tight leading-tight break-words">
-                  {cliente.nombre}
-                </h2>
-                {cliente.apodo && (
-                  <span className="text-xs font-bold text-amber-700 dark:text-amber-400 bg-amber-100/70 dark:bg-amber-950/50 px-2.5 py-0.5 rounded-lg border border-amber-200 dark:border-amber-800/40">
-                    "{cliente.apodo}"
-                  </span>
-                )}
+            {/* Cabecera de Ficha: Badge, Acciones (Editar/Eliminar) y Nombre */}
+            <div className="pt-1 px-1">
+              <div className="flex items-center justify-between gap-2 mb-2">
+                <span className="inline-flex items-center gap-1 text-[10px] font-black uppercase tracking-widest text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/50 px-2.5 py-0.5 rounded-full">
+                  👤 CLIENTE
+                </span>
                 {!esCajero && (
-                  <div className="inline-flex items-center gap-1 shrink-0">
+                  <div className="inline-flex items-center gap-1.5 shrink-0">
                     <button
                       type="button"
                       onClick={() => setModalGestion({ isOpen: true, modo: 'editar', cliente })}
-                      title="Modificar Cliente"
-                      className="p-1 rounded-lg bg-white dark:bg-slate-800 text-slate-500 hover:text-blue-600 shadow-xs border border-slate-200 dark:border-slate-700 cursor-pointer transition"
+                      className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-200/80 dark:border-slate-700 transition cursor-pointer"
+                      title="Editar datos del cliente"
                     >
-                      <Edit3 size={14} />
+                      <Edit3 size={12} className="shrink-0 text-slate-500 dark:text-slate-400" />
+                      <span>Editar</span>
                     </button>
                     {datosSesion?.esAdmin !== false && (
                       <button
                         type="button"
                         onClick={() => setModalGestion({ isOpen: true, modo: 'eliminar', cliente })}
                         title="Eliminar Cliente"
-                        className="p-1 rounded-lg bg-white dark:bg-slate-800 text-slate-500 hover:text-rose-600 shadow-xs border border-slate-200 dark:border-slate-700 cursor-pointer transition"
+                        className="p-1 rounded-lg bg-slate-100 hover:bg-rose-50 dark:bg-slate-800 dark:hover:bg-rose-950/40 text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 border border-slate-200/80 dark:border-slate-700 cursor-pointer transition"
                       >
-                        <Trash2 size={14} />
+                        <Trash2 size={12} />
                       </button>
                     )}
                   </div>
                 )}
               </div>
-              <p className="text-slate-500 dark:text-slate-400 text-xs font-semibold mt-1">
-                {cliente.celular ? `📱 ${cliente.celular}` : "Sin celular registrado"}
-              </p>
-              {cliente.direccion && (
-                <p className="text-slate-400 text-[11px] mt-0.5">
-                  📍 {cliente.direccion}
+
+              <div className="text-center">
+                <div className="flex items-center justify-center gap-2 flex-wrap">
+                  <h2 className="text-[22px] sm:text-[26px] font-black text-slate-900 dark:text-white tracking-tight leading-tight break-words">
+                    {cliente.nombre}
+                  </h2>
+                  {cliente.apodo && (
+                    <span className="text-xs font-bold text-amber-700 dark:text-amber-400 bg-amber-100/70 dark:bg-amber-950/50 px-2.5 py-0.5 rounded-lg border border-amber-200 dark:border-amber-800/40">
+                      "{cliente.apodo}"
+                    </span>
+                  )}
+                </div>
+                <p className="text-slate-500 dark:text-slate-400 text-xs font-semibold mt-1">
+                  {cliente.celular ? `📱 ${cliente.celular}` : "Sin celular registrado"}
                 </p>
-              )}
+                {cliente.direccion && (
+                  <p className="text-slate-400 text-[11px] mt-0.5">
+                    📍 {cliente.direccion}
+                  </p>
+                )}
+              </div>
 
               {/* Etiquetas */}
               <div className="flex flex-wrap items-center justify-center gap-1.5 mt-2">
@@ -2835,6 +2878,17 @@ Gracias por seguir con nosotros.
         esPlanGratis={datosSesion?.esGratis ?? (datosSesion?.planActual === 'gratis' || datosSesion?.planActual === 'basico')}
         limitePlan={datosSesion?.limiteClientes ?? 15}
         onSuccess={() => {}}
+      />
+
+      <ModalAnularAbono
+        isOpen={modalAnularAbono.isOpen}
+        onClose={() => setModalAnularAbono({ isOpen: false, movimiento: null, cliente: null })}
+        movimiento={modalAnularAbono.movimiento}
+        clienteNombre={modalAnularAbono.cliente?.nombre || modalAnularAbono.movimiento?.clienteNombre || 'Cliente'}
+        clienteDeudaActual={modalAnularAbono.cliente?.deudaTotal || 0}
+        onSuccess={() => {
+          // Las suscripciones en tiempo real de Firestore actualizarán clientes y movimientos automáticamente
+        }}
       />
     </div>
   );

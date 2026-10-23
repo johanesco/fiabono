@@ -425,11 +425,11 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       {(() => {
         const esRutaPOS = pathname === '/dashboard/vender' || pathname === '/dashboard/fiar' || pathname === '/dashboard/separe';
         return (
-          <main className={`flex-1 flex flex-col h-full relative p-0 md:p-3 lg:p-6 ${esRutaPOS ? 'pb-0' : 'pb-16 md:pb-24 lg:pb-0'} overflow-hidden`}>
+          <main className={`flex-1 flex flex-col h-full relative ${esRutaPOS ? 'p-0 md:p-1.5 lg:p-2 xl:p-2.5 pb-0' : 'p-0 md:p-3 lg:p-6 pb-16 md:pb-24 lg:pb-0'} overflow-hidden`}>
             <GlobalExpirationWarning />
             <GlobalAnnouncements />
             {/* Desplazamiento fluido sin solapamiento con BottomNav */}
-            <div id="dashboard-scroll-container" className="flex-1 h-full w-full overflow-y-auto flex flex-col min-h-0">
+            <div id="dashboard-scroll-container" className={`flex-1 h-full w-full ${esRutaPOS ? 'overflow-hidden' : 'overflow-y-auto'} flex flex-col min-h-0`}>
               {children}
             </div>
 

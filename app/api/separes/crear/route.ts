@@ -39,8 +39,8 @@ export async function POST(request: Request) {
     if (!separeData || !separeData.clienteId || !Array.isArray(separeData.items) || !separeData.items.length) {
       return NextResponse.json({ error: 'Datos del Plan Separe incompletos.' }, { status: 400 });
     }
-    if (!Number.isFinite(abonoInicial) || abonoInicial < 0 || !METODOS_PERMITIDOS.has(metodoPago)) {
-      return NextResponse.json({ error: 'Abono inicial o método de pago inválido.' }, { status: 400 });
+    if (!Number.isFinite(abonoInicial) || abonoInicial <= 0 || !METODOS_PERMITIDOS.has(metodoPago)) {
+      return NextResponse.json({ error: 'Para crear un Plan Separe es obligatorio registrar un abono inicial mayor a $0.' }, { status: 400 });
     }
 
     const resultado = await adminDb.runTransaction(async (transaction) => {
@@ -50,6 +50,13 @@ export async function POST(request: Request) {
 
       const total = Number(separeData.total);
       if (!Number.isFinite(total) || total <= 0 || abonoInicial > total) throw new Error('TOTAL_INVALIDO');
+
+      const saldoCliente = Number(clienteSnap.data()?.deudaTotal || 0);
+      if (metodoPago === 'saldo_interno' && abonoInicial > 0) {
+        if (saldoCliente >= 0 || Math.abs(saldoCliente) < abonoInicial) {
+          throw new Error('SALDO_FAVOR_INSUFICIENTE');
+        }
+      }
 
       const productos = new Map<string, { ref: any; data: any }>();
       for (const item of itemsInventario) {
@@ -80,6 +87,13 @@ export async function POST(request: Request) {
         creadoPor: usuario.nombreUsuario || decodedToken.email || 'Usuario'
       };
       transaction.create(separeRef, payload);
+
+      if (metodoPago === 'saldo_interno' && abonoInicial > 0) {
+        transaction.update(clienteRef, {
+          deudaTotal: saldoCliente + abonoInicial,
+          fechaUltimoMovimiento: new Date()
+        });
+      }
 
       for (const item of itemsInventario) {
         const producto = productos.get(item.productoId)!;
@@ -136,7 +150,8 @@ export async function POST(request: Request) {
       PRODUCTO_NO_AUTORIZADO: { status: 403, text: 'Producto no autorizado.' },
       ITEM_INVALIDO: { status: 400, text: 'Artículo de inventario inválido.' },
       STOCK_INVALIDO: { status: 400, text: 'Stock inválido.' },
-      TOTAL_INVALIDO: { status: 400, text: 'Total o abono inicial inválido.' }
+      TOTAL_INVALIDO: { status: 400, text: 'Total o abono inicial inválido.' },
+      SALDO_FAVOR_INSUFICIENTE: { status: 400, text: 'El cliente no tiene suficiente Saldo a Favor disponible para este abono.' }
     };
     if (error?.message?.startsWith('SIN_STOCK:')) return NextResponse.json({ error: `Sin stock suficiente de ${error.message.slice(9)}.` }, { status: 409 });
     const conocido = mensajes[error?.message];

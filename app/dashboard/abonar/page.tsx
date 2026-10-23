@@ -1,8 +1,8 @@
 "use client";
 import { obtenerNombreCercano } from "@/utils/whatsapp";
-import { useState, useEffect, Suspense, useRef } from "react";
+import { useState, useEffect, useMemo, Suspense, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { collection, addDoc, getDocs, query, doc, updateDoc, where, arrayUnion, increment } from "firebase/firestore";
+import { collection, addDoc, getDocs, query, doc, updateDoc, where, arrayUnion, increment, onSnapshot } from "firebase/firestore";
 import { auth, db } from "../../../firebase";
 import { Search, CheckCircle2, ChevronRight, X, AlertCircle, UserCog, ArrowLeft, MessageCircle, Banknote, Printer, Smartphone, CreditCard, Zap } from 'lucide-react';
 import { useAuth } from "../../../hooks/AuthContext";
@@ -33,6 +33,7 @@ function AbonarContenido() {
   const puedeEnviarWhatsApp = datosSesion?.puedeEnviarWhatsApp ?? true;
 
   const [clientes, setClientes] = useState<any[]>([]);
+  const [separes, setSepares] = useState<any[]>([]);
   const [clienteTransaccion, setClienteTransaccion] = useState<any | null>(null);
   
   const [montoAbono, setMontoAbono] = useState(""); 
@@ -48,6 +49,13 @@ function AbonarContenido() {
 
   const [guardandoAbono, setGuardandoAbono] = useState(false);
   const isSubmittingAbonoRef = useRef(false);
+  const ultimoAbonoRef = useRef<{ clienteId: string; monto: number; timestamp: number } | null>(null);
+  const [confirmacionDuplicado, setConfirmacionDuplicado] = useState<{
+    isOpen: boolean;
+    monto: number;
+    clienteNombre: string;
+    tiempoTranscurridoSegundos: number;
+  } | null>(null);
 
   const [modalNuevoCliente, setModalNuevoCliente] = useState(false);
   const [modalExito, setModalExito] = useState<{ visible: boolean, cliente: any, montoTotal: number, ticketDatos?: any, esSepare?: boolean, saldoRestanteSepare?: number } | null>(null);
@@ -85,8 +93,63 @@ function AbonarContenido() {
   };
 
   useEffect(() => {
-    if (cuentaPrincipalId) cargarDatosGlobales(cuentaPrincipalId);
+    if (!cuentaPrincipalId) return;
+
+    const qC = query(collection(db, "clientes"), where("usuarioId", "==", cuentaPrincipalId));
+    const unsubC = onSnapshot(qC, (snapC) => {
+      const listaC: any[] = [];
+      snapC.forEach((doc) => listaC.push({ id: doc.id, ...doc.data() }));
+      listaC.sort((a, b) => (a.nombre || '').localeCompare(b.nombre || ''));
+      setClientes(listaC);
+
+      const clienteParamId = searchParams.get('clienteId');
+      if (clienteParamId) {
+        const clienteEncontrado = listaC.find(c => c.id === clienteParamId);
+        if (clienteEncontrado) setClienteTransaccion(clienteEncontrado);
+      }
+    }, console.error);
+
+    const qS = query(
+      collection(db, "separes"),
+      where("usuarioId", "==", cuentaPrincipalId),
+      where("estado", "==", "activo")
+    );
+    const unsubS = onSnapshot(qS, (snapS) => {
+      const listaS: any[] = [];
+      snapS.forEach((doc) => listaS.push({ id: doc.id, ...doc.data() }));
+      setSepares(listaS);
+    }, console.error);
+
+    return () => {
+      unsubC();
+      unsubS();
+    };
   }, [cuentaPrincipalId]);
+
+  // Sincronizar clientes con totales calculados unificados (Fiado + Separes)
+  const clientesConTotales = useMemo(() => {
+    return clientes.map((c) => {
+      const separesActivosCli = separes.filter(
+        (s) =>
+          s.estado === 'activo' &&
+          (s.clienteId === c.id ||
+            (s.clienteNombre && c.nombre && s.clienteNombre.trim().toLowerCase() === c.nombre.trim().toLowerCase()))
+      );
+      const saldoSeparesActivos = separesActivosCli.reduce((acc, s) => acc + (s.saldoPendiente || 0), 0);
+      const deudaFiado = c.deudaTotal || 0;
+      const tieneSaldoAFavor = deudaFiado < 0;
+      const totalCompromiso = tieneSaldoAFavor ? deudaFiado : (deudaFiado + saldoSeparesActivos);
+
+      return {
+        ...c,
+        deudaFiado,
+        saldoSeparesActivos,
+        tieneSeparesActivos: saldoSeparesActivos > 0,
+        tieneSaldoAFavor,
+        totalCompromiso
+      };
+    });
+  }, [clientes, separes]);
 
   // Cargar separes activos del cliente seleccionado
   useEffect(() => {
@@ -97,51 +160,25 @@ function AbonarContenido() {
       return;
     }
 
-    const qS = query(
-      collection(db, "separes"),
-      where("usuarioId", "==", cuentaPrincipalId),
-      where("estado", "==", "activo")
-    );
+    const list = separes.filter(d => {
+      return (clienteTransaccion.id && d.clienteId === clienteTransaccion.id) ||
+        (clienteTransaccion.nombre && d.clienteNombre?.trim().toLowerCase() === clienteTransaccion.nombre.trim().toLowerCase());
+    });
+    setSeparesCliente(list);
 
-    getDocs(qS).then(snap => {
-      const list: any[] = [];
-      snap.forEach(d => {
-        const data = d.data();
-        const coincideCliente = (clienteTransaccion.id && data.clienteId === clienteTransaccion.id) ||
-          (clienteTransaccion.nombre && data.clienteNombre?.trim().toLowerCase() === clienteTransaccion.nombre.trim().toLowerCase());
-        if (coincideCliente) {
-          list.push({ id: d.id, ...data });
-        }
-      });
-      setSeparesCliente(list);
-
-      if (list.length > 0 && (clienteTransaccion.deudaTotal || 0) <= 0) {
-        setDestinoAbono('separe');
-        setSepareSeleccionado(list[0]);
-      } else if (list.length > 0) {
-        setSepareSeleccionado(list[0]);
-      } else {
-        setDestinoAbono('fiado');
-        setSepareSeleccionado(null);
-      }
-    }).catch(console.error);
-  }, [clienteTransaccion, cuentaPrincipalId]);
+    if (list.length > 0 && (clienteTransaccion.deudaTotal || 0) <= 0) {
+      setDestinoAbono('separe');
+      setSepareSeleccionado(list[0]);
+    } else if (list.length > 0) {
+      setSepareSeleccionado(list[0]);
+    } else {
+      setDestinoAbono('fiado');
+      setSepareSeleccionado(null);
+    }
+  }, [clienteTransaccion, separes, cuentaPrincipalId]);
 
   const cargarDatosGlobales = async (uid: string) => {
-    try {
-      const qC = query(collection(db, "clientes"), where("usuarioId", "==", uid));
-      const snapC = await getDocs(qC);
-      const listaC: any[] = [];
-      snapC.forEach((doc) => listaC.push({ id: doc.id, ...doc.data() }));
-      listaC.sort((a, b) => a.nombre.localeCompare(b.nombre));
-      setClientes(listaC);
-
-      const clienteParamId = searchParams.get('clienteId');
-      if (clienteParamId) {
-        const clienteEncontrado = listaC.find(c => c.id === clienteParamId);
-        if (clienteEncontrado) setClienteTransaccion(clienteEncontrado);
-      }
-    } catch (error) { console.error(error); }
+    // Sincronizado reactivamente por onSnapshot
   };
 
   // Lógica Inteligente para detectar si es nombre o celular
@@ -204,12 +241,31 @@ function AbonarContenido() {
     return parseInt(numeroStr, 10).toLocaleString('es-CO');
   };
 
-  const procesarAbono = async () => {
+  const procesarAbono = async (eOrForzar?: React.MouseEvent | boolean) => {
+    const forzarDuplicado = typeof eOrForzar === 'boolean' ? eOrForzar : false;
     const pagoRaw = montoAbono.replace(/\D/g, '');
     const abonoReal = pagoRaw === "" ? 0 : parseFloat(pagoRaw);
 
     if (!clienteTransaccion) { toast.error("Debes seleccionar un cliente para registrar un abono."); return; }
     if (abonoReal <= 0) { toast.error("Ingresa un monto mayor a $0 para abonar."); return; }
+
+    // Prevenir abonos duplicados accidentales (mismo cliente y mismo monto en menos de 90 segundos)
+    if (!forzarDuplicado && ultimoAbonoRef.current) {
+      const tiempoSegundos = Math.round((Date.now() - ultimoAbonoRef.current.timestamp) / 1000);
+      if (
+        ultimoAbonoRef.current.clienteId === clienteTransaccion.id &&
+        ultimoAbonoRef.current.monto === abonoReal &&
+        tiempoSegundos < 90
+      ) {
+        setConfirmacionDuplicado({
+          isOpen: true,
+          monto: abonoReal,
+          clienteNombre: clienteTransaccion.nombre,
+          tiempoTranscurridoSegundos: Math.max(1, tiempoSegundos)
+        });
+        return;
+      }
+    }
 
     const refPagoCompleta = [subMetodoPago, referenciaPago.trim()].filter(Boolean).join(' — ');
     const labelsMetodos: Record<string, string> = {
@@ -265,6 +321,12 @@ function AbonarContenido() {
         } : s));
 
         reproducirSonidoExito();
+
+        ultimoAbonoRef.current = {
+          clienteId: clienteTransaccion.id,
+          monto: abonoReal,
+          timestamp: Date.now()
+        };
 
         const ticketDatos: any = {
           nombreNegocio: nombreNegocio || "Mi Negocio",
@@ -366,6 +428,12 @@ function AbonarContenido() {
       }
 
       reproducirSonidoExito();
+
+      ultimoAbonoRef.current = {
+        clienteId: clienteTransaccion.id,
+        monto: abonoAplicado,
+        timestamp: Date.now()
+      };
 
       const saldoFinal = datosAbono.nuevoSaldo;
       const clienteFinalActualizado = { ...clienteTransaccion, deudaTotal: saldoFinal };
@@ -482,7 +550,7 @@ Estamos atentos para cualquier consulta.
       .trim();
   };
 
-  const clientesFiltradosRegistro = clientes.filter(c => {
+  const clientesFiltradosRegistro = clientesConTotales.filter(c => {
     const query = normalizarBusqueda(busquedaRegistro);
     if (!query) return false;
     return (
@@ -607,9 +675,20 @@ Estamos atentos para cualquier consulta.
                                   )}
                                 </div>
                                 {c.celular && <span className="text-[10px] text-slate-400 block">{c.celular}</span>}
-                                <span className={`text-[10px] font-black ${Number(c.deudaTotal || 0) > 0 ? 'text-rose-500' : Number(c.deudaTotal || 0) < 0 ? 'text-emerald-600' : 'text-slate-400'}`}>
-                                  {Number(c.deudaTotal || 0) > 0 ? `Debe $${Number(c.deudaTotal).toLocaleString('es-CO')}` : Number(c.deudaTotal || 0) < 0 ? `A favor $${Math.abs(Number(c.deudaTotal)).toLocaleString('es-CO')}` : 'Al día'}
-                                </span>
+                                <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+                                  <span className={`text-[10.5px] font-black ${c.totalCompromiso > 0 ? 'text-rose-500' : c.tieneSaldoAFavor ? 'text-emerald-600' : 'text-slate-400'}`}>
+                                    {c.tieneSaldoAFavor 
+                                      ? `A favor $${Math.abs(c.totalCompromiso).toLocaleString('es-CO')}` 
+                                      : c.totalCompromiso > 0 
+                                        ? `Total $${c.totalCompromiso.toLocaleString('es-CO')}` 
+                                        : 'Al día ($0)'}
+                                  </span>
+                                  {c.tieneSeparesActivos && (
+                                    <span className="text-[9.5px] font-bold text-violet-700 dark:text-violet-300 bg-violet-50 dark:bg-violet-950/50 px-1.5 py-0.2 rounded border border-violet-200 dark:border-violet-800/60">
+                                      Fiado: ${c.deudaFiado.toLocaleString('es-CO')} • Separe: ${c.saldoSeparesActivos.toLocaleString('es-CO')}
+                                    </span>
+                                  )}
+                                </div>
                               </div>
                               <ChevronRight size={14} className="text-slate-400"/>
                             </div>
@@ -794,7 +873,7 @@ Estamos atentos para cualquier consulta.
                       <div className="animate-in fade-in slide-in-from-top-1 duration-150 mb-2">
                         <label className="text-[9px] font-bold text-blue-500 uppercase tracking-wider block mb-1">¿Por qué plataforma?</label>
                         <div className="flex flex-wrap gap-1.5">
-                          {['Nequi', 'Daviplata', 'PSE', 'Bancolombia', 'Otro'].map(op => (
+                          {['Nequi', 'Daviplata', 'Bancolombia', 'Davivienda', 'PSE', 'Otro'].map(op => (
                             <button
                               key={op}
                               type="button"
@@ -1073,6 +1152,49 @@ Estamos atentos para cualquier consulta.
                 className="w-full bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold py-3.5 rounded-2xl mt-1 transition-colors"
               >
                 Cancelar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {confirmacionDuplicado && (
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-[9999] flex items-center justify-center p-4 animate-in zoom-in-95 duration-200">
+          <div className="bg-white dark:bg-[#0f172a] rounded-3xl max-w-md w-full p-6 border border-amber-200 dark:border-amber-800 shadow-2xl text-center space-y-4">
+            <div className="w-14 h-14 bg-amber-100 dark:bg-amber-950/50 text-amber-600 rounded-2xl flex items-center justify-center mx-auto shadow-inner">
+              <AlertCircle size={32} />
+            </div>
+            <div>
+              <span className="text-[10px] font-black uppercase tracking-widest text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/60 px-2.5 py-0.5 rounded-full">
+                ⚠️ Posible Abono Duplicado
+              </span>
+              <h3 className="text-lg font-black text-slate-900 dark:text-white mt-2">
+                ¿Registrar abono idéntico?
+              </h3>
+              <p className="text-xs text-slate-600 dark:text-slate-400 mt-2 leading-relaxed">
+                Hace apenas <strong className="text-slate-800 dark:text-slate-200">{confirmacionDuplicado.tiempoTranscurridoSegundos} segundos</strong> registraste un abono por <strong className="text-blue-600 dark:text-blue-400">${confirmacionDuplicado.monto.toLocaleString('es-CO')}</strong> a nombre de <strong className="text-slate-800 dark:text-slate-200">{confirmacionDuplicado.clienteNombre}</strong>.
+              </p>
+              <p className="text-xs font-bold text-amber-700 dark:text-amber-400 mt-2 bg-amber-50 dark:bg-amber-950/40 p-2.5 rounded-xl border border-amber-200/60 dark:border-amber-800/50">
+                Si fue un error o hiciste doble clic, puedes cancelar ahora sin afectar la cuenta.
+              </p>
+            </div>
+            <div className="flex gap-2 pt-1">
+              <button
+                type="button"
+                onClick={() => setConfirmacionDuplicado(null)}
+                className="flex-1 py-3 rounded-xl border border-slate-200 dark:border-slate-700 text-xs font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition cursor-pointer"
+              >
+                No, cancelar
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setConfirmacionDuplicado(null);
+                  procesarAbono(true);
+                }}
+                className="flex-1 py-3 rounded-xl bg-amber-600 hover:bg-amber-500 text-white text-xs font-black transition cursor-pointer shadow-sm active:scale-95"
+              >
+                Sí, registrar de nuevo
               </button>
             </div>
           </div>

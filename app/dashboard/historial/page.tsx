@@ -1,20 +1,22 @@
 "use client";
 import { obtenerNombreCercano } from "@/utils/whatsapp";
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import { collection, getDocs, query, where, onSnapshot, orderBy, limit } from "firebase/firestore";
 import { db, auth } from "../../../firebase";
-import { Search, X, Clock, MessageCircle, Star, Users, Store, Printer, Edit3, Trash2, Bookmark, ChevronRight, Package, ArrowRight, User, RotateCcw, Smartphone, Calendar, ChevronDown } from 'lucide-react';
+import { Search, X, Clock, MessageCircle, Star, Users, Store, Printer, Edit3, Trash2, Bookmark, ChevronRight, Package, ArrowRight, User, RotateCcw, Smartphone, Calendar, ChevronDown, Calculator } from 'lucide-react';
 import toast from "react-hot-toast";
 
 import { useAuth } from "../../../hooks/AuthContext";
 import { API_DB } from "../../../servicios/db";
-import { Cliente, Movimiento } from "../../../types";
+import { Cliente, Movimiento, CierreCaja } from "../../../types";
 import TablaHistorial from "../../../components/TablaHistorial";
+import VistaCierresCaja, { ModalDetalleCierre } from "@/components/caja/VistaCierresCaja";
 import TicketFacturaModal, { DatosFacturaProps } from "@/components/TicketFacturaModal";
 import ModalProcesarDevolucion from "@/components/ModalProcesarDevolucion";
 import ModalGestionCliente from "@/components/ModalGestionCliente";
+import ModalAnularAbono from "@/components/modals/ModalAnularAbono";
 import { abrirEnlaceWhatsApp } from "@/utils/whatsapp";
 import { agregarMediosPagoAlEstado } from "@/utils/mediosPago";
 
@@ -37,10 +39,13 @@ export default function HistorialPage() {
   const [clientes, setClientes] = useState<Cliente[]>([]);
   const [todosMovimientos, setTodosMovimientos] = useState<Movimiento[]>([]);
   const [busquedaHistorial, setBusquedaHistorial] = useState("");
-  const [filtroTiempoHistorial, setFiltroTiempoHistorial] = useState<'hoy' | 'semana' | 'mes' | 'todos'>('hoy');
-  const [filtroTipoHistorial, setFiltroTipoHistorial] = useState<'todos' | 'venta' | 'abono' | 'separe' | 'fiado' | 'devolucion' | 'ingreso_inventario'>('todos');
+  const [filtroTiempoHistorial, setFiltroTiempoHistorial] = useState<'hoy' | 'ayer' | 'semana' | 'mes' | 'todos'>('hoy');
+  const [filtroTipoHistorial, setFiltroTipoHistorial] = useState<'todos' | 'venta' | 'abono' | 'separe' | 'fiado' | 'devolucion' | 'ingreso_inventario' | 'cierres_caja'>('todos');
+  const puedeVerCierres = esAdmin || Boolean(datosSesion?.puedeHacerCierreCaja) || Boolean(datosSesion?.permisos?.cierreCaja) || Boolean(datosSesion?.puedeVerReportes);
   const [filtroVendedorHistorial, setFiltroVendedorHistorial] = useState<string>('todos');
   const [colaboradoresNegocio, setColaboradoresNegocio] = useState<string[]>([]);
+  const [cierresNegocio, setCierresNegocio] = useState<CierreCaja[]>([]);
+  const [cierreSeleccionado, setCierreSeleccionado] = useState<CierreCaja | null>(null);
   
   const [movimientoInventarioDetalle, setMovimientoInventarioDetalle] = useState<Movimiento | null>(null);
   const [ultimoDocSnapshot, setUltimoDocSnapshot] = useState<any>(null);
@@ -69,6 +74,15 @@ export default function HistorialPage() {
   const [modalMostrador, setModalMostrador] = useState(false);
   const [movimientoMostrador, setMovimientoMostrador] = useState<Movimiento | null>(null);
   const [modalDevolucion, setModalDevolucion] = useState<{ isOpen: boolean; venta: Movimiento | null }>({ isOpen: false, venta: null });
+  const [modalAnularAbono, setModalAnularAbono] = useState<{
+    isOpen: boolean;
+    movimiento: any | null;
+    cliente: Cliente | null;
+  }>({
+    isOpen: false,
+    movimiento: null,
+    cliente: null
+  });
 
   const [clienteActivo, setClienteActivo] = useState<Cliente | null>(null);
   const [movimientosCliente, setMovimientosCliente] = useState<Movimiento[]>([]);
@@ -155,9 +169,32 @@ export default function HistorialPage() {
       }
     });
 
+    // Listener en tiempo real de cierres y arqueos de caja
+    let unsubCierres: (() => void) | null = null;
+    if (cuentaPrincipalId) {
+      try {
+        const qC = query(
+          collection(db, "cierres_caja"),
+          where("usuarioId", "==", cuentaPrincipalId)
+        );
+        unsubCierres = onSnapshot(qC, (snap) => {
+          const lista: CierreCaja[] = snap.docs.map(doc => ({
+            id: doc.id,
+            ...doc.data()
+          } as CierreCaja));
+          setCierresNegocio(lista);
+        }, (errC) => {
+          console.warn("Aviso en listener de cierres_caja:", errC);
+        });
+      } catch (eC) {
+        console.warn("Fallo suscripción cierres_caja:", eC);
+      }
+    }
+
     return () => {
       unsubM();
       if (unsubFallback) unsubFallback();
+      if (unsubCierres) unsubCierres();
     };
   }, [cuentaPrincipalId]);
 
@@ -258,6 +295,7 @@ export default function HistorialPage() {
   };
 
   const getNombreCliente = (id?: string, tipo?: string, fallbackNombre?: string) => {
+    if (tipo === 'cierre_caja') return 'Caja General';
     if (tipo === 'ingreso_inventario') return 'Entrada de Mercancía';
     if (!id) return 'Entrada de Stock';
     if (id === 'mostrador') return fallbackNombre && fallbackNombre !== 'Mostrador' ? fallbackNombre : 'Consumidor Final';
@@ -535,7 +573,55 @@ Gracias por seguir con nosotros.
   ).filter((v): v is string => Boolean(v && typeof v === 'string' && v.trim().length > 0))
    .sort((a, b) => a.localeCompare(b));
 
-  const historialFiltrado = todosMovimientos.filter(mov => {
+  // Integración de cierres y arqueos de caja en la cronología general
+  const movimientosConCierres = useMemo(() => {
+    if (!puedeVerCierres || cierresNegocio.length === 0) {
+      return todosMovimientos;
+    }
+
+    const cierresMapeados: Movimiento[] = cierresNegocio.map(c => {
+      const esArqueo = c.tipoRegistro === 'arqueo_parcial';
+      const esApertura = c.tipoRegistro === 'apertura';
+      const descCuadre = c.tipoDiferencia === 'exacto'
+        ? 'Cuadre Exacto'
+        : c.tipoDiferencia === 'sobrante'
+          ? `Sobrante +$${Math.abs(c.diferencia).toLocaleString('es-CO')}`
+          : c.tipoDiferencia === 'pendiente'
+            ? 'Pendiente de conteo'
+            : `Faltante -$${Math.abs(c.diferencia).toLocaleString('es-CO')}`;
+
+      const descGeneral = esArqueo
+        ? `Arqueo Parcial · ${descCuadre}`
+        : esApertura
+          ? `Apertura de Turno · Base: $${(c.baseInicial || 0).toLocaleString('es-CO')}`
+          : `Cierre Definitivo de Turno · ${descCuadre}`;
+
+      return {
+        id: `cierre-${c.id}`,
+        usuarioId: c.usuarioId,
+        tipo: 'cierre_caja' as any,
+        subtipo: c.tipoRegistro || 'cierre',
+        monto: esApertura ? (c.baseInicial || 0) : (c.totalEfectivoReal || 0),
+        descripcion: c.notas ? `${descGeneral} ("${c.notas}")` : descGeneral,
+        fecha: c.fechaCierre,
+        registradoPor: c.cerradoPorNombre || 'Cajero',
+        creadoPor: c.cerradoPorUid || '',
+        detalles: [],
+        metodoPago: 'efectivo',
+        datosCierre: c
+      } as any;
+    });
+
+    const combinados = [...todosMovimientos, ...cierresMapeados];
+    combinados.sort((a, b) => {
+      const tA = a.fecha?.toMillis ? a.fecha.toMillis() : (a.fecha?.seconds ? a.fecha.seconds * 1000 : (a.fecha ? new Date(a.fecha).getTime() : 0));
+      const tB = b.fecha?.toMillis ? b.fecha.toMillis() : (b.fecha?.seconds ? b.fecha.seconds * 1000 : (b.fecha ? new Date(b.fecha).getTime() : 0));
+      return tB - tA;
+    });
+    return combinados;
+  }, [todosMovimientos, cierresNegocio, puedeVerCierres]);
+
+  const historialFiltrado = movimientosConCierres.filter(mov => {
     const filtroForzado = (!puedeVerReportes || planActual === 'basico') ? 'hoy' : filtroTiempoHistorial;
     
     // Regla de privacidad: Inventario solo visible si tiene permiso de inventario
@@ -553,10 +639,13 @@ Gracias por seguir con nosotros.
     }
 
     const esIngresoInv = mov.tipo === 'ingreso_inventario';
+    const esCierreCaja = mov.tipo === 'cierre_caja';
     const clienteMov = clientes.find(c => c.id === mov.clienteId);
-    const nombreCliente = esIngresoInv 
-      ? 'Entrada de Mercancía' 
-      : (clienteMov?.nombre || (mov.clienteId === 'mostrador' ? (mov.clienteNombre && mov.clienteNombre !== 'Mostrador' ? mov.clienteNombre : 'Consumidor Final') : (mov.clienteNombre || (clientes.length === 0 ? '' : 'Cliente Eliminado'))));
+    const nombreCliente = esCierreCaja
+      ? 'Caja General'
+      : esIngresoInv 
+        ? 'Entrada de Mercancía' 
+        : (clienteMov?.nombre || (mov.clienteId === 'mostrador' ? (mov.clienteNombre && mov.clienteNombre !== 'Mostrador' ? mov.clienteNombre : 'Consumidor Final') : (mov.clienteNombre || (clientes.length === 0 ? '' : 'Cliente Eliminado'))));
     const celularCliente = clienteMov?.celular || '';
     const vendedorMov = (mov.registradoPor || (mov as any).vendedor || '').toString();
     
@@ -589,6 +678,8 @@ Gracias por seguir con nosotros.
       if (!esSepareMov) return false;
     } else if (filtroTipoHistorial === 'abono') {
       if (mov.tipo !== 'abono' || (mov.monto === 0 && (mov as any).subtipo === 'apertura_separe_sin_abono')) return false;
+    } else if (filtroTipoHistorial === 'cierres_caja') {
+      if (mov.tipo !== 'cierre_caja') return false;
     } else if (filtroTipoHistorial !== 'todos' && mov.tipo !== filtroTipoHistorial) {
       return false;
     }
@@ -613,19 +704,36 @@ Gracias por seguir con nosotros.
 
     const ms = mov.fecha?.toMillis ? mov.fecha.toMillis() : (mov.fecha ? new Date(mov.fecha).getTime() : 0);
     const inicioHoy = new Date(hoyDate.getFullYear(), hoyDate.getMonth(), hoyDate.getDate()).getTime();
+    const inicioAyer = new Date(hoyDate.getFullYear(), hoyDate.getMonth(), hoyDate.getDate() - 1).getTime();
     const inicioSemana = inicioSemanaDate.getTime();
     const inicioMes = new Date(hoyDate.getFullYear(), hoyDate.getMonth(), 1).getTime();
 
     if (filtroForzado === 'hoy') return ms >= inicioHoy;
+    if (filtroForzado === 'ayer') return ms >= inicioAyer && ms < inicioHoy;
     if (filtroForzado === 'semana') return ms >= inicioSemana;
     if (filtroForzado === 'mes') return ms >= inicioMes;
     return true; 
   });
 
+  // Auto-cargar si el usuario elige 'ayer' y el lote en memoria todavía no ha alcanzado las transacciones de ayer
+  useEffect(() => {
+    if (filtroTiempoHistorial === 'ayer' && historialFiltrado.length === 0 && hayMasMovimientos && !cargandoMas && todosMovimientos.length > 0) {
+      const ultimo = todosMovimientos[todosMovimientos.length - 1];
+      const ms = ultimo?.fecha?.toMillis ? ultimo.fecha.toMillis() : (ultimo?.fecha ? new Date(ultimo.fecha).getTime() : 0);
+      const inicioAyer = new Date(hoyDate.getFullYear(), hoyDate.getMonth(), hoyDate.getDate() - 1).getTime();
+      if (ms >= inicioAyer) {
+        cargarMasMovimientos();
+      }
+    }
+  }, [filtroTiempoHistorial, historialFiltrado.length, hayMasMovimientos, cargandoMas, todosMovimientos]);
+
   // Determinar con precisión si realmente puede haber más registros para el filtro activo:
   const puedeHaberMasParaFiltro = (() => {
     if (!hayMasMovimientos || todosMovimientos.length === 0) return false;
     
+    // Regla estricta: Solo ofrecer "Cargar más" si ya se muestran al menos 15 registros de este filtro
+    if (historialFiltrado.length < 15) return false;
+
     const filtroForzado = (!puedeVerReportes || planActual === 'basico') ? 'hoy' : filtroTiempoHistorial;
 
     const ultimoCargado = todosMovimientos[todosMovimientos.length - 1];
@@ -634,6 +742,7 @@ Gracias por seguir con nosotros.
       : (ultimoCargado?.fecha ? new Date(ultimoCargado.fecha).getTime() : 0);
 
     const inicioHoy = new Date(hoyDate.getFullYear(), hoyDate.getMonth(), hoyDate.getDate()).getTime();
+    const inicioAyer = new Date(hoyDate.getFullYear(), hoyDate.getMonth(), hoyDate.getDate() - 1).getTime();
     const inicioSemana = inicioSemanaDate.getTime();
     const inicioMes = new Date(hoyDate.getFullYear(), hoyDate.getMonth(), 1).getTime();
 
@@ -641,6 +750,10 @@ Gracias por seguir con nosotros.
     // Si se está filtrando por "hoy" y el lote actual ya alcanzó fechas anteriores a hoy,
     // es imposible que en lotes siguientes haya más movimientos de hoy.
     if (filtroForzado === 'hoy' && msUltimoCargado < inicioHoy) {
+      return false;
+    }
+
+    if (filtroForzado === 'ayer' && msUltimoCargado < inicioAyer) {
       return false;
     }
 
@@ -701,7 +814,7 @@ Gracias por seguir con nosotros.
           {/* FILTRO DE TIEMPO (EN LA MISMA FILA EN PC) */}
           {puedeVerReportes && (
             <div className="flex bg-slate-200/60 dark:bg-[#020617] p-1 rounded-xl shrink-0">
-              {['hoy', 'semana', 'mes', 'todos'].map((filtro) => (
+              {['hoy', 'ayer', 'semana', 'mes', 'todos'].map((filtro) => (
                 <button key={filtro} 
                   onClick={() => {
                     if (planActual === 'basico' && filtro !== 'hoy') setModalSuscripcion({ visible: true, titulo: "Función PRO", mensaje: "Los filtros históricos avanzados están disponibles en el plan PRO." });
@@ -717,37 +830,111 @@ Gracias por seguir con nosotros.
         
         {/* FILA INFERIOR: FILTRO DE TIPOS */}
         <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 w-full">
-          {(puedeGestionarInventario ? ['todos', 'venta', 'abono', 'separe', 'fiado', 'devolucion', 'ingreso_inventario'] : ['todos', 'venta', 'abono', 'separe', 'fiado', 'devolucion']).map((tipo) => (
-            <button 
-              key={tipo} 
-              onClick={() => setFiltroTipoHistorial(tipo as any)} 
-              className={`flex-1 md:flex-initial text-[11px] sm:text-xs font-black py-1.5 px-3 rounded-lg transition-all cursor-pointer ${
-                filtroTipoHistorial === tipo 
-                  ? (tipo === 'ingreso_inventario' 
-                      ? 'bg-sky-600 text-white shadow-xs' 
-                      : (tipo === 'devolucion'
-                          ? 'bg-amber-500 text-white shadow-xs'
-                          : 'bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900 shadow-xs')) 
-                  : 'bg-white dark:bg-[#020617] text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-800/80'
-              }`}
-            >
-              {tipo === 'ingreso_inventario' ? (
-                <span className="inline-flex items-center gap-1"><Package size={11} /> INVENTARIO</span>
-              ) : tipo === 'devolucion' ? (
-                <span className="inline-flex items-center gap-1"><RotateCcw size={11} /> DEVOLUCIÓN</span>
-              ) : (
-                tipo.toUpperCase()
-              )}
-            </button>
-          ))}
+          {(() => {
+            const listaTipos = puedeGestionarInventario 
+              ? ['todos', 'venta', 'abono', 'separe', 'fiado', 'devolucion', 'ingreso_inventario'] 
+              : ['todos', 'venta', 'abono', 'separe', 'fiado', 'devolucion'];
+            if (puedeVerCierres) {
+              listaTipos.push('cierres_caja');
+            }
+            return listaTipos.map((tipo) => (
+              <button 
+                key={tipo} 
+                onClick={() => setFiltroTipoHistorial(tipo as any)} 
+                className={`flex-1 md:flex-initial text-[11px] sm:text-xs font-black py-1.5 px-3 rounded-lg transition-all cursor-pointer ${
+                  filtroTipoHistorial === tipo 
+                    ? (tipo === 'cierres_caja'
+                        ? 'bg-amber-600 text-white shadow-xs'
+                        : (tipo === 'ingreso_inventario' 
+                            ? 'bg-sky-600 text-white shadow-xs' 
+                            : (tipo === 'devolucion'
+                                ? 'bg-amber-500 text-white shadow-xs'
+                                : 'bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900 shadow-xs'))) 
+                    : 'bg-white dark:bg-[#020617] text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-800/80'
+                }`}
+              >
+                {tipo === 'cierres_caja' ? (
+                  <span className="inline-flex items-center gap-1"><Calculator size={11} /> CIERRES</span>
+                ) : tipo === 'ingreso_inventario' ? (
+                  <span className="inline-flex items-center gap-1"><Package size={11} /> INVENTARIO</span>
+                ) : tipo === 'devolucion' ? (
+                  <span className="inline-flex items-center gap-1"><RotateCcw size={11} /> DEVOLUCIÓN</span>
+                ) : (
+                  tipo.toUpperCase()
+                )}
+              </button>
+            ));
+          })()}
         </div>
       </div>
       
       <div className="p-3 overflow-y-auto scroll-smooth flex-1" ref={scrollHistorialRef}>
         
+        {filtroTipoHistorial === 'cierres_caja' ? (
+          <VistaCierresCaja
+            cuentaPrincipalId={cuentaPrincipalId || ''}
+            filtroTiempo={filtroTiempoHistorial}
+            mostrarMetricasGlobales={false}
+          />
+        ) : (
+          <>
         {/* VISTA MÓVIL */}
         <div className="md:hidden">
           {historialFiltrado.map((mov) => {
+            const esCierreCaja = mov.tipo === 'cierre_caja';
+            if (esCierreCaja) {
+              const esArqueo = mov.subtipo === 'arqueo_parcial';
+              const esApertura = mov.subtipo === 'apertura';
+              return (
+                <div 
+                  key={mov.id} 
+                  onClick={() => setCierreSeleccionado(mov.datosCierre || null)}
+                  className="p-3.5 mx-2 my-2.5 rounded-2xl flex items-center justify-between gap-3 bg-white dark:bg-[#0f172a] border border-amber-200/80 dark:border-amber-900/40 shadow-xs relative cursor-pointer hover:border-amber-400 transition-colors"
+                >
+                  <div className={`absolute left-0 top-0 bottom-0 w-1.5 ${
+                    esArqueo ? 'bg-amber-500' : (esApertura ? 'bg-emerald-500' : 'bg-indigo-500')
+                  }`}></div>
+                  
+                  <div className="flex items-center gap-2.5 pl-1.5 min-w-0 flex-1">
+                    <div className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 ${
+                      esArqueo ? 'bg-amber-50 dark:bg-amber-500/10 text-amber-600 dark:text-amber-400' :
+                      esApertura ? 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400' :
+                      'bg-indigo-50 dark:bg-indigo-500/10 text-indigo-600 dark:text-indigo-400'
+                    }`}>
+                      {esArqueo ? <Clock size={16} /> : <Calculator size={16} />}
+                    </div>
+
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span className={`text-[10px] font-black uppercase px-1.5 py-0.5 rounded ${
+                          esArqueo ? 'bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300' :
+                          esApertura ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300' :
+                          'bg-indigo-100 text-indigo-800 dark:bg-indigo-950/60 dark:text-indigo-300'
+                        }`}>
+                          {esArqueo ? 'ARQUEO' : (esApertura ? 'APERTURA' : 'CIERRE')}
+                        </span>
+                        <span className="text-xs font-bold text-slate-800 dark:text-slate-200 truncate">
+                          {mov.registradoPor}
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate mt-0.5">
+                        {mov.descripcion}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="text-right shrink-0">
+                    <span className="text-xs sm:text-sm font-black text-slate-900 dark:text-white block">
+                      ${Math.round(mov.monto || 0).toLocaleString('es-CO')}
+                    </span>
+                    <span className="text-[9.5px] text-slate-400 font-semibold block">
+                      {mov.fecha?.toDate ? mov.fecha.toDate().toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' }) : (mov.fecha instanceof Date ? mov.fecha.toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' }) : '')}
+                    </span>
+                  </div>
+                </div>
+              );
+            }
+
             const esIngresoInv = mov.tipo === 'ingreso_inventario';
             const esSepare = Boolean((mov as any).idSepareOrigen || (mov as any).separeId) || 
                              mov.tipo === 'entrega_separe' || 
@@ -822,6 +1009,23 @@ Gracias por seguir con nosotros.
                           <Printer size={15} />
                         </button>
                       )}
+                      {mov.tipo === 'abono' && !(mov as any).anulado && (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setModalAnularAbono({
+                              isOpen: true,
+                              movimiento: mov,
+                              cliente: clientes.find(c => c.id === mov.clienteId) || null
+                            });
+                          }}
+                          title="Anular Abono por error o duplicado"
+                          className="p-2 rounded-xl bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/40 dark:hover:bg-rose-900/50 text-rose-600 dark:text-rose-400 border border-rose-200 dark:border-rose-800 transition-colors cursor-pointer"
+                        >
+                          <RotateCcw size={15} />
+                        </button>
+                      )}
                       {(mov.tipo === 'venta' || mov.tipo === 'fiado') && mov.detalles && mov.detalles.length > 0 && puedeHacerDevolucion && (
                         <button
                           type="button"
@@ -854,16 +1058,19 @@ Gracias por seguir con nosotros.
                         </span>
                       ) : (
                         <p className={`font-black text-xl text-right ${
+                          (mov as any).anulado ? 'line-through text-slate-400 dark:text-slate-500 opacity-60' :
                           mov.tipo === 'devolucion' || mov.tipo === 'egreso' ? 'text-amber-600 dark:text-amber-400' :
                           esEntregaSepare ? 'text-purple-600 dark:text-purple-400' :
                           esSepare ? 'text-violet-600 dark:text-violet-400' :
                           mov.tipo === 'fiado' ? 'text-rose-500' : (mov.tipo === 'venta' ? 'text-emerald-500' : 'text-blue-500')
                         }`}>
-                          {esEntregaSepare ? 'Entregado' : (mov.subtipo === 'apertura_separe_sin_abono' || (mov.monto === 0 && esSepare) ? 'Reservado ($0)' : `${mov.tipo === 'fiado' || mov.tipo === 'egreso' || mov.tipo === 'devolucion' ? '-' : '+'}${Math.round(mov.monto || 0).toLocaleString('es-CO')}`)}
+                          {(mov as any).anulado ? `(Anulado) $${Math.round(mov.monto || 0).toLocaleString('es-CO')}` :
+                           esEntregaSepare ? 'Entregado' : (mov.subtipo === 'apertura_separe_sin_abono' || (mov.monto === 0 && esSepare) ? 'Reservado ($0)' : `${mov.tipo === 'fiado' || mov.tipo === 'egreso' || mov.tipo === 'devolucion' ? '-' : '+'}${Math.round(mov.monto || 0).toLocaleString('es-CO')}`)}
                         </p>
                       )}
                     </div>
                     <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded-md ${
+                      (mov as any).anulado ? 'bg-slate-200 text-slate-500 dark:bg-slate-800 dark:text-slate-400 line-through' :
                       esIngresoInv ? 'bg-sky-100 text-sky-700 dark:bg-sky-950/40 dark:text-sky-300' :
                       mov.tipo === 'devolucion' ? 'bg-amber-100 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300' :
                       mov.tipo === 'egreso' ? 'bg-amber-100 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300' :
@@ -872,7 +1079,7 @@ Gracias por seguir con nosotros.
                       mov.tipo === 'fiado' ? 'bg-rose-100 text-rose-700 dark:bg-rose-500/20 dark:text-rose-300' : 
                       (mov.tipo === 'venta' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300' : 'bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-300')
                     }`}>
-                      {esIngresoInv ? '+STOCK' : (mov.tipo === 'devolucion' ? '↩ DEVOLUCIÓN' : (esEntregaSepare ? '📦 SEPARE ENTREGADO' : (esSepare ? (mov.subtipo === 'abono_inicial_separe' ? '🔖 SEPARE INICIAL' : (mov.subtipo === 'apertura_separe_sin_abono' || mov.monto === 0 ? '🔖 NUEVO SEPARE' : '🔖 ABONO SEPARE')) : (mov.tipo === 'abono' ? 'ABONO CUENTA' : mov.tipo))))}
+                      {(mov as any).anulado ? '🚫 ANULADO' : (esIngresoInv ? '+STOCK' : (mov.tipo === 'devolucion' ? '↩ DEVOLUCIÓN' : (esEntregaSepare ? '📦 SEPARE ENTREGADO' : (esSepare ? (mov.subtipo === 'abono_inicial_separe' ? '🔖 SEPARE INICIAL' : (mov.subtipo === 'apertura_separe_sin_abono' || mov.monto === 0 ? '🔖 NUEVO SEPARE' : '🔖 ABONO SEPARE')) : (mov.tipo === 'abono' ? 'ABONO CUENTA' : mov.tipo)))))}
                     </span>
                   </div>
                 </div>
@@ -887,7 +1094,9 @@ Gracias por seguir con nosotros.
           getNombreCliente={getNombreCliente} 
           onRowClick={(cliId) => abrirHistorialCliente(cliId)}
           onMovimientoClick={(mov) => {
-            if (mov.tipo === 'ingreso_inventario') {
+            if (mov.tipo === 'cierre_caja') {
+              setCierreSeleccionado(mov.datosCierre || null);
+            } else if (mov.tipo === 'ingreso_inventario') {
               setMovimientoInventarioDetalle(mov);
             } else if (mov.clienteId === 'mostrador') {
               setMovimientoMostrador(mov);
@@ -900,9 +1109,21 @@ Gracias por seguir con nosotros.
           onDevolucion={(mov) => setModalDevolucion({ isOpen: true, venta: mov })}
           puedeHacerDevolucion={puedeHacerDevolucion}
           onReintentarNC={puedeHacerDevolucion ? reintentarNotaCredito : undefined}
+          onVerCierre={(cierre) => setCierreSeleccionado(cierre)}
+          onAnularAbono={(mov) => {
+            setModalAnularAbono({
+              isOpen: true,
+              movimiento: mov,
+              cliente: clientes.find(c => c.id === mov.clienteId) || null
+            });
+          }}
         />
 
-        {puedeHaberMasParaFiltro && (
+        {historialFiltrado.length === 0 && (
+          <div className="p-10 text-center text-slate-400">No hay registros para mostrar.</div>
+        )}
+
+        {puedeHaberMasParaFiltro && historialFiltrado.length >= 15 && (
           <div className="p-5 text-center">
             <button
               type="button"
@@ -921,9 +1142,7 @@ Gracias por seguir con nosotros.
             </button>
           </div>
         )}
-
-        {historialFiltrado.length === 0 && (
-          <div className="p-10 text-center text-slate-400">No hay registros para mostrar.</div>
+          </>
         )}
       </div>
 
@@ -1021,20 +1240,20 @@ Gracias por seguir con nosotros.
                     </div>
                   </div>
                   {datosSesion?.rol !== 'cajero' && (
-                    <div className="flex items-center gap-1.5 ml-2">
+                    <div className="flex items-center gap-2 ml-2">
                       <button
                         type="button"
                         onClick={() => setModalGestionCliente({ visible: true, modo: 'editar', cliente: clienteActivo })}
-                        title="Modificar Cliente"
-                        className="p-2 rounded-xl bg-slate-800 hover:bg-blue-600/80 text-slate-300 hover:text-white transition-colors"
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs transition shadow-xs cursor-pointer"
                       >
-                        <Edit3 size={16} />
+                        <Edit3 size={14} className="shrink-0" />
+                        <span>Editar Cliente</span>
                       </button>
                       <button
                         type="button"
                         onClick={() => setModalGestionCliente({ visible: true, modo: 'eliminar', cliente: clienteActivo })}
                         title="Eliminar Cliente"
-                        className="p-2 rounded-xl bg-slate-800 hover:bg-rose-600/80 text-slate-300 hover:text-white transition-colors"
+                        className="p-2 rounded-xl bg-slate-800 hover:bg-rose-600/80 text-slate-300 hover:text-white transition-colors cursor-pointer"
                       >
                         <Trash2 size={16} />
                       </button>
@@ -1143,22 +1362,22 @@ Gracias por seguir con nosotros.
                       </span>
                     )}
                     {datosSesion?.rol !== 'cajero' && (
-                      <div className="inline-flex items-center gap-1 shrink-0">
+                      <div className="inline-flex items-center gap-1.5 shrink-0">
                         <button
                           type="button"
                           onClick={() => setModalGestionCliente({ visible: true, modo: 'editar', cliente: clienteActivo })}
-                          title="Modificar Cliente"
-                          className="p-1 rounded-lg bg-white dark:bg-slate-800 text-slate-500 hover:text-blue-600 shadow-xs border border-slate-200 dark:border-slate-700 cursor-pointer"
+                          className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 hover:bg-blue-100 dark:hover:bg-blue-900/60 border border-blue-200 dark:border-blue-800 transition shadow-xs cursor-pointer"
                         >
-                          <Edit3 size={14} />
+                          <Edit3 size={12} className="shrink-0" />
+                          <span>Editar</span>
                         </button>
                         <button
                           type="button"
                           onClick={() => setModalGestionCliente({ visible: true, modo: 'eliminar', cliente: clienteActivo })}
                           title="Eliminar Cliente"
-                          className="p-1 rounded-lg bg-white dark:bg-slate-800 text-slate-500 hover:text-rose-600 shadow-xs border border-slate-200 dark:border-slate-700 cursor-pointer"
+                          className="p-1.5 rounded-lg bg-white dark:bg-slate-800 text-slate-400 hover:text-rose-600 shadow-xs border border-slate-200 dark:border-slate-700 cursor-pointer"
                         >
-                          <Trash2 size={14} />
+                          <Trash2 size={12} />
                         </button>
                       </div>
                     )}
@@ -1368,15 +1587,18 @@ Gracias por seguir con nosotros.
                     }`}></div>
                     
                     <div className="pl-1 md:pl-2">
-                      <div className="flex flex-wrap sm:flex-nowrap justify-between items-center gap-1.5 pb-1 md:pb-2 md:border-b md:border-slate-100 dark:border-slate-800/80">
+                      <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1.5 pb-1 md:pb-2 md:border-b md:border-slate-100 dark:border-slate-800/80">
                         <span className={`text-[10px] md:text-xs font-black uppercase px-2.5 py-0.5 md:px-3 md:py-1 rounded-md md:rounded-lg shrink-0 inline-flex items-center gap-1 ${
+                          (mov as any).anulado ? 'bg-rose-100 text-rose-700 dark:bg-rose-950/60 dark:text-rose-300 border border-rose-200 dark:border-rose-800/60' :
                           mov.tipo === 'devolucion' ? 'bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-300' :
                           esEntregaSepare ? 'bg-purple-100 text-purple-700 dark:bg-purple-950/40 dark:text-purple-300' :
                           esSepare ? 'bg-violet-100 text-violet-700 dark:bg-violet-950/40 dark:text-violet-300' :
                           mov.tipo === 'fiado' ? 'bg-rose-100 text-rose-700 dark:bg-rose-500/20 dark:text-rose-300' : 
                           (mov.tipo === 'venta' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300' : 'bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-300')
                         }`}>
-                          {mov.tipo === 'devolucion' ? (
+                          {(mov as any).anulado ? (
+                            '🚫 ABONO ANULADO'
+                          ) : mov.tipo === 'devolucion' ? (
                             <>
                               <RotateCcw size={11} className="shrink-0" />
                               <span>DEVOLUCIÓN</span>
@@ -1385,15 +1607,10 @@ Gracias por seguir con nosotros.
                             '📦 SEPARE ENTREGADO'
                           ) : esSepare ? (
                             mov.subtipo === 'abono_inicial_separe' ? '🔖 SEPARE INICIAL' :
-                            (mov.subtipo === 'apertura_separe_sin_abono' || mov.monto === 0 ? '🔖 NUEVO SEPARE' : '🔖 ABONO SEPARE')
-                          ) : mov.tipo === 'abono' ? (
-                            'ABONO CUENTA'
-                          ) : (
-                            mov.tipo
-                          )}
+                            (mov.subtipo === 'apertura_separe_sin_abono' || mov.monto === 0 ? '🔖 NUEVO SEPARE' : '🔖 ABONO SEPARE')) : (mov.tipo === 'abono' ? 'ABONO CUENTA' : mov.tipo)}
                         </span>
                         
-                        <div className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[10px] md:text-[11px] font-bold uppercase">
+                        <div className="flex items-center gap-x-1.5 text-[10px] md:text-[11px] font-bold uppercase text-slate-400 shrink-0 ml-auto">
                           {mov.registradoPor && (
                             <span className="text-slate-500 dark:text-slate-400 whitespace-nowrap inline-flex items-center gap-1">
                               <User size={10} className="text-slate-400" />
@@ -1426,6 +1643,16 @@ Gracias por seguir con nosotros.
                       <div className="flex justify-between items-center pt-2 mt-1 md:mt-0 md:pt-3 border-t border-slate-200 dark:border-slate-700 md:border-slate-100 dark:md:border-slate-800 font-black">
                         <span className="text-xs text-slate-400 uppercase tracking-wider">Total:</span>
                         <div className="flex items-center gap-2">
+                          {mov.tipo === 'abono' && !(mov as any).anulado && (datosSesion?.rol !== 'cajero' || datosSesion?.permisos?.hacerDevoluciones) && (
+                            <button
+                              type="button"
+                              onClick={() => setModalAnularAbono({ isOpen: true, movimiento: mov, cliente: clienteActivo })}
+                              className="text-[10px] font-bold px-2 py-1 bg-rose-50 hover:bg-rose-100 text-rose-600 dark:bg-rose-950/40 dark:hover:bg-rose-900/60 dark:text-rose-400 rounded-lg transition-colors cursor-pointer border border-rose-200 dark:border-rose-800 flex items-center gap-1"
+                              title="Anular abono por error o duplicado"
+                            >
+                              <RotateCcw size={12} /> Anular Abono
+                            </button>
+                          )}
                           {(mov.tipo === 'venta' || mov.tipo === 'fiado') && mov.detalles && mov.detalles.length > 0 && (datosSesion?.rol !== 'cajero' || datosSesion?.permisos?.hacerDevoluciones) && (
                             <button
                               type="button"
@@ -1444,12 +1671,14 @@ Gracias por seguir con nosotros.
                             <Printer size={15} />
                           </button>
                           <span className={`text-base md:text-xl font-black ${
+                            (mov as any).anulado ? 'line-through text-slate-400 dark:text-slate-500 opacity-60' :
                             mov.tipo === 'devolucion' || mov.tipo === 'egreso' ? 'text-amber-600 dark:text-amber-400' :
                             esEntregaSepare ? 'text-purple-600 dark:text-purple-400' :
                             esSepare ? 'text-violet-600 dark:text-violet-400' :
                             mov.tipo === 'fiado' ? 'text-rose-500' : (mov.tipo === 'venta' ? 'text-emerald-500' : 'text-blue-500')
                           }`}>
-                            {esEntregaSepare ? 'Entregado' : (mov.subtipo === 'apertura_separe_sin_abono' || (mov.monto === 0 && esSepare) ? 'Reservado ($0)' : `${mov.tipo === 'fiado' || mov.tipo === 'egreso' || mov.tipo === 'devolucion' ? '-' : '+'}${Math.round(mov.monto || 0).toLocaleString('es-CO')}`)}
+                            {(mov as any).anulado ? `(Anulado) $${Math.round(mov.monto || 0).toLocaleString('es-CO')}` :
+                             esEntregaSepare ? 'Entregado' : (mov.subtipo === 'apertura_separe_sin_abono' || (mov.monto === 0 && esSepare) ? 'Reservado ($0)' : `${mov.tipo === 'fiado' || mov.tipo === 'egreso' || mov.tipo === 'devolucion' ? '-' : '+'}${Math.round(mov.monto || 0).toLocaleString('es-CO')}`)}
                           </span>
                         </div>
                       </div>
@@ -1649,6 +1878,24 @@ Gracias por seguir con nosotros.
           </div>
         </div>
       )}
+
+      {/* MODAL DETALLE DE CIERRE O ARQUEO */}
+      <ModalDetalleCierre
+        cierre={cierreSeleccionado}
+        isOpen={Boolean(cierreSeleccionado)}
+        onClose={() => setCierreSeleccionado(null)}
+      />
+
+      <ModalAnularAbono
+        isOpen={modalAnularAbono.isOpen}
+        onClose={() => setModalAnularAbono({ isOpen: false, movimiento: null, cliente: null })}
+        movimiento={modalAnularAbono.movimiento}
+        clienteNombre={modalAnularAbono.cliente?.nombre || modalAnularAbono.movimiento?.clienteNombre || 'Cliente'}
+        clienteDeudaActual={modalAnularAbono.cliente?.deudaTotal || 0}
+        onSuccess={() => {
+          // Re-cargar historial o actualizar en snapshot
+        }}
+      />
 
     </div>
   );

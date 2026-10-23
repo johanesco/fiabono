@@ -1543,7 +1543,7 @@ function FiarContenido() {
                 descuentoValor: mostrarDescuento && montoDescuentoTotal > 0 ? (tipoDescuento === 'porcentaje' ? Number(valorDescuento) : montoDescuentoTotal) : undefined,
                 montoDescuento: montoDescuentoTotal > 0 ? montoDescuentoTotal : undefined,
                 saldoNuevo: saldoFinal,
-                idTransaccion: resFiado.movimientoFiadoId || '',
+                idTransaccion: resFiado.movimientoFiadoId || resFiado.movimientoVentaId || '',
                 metodoPago: 'fiado' as const
             };
 

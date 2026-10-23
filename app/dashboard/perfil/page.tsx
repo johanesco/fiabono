@@ -96,6 +96,7 @@ export default function PerfilPage() {
       aplicarDescuentos: false,
       planSepare: false,
       hacerDevoluciones: false,
+      cierreCaja: false,
       ventaLibre: false,
       enviarWhatsApp: true
     }
@@ -185,6 +186,7 @@ export default function PerfilPage() {
     ingresoInventario: false,
     modificarPrecios: false,
     aplicarDescuentos: false,
+    cierreCaja: false,
     ventaLibre: false,
     enviarWhatsApp: true
   });
@@ -1076,6 +1078,7 @@ export default function PerfilPage() {
           aplicarDescuentos: false, 
           planSepare: false, 
           hacerDevoluciones: false, 
+          cierreCaja: false,
           ventaLibre: false, 
           enviarWhatsApp: true 
         } 
@@ -1553,6 +1556,7 @@ export default function PerfilPage() {
                               modificarPrecios: cajaMostrador.permisos.modificarPrecios || false,
                               aplicarDescuentos: cajaMostrador.permisos.aplicarDescuentos || false,
                               hacerDevoluciones: cajaMostrador.permisos.hacerDevoluciones || false,
+                              cierreCaja: cajaMostrador.permisos.cierreCaja || false,
                               ventaLibre: cajaMostrador.permisos.ventaLibre || false,
                               enviarWhatsApp: cajaMostrador.permisos.enviarWhatsApp !== false
                             });
@@ -1571,6 +1575,7 @@ export default function PerfilPage() {
                               modificarPrecios: false,
                               aplicarDescuentos: false,
                               hacerDevoluciones: false,
+                              cierreCaja: false,
                               ventaLibre: false,
                               enviarWhatsApp: true
                             });
@@ -1760,6 +1765,7 @@ export default function PerfilPage() {
                                   aplicarDescuentos: c.permisos?.aplicarDescuentos || false,
                                   planSepare: c.permisos?.planSepare ?? false,
                                   hacerDevoluciones: c.permisos?.hacerDevoluciones || false,
+                                  cierreCaja: c.permisos?.cierreCaja || false,
                                   ventaLibre: c.permisos?.ventaLibre || false,
                                   enviarWhatsApp: c.permisos?.enviarWhatsApp !== false
                                 }
@@ -1889,6 +1895,7 @@ export default function PerfilPage() {
                         aplicarDescuentos: false, 
                         planSepare: false,
                         hacerDevoluciones: false,
+                        cierreCaja: false,
                         ventaLibre: false,
                         enviarWhatsApp: true
                       }
@@ -2183,12 +2190,12 @@ export default function PerfilPage() {
                       /> 
                       <div>
                         <span className="font-bold text-slate-800 dark:text-slate-200 block">
-                          Cierre Directo de Ventas y Fiados
+                          Cobro Directo de Ventas y Fiados (Sin Aprobación)
                         </span>
                         <span className="text-xs text-slate-400 block mt-0.5">
                           {formColaborador.permisos.ventaDirecta 
                             ? "Cobro autónomo: Factura y finaliza ventas o fiados de una vez." 
-                            : "Modo Toma-Pedidos: Solo envía órdenes pendientes para tu aprobación y cobro."}
+                            : "Modo Toma-Pedidos: Solo envía órdenes pendientes para aprobación y cobro del admin."}
                         </span>
                       </div>
                     </label>
@@ -2303,7 +2310,7 @@ export default function PerfilPage() {
                       /> 
                       <div>
                         <span className="font-bold text-slate-800 dark:text-slate-200 block">Modificar Precios al Vender</span>
-                        <span className="text-xs text-slate-400 block mt-0.5">Si está desactivado, el colaborador no podrá alterar los precios de venta en inventario.</span>
+                        <span className="text-xs text-slate-400 block mt-0.5">Permite cambiar el precio unitario del producto al momento de registrar la venta.</span>
                       </div>
                     </label>
 
@@ -2340,7 +2347,7 @@ export default function PerfilPage() {
                         onChange={e => setFormColaborador({...formColaborador, permisos: {...formColaborador.permisos, verCartera: e.target.checked}})}
                       /> 
                       <div>
-                        <span className="font-bold text-slate-800 dark:text-slate-200 block">Acceso a Clientes y Cartera</span>
+                        <span className="font-bold text-slate-800 dark:text-slate-200 block">Módulo Clientes y Cartera (Cobranza y Deudas Globales)</span>
                         <span className="text-xs text-slate-400 block mt-0.5">Permite ingresar al módulo de Clientes y Cartera, ver la cartera total fiada en la calle, semáforo de riesgo y cobranza.</span>
                       </div>
                     </label>
@@ -2354,8 +2361,8 @@ export default function PerfilPage() {
                         onChange={e => setFormColaborador({...formColaborador, permisos: {...formColaborador.permisos, verDirectorio: e.target.checked}})}
                       /> 
                       <div>
-                        <span className="font-bold text-slate-800 dark:text-slate-200 block">Directorio de Clientes en Inicio</span>
-                        <span className="text-xs text-slate-400 block mt-0.5">Permite abrir la libreta de contactos en la pantalla de inicio para consultar fichas básicas o registrar nuevos clientes.</span>
+                        <span className="font-bold text-slate-800 dark:text-slate-200 block">Libreta Rápida de Clientes (En Pantalla de Inicio)</span>
+                        <span className="text-xs text-slate-400 block mt-0.5">Permite buscar contactos y registrar nuevos clientes desde el mostrador, sin exponer estadísticas ni deudas globales.</span>
                       </div>
                     </label>
 
@@ -2422,6 +2429,24 @@ export default function PerfilPage() {
                       <div>
                         <span className="font-bold text-slate-800 dark:text-slate-200 block">Ver Estadísticas de Dinero y Ganancias</span>
                         <span className="text-xs text-slate-400 block mt-0.5">Permite acceso a reportes financieros, totales diarios y utilidades.</span>
+                      </div>
+                    </label>
+
+                    {/* Cierre de Caja */}
+                    <label className="flex items-start gap-3 text-sm font-medium text-slate-600 dark:text-slate-300 cursor-pointer">
+                      <input 
+                        type="checkbox" 
+                        className="w-5 h-5 mt-0.5 accent-amber-500 shrink-0 cursor-pointer" 
+                        checked={formColaborador.permisos.cierreCaja || false} 
+                        onChange={e => setFormColaborador({...formColaborador, permisos: {...formColaborador.permisos, cierreCaja: e.target.checked}})}
+                      /> 
+                      <div>
+                        <span className="font-bold text-slate-800 dark:text-slate-200 block text-amber-600 dark:text-amber-400">
+                          Arqueo y Cierre de Turno de Caja
+                        </span>
+                        <span className="text-xs text-slate-400 block mt-0.5">
+                          Permite realizar el conteo de billetes y monedas, cuadrar la gaveta de efectivo y cerrar el turno diario.
+                        </span>
                       </div>
                     </label>
                   </div>
@@ -4037,7 +4062,7 @@ export default function PerfilPage() {
                     <div className="flex-1">
                       <div className="flex items-center gap-2 flex-wrap mb-1">
                         <span className="font-bold text-slate-900 dark:text-white text-sm">
-                          Cierre Directo en Caja
+                          Cobro Directo en Mostrador
                         </span>
                         <span className={`text-[10px] font-black px-2 py-0.5 rounded-full inline-flex items-center gap-1.5 ${
                           permisosCajaEdicion.ventaDirecta
@@ -4201,7 +4226,7 @@ export default function PerfilPage() {
                   />
                   <div>
                     <span className="font-bold text-slate-800 dark:text-slate-200 block text-xs sm:text-sm">
-                      Acceso al Módulo Clientes y Cartera
+                      Módulo Clientes y Cartera (Cobranza y Deudas Globales)
                     </span>
                     <span className="text-xs text-slate-400 block mt-0.5">
                       Permite ingresar al módulo de Clientes y Cartera, ver cartera total en calle, dinero en riesgo y cobranza.
@@ -4219,7 +4244,7 @@ export default function PerfilPage() {
                   />
                   <div>
                     <span className="font-bold text-slate-800 dark:text-slate-200 block text-xs sm:text-sm">
-                      Directorio de Clientes en Inicio
+                      Libreta Rápida de Clientes (En Pantalla de Inicio)
                     </span>
                     <span className="text-xs text-slate-400 block mt-0.5">
                       Permite abrir la libreta de contactos en la pantalla de inicio para consultar fichas o agregar nuevos clientes.
@@ -4302,6 +4327,24 @@ export default function PerfilPage() {
                     </span>
                     <span className="text-xs text-slate-400 block mt-0.5">
                       Da acceso al panel de Reportes (dinero total, ventas, deudas globales). Usa esto solo si el cajero es de tu total confianza.
+                    </span>
+                  </div>
+                </label>
+
+                {/* Cierre de Caja en Terminal */}
+                <label className="flex items-start gap-3 p-2.5 rounded-xl hover:bg-white dark:hover:bg-[#0f172a] cursor-pointer transition-colors">
+                  <input 
+                    type="checkbox" 
+                    className="w-5 h-5 mt-0.5 accent-amber-500 shrink-0 cursor-pointer" 
+                    checked={permisosCajaEdicion.cierreCaja === true} 
+                    onChange={e => setPermisosCajaEdicion(p => ({ ...p, cierreCaja: e.target.checked }))}
+                  />
+                  <div>
+                    <span className="font-bold text-slate-800 dark:text-slate-200 block text-xs sm:text-sm text-amber-600 dark:text-amber-400">
+                      Arqueo y Cierre de Turno de Caja
+                    </span>
+                    <span className="text-xs text-slate-400 block mt-0.5">
+                      Permite realizar el conteo de billetes y monedas, cuadrar la gaveta de efectivo y cerrar turnos desde esta terminal.
                     </span>
                   </div>
                 </label>

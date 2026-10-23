@@ -24,6 +24,9 @@ export default function ModalProcesarDevolucion({
   onSuccess
 }: ModalProcesarDevolucionProps) {
   const { datosSesion } = useAuth();
+  const esAdmin = datosSesion?.rol !== 'cajero';
+  const puedeHacerDevoluciones = esAdmin || datosSesion?.permisos?.hacerDevoluciones === true;
+  const fuePagadoConSaldo = ventaOrigen?.metodoPago === 'saldo_interno' || Number(ventaOrigen?.montoPagadoConSaldoFavor || 0) >= Number(ventaOrigen?.monto || 0);
   
   // Estado de cantidas devueltas por index del detalle
   const [cantidadesDevueltas, setCantidadesDevueltas] = useState<Record<number, number>>({});
@@ -39,7 +42,7 @@ export default function ModalProcesarDevolucion({
     if (isOpen && ventaOrigen?.id) {
       setCantidadesDevueltas({});
       setYaDevueltos({});
-      setMetodoDevolucion(esClienteRegistrado ? 'saldo_a_favor' : 'efectivo');
+      setMetodoDevolucion((esClienteRegistrado || fuePagadoConSaldo) ? 'saldo_a_favor' : 'efectivo');
 
       const fetchDevoluciones = async () => {
         try {
@@ -154,6 +157,10 @@ export default function ModalProcesarDevolucion({
   };
 
   const procesarDevolucion = async () => {
+    if (!puedeHacerDevoluciones) {
+      toast.error("No tienes permisos para realizar devoluciones.");
+      return;
+    }
     if (!haySeleccion) {
       toast.error("Selecciona al menos un artículo para devolver.");
       return;
@@ -390,7 +397,7 @@ export default function ModalProcesarDevolucion({
                   type="radio" 
                   name="metodoDevolucion" 
                   value="efectivo"
-                  disabled={ventaOrigen.tipo === 'fiado'}
+                  disabled={ventaOrigen.tipo === 'fiado' || fuePagadoConSaldo}
                   checked={metodoDevolucion === 'efectivo'} 
                   onChange={() => setMetodoDevolucion('efectivo')}
                   className="w-4 h-4 text-amber-600"
@@ -413,6 +420,18 @@ export default function ModalProcesarDevolucion({
                   <p>Esta transacción fue un <strong>Fiado</strong> original. No puedes entregar efectivo por algo que el cliente no ha pagado. Solo puedes abonar a la deuda.</p>
                 </div>
               )}
+              {fuePagadoConSaldo && esClienteRegistrado && (
+                <div className="flex gap-2 text-blue-600 dark:text-blue-400 text-xs mt-2 p-2 bg-blue-50 dark:bg-blue-500/10 rounded-lg">
+                  <AlertCircle size={14} className="shrink-0" />
+                  <p>Esta venta fue pagada con <strong>Saldo a Favor</strong>. El valor se reintegrará automáticamente como saldo a favor a la cuenta del cliente para proteger el dinero físico de la caja.</p>
+                </div>
+              )}
+              {!puedeHacerDevoluciones && (
+                <div className="flex gap-2 text-rose-600 dark:text-rose-400 text-xs mt-2 p-2 bg-rose-50 dark:bg-rose-500/10 rounded-lg">
+                  <AlertCircle size={14} className="shrink-0" />
+                  <p>Tu rol de colaborador no cuenta con el permiso para procesar devoluciones. Solicita autorización al administrador.</p>
+                </div>
+              )}
             </div>
           </div>
           
@@ -422,7 +441,7 @@ export default function ModalProcesarDevolucion({
         <div className="p-4 sm:p-6 pb-[calc(1rem+env(safe-area-inset-bottom))] sm:pb-6 border-t border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900/50 shrink-0">
           <button 
             onClick={procesarDevolucion}
-            disabled={!haySeleccion || procesando || (!esClienteRegistrado && metodoDevolucion === 'saldo_a_favor')}
+            disabled={!haySeleccion || procesando || !puedeHacerDevoluciones || (!esClienteRegistrado && metodoDevolucion === 'saldo_a_favor')}
             className={`w-full py-4 rounded-2xl font-black text-lg flex items-center justify-center gap-2 transition-all shadow-lg ${
               haySeleccion && !procesando
                 ? 'bg-amber-500 hover:bg-amber-600 text-white active:scale-[0.98]' 
