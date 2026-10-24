@@ -10,7 +10,8 @@ import {
   Bookmark, ArrowLeft, Search, Plus, Minus, X, ChevronRight, ChevronLeft, CheckCircle2, 
   MessageCircle, Printer, MoreVertical, Camera, AlertCircle, Banknote, 
   CreditCard, Smartphone, Zap, Clock, Calendar, ChevronDown, ChevronUp, 
-  Trash2, User, Eye, Check, AlertTriangle, HelpCircle, FileText, RotateCcw, Package, Wallet, MapPin, Upload
+  Trash2, User, Eye, Check, AlertTriangle, HelpCircle, FileText, RotateCcw, Package, Wallet, MapPin, Upload,
+  Sparkles
 } from 'lucide-react';
 import toast from "react-hot-toast";
 import { useAuth } from "@/hooks/AuthContext";
@@ -54,7 +55,7 @@ function SeparesContenido() {
   const [separes, setSepares] = useState<any[]>([]);
   const [mapaInventario, setMapaInventario] = useState<Record<string, any>>({});
   const [cargando, setCargando] = useState(true);
-  const [tabActiva, setTabActiva] = useState<'activos' | 'completados' | 'cancelados' | 'todos'>('activos');
+  const [tabActiva, setTabActiva] = useState<'activos' | 'completados' | 'cancelados' | 'vencidos' | 'todos'>('activos');
   const [busqueda, setBusqueda] = useState("");
 
   // Modales
@@ -329,7 +330,7 @@ function SeparesContenido() {
   useEffect(() => {
     const tabParam = searchParams.get('tab');
     const busquedaParam = searchParams.get('busqueda');
-    if (tabParam === 'activos' || tabParam === 'completados' || tabParam === 'cancelados') {
+    if (tabParam === 'activos' || tabParam === 'completados' || tabParam === 'cancelados' || tabParam === 'vencidos') {
       setTabActiva(tabParam);
     }
     if (busquedaParam) {
@@ -359,30 +360,6 @@ function SeparesContenido() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [fotoLightbox]);
 
-  // Contadores
-  const countActivos = separes.filter(s => s.estado === 'activo').length;
-  const countCompletados = separes.filter(s => s.estado === 'completado').length;
-  const countCancelados = separes.filter(s => s.estado === 'cancelado').length;
-
-  // Filtrado de separes
-  const separesFiltrados = separes.filter((sep) => {
-    if (tabActiva === 'activos' && sep.estado !== 'activo') return false;
-    if (tabActiva === 'completados' && sep.estado !== 'completado') return false;
-    if (tabActiva === 'cancelados' && sep.estado !== 'cancelado') return false;
-
-    if (!busqueda.trim()) return true;
-
-    const normalizar = (texto: string) => (texto || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
-    const qNorm = normalizar(busqueda);
-    const clienteMatch = normalizar(sep.clienteNombre).includes(qNorm);
-    const celularMatch = (sep.clienteCelular || "").toString().includes(busqueda.trim());
-    const notasClienteMatch = normalizar(sep.clienteNotas || "").includes(qNorm);
-    const notasSepareMatch = normalizar(sep.notas || "").includes(qNorm);
-    const itemsMatch = (sep.items || []).some((it: any) => normalizar(it.descripcion).includes(qNorm));
-
-    return clienteMatch || celularMatch || notasClienteMatch || notasSepareMatch || itemsMatch;
-  });
-
   // Helpers de fecha y vencimiento
   const formatearFecha = (f: any) => {
     if (!f) return "Sin fecha";
@@ -411,6 +388,36 @@ function SeparesContenido() {
     }
     return { tipo: 'normal', texto: `Vence: ${formatearFecha(sep.fechaLimite)}` };
   };
+
+  // Contadores
+  const countActivos = separes.filter(s => s.estado === 'activo').length;
+  const countCompletados = separes.filter(s => s.estado === 'completado').length;
+  const countCancelados = separes.filter(s => s.estado === 'cancelado').length;
+  const countVencidos = separes.filter(s => s.estado === 'activo' && getEstadoVencimiento(s)?.tipo === 'vencido').length;
+
+  // Filtrado de separes
+  const separesFiltrados = separes.filter((sep) => {
+    if (tabActiva === 'activos' && sep.estado !== 'activo') return false;
+    if (tabActiva === 'vencidos') {
+      if (sep.estado !== 'activo') return false;
+      const estadoV = getEstadoVencimiento(sep);
+      if (!estadoV || estadoV.tipo !== 'vencido') return false;
+    }
+    if (tabActiva === 'completados' && sep.estado !== 'completado') return false;
+    if (tabActiva === 'cancelados' && sep.estado !== 'cancelado') return false;
+
+    if (!busqueda.trim()) return true;
+
+    const normalizar = (texto: string) => (texto || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
+    const qNorm = normalizar(busqueda);
+    const clienteMatch = normalizar(sep.clienteNombre).includes(qNorm);
+    const celularMatch = (sep.clienteCelular || "").toString().includes(busqueda.trim());
+    const notasClienteMatch = normalizar(sep.clienteNotas || "").includes(qNorm);
+    const notasSepareMatch = normalizar(sep.notas || "").includes(qNorm);
+    const itemsMatch = (sep.items || []).some((it: any) => normalizar(it.descripcion).includes(qNorm));
+
+    return clienteMatch || celularMatch || notasClienteMatch || notasSepareMatch || itemsMatch;
+  });
 
   const formatearMonedaInput = (valor: string) => {
     if (!valor) return "";
@@ -1333,46 +1340,63 @@ Gracias por contactarnos.`;
 
         {/* BARRA DE TABS Y BUSCADOR */}
         <div className="flex flex-col sm:flex-row gap-3 items-stretch sm:items-center justify-between">
-          {/* Tabs con distribución perfecta */}
-          <div className="grid grid-cols-3 sm:flex bg-white dark:bg-[#0f172a] p-1 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm w-full sm:w-auto shrink-0 gap-0.5">
+          {/* Tabs con scroll suave táctil para móviles/tablets y desktop */}
+          <div className="flex items-center bg-white dark:bg-[#0f172a] p-1 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm w-full sm:w-auto overflow-x-auto no-scrollbar gap-1 shrink-0">
             <button
               onClick={() => setTabActiva('activos')}
-              className={`px-2 sm:px-3.5 py-2 rounded-xl text-[11px] sm:text-xs font-black transition-all flex items-center justify-center gap-1 sm:gap-1.5 cursor-pointer ${
+              className={`px-3 py-2 rounded-xl text-[11px] sm:text-xs font-black transition-all flex items-center justify-center gap-1.5 cursor-pointer shrink-0 ${
                 tabActiva === 'activos'
                   ? 'bg-violet-600 text-white shadow-sm'
                   : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
               }`}
             >
               <span>Activos</span>
-              <span className={`text-[10px] px-1.5 py-0.2 rounded-full shrink-0 font-bold ${tabActiva === 'activos' ? 'bg-white/20 text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-500'}`}>
+              <span className={`text-[10px] px-1.5 py-0.5 rounded-full shrink-0 font-bold ${tabActiva === 'activos' ? 'bg-white/20 text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-500'}`}>
                 {countActivos}
               </span>
             </button>
 
+            {countVencidos > 0 && (
+              <button
+                onClick={() => setTabActiva('vencidos')}
+                className={`px-3 py-2 rounded-xl text-[11px] sm:text-xs font-black transition-all flex items-center justify-center gap-1.5 cursor-pointer shrink-0 ${
+                  tabActiva === 'vencidos'
+                    ? 'bg-rose-600 text-white shadow-sm'
+                    : 'text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-950/40 hover:bg-rose-100'
+                }`}
+                title="Planes separe cuya fecha límite ya expiró"
+              >
+                <span>Vencidos</span>
+                <span className={`text-[10px] px-1.5 py-0.5 rounded-full shrink-0 font-bold ${tabActiva === 'vencidos' ? 'bg-white/20 text-white' : 'bg-rose-200 dark:bg-rose-900 text-rose-800 dark:text-rose-200'}`}>
+                  {countVencidos}
+                </span>
+              </button>
+            )}
+
             <button
               onClick={() => setTabActiva('completados')}
-              className={`px-2 sm:px-3.5 py-2 rounded-xl text-[11px] sm:text-xs font-black transition-all flex items-center justify-center gap-1 sm:gap-1.5 cursor-pointer ${
+              className={`px-3 py-2 rounded-xl text-[11px] sm:text-xs font-black transition-all flex items-center justify-center gap-1.5 cursor-pointer shrink-0 ${
                 tabActiva === 'completados'
                   ? 'bg-emerald-600 text-white shadow-sm'
                   : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
               }`}
             >
-              <span className="truncate">Completados</span>
-              <span className={`text-[10px] px-1.5 py-0.2 rounded-full shrink-0 font-bold ${tabActiva === 'completados' ? 'bg-white/20 text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-500'}`}>
+              <span>Completados</span>
+              <span className={`text-[10px] px-1.5 py-0.5 rounded-full shrink-0 font-bold ${tabActiva === 'completados' ? 'bg-white/20 text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-500'}`}>
                 {countCompletados}
               </span>
             </button>
 
             <button
               onClick={() => setTabActiva('cancelados')}
-              className={`px-2 sm:px-3.5 py-2 rounded-xl text-[11px] sm:text-xs font-black transition-all flex items-center justify-center gap-1 sm:gap-1.5 cursor-pointer ${
+              className={`px-3 py-2 rounded-xl text-[11px] sm:text-xs font-black transition-all flex items-center justify-center gap-1.5 cursor-pointer shrink-0 ${
                 tabActiva === 'cancelados'
                   ? 'bg-slate-700 text-white shadow-sm'
                   : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
               }`}
             >
               <span>Cancelados</span>
-              <span className={`text-[10px] px-1.5 py-0.2 rounded-full shrink-0 font-bold ${tabActiva === 'cancelados' ? 'bg-white/20 text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-500'}`}>
+              <span className={`text-[10px] px-1.5 py-0.5 rounded-full shrink-0 font-bold ${tabActiva === 'cancelados' ? 'bg-white/20 text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-500'}`}>
                 {countCancelados}
               </span>
             </button>
@@ -1404,10 +1428,10 @@ Gracias por contactarnos.`;
             </div>
             <div className="space-y-1">
               <h3 className="text-base font-black text-slate-800 dark:text-slate-200">
-                {busqueda ? "No se encontraron coincidencias" : `No hay separes ${tabActiva}`}
+                {busqueda ? "No se encontraron coincidencias" : tabActiva === 'vencidos' ? "¡No hay separes vencidos! 🎉" : `No hay separes ${tabActiva}`}
               </h3>
               <p className="text-xs text-slate-400 max-w-sm mx-auto">
-                {busqueda ? "Intenta con otro término de búsqueda" : "Crea tu primer Plan Separe para reservar productos y recibir abonos progresivos."}
+                {busqueda ? "Intenta con otro término de búsqueda" : tabActiva === 'vencidos' ? "Todos los apartados activos están al día dentro de sus fechas límite." : "Crea tu primer Plan Separe para reservar productos y recibir abonos progresivos."}
               </p>
             </div>
             {!busqueda && tabActiva === 'activos' && moduloSepareActivo && (
@@ -1446,29 +1470,45 @@ Gracias por contactarnos.`;
                   className="bg-white dark:bg-[#0f172a] rounded-3xl p-4 sm:p-5 border border-slate-200/80 dark:border-slate-800 shadow-sm hover:shadow-md transition-all space-y-3.5 flex flex-col justify-between"
                 >
                   <div className="space-y-3">
-                    {/* Encabezado: Cliente + Badges (Sin truncar nombre) */}
-                    <div className="flex items-start justify-between gap-2 min-w-0">
+                    {/* Encabezado: Cliente + Badges (Ancho amplio y sin cortes forzados de palabras) */}
+                    <div className="flex items-start justify-between gap-2.5 min-w-0">
                       <div className="flex items-start gap-2.5 sm:gap-3 min-w-0 flex-1">
                         <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-violet-600 to-purple-700 text-white font-black text-sm flex items-center justify-center shadow-sm shrink-0 mt-0.5">
                           {sep.clienteNombre?.charAt(0).toUpperCase() || "C"}
                         </div>
-                        <div className="min-w-0 flex-1">
+                        <div className="min-w-0 flex-1 space-y-1">
                           <h3 className="font-black text-sm sm:text-base text-slate-900 dark:text-white leading-tight break-words">
                             {sep.clienteNombre}
                           </h3>
-                          <p className="text-[11px] font-bold text-slate-400 mt-0.5">
-                            {sep.clienteCelular || "Sin celular"}
-                          </p>
+
+                          {/* Sub-fila meta: Celular + Fecha de Vencimiento */}
+                          <div className="flex flex-wrap items-center gap-1.5 text-[11px] font-bold text-slate-400">
+                            <span>{sep.clienteCelular || "Sin celular"}</span>
+                            {estadoVenc && (
+                              <span className={`text-[10px] font-black px-2 py-0.5 rounded-md inline-flex items-center gap-1 shrink-0 ${
+                                estadoVenc.tipo === 'vencido'
+                                  ? 'bg-rose-100 text-rose-700 dark:bg-rose-500/20 dark:text-rose-300 animate-pulse'
+                                  : estadoVenc.tipo === 'hoy'
+                                    ? 'bg-amber-100 text-amber-800 dark:bg-amber-500/20 dark:text-amber-300'
+                                    : 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400'
+                              }`}>
+                                <Calendar size={11} className="shrink-0" />
+                                <span>{estadoVenc.texto}</span>
+                              </span>
+                            )}
+                          </div>
+
                           {(sep.ubicacionBodega || sep.notas) && (
-                            <span className="inline-block mt-1 text-[10.5px] font-bold text-violet-700 dark:text-violet-300 bg-violet-50 dark:bg-violet-950/40 border border-violet-200 dark:border-violet-800/60 px-2 py-0.5 rounded-lg break-words">
+                            <span className="inline-block mt-0.5 text-[10.5px] font-bold text-violet-700 dark:text-violet-300 bg-violet-50 dark:bg-violet-950/40 border border-violet-200 dark:border-violet-800/60 px-2 py-0.5 rounded-lg break-words">
                               📦 {sep.ubicacionBodega || sep.notas}
                             </span>
                           )}
                         </div>
                       </div>
 
-                      <div className="flex flex-col items-end gap-1 shrink-0">
-                        <span className={`text-[10px] font-black uppercase px-2.5 py-0.5 rounded-full ${
+                      {/* Solo el badge de estado a la derecha */}
+                      <div className="shrink-0">
+                        <span className={`text-[10px] font-black uppercase px-2.5 py-1 rounded-full ${
                           esCompletado
                             ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300'
                             : esCancelado
@@ -1477,24 +1517,12 @@ Gracias por contactarnos.`;
                         }`}>
                           {sep.estado}
                         </span>
-
-                        {estadoVenc && (
-                          <span className={`text-[9px] font-black px-2 py-0.5 rounded-md ${
-                            estadoVenc.tipo === 'vencido'
-                              ? 'bg-rose-100 text-rose-700 dark:bg-rose-500/20 dark:text-rose-300 animate-pulse'
-                              : estadoVenc.tipo === 'hoy'
-                                ? 'bg-amber-100 text-amber-800 dark:bg-amber-500/20 dark:text-amber-300'
-                                : 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400'
-                          }`}>
-                            {estadoVenc.texto}
-                          </span>
-                        )}
                       </div>
                     </div>
 
                     {/* Lista de Artículos con estado de entrega parcial */}
                     <div className="bg-slate-50 dark:bg-slate-900/60 p-3 rounded-2xl space-y-2 border border-slate-100 dark:border-slate-800/60">
-                      <div className="space-y-2">
+                      <div className="space-y-2 max-h-48 overflow-y-auto pr-0.5">
                         {(sep.items || []).map((it: any, idx: number) => {
                           const fotoItem = obtenerFotoProducto(it);
                           const cantTotal = Number(it.cantidad || 1);
@@ -1533,11 +1561,10 @@ Gracias por contactarnos.`;
                                     <button
                                       type="button"
                                       onClick={() => abrirModalCamaraPostSepare(sep, idx)}
-                                      className="shrink-0 px-1.5 py-0.5 bg-slate-100 hover:bg-violet-100 dark:bg-slate-800 dark:hover:bg-violet-950/40 text-slate-400 hover:text-violet-600 dark:hover:text-violet-300 rounded-md text-[10px] font-bold transition-all flex items-center gap-1 cursor-pointer"
-                                      title="Tomar foto con cámara directa a este producto"
+                                      className="shrink-0 p-1 text-slate-400 hover:text-violet-600 dark:hover:text-violet-300 hover:bg-violet-50 dark:hover:bg-violet-950/40 rounded-lg transition-colors cursor-pointer"
+                                      title={`Tomar foto a este producto (${it.descripcion})`}
                                     >
-                                      <Camera size={11} />
-                                      <span className="hidden sm:inline">+Foto</span>
+                                      <Camera size={12} />
                                     </button>
                                   ))}
                                 </div>
@@ -1566,50 +1593,13 @@ Gracias por contactarnos.`;
 
                       {/* Miniaturas de Fotos e Inserción Antifraude */}
                       {(() => {
-                        const fotosColeccion: { url: string; productoNombre?: string | null; detalle?: string | null; esDeInventario?: boolean }[] = [];
-
-                        // 1. Fotos de los artículos individuales del separe
-                        (sep.items || []).forEach((it: any) => {
-                          const fUrl = obtenerFotoProducto(it);
-                          if (fUrl && !fotosColeccion.some(f => f.url === fUrl)) {
-                            fotosColeccion.push({
-                              url: fUrl,
-                              productoNombre: it.descripcion,
-                              detalle: `Artículo en Separe • ${Number(it.cantidad || 1)} un.`,
-                              esDeInventario: Boolean(it.idProducto || mapaInventario[it.descripcion?.trim().toLowerCase()])
-                            });
-                          }
-                        });
-
-                        // 2. Fotos generales o evidencias anexadas al separe (sep.fotos)
-                        if (Array.isArray(sep.fotos)) {
-                          sep.fotos.forEach((fUrl: string, idx: number) => {
-                            if (fUrl && !fotosColeccion.some(f => f.url === fUrl)) {
-                              const itemVinculado = (sep.items || []).find((it: any) => it.fotoUrl === fUrl || it.foto === fUrl || it.imagen === fUrl);
-                              if (itemVinculado) {
-                                fotosColeccion.push({
-                                  url: fUrl,
-                                  productoNombre: itemVinculado.descripcion,
-                                  detalle: `Artículo en Separe • ${Number(itemVinculado.cantidad || 1)} un.`,
-                                  esDeInventario: false
-                                });
-                              } else {
-                                fotosColeccion.push({
-                                  url: fUrl,
-                                  productoNombre: null,
-                                  detalle: `Evidencia fotográfica #${idx + 1} • Separe`,
-                                  esDeInventario: false
-                                });
-                              }
-                            }
-                          });
-                        }
+                        const fotosColeccion = obtenerColeccionFotosSepare(sep);
 
                         return (
                           <div className="flex items-center justify-between gap-2 pt-2 border-t border-slate-200/60 dark:border-slate-800">
                             <div className="flex items-center gap-1.5 overflow-x-auto py-0.5 no-scrollbar flex-1 min-w-0">
                               <span className="text-[10px] font-black text-violet-600 dark:text-violet-400 flex items-center gap-1 shrink-0">
-                                <Camera size={13} /> Fotos ({fotosColeccion.length}):
+                                <Camera size={13} /> {fotosColeccion.length > 0 ? `Fotos (${fotosColeccion.length}):` : 'Sin fotos'}
                               </span>
                               {fotosColeccion.map((fotoObj, fIdx: number) => (
                                 <img
@@ -1623,16 +1613,16 @@ Gracias por contactarnos.`;
                               ))}
                             </div>
 
-                            {/* Botón Anexar Foto Antifraude (Acumula foto) */}
+                            {/* Botón Anexar Evidencia General */}
                             {!esCancelado && !esCompletado && (
                               <button
                                 type="button"
                                 onClick={() => abrirModalCamaraPostSepare(sep, null)}
-                                className="px-2 py-1 rounded-lg bg-violet-100 dark:bg-violet-950/50 hover:bg-violet-200 text-violet-700 dark:text-violet-300 text-[10.5px] font-black flex items-center gap-1 shrink-0 transition-colors cursor-pointer"
-                                title="Tomar foto con cámara o adjuntar evidencia"
+                                className="px-2.5 py-1 rounded-lg bg-violet-100 dark:bg-violet-950/50 hover:bg-violet-200 text-violet-700 dark:text-violet-300 text-[10.5px] font-black flex items-center gap-1 shrink-0 transition-colors cursor-pointer"
+                                title="Tomar foto con cámara o adjuntar evidencia general del separe"
                               >
                                 <Plus size={11} />
-                                <span>Foto</span>
+                                <span>Evidencia</span>
                               </button>
                             )}
                           </div>
@@ -1804,63 +1794,151 @@ Gracias por contactarnos.`;
 
       </div>
 
-      {/* MODAL 1: REGISTRAR ABONO */}
+      {/* MODAL 1: REGISTRAR ABONO (Zero-Scroll Compacto + Teal Saldo a Favor) */}
       {modalAbono && separeSeleccionado && (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 z-[210] animate-in zoom-in-95 duration-200">
-          <div className="bg-white dark:bg-[#0f172a] p-6 sm:p-8 rounded-3xl w-full max-w-md shadow-2xl border border-slate-100 dark:border-slate-800 space-y-4">
-            <div className="flex justify-between items-center pb-3 border-b border-slate-100 dark:border-slate-800">
-              <div className="flex items-center gap-2">
-                <div className="p-2 bg-violet-100 dark:bg-violet-500/20 text-violet-600 dark:text-violet-400 rounded-xl">
-                  <Banknote size={20} />
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center p-3 sm:p-4 z-[210] animate-in zoom-in-95 duration-200 overflow-y-auto">
+          <div className="bg-white dark:bg-[#0f172a] p-4 sm:p-5 rounded-3xl w-full max-w-md shadow-2xl border border-slate-100 dark:border-slate-800 space-y-2.5 my-auto max-h-[96vh] flex flex-col justify-between">
+            {/* Cabecera compacta */}
+            <div className="flex justify-between items-center pb-2 border-b border-slate-100 dark:border-slate-800">
+              <div className="flex items-center gap-2 min-w-0">
+                <div className="p-1.5 bg-violet-100 dark:bg-violet-500/20 text-violet-600 dark:text-violet-400 rounded-xl shrink-0">
+                  <Banknote size={18} />
                 </div>
-                <div>
-                  <h3 className="font-black text-slate-900 dark:text-white text-base">Registrar Abono</h3>
-                  <p className="text-xs text-slate-400">{separeSeleccionado.clienteNombre}</p>
+                <div className="min-w-0">
+                  <h3 className="font-black text-slate-900 dark:text-white text-sm sm:text-base leading-tight truncate">Registrar Abono</h3>
+                  <p className="text-[11px] text-slate-400 truncate">{separeSeleccionado.clienteNombre}</p>
                 </div>
               </div>
               <button
+                type="button"
                 onClick={() => setModalAbono(false)}
-                className="p-1.5 text-slate-400 hover:text-slate-700 dark:hover:text-white rounded-full bg-slate-100 dark:bg-slate-800"
+                className="p-1 text-slate-400 hover:text-slate-700 dark:hover:text-white rounded-full bg-slate-100 dark:bg-slate-800 cursor-pointer"
               >
                 <X size={16} />
               </button>
             </div>
 
-            {/* Saldo Pendiente Actual */}
-            <div className="p-3 bg-violet-50 dark:bg-violet-950/30 border border-violet-200 dark:border-violet-800/40 rounded-2xl flex justify-between items-center text-xs">
-              <span className="text-violet-700 dark:text-violet-300 font-bold">Saldo Pendiente Actual:</span>
-              <span className="text-base font-black text-violet-900 dark:text-violet-100">
-                ${(separeSeleccionado.saldoPendiente || 0).toLocaleString('es-CO')}
-              </span>
-            </div>
+            {/* Fila Unificada de Saldos: Separe Pendiente + Saldo a Favor (Teal) */}
+            {saldoFavorAbono > 0 ? (
+              <div className="p-2.5 bg-gradient-to-r from-violet-50/70 via-white to-teal-50/70 dark:from-violet-950/20 dark:via-slate-900 dark:to-teal-950/20 border border-slate-200/80 dark:border-slate-800 rounded-2xl space-y-1.5 shadow-xs">
+                <div className="grid grid-cols-2 gap-2 text-xs divide-x divide-slate-200 dark:divide-slate-800">
+                  <div>
+                    <span className="text-[10px] font-bold text-violet-700 dark:text-violet-300 uppercase tracking-wider block">Saldo Separe</span>
+                    <span className="text-sm sm:text-base font-black text-violet-900 dark:text-violet-100">
+                      ${(separeSeleccionado.saldoPendiente || 0).toLocaleString('es-CO')}
+                    </span>
+                  </div>
+                  <div className="pl-2">
+                    <div className="flex items-center gap-1 text-[10px] font-bold text-teal-700 dark:text-teal-300 uppercase tracking-wider">
+                      <Wallet size={12} className="text-teal-600 dark:text-teal-400 shrink-0" />
+                      <span>Saldo a Favor</span>
+                    </div>
+                    <span className="text-sm sm:text-base font-black text-teal-700 dark:text-teal-300">
+                      ${saldoFavorAbono.toLocaleString('es-CO')}
+                    </span>
+                  </div>
+                </div>
 
-            {/* Monto del Abono */}
-            <div className="space-y-1.5">
-              <label className="text-xs font-bold text-slate-600 dark:text-slate-400">Monto a Abonar:</label>
+                {/* Acciones Rápidas: Pagar Todo con Saldo o Usar Parcial */}
+                <div className="flex items-center gap-1.5 pt-1 border-t border-slate-100 dark:border-slate-800">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const maxAplicable = Math.min(saldoFavorAbono, separeSeleccionado.saldoPendiente || 0);
+                      setMontoAbono(formatearMonedaInput(maxAplicable.toString()));
+                      setMetodoPagoAbono('saldo_interno');
+                      setSubMetodoAbono('');
+                    }}
+                    className={`flex-1 py-1.5 px-2 rounded-lg text-[10.5px] font-black transition-all flex items-center justify-center gap-1 cursor-pointer shadow-xs ${
+                      metodoPagoAbono === 'saldo_interno' && (parseFloat(montoAbono.replace(/\D/g, '')) || 0) === Math.min(saldoFavorAbono, separeSeleccionado.saldoPendiente || 0)
+                        ? 'bg-teal-600 text-white ring-2 ring-teal-400'
+                        : 'bg-teal-500 hover:bg-teal-600 text-white active:scale-95'
+                    }`}
+                  >
+                    <Sparkles size={12} />
+                    <span>
+                      {saldoFavorAbono >= (separeSeleccionado.saldoPendiente || 0)
+                        ? `Pagar TODO con saldo ($${(separeSeleccionado.saldoPendiente || 0).toLocaleString('es-CO')})`
+                        : `Usar todo mi saldo ($${saldoFavorAbono.toLocaleString('es-CO')})`}
+                    </span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMetodoPagoAbono('saldo_interno');
+                      setSubMetodoAbono('');
+                      setMontoAbono('');
+                      setTimeout(() => {
+                        const el = document.getElementById('input-monto-separe-modal');
+                        if (el) el.focus();
+                      }, 50);
+                    }}
+                    className={`py-1.5 px-2.5 rounded-lg text-[10.5px] font-bold transition-all border flex items-center justify-center gap-1 cursor-pointer ${
+                      metodoPagoAbono === 'saldo_interno' && (parseFloat(montoAbono.replace(/\D/g, '')) || 0) < Math.min(saldoFavorAbono, separeSeleccionado.saldoPendiente || 0) && (parseFloat(montoAbono.replace(/\D/g, '')) || 0) > 0
+                        ? 'bg-teal-100 dark:bg-teal-900/50 text-teal-900 dark:text-teal-100 border-teal-400 font-black'
+                        : 'bg-white dark:bg-slate-800 text-teal-800 dark:text-teal-300 border-teal-300 dark:border-teal-700/60 hover:bg-teal-50'
+                    }`}
+                  >
+                    <span>Usar Parcial</span>
+                  </button>
+                </div>
+
+                {metodoPagoAbono === 'saldo_interno' && (
+                  <div className="flex items-center justify-between text-[10px] font-bold text-teal-900 dark:text-teal-200 pt-0.5">
+                    <span>Saldo a favor restante tras abono:</span>
+                    <span className="font-black text-teal-700 dark:text-teal-400">
+                      ${Math.max(0, saldoFavorAbono - (parseFloat(montoAbono.replace(/\D/g, '')) || 0)).toLocaleString('es-CO')}
+                    </span>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="p-2.5 bg-violet-50 dark:bg-violet-950/30 border border-violet-200 dark:border-violet-800/40 rounded-2xl flex justify-between items-center text-xs">
+                <span className="text-violet-700 dark:text-violet-300 font-bold">Saldo Pendiente Actual:</span>
+                <span className="text-sm sm:text-base font-black text-violet-900 dark:text-violet-100">
+                  ${(separeSeleccionado.saldoPendiente || 0).toLocaleString('es-CO')}
+                </span>
+              </div>
+            )}
+
+            {/* Input Monto a Abonar + Billetes Rápidos (Ultra compacto) */}
+            <div className="space-y-1">
+              <div className="flex items-center justify-between">
+                <label className="text-[11px] font-bold text-slate-600 dark:text-slate-400">Monto a Abonar:</label>
+                {metodoPagoAbono === 'saldo_interno' && (
+                  <span className="text-[10px] font-bold text-teal-600 dark:text-teal-400">
+                    Máx disp: ${saldoFavorAbono.toLocaleString('es-CO')}
+                  </span>
+                )}
+              </div>
               <div className="relative">
-                <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 font-bold">$</span>
+                <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 font-bold">$</span>
                 <input
+                  id="input-monto-separe-modal"
                   type="text"
                   inputMode="decimal" pattern="[0-9]*"
                   value={montoAbono}
                   onChange={(e) => setMontoAbono(formatearMonedaInput(e.target.value))}
-                  placeholder="0"
-                  className="w-full pl-8 pr-10 py-3 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl font-black text-lg text-slate-900 dark:text-white outline-none focus:border-violet-500"
+                  placeholder={metodoPagoAbono === 'saldo_interno' ? 'Ingresa monto parcial a usar' : '0'}
+                  className={`w-full pl-7 pr-8 py-2 bg-slate-50 dark:bg-slate-900 border rounded-xl font-black text-base sm:text-lg text-slate-900 dark:text-white outline-none ${
+                    metodoPagoAbono === 'saldo_interno' ? 'border-teal-300 dark:border-teal-700 focus:border-teal-500' : 'border-slate-200 dark:border-slate-800 focus:border-violet-500'
+                  }`}
                 />
                 {montoAbono && (
                   <button
                     type="button"
                     onClick={() => setMontoAbono("")}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full bg-slate-200 dark:bg-slate-700 text-slate-500 hover:text-slate-800 dark:hover:text-white flex items-center justify-center transition-colors cursor-pointer"
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 w-5 h-5 rounded-full bg-slate-200 dark:bg-slate-700 text-slate-500 hover:text-slate-800 dark:hover:text-white flex items-center justify-center transition-colors cursor-pointer"
                     title="Borrar monto"
                   >
-                    <X size={14} />
+                    <X size={12} />
                   </button>
                 )}
               </div>
 
-              {/* Billetes Rápidos */}
-              <div className="grid grid-cols-4 gap-1.5 pt-1">
+              {/* Billetes rápidos en fila compacta */}
+              <div className="grid grid-cols-5 gap-1 pt-0.5">
                 {[10000, 20000, 50000, 100000].map(val => (
                   <button
                     key={val}
@@ -1869,40 +1947,38 @@ Gracias por contactarnos.`;
                       const actual = parseFloat(montoAbono.replace(/\D/g, '')) || 0;
                       setMontoAbono(formatearMonedaInput((actual + val).toString()));
                     }}
-                    className="py-1.5 px-1 bg-slate-100 dark:bg-slate-800 hover:bg-violet-50 dark:hover:bg-violet-900/30 text-slate-700 dark:text-slate-300 hover:text-violet-600 dark:hover:text-violet-400 border border-slate-200 dark:border-slate-700 rounded-xl text-[10px] font-bold transition-all active:scale-95 cursor-pointer text-center"
+                    className="py-1 px-0.5 bg-slate-100 dark:bg-slate-800 hover:bg-violet-50 dark:hover:bg-violet-900/30 text-slate-700 dark:text-slate-300 hover:text-violet-600 dark:hover:text-violet-400 rounded-lg text-[10px] font-bold transition-all active:scale-95 cursor-pointer text-center"
                   >
                     +{val >= 1000 ? `${val / 1000}k` : val}
                   </button>
                 ))}
+                <button
+                  type="button"
+                  onClick={() => setMontoAbono(formatearMonedaInput((separeSeleccionado.saldoPendiente || 0).toString()))}
+                  className="py-1 px-1 bg-violet-50 dark:bg-violet-950/40 text-violet-700 dark:text-violet-300 border border-violet-200 dark:border-violet-800/60 rounded-lg text-[10px] font-bold hover:bg-violet-100 transition-all text-center truncate cursor-pointer"
+                  title="Pagar saldo completo"
+                >
+                  Todo
+                </button>
               </div>
-
-              {/* Botón Saldo Completo */}
-              <button
-                type="button"
-                onClick={() => setMontoAbono(formatearMonedaInput((separeSeleccionado.saldoPendiente || 0).toString()))}
-                className="text-[11px] font-bold text-violet-600 hover:underline inline-flex items-center gap-1 pt-0.5"
-              >
-                <Check size={13} /> Pagar saldo completo (${(separeSeleccionado.saldoPendiente || 0).toLocaleString('es-CO')})
-              </button>
             </div>
 
             {/* Método de Pago */}
-            <div className="flex flex-col bg-slate-50 dark:bg-[#020617] p-3 rounded-2xl border border-slate-200 dark:border-slate-800/80 gap-2">
-              <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Forma de Pago del Abono</label>
+            <div className="flex flex-col bg-slate-50 dark:bg-[#020617] p-2.5 rounded-xl border border-slate-200 dark:border-slate-800/80 gap-1.5">
+              <label className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Forma de Pago del Abono</label>
 
-              {/* Chips de métodos de pago en una sola fila */}
-              <div className={`grid ${saldoFavorAbono > 0 ? 'grid-cols-5' : 'grid-cols-4'} gap-1.5`}>
+              <div className={`grid ${saldoFavorAbono > 0 ? 'grid-cols-5' : 'grid-cols-4'} gap-1`}>
                 <button
                   type="button"
                   onClick={() => { setMetodoPagoAbono('efectivo'); setSubMetodoAbono(''); }}
                   title="Efectivo"
-                  className={`py-2 rounded-xl text-[10px] font-black flex flex-col items-center justify-center gap-0.5 transition-all ${
+                  className={`py-1.5 rounded-lg text-[10px] font-black flex flex-col items-center justify-center gap-0.5 transition-all cursor-pointer ${
                     metodoPagoAbono === 'efectivo'
-                      ? 'bg-emerald-600 text-white shadow-sm'
+                      ? 'bg-emerald-600 text-white shadow-xs'
                       : 'bg-white dark:bg-slate-800 text-slate-500 dark:text-slate-400 border border-slate-200 dark:border-slate-700 hover:border-emerald-400 hover:text-emerald-600'
                   }`}
                 >
-                  <Banknote size={14} />
+                  <Banknote size={13} />
                   <span>Efectivo</span>
                 </button>
 
@@ -1910,13 +1986,13 @@ Gracias por contactarnos.`;
                   type="button"
                   onClick={() => { setMetodoPagoAbono('transferencia'); setSubMetodoAbono(''); }}
                   title="Transferencia / Pago en línea"
-                  className={`py-2 rounded-xl text-[10px] font-black flex flex-col items-center justify-center gap-0.5 transition-all ${
+                  className={`py-1.5 rounded-lg text-[10px] font-black flex flex-col items-center justify-center gap-0.5 transition-all cursor-pointer ${
                     metodoPagoAbono === 'transferencia'
-                      ? 'bg-blue-600 text-white shadow-sm'
+                      ? 'bg-blue-600 text-white shadow-xs'
                       : 'bg-white dark:bg-slate-800 text-slate-500 dark:text-slate-400 border border-slate-200 dark:border-slate-700 hover:border-blue-400 hover:text-blue-600'
                   }`}
                 >
-                  <Smartphone size={14} />
+                  <Smartphone size={13} />
                   <span className="leading-tight text-center">Transf.</span>
                 </button>
 
@@ -1924,13 +2000,13 @@ Gracias por contactarnos.`;
                   type="button"
                   onClick={() => { setMetodoPagoAbono('datafono'); setSubMetodoAbono(''); }}
                   title="Datáfono / Tarjeta"
-                  className={`py-2 rounded-xl text-[10px] font-black flex flex-col items-center justify-center gap-0.5 transition-all ${
+                  className={`py-1.5 rounded-lg text-[10px] font-black flex flex-col items-center justify-center gap-0.5 transition-all cursor-pointer ${
                     metodoPagoAbono === 'datafono'
-                      ? 'bg-indigo-600 text-white shadow-sm'
+                      ? 'bg-indigo-600 text-white shadow-xs'
                       : 'bg-white dark:bg-slate-800 text-slate-500 dark:text-slate-400 border border-slate-200 dark:border-slate-700 hover:border-indigo-400 hover:text-indigo-600'
                   }`}
                 >
-                  <CreditCard size={14} />
+                  <CreditCard size={13} />
                   <span>Datáfono</span>
                 </button>
 
@@ -1938,13 +2014,13 @@ Gracias por contactarnos.`;
                   type="button"
                   onClick={() => { setMetodoPagoAbono('credito_externo'); setSubMetodoAbono(''); }}
                   title="Crédito Externo (Addi, Sistecrédito…)"
-                  className={`py-2 rounded-xl text-[10px] font-black flex flex-col items-center justify-center gap-0.5 transition-all ${
+                  className={`py-1.5 rounded-lg text-[10px] font-black flex flex-col items-center justify-center gap-0.5 transition-all cursor-pointer ${
                     metodoPagoAbono === 'credito_externo'
-                      ? 'bg-purple-600 text-white shadow-sm'
+                      ? 'bg-purple-600 text-white shadow-xs'
                       : 'bg-white dark:bg-slate-800 text-slate-500 dark:text-slate-400 border border-slate-200 dark:border-slate-700 hover:border-purple-400 hover:text-purple-600'
                   }`}
                 >
-                  <Zap size={14} />
+                  <Zap size={13} />
                   <span className="leading-tight text-center">Crédito</span>
                 </button>
 
@@ -1953,14 +2029,14 @@ Gracias por contactarnos.`;
                     type="button"
                     onClick={() => { setMetodoPagoAbono('saldo_interno'); setSubMetodoAbono(''); }}
                     title={`Saldo a Favor (Disp: $${saldoFavorAbono.toLocaleString('es-CO')})`}
-                    className={`py-2 rounded-xl text-[10px] font-black flex flex-col items-center justify-center gap-0.5 transition-all ${
+                    className={`py-1.5 rounded-lg text-[10px] font-black flex flex-col items-center justify-center gap-0.5 transition-all cursor-pointer ${
                       metodoPagoAbono === 'saldo_interno'
-                        ? 'bg-amber-500 text-white shadow-sm'
-                        : 'bg-amber-50 dark:bg-amber-500/10 text-amber-600 border border-amber-200 dark:border-amber-800/40 hover:bg-amber-100'
+                        ? 'bg-teal-600 text-white shadow-xs ring-2 ring-teal-400'
+                        : 'bg-teal-50 dark:bg-teal-500/10 text-teal-700 dark:text-teal-300 border border-teal-300 dark:border-teal-800/40 hover:bg-teal-100'
                     }`}
                   >
-                    <Wallet size={14} />
-                    <span className="leading-tight text-center">Saldo</span>
+                    <Wallet size={13} />
+                    <span className="leading-tight text-center">A Favor (${Math.round(saldoFavorAbono / 1000)}k)</span>
                   </button>
                 )}
               </div>
@@ -1974,7 +2050,7 @@ Gracias por contactarnos.`;
                         key={op}
                         type="button"
                         onClick={() => setSubMetodoAbono(subMetodoAbono === op ? '' : op)}
-                        className={`px-2.5 py-1 rounded-full text-[10px] font-bold transition-all border ${
+                        className={`px-2 py-0.5 rounded-full text-[10px] font-bold transition-all border ${
                           subMetodoAbono === op
                             ? 'bg-blue-600 text-white border-blue-600'
                             : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-600 hover:border-blue-400'
@@ -1996,7 +2072,7 @@ Gracias por contactarnos.`;
                         key={op}
                         type="button"
                         onClick={() => setSubMetodoAbono(subMetodoAbono === op ? '' : op)}
-                        className={`px-2.5 py-1 rounded-full text-[10px] font-bold transition-all border ${
+                        className={`px-2 py-0.5 rounded-full text-[10px] font-bold transition-all border ${
                           subMetodoAbono === op
                             ? 'bg-purple-600 text-white border-purple-600'
                             : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-600 hover:border-purple-400'
@@ -2009,9 +2085,9 @@ Gracias por contactarnos.`;
                 </div>
               )}
 
-              {/* Referencia si no es efectivo */}
-              {metodoPagoAbono !== 'efectivo' && (
-                <div className="animate-in fade-in duration-150 pt-1">
+              {/* Referencia si no es efectivo ni saldo interno */}
+              {metodoPagoAbono !== 'efectivo' && metodoPagoAbono !== 'saldo_interno' && (
+                <div className="animate-in fade-in duration-150 pt-0.5">
                   <input
                     type="text"
                     value={referenciaAbono}
@@ -2023,15 +2099,30 @@ Gracias por contactarnos.`;
                         ? 'No. Voucher (Opcional)'
                         : `Aprobación ${subMetodoAbono || 'crédito'} (Opcional)`
                     }
-                    className="w-full px-3 py-2 bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-700 rounded-xl outline-none font-medium text-xs text-slate-900 dark:text-white placeholder:text-slate-400 focus:border-blue-500 transition-colors"
+                    className="w-full px-2.5 py-1.5 bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-700 rounded-xl outline-none font-medium text-xs text-slate-900 dark:text-white placeholder:text-slate-400 focus:border-blue-500 transition-colors"
                   />
+                </div>
+              )}
+
+              {metodoPagoAbono === 'saldo_interno' && (
+                <div className="p-1.5 bg-teal-50 dark:bg-teal-950/20 border border-teal-200/60 dark:border-teal-800/40 rounded-xl text-[10.5px] font-medium text-teal-800 dark:text-teal-300 flex items-center gap-1.5">
+                  <Sparkles size={13} className="text-teal-600 shrink-0" />
+                  <span>El abono se descontará directamente del saldo a favor del cliente.</span>
                 </div>
               )}
             </div>
 
-            {/* Cálculo de nuevo saldo */}
+            {/* Advertencia si monto supera saldo disponible */}
+            {metodoPagoAbono === 'saldo_interno' && Number(montoAbono.replace(/\D/g, '')) > saldoFavorAbono && (
+              <div className="p-2 bg-rose-50 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-800/60 rounded-xl text-[11px] font-bold text-rose-700 dark:text-rose-400 flex items-center gap-1.5">
+                <AlertCircle size={13} className="shrink-0" />
+                <span>Supera el saldo a favor disponible (${saldoFavorAbono.toLocaleString('es-CO')}).</span>
+              </div>
+            )}
+
+            {/* Cálculo de nuevo saldo restante */}
             {Number(montoAbono.replace(/\D/g, '')) > 0 && (
-              <div className="p-3 bg-slate-50 dark:bg-slate-900 rounded-2xl flex justify-between items-center text-xs font-bold">
+              <div className="px-2.5 py-1.5 bg-slate-50 dark:bg-slate-900 rounded-xl flex justify-between items-center text-xs font-bold">
                 <span className="text-slate-500">Nuevo Saldo Restante:</span>
                 <span className="text-sm font-black text-slate-900 dark:text-white">
                   ${Math.max(0, (separeSeleccionado.saldoPendiente || 0) - Number(montoAbono.replace(/\D/g, ''))).toLocaleString('es-CO')}
@@ -2039,20 +2130,20 @@ Gracias por contactarnos.`;
               </div>
             )}
 
-            {/* Botón Confirmar */}
-            <div className="grid grid-cols-2 gap-3 pt-2">
+            {/* Botones Cancelar / Confirmar */}
+            <div className="grid grid-cols-2 gap-2 pt-1">
               <button
                 type="button"
                 onClick={() => setModalAbono(false)}
-                className="bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-700 dark:text-slate-300 font-bold py-3.5 rounded-xl text-sm"
+                className="bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-700 dark:text-slate-300 font-bold py-2.5 rounded-xl text-xs sm:text-sm cursor-pointer"
               >
                 Cancelar
               </button>
               <button
                 type="button"
                 onClick={guardarAbono}
-                disabled={procesandoAbono || !Number(montoAbono.replace(/\D/g, ''))}
-                className="bg-violet-600 hover:bg-violet-700 disabled:opacity-50 text-white font-bold py-3.5 rounded-xl shadow-md text-sm cursor-pointer"
+                disabled={procesandoAbono || !Number(montoAbono.replace(/\D/g, '')) || (metodoPagoAbono === 'saldo_interno' && Number(montoAbono.replace(/\D/g, '')) > saldoFavorAbono)}
+                className="bg-violet-600 hover:bg-violet-700 disabled:opacity-50 text-white font-bold py-2.5 rounded-xl shadow-md text-xs sm:text-sm cursor-pointer"
               >
                 {procesandoAbono ? "Guardando..." : "Confirmar Abono"}
               </button>

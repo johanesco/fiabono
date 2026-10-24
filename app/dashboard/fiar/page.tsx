@@ -4,7 +4,7 @@ import { useState, useEffect, Suspense, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { collection, addDoc, getDocs, getDoc, query, doc, updateDoc, where, increment, writeBatch } from "firebase/firestore";
 import { auth, db } from "../../../firebase";
-import { Search, ShoppingBag, CheckCircle2, ChevronRight, X, AlertCircle, UserCog, Plus, Minus, ArrowLeft, ArrowRight, MessageCircle, Package, QrCode, Volume2, Printer, ChevronDown, ChevronUp, Tag, Receipt, Pause, FolderOpen, User, UserPlus, Trash2, LayoutGrid, List, ShoppingCart, ArrowRightLeft, Bookmark } from 'lucide-react';
+import { Search, ShoppingBag, CheckCircle2, ChevronRight, X, AlertCircle, UserCog, Plus, Minus, ArrowLeft, ArrowRight, MessageCircle, Package, QrCode, Volume2, Printer, ChevronDown, ChevronUp, Tag, Receipt, Pause, FolderOpen, User, UserPlus, Trash2, LayoutGrid, List, ShoppingCart, ArrowRightLeft, Bookmark, Wallet, Sparkles } from 'lucide-react';
 import { useAuth } from "@/hooks/AuthContext";
 import toast from "react-hot-toast";
 import { notificar } from "@/utils/notificaciones";
@@ -81,6 +81,7 @@ function FiarContenido() {
     const [valorDescuento, setValorDescuento] = useState<string>('');
 
     const [clienteTransaccion, setClienteTransaccion] = useState<any | null>(null);
+    const [usarSaldoAFavorFiar, setUsarSaldoAFavorFiar] = useState<boolean>(true);
     const [busquedaRegistro, setBusquedaRegistro] = useState("");
     const [mostrarResultadosBuscador, setMostrarResultadosBuscador] = useState(false);
     const [pasoMovil, setPasoMovil] = useState<'articulos' | 'cobro'>('articulos');
@@ -1516,6 +1517,7 @@ function FiarContenido() {
                     metodoPago: 'fiado',
                     fiarFaltante: true,
                     montoFiado: faltante,
+                    usarSaldoFavor: usarSaldoAFavorFiar,
                     descripcionFiado: descripcionUnificada + (montoDescuentoTotal > 0 ? ` [Dto: -$${montoDescuentoTotal.toLocaleString('es-CO')}]` : ''),
                     itemsInventario,
                     descuentoTipo: mostrarDescuento && montoDescuentoTotal > 0 ? tipoDescuento : null,
@@ -2240,10 +2242,11 @@ Estamos atentos para cualquier consulta.
                             </div>
 
                             {clienteTransaccion ? (
-                                <div className="py-1.5 px-2.5 bg-rose-50 dark:bg-rose-500/10 rounded-xl border border-rose-200 dark:border-rose-800/50 flex justify-between items-center shadow-sm">
+                                <>
+                                    <div className="py-1.5 px-2.5 bg-rose-50 dark:bg-rose-500/10 rounded-xl border border-rose-200 dark:border-rose-800/50 flex justify-between items-center shadow-sm">
                                     <div className="flex flex-col min-w-0 mr-2">
                                         <span className="font-black text-slate-900 dark:text-rose-300 text-xs truncate">{clienteTransaccion.nombre}</span>
-                                        <span className={`text-[10px] font-bold block ${Number(clienteTransaccion.deudaTotal || 0) < 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600'}`}>
+                                        <span className={`text-[10px] font-bold block ${Number(clienteTransaccion.deudaTotal || 0) < 0 ? 'text-teal-600 dark:text-teal-400' : 'text-rose-600'}`}>
                                             {Number(clienteTransaccion.deudaTotal || 0) > 0 
                                                 ? `Deuda actual: $${Number(clienteTransaccion.deudaTotal).toLocaleString('es-CO')}` 
                                                 : Number(clienteTransaccion.deudaTotal || 0) < 0 
@@ -2253,6 +2256,58 @@ Estamos atentos para cualquier consulta.
                                     </div>
                                     <button onClick={() => setClienteTransaccion(null)} className="text-rose-500 shrink-0 hover:bg-rose-100 p-0.5 rounded-full"><X size={13} /></button>
                                 </div>
+
+                                {Number(clienteTransaccion.deudaTotal || 0) < 0 && (
+                                    <div className="mt-2 p-2.5 bg-gradient-to-r from-teal-50 to-teal-100/40 dark:from-teal-950/40 dark:to-teal-900/20 border border-teal-200 dark:border-teal-800/60 rounded-xl space-y-1.5 animate-in fade-in slide-in-from-top-1 shadow-xs">
+                                        <div className="flex items-center justify-between">
+                                            <div className="flex items-center gap-1.5 font-bold text-teal-900 dark:text-teal-200 text-xs">
+                                                <Wallet size={13} className="text-teal-600 dark:text-teal-400 shrink-0" />
+                                                <span>Saldo a Favor: ${Math.abs(Number(clienteTransaccion.deudaTotal)).toLocaleString('es-CO')}</span>
+                                            </div>
+                                            <span className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-teal-200/80 dark:bg-teal-800/60 text-teal-900 dark:text-teal-200">
+                                                Disponible
+                                            </span>
+                                        </div>
+
+                                        <p className="text-[10.5px] text-teal-900/85 dark:text-teal-200/90 leading-tight">
+                                            ¿Deseas usar su saldo a favor para cubrir esta compra o registrar un fiado por separado?
+                                        </p>
+
+                                        <div className="grid grid-cols-2 gap-1.5 pt-0.5">
+                                            <button
+                                                type="button"
+                                                onClick={() => setUsarSaldoAFavorFiar(true)}
+                                                className={`py-1.5 px-2 rounded-lg text-[11px] font-bold transition-all flex items-center justify-center gap-1 cursor-pointer ${
+                                                    usarSaldoAFavorFiar
+                                                        ? 'bg-teal-600 text-white shadow-xs font-black ring-2 ring-teal-400'
+                                                        : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 hover:border-teal-300'
+                                                }`}
+                                            >
+                                                <Sparkles size={12} />
+                                                <span>Usar Saldo a Favor</span>
+                                            </button>
+
+                                            <button
+                                                type="button"
+                                                onClick={() => setUsarSaldoAFavorFiar(false)}
+                                                className={`py-1.5 px-2 rounded-lg text-[11px] font-bold transition-all flex items-center justify-center gap-1 cursor-pointer ${
+                                                    !usarSaldoAFavorFiar
+                                                        ? 'bg-rose-600 text-white shadow-xs font-black ring-2 ring-rose-400'
+                                                        : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 hover:border-rose-300'
+                                                }`}
+                                            >
+                                                <span>Fiado Independiente</span>
+                                            </button>
+                                        </div>
+
+                                        <p className="text-[9.5px] text-teal-800/80 dark:text-teal-300/80 pt-0.5">
+                                            {usarSaldoAFavorFiar
+                                                ? 'Se descontará de su saldo a favor. No queda con deuda pendiente.'
+                                                : 'Se registrará como deuda nueva sin tocar su saldo a favor.'}
+                                        </p>
+                                    </div>
+                                )}
+                                </>
                             ) : (
                                 <div className="relative buscador-cliente-fiar-container">
                                     <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 text-rose-400" size={13} />

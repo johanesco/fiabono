@@ -4,7 +4,7 @@ import { useState, useEffect, useMemo, Suspense, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { collection, addDoc, getDocs, query, doc, updateDoc, where, arrayUnion, increment, onSnapshot } from "firebase/firestore";
 import { auth, db } from "../../../firebase";
-import { Search, CheckCircle2, ChevronRight, X, AlertCircle, UserCog, ArrowLeft, MessageCircle, Banknote, Printer, Smartphone, CreditCard, Zap } from 'lucide-react';
+import { Search, CheckCircle2, ChevronRight, X, AlertCircle, UserCog, ArrowLeft, MessageCircle, Banknote, Printer, Smartphone, CreditCard, Zap, Wallet, Bookmark, Sparkles } from 'lucide-react';
 import { useAuth } from "../../../hooks/AuthContext";
 import { API_DB } from "../../../servicios/db";
 import TicketFacturaModal from "@/components/TicketFacturaModal";
@@ -37,7 +37,7 @@ function AbonarContenido() {
   const [clienteTransaccion, setClienteTransaccion] = useState<any | null>(null);
   
   const [montoAbono, setMontoAbono] = useState(""); 
-  const [metodoPago, setMetodoPago] = useState<'efectivo' | 'transferencia' | 'datafono' | 'credito_externo'>('efectivo');
+  const [metodoPago, setMetodoPago] = useState<'efectivo' | 'transferencia' | 'datafono' | 'credito_externo' | 'saldo_interno'>('efectivo');
   const [subMetodoPago, setSubMetodoPago] = useState("");
   const [referenciaPago, setReferenciaPago] = useState("");
   const [busquedaRegistro, setBusquedaRegistro] = useState("");
@@ -286,7 +286,8 @@ function AbonarContenido() {
       efectivo: 'Efectivo',
       transferencia: subMetodoPago ? `Transf. (${subMetodoPago})` : 'Transferencia',
       datafono: 'Datáfono',
-      credito_externo: subMetodoPago ? `Crédito (${subMetodoPago})` : 'Crédito Externo'
+      credito_externo: subMetodoPago ? `Crédito (${subMetodoPago})` : 'Crédito Externo',
+      saldo_interno: 'Saldo a Favor'
     };
     const metodoPagoLabel = labelsMetodos[metodoPago] || 'Efectivo';
 
@@ -294,6 +295,11 @@ function AbonarContenido() {
     if (destinoAbono === 'separe' && separeSeleccionado) {
       if (abonoReal > (separeSeleccionado.saldoPendiente || 0)) {
         toast.error(`El abono no puede superar el saldo pendiente del separe ($${(separeSeleccionado.saldoPendiente || 0).toLocaleString('es-CO')}).`, { duration: 4000 });
+        return;
+      }
+
+      if (metodoPago === 'saldo_interno' && abonoReal > Math.abs(clienteTransaccion.deudaTotal || 0)) {
+        toast.error(`El abono no puede superar el Saldo a Favor disponible ($${Math.abs(clienteTransaccion.deudaTotal || 0).toLocaleString('es-CO')}).`, { duration: 4000 });
         return;
       }
 
@@ -333,6 +339,13 @@ function AbonarContenido() {
           saldoPendiente: nuevoSaldoPendiente,
           montoPagado: nuevoMontoPagado
         } : s));
+
+        if (metodoPago === 'saldo_interno') {
+          setClienteTransaccion((prev: any) => prev ? {
+            ...prev,
+            deudaTotal: (prev.deudaTotal || 0) + abonoReal
+          } : prev);
+        }
 
         reproducirSonidoExito();
 
@@ -719,40 +732,180 @@ Estamos atentos para cualquier consulta.
                 )}
               </div>
 
+              {/* CASO: CLIENTE SIN DEUDAS NI SEPARES */}
+              {clienteTransaccion && (clienteTransaccion.deudaTotal || 0) <= 0 && separesCliente.length === 0 && (
+                <div className="p-5 bg-white dark:bg-[#020617] rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm text-center space-y-3 animate-in fade-in slide-in-from-top-2">
+                  <div className="w-12 h-12 mx-auto rounded-full bg-emerald-100 dark:bg-emerald-950/40 text-emerald-600 flex items-center justify-center">
+                    <CheckCircle2 size={24} />
+                  </div>
+                  <div>
+                    <h3 className="text-base font-black text-slate-900 dark:text-white">
+                      {clienteTransaccion.nombre} no tiene deudas pendientes
+                    </h3>
+                    {clienteTransaccion.deudaTotal < 0 ? (
+                      <div className="mt-2.5 p-3 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/60 inline-block text-left max-w-md">
+                        <div className="flex items-center gap-2 text-xs font-bold text-amber-900 dark:text-amber-200">
+                          <Wallet size={16} className="text-amber-600 shrink-0" />
+                          <span>Saldo a Favor Disponible: <strong>${Math.abs(clienteTransaccion.deudaTotal).toLocaleString('es-CO')}</strong></span>
+                        </div>
+                        <p className="text-[11px] text-amber-800/80 dark:text-amber-300/80 mt-1">
+                          Este cliente no tiene fiados ni separes pendientes. Su saldo a favor está guardado para sus próximas compras o para devolución en efectivo si lo requiere.
+                        </p>
+                      </div>
+                    ) : (
+                      <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                        Este cliente se encuentra totalmente al día ($0) y no registra ningún Plan Separe activo.
+                      </p>
+                    )}
+                  </div>
+                  <div className="flex items-center justify-center gap-2 pt-1">
+                    <button
+                      type="button"
+                      onClick={() => router.push('/dashboard/clientes')}
+                      className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 dark:bg-slate-800 dark:text-slate-300 text-xs font-bold rounded-xl transition cursor-pointer"
+                    >
+                      Volver al Directorio
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => router.push(`/dashboard/vender?clienteId=${clienteTransaccion.id}`)}
+                      className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl transition shadow-xs cursor-pointer"
+                    >
+                      Nueva Venta
+                    </button>
+                  </div>
+                </div>
+              )}
+
               {/* SELECTOR DE DESTINO SI EL CLIENTE TIENE PLANES SEPARE */}
               {clienteTransaccion && separesCliente.length > 0 && (
                 <div className="flex flex-col bg-white dark:bg-[#020617] p-3 sm:p-3.5 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm space-y-2 animate-in slide-in-from-top-3 duration-200">
                   <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
                     ¿A qué deseas aplicar este abono?
                   </label>
-                  
-                  <div className="grid grid-cols-2 gap-2">
-                    <button
-                      type="button"
-                      onClick={() => setDestinoAbono('fiado')}
-                      className={`p-2.5 rounded-xl border text-left transition-all ${
-                        destinoAbono === 'fiado'
-                          ? 'bg-blue-50 dark:bg-blue-950/40 border-blue-500 text-blue-900 dark:text-blue-200 shadow-sm ring-2 ring-blue-500/20'
-                          : 'bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400'
-                      }`}
-                    >
-                      <span className="block text-[9px] font-black uppercase text-blue-600 dark:text-blue-400">Deuda de Fiados</span>
-                      <span className="text-xs sm:text-sm font-black">${(clienteTransaccion.deudaTotal || 0).toLocaleString('es-CO')}</span>
-                    </button>
 
-                    <button
-                      type="button"
-                      onClick={() => setDestinoAbono('separe')}
-                      className={`p-2.5 rounded-xl border text-left transition-all ${
-                        destinoAbono === 'separe'
-                          ? 'bg-violet-50 dark:bg-violet-950/40 border-violet-500 text-violet-900 dark:text-violet-200 shadow-sm ring-2 ring-violet-500/20'
-                          : 'bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400'
-                      }`}
-                    >
-                      <span className="block text-[9px] font-black uppercase text-violet-600 dark:text-violet-400">Plan Separe ({separesCliente.length})</span>
-                      <span className="text-xs sm:text-sm font-black">${(separeSeleccionado?.saldoPendiente || 0).toLocaleString('es-CO')}</span>
-                    </button>
-                  </div>
+                  {clienteTransaccion.deudaTotal > 0 ? (
+                    <div className="grid grid-cols-2 gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setDestinoAbono('fiado')}
+                        className={`p-2.5 rounded-xl border text-left transition-all ${
+                          destinoAbono === 'fiado'
+                            ? 'bg-blue-50 dark:bg-blue-950/40 border-blue-500 text-blue-900 dark:text-blue-200 shadow-sm ring-2 ring-blue-500/20'
+                            : 'bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400'
+                        }`}
+                      >
+                        <span className="block text-[9px] font-black uppercase text-blue-600 dark:text-blue-400">Deuda de Fiados</span>
+                        <span className="text-xs sm:text-sm font-black">${(clienteTransaccion.deudaTotal || 0).toLocaleString('es-CO')}</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => setDestinoAbono('separe')}
+                        className={`p-2.5 rounded-xl border text-left transition-all ${
+                          destinoAbono === 'separe'
+                            ? 'bg-violet-50 dark:bg-violet-950/40 border-violet-500 text-violet-900 dark:text-violet-200 shadow-sm ring-2 ring-violet-500/20'
+                            : 'bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400'
+                        }`}
+                      >
+                        <span className="block text-[9px] font-black uppercase text-violet-600 dark:text-violet-400">Plan Separe ({separesCliente.length})</span>
+                        <span className="text-xs sm:text-sm font-black">${(separeSeleccionado?.saldoPendiente || 0).toLocaleString('es-CO')}</span>
+                      </button>
+                    </div>
+                  ) : (
+                    /* Si no debe fiados, NO mostrar "Deuda de Fiados negativo" */
+                    <div className="space-y-2">
+                      <div className="p-2.5 bg-violet-50 dark:bg-violet-950/30 border border-violet-200 dark:border-violet-800/40 rounded-xl flex items-center justify-between">
+                        <span className="text-xs font-bold text-violet-900 dark:text-violet-200 flex items-center gap-1.5">
+                          <Bookmark size={14} className="text-violet-600" />
+                          Plan Separe ({separesCliente.length})
+                        </span>
+                        <span className="text-xs sm:text-sm font-black text-violet-900 dark:text-violet-100">
+                          Saldo: ${(separeSeleccionado?.saldoPendiente || 0).toLocaleString('es-CO')}
+                        </span>
+                      </div>
+
+                      {/* Tarjeta inteligente de Saldo a Favor disponible */}
+                      {clienteTransaccion.deudaTotal < 0 && (
+                        <div className="p-3 bg-gradient-to-r from-amber-50 to-amber-100/40 dark:from-amber-950/40 dark:to-amber-900/20 border-2 border-amber-300 dark:border-amber-700/60 rounded-xl space-y-2">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                              <div className="w-6 h-6 rounded-lg bg-amber-500 text-white flex items-center justify-center shrink-0">
+                                <Wallet size={13} />
+                              </div>
+                              <div>
+                                <span className="text-[10px] font-black uppercase text-amber-800 dark:text-amber-300 tracking-wider block">
+                                  Saldo a Favor Disponible
+                                </span>
+                                <span className="text-xs sm:text-sm font-black text-amber-900 dark:text-amber-100">
+                                  ${Math.abs(clienteTransaccion.deudaTotal).toLocaleString('es-CO')}
+                                </span>
+                              </div>
+                            </div>
+                            <span className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-amber-200/80 dark:bg-amber-800/60 text-amber-900 dark:text-amber-200">
+                              Sin fiados pendientes
+                            </span>
+                          </div>
+
+                          <p className="text-[11px] text-amber-900/85 dark:text-amber-200/90 leading-tight">
+                            {clienteTransaccion.nombre} no tiene fiados. ¿Deseas abonar a este Separe con su saldo a favor?
+                          </p>
+
+                          <div className="flex flex-col sm:flex-row gap-1.5 pt-0.5">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const maxAplicable = Math.min(Math.abs(clienteTransaccion.deudaTotal), separeSeleccionado?.saldoPendiente || 0);
+                                setMontoAbono(maxAplicable.toLocaleString('es-CO'));
+                                setMetodoPago('saldo_interno');
+                                setSubMetodoPago('');
+                              }}
+                              className={`flex-1 py-1.5 px-2.5 rounded-lg text-xs font-black transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-xs ${
+                                metodoPago === 'saldo_interno' && (parseFloat(montoAbono.replace(/\D/g, '')) || 0) === Math.min(Math.abs(clienteTransaccion.deudaTotal), separeSeleccionado?.saldoPendiente || 0)
+                                  ? 'bg-amber-600 text-white ring-2 ring-amber-400'
+                                  : 'bg-amber-500 hover:bg-amber-600 text-white active:scale-95'
+                              }`}
+                            >
+                              <Sparkles size={13} />
+                              <span>
+                                {Math.abs(clienteTransaccion.deudaTotal) >= (separeSeleccionado?.saldoPendiente || 0)
+                                  ? `Pagar TODO con saldo ($${(separeSeleccionado?.saldoPendiente || 0).toLocaleString('es-CO')})`
+                                  : `Usar todo mi saldo ($${Math.abs(clienteTransaccion.deudaTotal).toLocaleString('es-CO')})`}
+                              </span>
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setMetodoPago('saldo_interno');
+                                setSubMetodoPago('');
+                                if (!montoAbono || (parseFloat(montoAbono.replace(/\D/g, '')) || 0) === 0) {
+                                  const sugerido = Math.min(Math.abs(clienteTransaccion.deudaTotal), Math.round((separeSeleccionado?.saldoPendiente || 0) / 2));
+                                  setMontoAbono(sugerido.toLocaleString('es-CO'));
+                                }
+                              }}
+                              className={`py-1.5 px-3 rounded-lg text-xs font-bold transition-all border flex items-center justify-center gap-1 cursor-pointer ${
+                                metodoPago === 'saldo_interno' && (parseFloat(montoAbono.replace(/\D/g, '')) || 0) < Math.min(Math.abs(clienteTransaccion.deudaTotal), separeSeleccionado?.saldoPendiente || 0)
+                                  ? 'bg-amber-100 dark:bg-amber-900/50 text-amber-900 dark:text-amber-100 border-amber-400 font-black'
+                                  : 'bg-white dark:bg-slate-800 text-amber-800 dark:text-amber-300 border-amber-300 dark:border-amber-700/60 hover:bg-amber-50'
+                              }`}
+                            >
+                              <span>Usar Parcial</span>
+                            </button>
+                          </div>
+
+                          {metodoPago === 'saldo_interno' && (
+                            <div className="pt-1.5 border-t border-amber-200/80 dark:border-amber-800/60 flex items-center justify-between text-[11px] font-bold text-amber-900 dark:text-amber-200">
+                              <span>Saldo a favor restante tras abono:</span>
+                              <span className="font-black text-amber-700 dark:text-amber-400">
+                                ${Math.max(0, Math.abs(clienteTransaccion.deudaTotal) - (parseFloat(montoAbono.replace(/\D/g, '')) || 0)).toLocaleString('es-CO')}
+                              </span>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )}
 
                   {destinoAbono === 'separe' && separesCliente.length > 1 && (
                     <div className="space-y-1 pt-0.5">
@@ -785,7 +938,7 @@ Estamos atentos para cualquier consulta.
               )}
 
               {/* INPUT MONTO ABONO */}
-              {clienteTransaccion && (
+              {clienteTransaccion && ((clienteTransaccion.deudaTotal || 0) > 0 || separesCliente.length > 0) && (
                 <div className="flex flex-col bg-white dark:bg-[#020617] p-3 sm:p-4 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm animate-in slide-in-from-top-4 duration-300">
                   <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2 flex items-center gap-1.5">
                     <Banknote size={14}/> Paso 2: ¿Cuánto va a abonar?
@@ -851,7 +1004,7 @@ Estamos atentos para cualquier consulta.
                   <div className="mt-2.5 pt-2.5 border-t border-slate-100 dark:border-slate-800">
                     <label className="text-[9px] font-bold text-slate-400 uppercase tracking-wider mb-1.5 block">Forma de Pago del Abono</label>
 
-                    <div className="grid grid-cols-4 gap-1.5 mb-1.5">
+                    <div className={`grid ${destinoAbono === 'separe' && (clienteTransaccion.deudaTotal || 0) < 0 ? 'grid-cols-5' : 'grid-cols-4'} gap-1.5 mb-1.5`}>
                       <button
                         type="button"
                         onClick={() => { setMetodoPago('efectivo'); setSubMetodoPago(''); }}
@@ -907,6 +1060,22 @@ Estamos atentos para cualquier consulta.
                         <Zap size={14} />
                         <span className="leading-tight text-center">Crédito</span>
                       </button>
+
+                      {destinoAbono === 'separe' && (clienteTransaccion.deudaTotal || 0) < 0 && (
+                        <button
+                          type="button"
+                          onClick={() => { setMetodoPago('saldo_interno'); setSubMetodoPago(''); }}
+                          title={`Saldo a Favor (Disp: $${Math.abs(clienteTransaccion.deudaTotal || 0).toLocaleString('es-CO')})`}
+                          className={`py-2 rounded-lg text-[10px] font-black flex flex-col items-center gap-0.5 transition-all cursor-pointer ${
+                            metodoPago === 'saldo_interno'
+                              ? 'bg-teal-600 text-white shadow-sm ring-2 ring-teal-400'
+                              : 'bg-teal-50 dark:bg-teal-500/10 text-teal-700 dark:text-teal-300 border border-teal-300 dark:border-teal-800/40 hover:bg-teal-100'
+                          }`}
+                        >
+                          <Wallet size={14} />
+                          <span className="leading-tight text-center">A Favor (${Math.round(Math.abs(clienteTransaccion.deudaTotal || 0) / 1000)}k)</span>
+                        </button>
+                      )}
                     </div>
 
                     {/* Sub-selector Transferencia */}
@@ -955,8 +1124,8 @@ Estamos atentos para cualquier consulta.
                       </div>
                     )}
 
-                    {/* Campo referencia */}
-                    {metodoPago !== 'efectivo' && (
+                    {/* Campo referencia si no es efectivo ni saldo interno */}
+                    {metodoPago !== 'efectivo' && metodoPago !== 'saldo_interno' && (
                       <div className="animate-in fade-in duration-150">
                         <input
                           type="text"
@@ -971,6 +1140,12 @@ Estamos atentos para cualquier consulta.
                           }
                           className="w-full px-2.5 py-1.5 bg-slate-50 dark:bg-[#0f172a] border border-slate-200 dark:border-slate-700 rounded-lg outline-none font-medium text-[11px] text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 placeholder:text-xs placeholder:font-normal focus:border-blue-500 transition-colors"
                         />
+                      </div>
+                    )}
+                    {metodoPago === 'saldo_interno' && (
+                      <div className="p-2 bg-teal-50 dark:bg-teal-950/20 border border-teal-200/60 dark:border-teal-800/40 rounded-xl text-[11px] font-medium text-teal-800 dark:text-teal-300 flex items-center gap-1.5">
+                        <Sparkles size={14} className="text-teal-600 shrink-0" />
+                        <span>El abono se descontará directamente del saldo a favor de {clienteTransaccion.nombre}.</span>
                       </div>
                     )}
                   </div>

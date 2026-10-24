@@ -61,7 +61,8 @@ import {
   Check,
   Download,
   Upload,
-  Smile
+  Smile,
+  Wallet
 } from "lucide-react";
 
 export default function ClientesPage() {
@@ -281,7 +282,9 @@ function ClientesContenido() {
       const separesActivos = separesCliente.filter((s: any) => s.estado === 'activo');
       const saldoSeparesActivos = separesActivos.reduce((acc: number, s: any) => acc + (s.saldoPendiente || 0), 0);
       const tieneSaldoAFavor = deuda < 0;
-      const totalCompromiso = tieneSaldoAFavor ? deuda : (deuda + saldoSeparesActivos);
+      const totalCompromiso = tieneSaldoAFavor 
+        ? (saldoSeparesActivos > 0 ? (saldoSeparesActivos + deuda) : deuda)
+        : (deuda + saldoSeparesActivos);
 
       const movsSinteticosSepare: Movimiento[] = [];
       for (const sep of separesCliente) {
@@ -414,7 +417,7 @@ function ClientesContenido() {
     const dineroEnRiesgo = enRiesgo.reduce((acc, c) => acc + (c.totalCompromiso || 0), 0);
 
     const vips = clientesConAnalisis.filter((c) => c.esVip);
-    const alDia = clientesConAnalisis.filter((c) => (c.totalCompromiso || 0) === 0);
+    const alDia = clientesConAnalisis.filter((c) => (c.totalCompromiso || 0) <= 0);
 
     return {
       totalClientes,
@@ -477,7 +480,7 @@ function ClientesContenido() {
       if (filtroActivo === 'en_riesgo') return c.semaforo === 'riesgo';
       if (filtroActivo === 'mayor_deuda') return (c.totalCompromiso || 0) > 0;
       if (filtroActivo === 'vip') return c.esVip;
-      if (filtroActivo === 'al_dia') return (c.totalCompromiso || 0) === 0;
+      if (filtroActivo === 'al_dia') return (c.totalCompromiso || 0) <= 0;
 
       return true;
     }).sort((a, b) => {
@@ -543,12 +546,37 @@ function ClientesContenido() {
       (s: any) => (s.clienteId === cliente.id || (s.clienteNombre && s.clienteNombre.trim().toLowerCase() === cliente.nombre?.trim().toLowerCase())) && s.estado === 'activo'
     );
     const saldoSeparesActivos = separesCliente.reduce((acc: number, s: any) => acc + (s.saldoPendiente || 0), 0);
-    const totalCompromiso = deuda < 0 ? deuda : (deuda + saldoSeparesActivos);
+    const totalCompromiso = deuda < 0 
+      ? (saldoSeparesActivos > 0 ? (saldoSeparesActivos + deuda) : deuda)
+      : (deuda + saldoSeparesActivos);
 
     let texto = '';
 
     if (tipo === 'estado') {
-      if (deuda > 0 && saldoSeparesActivos > 0) {
+      if (deuda < 0 && saldoSeparesActivos > 0) {
+        // Caso: Tiene saldo a favor en cuenta Y además Plan Separe activo
+        const saldoNeto = saldoSeparesActivos + deuda;
+        texto = `¡Hola, *${nombreCliente}*! Te saludamos de *${nombreTienda}*.
+
+===================
+*ESTADO DE CUENTA*
+===================
+
+💰 *SALDO NETO PENDIENTE: ${saldoNeto > 0 ? `$${Math.round(saldoNeto).toLocaleString('es-CO')}` : '$0'}*
+
+📋 *Resumen de tu cuenta:*
+• *Saldo en Planes Separe:* $${Math.round(saldoSeparesActivos).toLocaleString('es-CO')}
+• *Saldo a favor en cuenta:* -$${Math.round(Math.abs(deuda)).toLocaleString('es-CO')}
+${saldoNeto > 0 ? `• *Valor neto restante:* $${Math.round(saldoNeto).toLocaleString('es-CO')}` : `• *¡Tu saldo a favor cubre la totalidad del separe!*`}
+
+🔖 *Tus Planes Separe activos:*
+${separesCliente.map((s: any) => `• ${s.items?.map((it: any) => `${it.cantidad > 1 ? `${it.cantidad}x ` : ''}${it.descripcion}`).join(', ') || 'Productos'} (Saldo: $${Math.round(s.saldoPendiente || 0).toLocaleString('es-CO')})`).join('\n')}
+
+💡 *Nota:* Puedes aplicar tu saldo a favor para abonar o retirar tus artículos reservados.
+Quedamos atentos a cualquier consulta.
+
+*¡Que tengas un gran día!*`;
+      } else if (deuda > 0 && saldoSeparesActivos > 0) {
         // Caso 1: Tiene fiados y también tiene Planes Separe activos
         texto = `¡Hola, *${nombreCliente}*! Te saludamos de *${nombreTienda}*.
 
@@ -871,9 +899,63 @@ Gracias por seguir con nosotros.
       .filter((s: any) => s.estado === 'activo')
       .reduce((acc: number, s: any) => acc + (s.saldoPendiente || 0), 0);
     const deudaFiado = cliente.deuda ?? cliente.deudaTotal ?? 0;
-    const tieneSaldoAFavor = deudaFiado < 0;
-    const totalCompromiso = tieneSaldoAFavor ? Math.abs(deudaFiado) : (deudaFiado + saldoSeparesActivos);
+    const tieneSaldoAFavorFiado = deudaFiado < 0;
+    const tieneSaldoAFavor = tieneSaldoAFavorFiado;
+    const totalCompromiso = tieneSaldoAFavorFiado 
+      ? (saldoSeparesActivos > 0 ? (saldoSeparesActivos + deudaFiado) : deudaFiado)
+      : (deudaFiado + saldoSeparesActivos);
+
+    const esNetoDeuda = totalCompromiso > 0;
+    const esNetoAFavor = totalCompromiso < 0;
+    const esNetoAlDia = totalCompromiso === 0;
+
+    const labelSaldo = esNetoAFavor
+      ? (saldoSeparesActivos > 0 ? 'Saldo Neto a Favor' : 'Saldo a Favor')
+      : esNetoDeuda
+        ? (saldoSeparesActivos > 0 && tieneSaldoAFavorFiado
+            ? 'Saldo Neto Pendiente'
+            : saldoSeparesActivos > 0 && deudaFiado > 0
+              ? 'Compromiso Total'
+              : saldoSeparesActivos > 0
+                ? 'Total Separes'
+                : 'Deuda Total')
+        : (saldoSeparesActivos > 0 ? 'Al Día (Separes cubiertos)' : 'Al Día');
+
+    const valorSaldoTexto = esNetoAlDia
+      ? 'Al Día'
+      : `$${Math.round(Math.abs(totalCompromiso)).toLocaleString('es-CO')}`;
+
     const separesActivosCliente = separesList.filter((s: any) => s.estado === 'activo');
+
+    // Banner inteligente cuando el cliente tiene saldo a favor y al mismo tiempo un Separe activo (Teal)
+    const bannerSaldoAFavorSepare = tieneSaldoAFavorFiado && saldoSeparesActivos > 0 && (
+      <div className="p-3 sm:p-3.5 rounded-2xl bg-gradient-to-r from-teal-50 to-emerald-50/50 dark:from-teal-950/40 dark:to-emerald-950/30 border border-teal-200 dark:border-teal-800/60 shadow-xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+        <div className="flex items-start gap-2.5 min-w-0">
+          <div className="w-8 h-8 rounded-xl bg-teal-600/10 dark:bg-teal-400/20 text-teal-600 dark:text-teal-300 flex items-center justify-center shrink-0 mt-0.5">
+            <Wallet size={16} />
+          </div>
+          <div className="text-xs min-w-0">
+            <p className="font-bold text-teal-950 dark:text-teal-100 flex items-center gap-1.5 flex-wrap">
+              <span>Saldo a favor disponible:</span>
+              <span className="text-teal-700 dark:text-teal-300 font-black">
+                ${Math.round(Math.abs(deudaFiado)).toLocaleString('es-CO')}
+              </span>
+            </p>
+            <p className="text-[11px] text-teal-800/85 dark:text-teal-300/80 mt-0.5 leading-snug">
+              Tiene Separes activos por <strong>${Math.round(saldoSeparesActivos).toLocaleString('es-CO')}</strong>. Puedes abonar a sus Separes usando este saldo a favor.
+            </p>
+          </div>
+        </div>
+        <button
+          type="button"
+          onClick={() => router.push(`/dashboard/separes?tab=activos&busqueda=${encodeURIComponent(cliente.nombre || '')}`)}
+          className="shrink-0 w-full sm:w-auto px-3 py-1.5 bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold rounded-xl transition-all shadow-xs flex items-center justify-center gap-1.5 cursor-pointer active:scale-95"
+        >
+          <span>Abonar a Separe</span>
+          <ChevronRight size={14} />
+        </button>
+      </div>
+    );
 
     // Filtrado de movimientos por tipo en el expediente (sin hook useMemo dentro de función auxiliar)
     const todosMovs = cliente.movimientosHistorial || [];
@@ -1022,7 +1104,9 @@ Gracias por seguir con nosotros.
                   )}
                   
                   <div className="flex justify-between items-center pt-1.5 mt-0.5 border-t border-slate-200/60 dark:border-slate-800 font-black">
-                    <span className="text-xs text-slate-400 uppercase tracking-wider">Total:</span>
+                    <span className="text-xs text-slate-400 uppercase tracking-wider">
+                      {mov.anulado ? 'Monto anulado:' : (mov.tipo === 'abono' ? 'Abono recibido:' : (mov.tipo === 'devolucion' ? 'Valor devuelto:' : 'Total:'))}
+                    </span>
                     <div className="flex items-center gap-2">
                       {mov.tipo === 'abono' && !mov.anulado && (!esCajero || datosSesion?.permisos?.hacerDevoluciones || datosSesion?.esAdmin !== false) && (
                         <button
@@ -1299,28 +1383,28 @@ Gracias por seguir con nosotros.
             </div>
 
             {/* Fila 2: Saldo Destacado compacto */}
-            <div className="p-2.5 rounded-xl bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-800 shadow-xs">
+            <div className="p-2.5 rounded-xl bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-800 shadow-xs space-y-1">
               <div className="flex items-center justify-between">
                 <span className={`text-[10px] font-black uppercase tracking-wider block ${
-                  tieneSaldoAFavor 
-                    ? 'text-emerald-600 dark:text-emerald-400' 
-                    : (totalCompromiso === 0 ? 'text-slate-400' : 'text-slate-500 dark:text-slate-400')
+                  esNetoAFavor 
+                    ? 'text-teal-600 dark:text-teal-400' 
+                    : (esNetoAlDia ? 'text-slate-400' : 'text-slate-500 dark:text-slate-400')
                 }`}>
-                  {tieneSaldoAFavor ? 'Saldo a Favor' : (totalCompromiso === 0 ? 'Estado' : (saldoSeparesActivos > 0 ? 'Saldo Total Pendiente' : 'Saldo Actual'))}
+                  {labelSaldo}
                 </span>
                 <span className={`text-lg font-black ${
-                  !tieneSaldoAFavor && totalCompromiso === 0 
+                  esNetoAlDia 
                     ? 'text-slate-400' 
-                    : (tieneSaldoAFavor ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400')
+                    : (esNetoAFavor ? 'text-teal-600 dark:text-teal-400' : (deudaFiado > 0 ? 'text-rose-600 dark:text-rose-400' : 'text-violet-600 dark:text-violet-400'))
                 }`}>
-                  {!tieneSaldoAFavor && totalCompromiso === 0 ? 'Al Día' : `$${Math.round(Math.abs(totalCompromiso)).toLocaleString('es-CO')}`}
+                  {valorSaldoTexto}
                 </span>
               </div>
 
               {saldoSeparesActivos > 0 && (
                 <div className="flex items-center justify-between text-[10px] font-bold text-slate-500 dark:text-slate-400 pt-1.5 mt-1.5 border-t border-slate-200 dark:border-slate-800">
-                  {tieneSaldoAFavor ? (
-                    <span>A favor: <strong className="text-emerald-600 dark:text-emerald-400">${Math.round(Math.abs(deudaFiado)).toLocaleString('es-CO')}</strong></span>
+                  {tieneSaldoAFavorFiado ? (
+                    <span>A favor: <strong className="text-teal-600 dark:text-teal-400">${Math.round(Math.abs(deudaFiado)).toLocaleString('es-CO')}</strong></span>
                   ) : (
                     <span>Fiados: <strong className="text-rose-600 dark:text-rose-400">${Math.round(deudaFiado).toLocaleString('es-CO')}</strong></span>
                   )}
@@ -1384,8 +1468,9 @@ Gracias por seguir con nosotros.
             )}
           </div>
 
-          {/* Cuerpo Scrolleable en Móvil: Separes, Notas e Historial completo */}
+          {/* Cuerpo Scrolleable en Móvil: Banner inteligente, Separes, Notas e Historial completo */}
           <div className="flex-1 min-h-0 overflow-y-auto p-3.5 sm:p-4 space-y-4 pb-28">
+            {bannerSaldoAFavorSepare}
             {/* Separes activos */}
             {seccionSeparesActivos}
 
@@ -1475,23 +1560,27 @@ Gracias por seguir con nosotros.
               {/* Lado Derecho: Tarjeta de Saldo Compacta */}
               <div className="px-3 py-1.5 rounded-xl bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-800 shadow-xs shrink-0 text-right">
                 <span className={`text-[9px] font-black uppercase tracking-wider block ${
-                  tieneSaldoAFavor 
-                    ? 'text-emerald-600 dark:text-emerald-400' 
-                    : (totalCompromiso === 0 ? 'text-slate-400' : 'text-slate-500 dark:text-slate-400')
+                  esNetoAFavor 
+                    ? 'text-teal-600 dark:text-teal-400' 
+                    : (esNetoAlDia ? 'text-slate-400' : 'text-slate-500 dark:text-slate-400')
                 }`}>
-                  {tieneSaldoAFavor ? 'Saldo a Favor' : (totalCompromiso === 0 ? 'Estado' : (saldoSeparesActivos > 0 ? 'Total Pendiente' : 'Saldo'))}
+                  {labelSaldo}
                 </span>
                 <span className={`text-lg sm:text-xl font-black tracking-tight ${
-                  !tieneSaldoAFavor && totalCompromiso === 0 
-                    ? 'text-emerald-600 dark:text-emerald-400' 
-                    : (tieneSaldoAFavor ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400')
+                  esNetoAlDia 
+                    ? 'text-slate-400' 
+                    : (esNetoAFavor ? 'text-teal-600 dark:text-teal-400' : (deudaFiado > 0 ? 'text-rose-600 dark:text-rose-400' : 'text-violet-600 dark:text-violet-400'))
                 }`}>
-                  {!tieneSaldoAFavor && totalCompromiso === 0 ? 'Al Día' : `$${Math.round(Math.abs(totalCompromiso)).toLocaleString('es-CO')}`}
+                  {valorSaldoTexto}
                 </span>
 
                 {saldoSeparesActivos > 0 && (
                   <div className="flex items-center justify-end gap-1.5 text-[9px] font-bold text-slate-500 dark:text-slate-400 pt-0.5 border-t border-slate-100 dark:border-slate-800/80">
-                    <span>Fiados: ${Math.round(deudaFiado).toLocaleString('es-CO')}</span>
+                    {tieneSaldoAFavorFiado ? (
+                      <span>A favor: <strong className="text-teal-600 dark:text-teal-400">${Math.round(Math.abs(deudaFiado)).toLocaleString('es-CO')}</strong></span>
+                    ) : (
+                      <span>Fiados: ${Math.round(deudaFiado).toLocaleString('es-CO')}</span>
+                    )}
                     <span>•</span>
                     <span className="text-violet-600">Separes: ${Math.round(saldoSeparesActivos).toLocaleString('es-CO')}</span>
                   </div>
@@ -1581,8 +1670,9 @@ Gracias por seguir con nosotros.
 
           </div>
 
-          {/* Cuerpo Scrolleable en Tablet: Separes, Notas e Historial a Ancho Completo */}
+          {/* Cuerpo Scrolleable en Tablet: Banner inteligente, Separes, Notas e Historial a Ancho Completo */}
           <div className="flex-1 min-h-0 overflow-y-auto p-4 space-y-3.5 pb-16">
+            {bannerSaldoAFavorSepare}
             {seccionSeparesActivos}
             {seccionNotas}
 
@@ -1693,28 +1783,28 @@ Gracias por seguir con nosotros.
             </div>
 
             {/* Fila 2: Saldo Destacado en tarjeta blanca (idéntico a la versión clásica) */}
-            <div className="p-3.5 sm:p-4 rounded-2xl bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-800 shadow-xs">
+            <div className="p-3.5 sm:p-4 rounded-2xl bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-800 shadow-xs space-y-1">
               <div className="flex items-center justify-between">
                 <span className={`text-[10px] font-black uppercase tracking-wider block ${
-                  tieneSaldoAFavor 
-                    ? 'text-emerald-600 dark:text-emerald-400' 
-                    : (totalCompromiso === 0 ? 'text-slate-400' : 'text-slate-500 dark:text-slate-400')
+                  esNetoAFavor 
+                    ? 'text-teal-600 dark:text-teal-400' 
+                    : (esNetoAlDia ? 'text-slate-400' : 'text-slate-500 dark:text-slate-400')
                 }`}>
-                  {tieneSaldoAFavor ? 'Saldo a Favor' : (totalCompromiso === 0 ? 'Estado' : (saldoSeparesActivos > 0 ? 'Saldo Total Pendiente' : 'Saldo Actual'))}
+                  {labelSaldo}
                 </span>
                 <span className={`text-xl sm:text-2xl font-black ${
-                  !tieneSaldoAFavor && totalCompromiso === 0 
+                  esNetoAlDia 
                     ? 'text-slate-400' 
-                    : (tieneSaldoAFavor ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400')
+                    : (esNetoAFavor ? 'text-teal-600 dark:text-teal-400' : (deudaFiado > 0 ? 'text-rose-600 dark:text-rose-400' : 'text-violet-600 dark:text-violet-400'))
                 }`}>
-                  {!tieneSaldoAFavor && totalCompromiso === 0 ? 'Al Día' : `$${Math.round(Math.abs(totalCompromiso)).toLocaleString('es-CO')}`}
+                  {valorSaldoTexto}
                 </span>
               </div>
 
               {saldoSeparesActivos > 0 && (
                 <div className="flex items-center justify-between text-[11px] font-bold text-slate-500 dark:text-slate-400 pt-2 mt-2 border-t border-slate-200 dark:border-slate-800">
-                  {tieneSaldoAFavor ? (
-                    <span>A favor: <strong className="text-emerald-600 dark:text-emerald-400">${Math.round(Math.abs(deudaFiado)).toLocaleString('es-CO')}</strong></span>
+                  {tieneSaldoAFavorFiado ? (
+                    <span>A favor: <strong className="text-teal-600 dark:text-teal-400">${Math.round(Math.abs(deudaFiado)).toLocaleString('es-CO')}</strong></span>
                   ) : (
                     <span>Fiados: <strong className="text-rose-600 dark:text-rose-400">${Math.round(deudaFiado).toLocaleString('es-CO')}</strong></span>
                   )}
@@ -1776,6 +1866,9 @@ Gracias por seguir con nosotros.
                 <span>Enviar estado de cuenta por WhatsApp</span>
               </button>
             )}
+
+            {/* Banner inteligente saldo a favor -> separe */}
+            {bannerSaldoAFavorSepare}
 
             {/* Separes Activos en Escritorio */}
             {seccionSeparesActivos}
@@ -2321,17 +2414,19 @@ Gracias por seguir con nosotros.
                               ? (c.semaforo === 'riesgo' ? 'text-rose-600 dark:text-rose-400' : 'text-amber-600 dark:text-amber-400')
                               : 'text-violet-600 dark:text-violet-400'
                             : (c.totalCompromiso || 0) < 0
-                              ? 'text-emerald-600 dark:text-emerald-400'
+                              ? 'text-teal-600 dark:text-teal-400'
                               : 'text-slate-400 dark:text-slate-500'
                         }`}>
                           ${Math.round(Math.abs(c.totalCompromiso || 0)).toLocaleString('es-CO')}
                         </span>
                         <span className={`text-[10px] block font-bold ${
-                          (c.totalCompromiso || 0) < 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-400 font-medium'
+                          (c.totalCompromiso || 0) < 0 ? 'text-teal-600 dark:text-teal-400' : 'text-slate-400 font-medium'
                         }`}>
                           {c.deuda > 0 && (c.saldoSeparesActivos || 0) > 0 ? (
                             `Fiado ${Math.round(c.deuda).toLocaleString('es-CO')} • Separe ${Math.round(c.saldoSeparesActivos).toLocaleString('es-CO')}`
-                          ) : (c.saldoSeparesActivos || 0) > 0 && c.deuda <= 0 ? (
+                          ) : c.deuda < 0 && (c.saldoSeparesActivos || 0) > 0 ? (
+                            `Separe ${Math.round(c.saldoSeparesActivos).toLocaleString('es-CO')} • Favor ${Math.round(Math.abs(c.deuda)).toLocaleString('es-CO')}`
+                          ) : (c.saldoSeparesActivos || 0) > 0 && c.deuda === 0 ? (
                             <span className="text-violet-600 dark:text-violet-400 font-bold">🔖 Separe activo</span>
                           ) : c.deuda > 0 ? (
                             c.diasSinAbonar > 0 ? `Hace ${c.diasSinAbonar}d` : 'Fiado reciente'

@@ -160,10 +160,11 @@ export async function POST(request: Request) {
         throw new Error('TOTAL_NO_COINCIDE');
       }
 
+      const usarSaldoFavor = body.usarSaldoFavor !== false;
       if (fiarFaltante && clienteRef && clienteData) {
         const deudaActual = Number(clienteData.deudaTotal || 0);
         if (!Number.isFinite(deudaActual)) throw new Error('SALDO_INVALIDO');
-        if (deudaActual < 0) {
+        if (deudaActual < 0 && usarSaldoFavor) {
           consumoSaldoFavor = Math.min(Math.abs(deudaActual), montoFiado);
         }
         montoFiadoReal = montoFiado - consumoSaldoFavor;
