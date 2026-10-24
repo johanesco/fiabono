@@ -105,8 +105,8 @@ export default function InstallPrompt() {
         {/* Cabecera del Prompt */}
         <div className="flex items-center justify-between gap-3 mb-3">
           <div className="flex items-center gap-3">
-            <div className="w-11 h-11 rounded-2xl bg-emerald-500 flex items-center justify-center text-white font-black text-xl shadow-md shrink-0">
-              F
+            <div className="w-11 h-11 rounded-2xl bg-emerald-500 overflow-hidden shadow-md shrink-0 flex items-center justify-center p-0.5">
+              <img src="/icon-192.png" alt="Fiabono" className="w-full h-full object-cover rounded-[14px]" />
             </div>
             <div>
               <h4 className="text-sm font-black text-slate-900 dark:text-white leading-tight">

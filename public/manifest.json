@@ -1,35 +1,83 @@
 {
+  "id": "/?source=pwa",
   "name": "Fiabono — Gestión de Negocio",
   "short_name": "Fiabono",
   "description": "Sistema de gestión de inventario, fiados, ventas y plan separe",
-  "start_url": "/dashboard/inicio",
+  "start_url": "/?source=pwa",
+  "scope": "/",
   "display": "standalone",
   "orientation": "portrait",
   "background_color": "#10b981",
   "theme_color": "#10b981",
   "lang": "es",
-  "scope": "/",
+  "dir": "ltr",
+  "categories": [
+    "business",
+    "finance",
+    "productivity"
+  ],
   "icons": [
     {
-      "src": "/icon.svg",
-      "sizes": "any",
-      "type": "image/svg+xml",
-      "purpose": "any"
-    },
-    {
-      "src": "/icon-512.jpg",
+      "src": "/icon-192.png",
       "sizes": "192x192",
-      "type": "image/jpeg",
+      "type": "image/png",
       "purpose": "any"
     },
     {
-      "src": "/icon-512.jpg",
+      "src": "/icon-512.png",
       "sizes": "512x512",
-      "type": "image/jpeg",
-      "purpose": "any maskable"
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-maskable-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "/icon-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
     }
   ],
-  "categories": ["business", "finance", "productivity"],
-  "screenshots": []
+  "shortcuts": [
+    {
+      "name": "Vender",
+      "short_name": "Vender",
+      "description": "Registrar una nueva venta POS",
+      "url": "/dashboard/vender?source=pwa-shortcut",
+      "icons": [
+        {
+          "src": "/icon-192.png",
+          "sizes": "192x192"
+        }
+      ]
+    },
+    {
+      "name": "Fiar",
+      "short_name": "Fiar",
+      "description": "Registrar fiado o crédito a cliente",
+      "url": "/dashboard/fiar?source=pwa-shortcut",
+      "icons": [
+        {
+          "src": "/icon-192.png",
+          "sizes": "192x192"
+        }
+      ]
+    },
+    {
+      "name": "Plan Separe",
+      "short_name": "Separe",
+      "description": "Gestionar planes separe de clientes",
+      "url": "/dashboard/plan-separe?source=pwa-shortcut",
+      "icons": [
+        {
+          "src": "/icon-192.png",
+          "sizes": "192x192"
+        }
+      ]
+    }
+  ]
 }
-
