@@ -2245,7 +2245,14 @@ Estamos atentos para cualquier consulta.
                                 <>
                                     <div className="py-1.5 px-2.5 bg-rose-50 dark:bg-rose-500/10 rounded-xl border border-rose-200 dark:border-rose-800/50 flex justify-between items-center shadow-sm">
                                     <div className="flex flex-col min-w-0 mr-2">
-                                        <span className="font-black text-slate-900 dark:text-rose-300 text-xs truncate">{clienteTransaccion.nombre}</span>
+                                        <div className="flex items-center gap-1.5 flex-wrap truncate">
+                                            <span className="font-black text-slate-900 dark:text-rose-300 text-xs truncate">{clienteTransaccion.nombre}</span>
+                                            {clienteTransaccion.apodo && (
+                                                <span className="text-[9.5px] font-bold text-amber-700 dark:text-amber-400 bg-amber-100/70 dark:bg-amber-950/50 px-1 py-0.2 rounded border border-amber-200 dark:border-amber-800/40">
+                                                    "{clienteTransaccion.apodo}"
+                                                </span>
+                                            )}
+                                        </div>
                                         <span className={`text-[10px] font-bold block ${Number(clienteTransaccion.deudaTotal || 0) < 0 ? 'text-teal-600 dark:text-teal-400' : 'text-rose-600'}`}>
                                             {Number(clienteTransaccion.deudaTotal || 0) > 0 
                                                 ? `Deuda actual: $${Number(clienteTransaccion.deudaTotal).toLocaleString('es-CO')}` 

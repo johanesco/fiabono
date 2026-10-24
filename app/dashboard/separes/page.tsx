@@ -54,6 +54,7 @@ function SeparesContenido() {
 
   const [separes, setSepares] = useState<any[]>([]);
   const [mapaInventario, setMapaInventario] = useState<Record<string, any>>({});
+  const [mapaClientes, setMapaClientes] = useState<Record<string, any>>({});
   const [cargando, setCargando] = useState(true);
   const [tabActiva, setTabActiva] = useState<'activos' | 'completados' | 'cancelados' | 'vencidos' | 'todos'>('activos');
   const [busqueda, setBusqueda] = useState("");
@@ -125,6 +126,18 @@ function SeparesContenido() {
   const videoPostRef = useRef<HTMLVideoElement | null>(null);
   const [errorCamaraPost, setErrorCamaraPost] = useState<'permiso_denegado' | 'no_disponible' | null>(null);
   const [subiendoFotoPost, setSubiendoFotoPost] = useState<boolean>(false);
+
+  // Estados para Retirar / Corregir Artículo en Separe Multi-artículo
+  const [modalEliminarItem, setModalEliminarItem] = useState<{
+    visible: boolean;
+    separe: any;
+    itemIndex: number;
+    item: any;
+  } | null>(null);
+  const [motivoEliminarItem, setMotivoEliminarItem] = useState<string>("Agregado por error humano / Duplicado");
+  const [motivoPersonalizado, setMotivoPersonalizado] = useState<string>("");
+  const [destinoExcedenteItem, setDestinoExcedenteItem] = useState<'saldo_favor' | 'efectivo'>('saldo_favor');
+  const [procesandoEliminarItem, setProcesandoEliminarItem] = useState<boolean>(false);
 
   // Generadores de Sonidos Web Audio API
   const reproducirSonidoExito = () => {
@@ -243,6 +256,28 @@ function SeparesContenido() {
     });
 
     return () => unsub();
+  }, [cuentaPrincipalId]);
+
+  // Listener en tiempo real de clientes para sincronizar apodos y datos actualizados
+  useEffect(() => {
+    if (!cuentaPrincipalId) return;
+
+    const qCli = query(
+      collection(db, "clientes"),
+      where("usuarioId", "==", cuentaPrincipalId)
+    );
+
+    const unsubCli = onSnapshot(qCli, (snapshot) => {
+      const mapa: Record<string, any> = {};
+      snapshot.forEach((docSnap) => {
+        mapa[docSnap.id] = { id: docSnap.id, ...docSnap.data() };
+      });
+      setMapaClientes(mapa);
+    }, (error) => {
+      console.error("Error sincronizando clientes en separes:", error);
+    });
+
+    return () => unsubCli();
   }, [cuentaPrincipalId]);
 
   // Listener en tiempo real del inventario para resolver fotos de catálogo en vivo
@@ -411,12 +446,15 @@ function SeparesContenido() {
     const normalizar = (texto: string) => (texto || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
     const qNorm = normalizar(busqueda);
     const clienteMatch = normalizar(sep.clienteNombre).includes(qNorm);
+    const apodoEfectivo = sep.clienteApodo || (sep.clienteId && mapaClientes[sep.clienteId]?.apodo);
+        const apodoMatch = Boolean(apodoEfectivo && normalizar(apodoEfectivo).includes(qNorm));
     const celularMatch = (sep.clienteCelular || "").toString().includes(busqueda.trim());
+    const docMatch = Boolean((sep as any).clienteNumeroDocumento && (sep as any).clienteNumeroDocumento.toString().includes(busqueda.trim()));
     const notasClienteMatch = normalizar(sep.clienteNotas || "").includes(qNorm);
     const notasSepareMatch = normalizar(sep.notas || "").includes(qNorm);
     const itemsMatch = (sep.items || []).some((it: any) => normalizar(it.descripcion).includes(qNorm));
 
-    return clienteMatch || celularMatch || notasClienteMatch || notasSepareMatch || itemsMatch;
+    return clienteMatch || apodoMatch || celularMatch || docMatch || notasClienteMatch || notasSepareMatch || itemsMatch;
   });
 
   const formatearMonedaInput = (valor: string) => {
@@ -1199,6 +1237,54 @@ Gracias por contactarnos.`;
     abrirEnlaceWhatsApp(celular, texto);
   };
 
+  // Enviar estado de cuenta del plan separe directamente por WhatsApp
+  const enviarWhatsAppEstadoSepare = (sep: any) => {
+    const apodoEfectivo = sep.clienteApodo || (sep.clienteId && mapaClientes[sep.clienteId]?.apodo);
+    const nombre = apodoEfectivo ? `${obtenerNombreCercano(sep.clienteNombre)} ("${apodoEfectivo}")` : obtenerNombreCercano(sep.clienteNombre);
+    const celular = sep.clienteCelular?.replace(/\D/g, '') || "";
+    if (!celular) {
+      toast.error("El cliente no tiene un número de celular registrado.");
+      return;
+    }
+
+    const itemsTexto = (sep.items || []).map((it: any) => {
+      const c = Number(it.cantidad || 1);
+      return `• ${c > 1 ? `${c}x ` : ''}${it.descripcion}`;
+    }).join('\n');
+
+    const total = Number(sep.total || 0);
+    const pagado = Number(sep.montoPagado || 0);
+    const saldo = Number(sep.saldoPendiente || 0);
+    const esPagado = saldo <= 0;
+
+    let texto = `¡Hola, *${nombre}*! 👋 Te saludamos de *${nombreNegocio || 'nuestra tienda'}*.
+
+Te compartimos el estado actualizado de tu *Plan Separe*:
+
+📦 *Artículos apartados:*
+${itemsTexto || '• Artículos apartados'}
+
+💰 *Total del apartado:* *${total.toLocaleString('es-CO')}*
+✅ *Total abonado:* *${pagado.toLocaleString('es-CO')}*
+⏳ *Saldo pendiente:* *${saldo.toLocaleString('es-CO')}*`;
+
+    if (sep.fechaLimite) {
+      texto += `\n📅 *Fecha límite:* ${formatearFecha(sep.fechaLimite)}`;
+    }
+
+    if (esPagado) {
+      texto += `\n\n🎉 *¡Tu apartado ya está 100% pagado!* Puedes pasar a recoger tus productos cuando gustes.`;
+    } else {
+      texto += `\n\nQuedamos atentos ante cualquier duda o pago adicional. ¡Muchas gracias por tu preferencia!`;
+    }
+
+    if (sep.id && typeof window !== 'undefined') {
+      texto += `\n\n📄 *Ver comprobante digital:*\n${window.location.origin}/t/${sep.id}`;
+    }
+
+    abrirEnlaceWhatsApp(celular, texto);
+  };
+
   // Imprimir Ticket de Historial / Estado de Separe
   const abrirTicketSepare = (sep: any) => {
     const ticketDatos: DatosFacturaProps = {
@@ -1229,6 +1315,63 @@ Gracias por contactarnos.`;
     };
 
     setModalTicketFactura({ visible: true, datos: ticketDatos });
+  };
+
+  // Abrir modal para retirar un artículo agregado por error
+  const abrirModalEliminarItemSepare = (sep: any, itemIndex: number) => {
+    const it = (sep.items || [])[itemIndex];
+    if (!it) return;
+    setMotivoEliminarItem("Agregado por error humano / Duplicado");
+    setMotivoPersonalizado("");
+    setDestinoExcedenteItem("saldo_favor");
+    setModalEliminarItem({
+      visible: true,
+      separe: sep,
+      itemIndex,
+      item: it
+    });
+  };
+
+  // Ejecutar retiro del artículo y ajuste matemático/financiero
+  const ejecutarEliminarItemSepare = async () => {
+    if (!modalEliminarItem || procesandoEliminarItem) return;
+    const { separe, itemIndex, item } = modalEliminarItem;
+    const motivoFinal = motivoEliminarItem === "Otro"
+      ? (motivoPersonalizado.trim() || "Corrección manual por error")
+      : motivoEliminarItem;
+
+    setProcesandoEliminarItem(true);
+    try {
+      const token = await auth.currentUser?.getIdToken();
+      if (!token) throw new Error("No se pudo autenticar la sesión.");
+
+      const res = await fetch('/api/separes/eliminar-item', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          separeId: separe.id,
+          itemIndex,
+          motivo: motivoFinal,
+          destinoExcedente: destinoExcedenteItem
+        })
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || "Error al retirar el artículo.");
+      }
+
+      toast.success(`Artículo "${item.descripcion}" retirado correctamente.`);
+      setModalEliminarItem(null);
+    } catch (error: any) {
+      console.error("Error al retirar item:", error);
+      toast.error(error.message || "Error al retirar el artículo del separe.");
+    } finally {
+      setProcesandoEliminarItem(false);
+    }
   };
 
   return (
@@ -1477,13 +1620,32 @@ Gracias por contactarnos.`;
                           {sep.clienteNombre?.charAt(0).toUpperCase() || "C"}
                         </div>
                         <div className="min-w-0 flex-1 space-y-1">
-                          <h3 className="font-black text-sm sm:text-base text-slate-900 dark:text-white leading-tight break-words">
-                            {sep.clienteNombre}
-                          </h3>
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <h3 className="font-black text-sm sm:text-base text-slate-900 dark:text-white leading-tight break-words">
+                              {sep.clienteNombre}
+                            </h3>
+                            {(sep.clienteApodo || (sep.clienteId && mapaClientes[sep.clienteId]?.apodo)) && (
+                              <span className="text-[10px] font-bold text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/40 px-1.5 py-0.2 rounded border border-amber-200/60 dark:border-amber-800/40" title={`Apodo: ${sep.clienteApodo || mapaClientes[sep.clienteId]?.apodo}`}>
+                                "{sep.clienteApodo || mapaClientes[sep.clienteId]?.apodo}"
+                              </span>
+                            )}
+                          </div>
 
                           {/* Sub-fila meta: Celular + Fecha de Vencimiento */}
                           <div className="flex flex-wrap items-center gap-1.5 text-[11px] font-bold text-slate-400">
-                            <span>{sep.clienteCelular || "Sin celular"}</span>
+                            {sep.clienteCelular ? (
+                              <button
+                                type="button"
+                                onClick={() => enviarWhatsAppEstadoSepare(sep)}
+                                className="inline-flex items-center gap-1 text-emerald-600 dark:text-emerald-400 hover:underline font-bold transition-colors cursor-pointer"
+                                title="Enviar resumen por WhatsApp"
+                              >
+                                <MessageCircle size={11} className="shrink-0" />
+                                <span>{sep.clienteCelular}</span>
+                              </button>
+                            ) : (
+                              <span>Sin celular</span>
+                            )}
                             {estadoVenc && (
                               <span className={`text-[10px] font-black px-2 py-0.5 rounded-md inline-flex items-center gap-1 shrink-0 ${
                                 estadoVenc.tipo === 'vencido'
@@ -1568,9 +1730,21 @@ Gracias por contactarnos.`;
                                     </button>
                                   ))}
                                 </div>
-                                <span className="font-bold text-slate-900 dark:text-slate-100 shrink-0">
-                                  ${((Number(it.valor) || 0) * cantTotal).toLocaleString('es-CO')}
-                                </span>
+                                <div className="flex items-center gap-1.5 shrink-0">
+                                  <span className="font-bold text-slate-900 dark:text-slate-100">
+                                    ${((Number(it.valor) || 0) * cantTotal).toLocaleString('es-CO')}
+                                  </span>
+                                  {!esCompletado && !esCancelado && cantEnt === 0 && (
+                                    <button
+                                      type="button"
+                                      onClick={() => abrirModalEliminarItemSepare(sep, idx)}
+                                      className="p-1 text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded-lg transition-colors cursor-pointer"
+                                      title="Quitar este artículo (agregado por error)"
+                                    >
+                                      <Trash2 size={12} />
+                                    </button>
+                                  )}
+                                </div>
                               </div>
 
                               {/* Badge de Entrega Parcial por Producto */}
@@ -1759,6 +1933,18 @@ Gracias por contactarnos.`;
                             <Clock size={13} className="shrink-0" />
                             <span>Historial</span>
                           </button>
+
+                          {/* WhatsApp Directo 1-Click */}
+                          {sep.clienteCelular && (
+                            <button
+                              type="button"
+                              onClick={() => enviarWhatsAppEstadoSepare(sep)}
+                              className="p-1.5 px-2.5 bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-950/40 dark:hover:bg-emerald-900/40 text-emerald-600 dark:text-emerald-400 border border-emerald-200/80 dark:border-emerald-800/60 rounded-xl transition-all cursor-pointer shrink-0"
+                              title="Enviar estado actual por WhatsApp"
+                            >
+                              <MessageCircle size={14} />
+                            </button>
+                          )}
 
                           {/* Imprimir Ticket */}
                           <button
@@ -2221,6 +2407,42 @@ Gracias por contactarnos.`;
                 ))
               )}
             </div>
+
+            {/* Artículos Retirados / Correcciones en el Historial del Separe */}
+            {separeSeleccionado.itemsRetirados && separeSeleccionado.itemsRetirados.length > 0 && (
+              <div className="pt-2.5 border-t border-slate-200/80 dark:border-slate-800 space-y-2 shrink-0">
+                <div className="flex items-center gap-1.5 text-xs font-bold text-rose-600 dark:text-rose-400">
+                  <AlertTriangle size={13} />
+                  <span>Artículos Retirados por Corrección ({separeSeleccionado.itemsRetirados.length})</span>
+                </div>
+                <div className="space-y-1.5 max-h-36 overflow-y-auto pr-0.5">
+                  {separeSeleccionado.itemsRetirados.map((itRet: any, rIdx: number) => (
+                    <div key={rIdx} className="p-3 bg-rose-50/70 dark:bg-rose-950/30 border border-rose-200/60 dark:border-rose-900/40 rounded-2xl flex justify-between items-center text-xs">
+                      <div className="space-y-0.5 min-w-0 flex-1 pr-2">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span className="font-bold line-through text-slate-700 dark:text-slate-300 break-words">
+                            {itRet.descripcion}
+                          </span>
+                          <span className="text-[9.5px] font-black px-1.5 py-0.2 bg-rose-100 text-rose-800 dark:bg-rose-900/60 dark:text-rose-300 rounded shrink-0">
+                            {itRet.separeAnulado ? 'Separe Anulado' : 'Retirado'}
+                          </span>
+                        </div>
+                        <p className="text-[10.5px] text-slate-500 dark:text-slate-400">
+                          {itRet.fechaRetiro ? formatearFecha(itRet.fechaRetiro) : ''} • Por: {itRet.retiradoPor || 'Usuario'}
+                        </p>
+                        <p className="text-[10px] text-rose-700 dark:text-rose-300">
+                          Motivo: {itRet.motivo}
+                          {itRet.excedenteGenerado > 0 ? ` • Excedente ${Number(itRet.excedenteGenerado).toLocaleString('es-CO')} (${itRet.destinoExcedente === 'efectivo' ? 'devuelto en efectivo' : 'saldo a favor'})` : ''}
+                        </p>
+                      </div>
+                      <span className="font-black text-xs text-rose-600 dark:text-rose-400 shrink-0">
+                        -${Number(itRet.valorNetoRetirado || ((Number(itRet.valor) || 0) * (itRet.cantidad || 1))).toLocaleString('es-CO')}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
 
             <div className="pt-2 border-t border-slate-100 dark:border-slate-800 shrink-0">
               <button
@@ -3115,7 +3337,7 @@ Gracias por contactarnos.`;
                         <span>{nov.autor || "Usuario"}</span>
                         <span>{nov.fecha ? new Date(nov.fecha).toLocaleDateString('es-CO', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) : ''}</span>
                       </div>
-                      <p className="text-slate-700 dark:text-slate-300 whitespace-pre-wrap break-words">{nov.nota}</p>
+                      <p className="text-slate-700 dark:text-slate-300 whitespace-pre-wrap break-words">{nov.nota || nov.texto}</p>
                     </div>
                   ))
                 ) : (
@@ -3125,6 +3347,29 @@ Gracias por contactarnos.`;
                 )}
               </div>
             </div>
+
+            {/* Artículos Retirados por Auditoría */}
+            {separeSeleccionado.itemsRetirados && separeSeleccionado.itemsRetirados.length > 0 && (
+              <div className="p-3 bg-rose-50/60 dark:bg-rose-950/20 rounded-2xl border border-rose-200/80 dark:border-rose-900/40 space-y-2">
+                <div className="flex items-center gap-1.5 text-xs font-bold text-rose-700 dark:text-rose-300">
+                  <AlertTriangle size={13} />
+                  <span>Artículos retirados / corregidos ({separeSeleccionado.itemsRetirados.length})</span>
+                </div>
+                <div className="space-y-1.5 max-h-36 overflow-y-auto">
+                  {separeSeleccionado.itemsRetirados.map((ir: any, idx: number) => (
+                    <div key={idx} className="text-[11px] text-slate-700 dark:text-slate-300 flex justify-between items-center bg-white dark:bg-slate-900/80 p-2 rounded-xl border border-rose-100 dark:border-rose-950/40">
+                      <div className="min-w-0 flex-1 pr-2">
+                        <span className="font-bold line-through text-slate-500 mr-1">{ir.descripcion}</span>
+                        <span className="text-[10px] text-slate-400 block">Motivo: {ir.motivo} • Por: {ir.retiradoPor}</span>
+                      </div>
+                      <span className="font-bold text-rose-600 dark:text-rose-400 shrink-0">
+                        -${Number(ir.valorNetoRetirado || (Number(ir.valor || 0) * (ir.cantidad || 1))).toLocaleString('es-CO')}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {/* Agregar Nueva Nota */}
             <div className="space-y-1.5">
@@ -3365,6 +3610,180 @@ Gracias por contactarnos.`;
           </div>
         </div>
       )}
+
+      {/* MODAL RETIRAR ARTÍCULO / CORREGIR SEPARE (DISEÑO COMPACTO ZERO-SCROLL) */}
+      {modalEliminarItem?.visible && modalEliminarItem.item && modalEliminarItem.separe && (() => {
+        const sep = modalEliminarItem.separe;
+        const it = modalEliminarItem.item;
+        const cantTotal = Number(it.cantidad || 1);
+        const totalBruto = Number(sep.totalBruto || 0) || (sep.items || []).reduce((acc: number, itemObj: any) => acc + (Number(itemObj.valor) || 0) * (itemObj.cantidad || 1), 0);
+        const montoDescuento = Number(sep.montoDescuento || 0);
+        const factorDescuento = totalBruto > 0 && montoDescuento > 0 ? (1 - (montoDescuento / totalBruto)) : 1;
+        const valorBrutoRetirado = (Number(it.valor) || 0) * cantTotal;
+        const valorNetoRetirado = Math.round(valorBrutoRetirado * factorDescuento);
+        const nuevoTotal = Math.max(0, Number(sep.total || 0) - valorNetoRetirado);
+        const montoPagadoActual = Number(sep.montoPagado || 0);
+        const montoExcedente = montoPagadoActual > nuevoTotal ? (montoPagadoActual - nuevoTotal) : 0;
+        const nuevoSaldoPendiente = montoPagadoActual >= nuevoTotal ? 0 : (nuevoTotal - montoPagadoActual);
+        const esUnicoItem = sep.items && sep.items.length === 1;
+
+        return (
+          <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center p-3 sm:p-4 z-[225] animate-in fade-in duration-150">
+            <div className="bg-white dark:bg-[#0f172a] p-4 sm:p-5 rounded-3xl w-full max-w-md shadow-2xl border border-slate-200 dark:border-slate-800 space-y-3">
+              
+              {/* Encabezado Compacto */}
+              <div className="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-800">
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <div className="w-8 h-8 rounded-xl bg-rose-100 dark:bg-rose-500/20 text-rose-600 dark:text-rose-400 flex items-center justify-center shrink-0">
+                    <Trash2 size={16} />
+                  </div>
+                  <div className="min-w-0">
+                    <h3 className="text-sm font-black text-slate-900 dark:text-white leading-tight truncate">
+                      {esUnicoItem ? 'Anular Separe por Error' : 'Corregir Separe'}
+                    </h3>
+                    <p className="text-[11px] text-slate-400 truncate">
+                      Cliente: <strong className="text-slate-700 dark:text-slate-300">{sep.clienteNombre}</strong>
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => !procesandoEliminarItem && setModalEliminarItem(null)}
+                  className="p-1.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors shrink-0"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+
+              {/* Alerta si es el único artículo */}
+              {esUnicoItem && (
+                <div className="p-2.5 bg-amber-50 dark:bg-amber-950/40 rounded-xl border border-amber-300/80 dark:border-amber-800/60 flex items-center gap-2 text-[11px] text-amber-900 dark:text-amber-200">
+                  <AlertTriangle size={14} className="text-amber-600 shrink-0" />
+                  <span>Único artículo: el apartado quedará <strong>cancelado</strong>.</span>
+                </div>
+              )}
+
+              {/* Tarjeta Unificada de Producto e Impacto Financiero */}
+              <div className="p-3 bg-slate-50 dark:bg-slate-900/80 rounded-2xl border border-slate-200/80 dark:border-slate-800 space-y-2">
+                <div className="flex justify-between items-start gap-2">
+                  <div className="min-w-0 flex-1">
+                    <span className="text-[9.5px] font-black uppercase text-rose-600 dark:text-rose-400 block tracking-wide">
+                      Producto a retirar
+                    </span>
+                    <p className="text-xs font-black text-slate-900 dark:text-white truncate">
+                      {cantTotal > 1 ? `${cantTotal}x ` : ''}{it.descripcion}
+                    </p>
+                  </div>
+                  <span className="text-xs font-black text-rose-600 dark:text-rose-400 shrink-0 bg-rose-50 dark:bg-rose-950/60 px-2 py-0.5 rounded-lg border border-rose-200/60 dark:border-rose-900/40">
+                    -${valorNetoRetirado.toLocaleString('es-CO')}
+                  </span>
+                </div>
+
+                {/* Mini Grid: Nuevo Total vs Nuevo Saldo */}
+                <div className="grid grid-cols-2 gap-2 pt-1 border-t border-slate-200/60 dark:border-slate-800/80 text-[11px]">
+                  <div className="bg-white dark:bg-slate-800/60 p-2 rounded-xl border border-slate-100 dark:border-slate-800">
+                    <span className="text-slate-400 text-[10px] block">Nuevo Total</span>
+                    <strong className="text-slate-800 dark:text-slate-200 font-black">${nuevoTotal.toLocaleString('es-CO')}</strong>
+                  </div>
+                  <div className="bg-white dark:bg-slate-800/60 p-2 rounded-xl border border-slate-100 dark:border-slate-800">
+                    <span className="text-slate-400 text-[10px] block">Saldo Pendiente</span>
+                    <strong className="text-slate-900 dark:text-white font-black">${nuevoSaldoPendiente.toLocaleString('es-CO')}</strong>
+                  </div>
+                </div>
+              </div>
+
+              {/* Selector Compacto de Excedente de Dinero (si pagó más del nuevo total) */}
+              {montoExcedente > 0 && (
+                <div className="p-2.5 bg-amber-50/70 dark:bg-amber-950/30 rounded-2xl border border-amber-200 dark:border-amber-800/50 space-y-1.5">
+                  <div className="flex justify-between items-center text-xs">
+                    <span className="font-bold text-amber-800 dark:text-amber-300 flex items-center gap-1 text-[11px]">
+                      <Sparkles size={12} className="text-amber-600 shrink-0" /> Excedente:
+                    </span>
+                    <strong className="text-amber-900 dark:text-amber-200 font-black text-xs">${montoExcedente.toLocaleString('es-CO')}</strong>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-1.5 pt-0.5">
+                    <button
+                      type="button"
+                      onClick={() => setDestinoExcedenteItem('saldo_favor')}
+                      className={`py-1.5 px-2 rounded-xl text-[11px] font-bold border flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                        destinoExcedenteItem === 'saldo_favor'
+                          ? 'bg-amber-600 text-white border-amber-600 shadow-sm'
+                          : 'bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 border-amber-200 dark:border-amber-800/40 hover:bg-amber-100/50'
+                      }`}
+                    >
+                      <Wallet size={12} />
+                      <span>Saldo a Favor</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setDestinoExcedenteItem('efectivo')}
+                      className={`py-1.5 px-2 rounded-xl text-[11px] font-bold border flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                        destinoExcedenteItem === 'efectivo'
+                          ? 'bg-amber-600 text-white border-amber-600 shadow-sm'
+                          : 'bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 border-amber-200 dark:border-amber-800/40 hover:bg-amber-100/50'
+                      }`}
+                    >
+                      <Banknote size={12} />
+                      <span>Devolver Caja</span>
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Selector de Motivo Compacto */}
+              <div className="space-y-1">
+                <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                  Motivo de corrección
+                </label>
+                <select
+                  value={motivoEliminarItem}
+                  onChange={(e) => setMotivoEliminarItem(e.target.value)}
+                  className="w-full px-2.5 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-xs font-medium text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-rose-500/30"
+                >
+                  <option value="Agregado por error humano / Duplicado">Agregado por error humano / Duplicado</option>
+                  <option value="Cliente cambió de opinión antes de entrega">Cliente cambió de opinión</option>
+                  <option value="Artículo cargado por equivocación de código/precio">Error de código o precio</option>
+                  <option value="Otro">Otro motivo...</option>
+                </select>
+
+                {motivoEliminarItem === "Otro" && (
+                  <input
+                    type="text"
+                    value={motivoPersonalizado}
+                    onChange={(e) => setMotivoPersonalizado(e.target.value)}
+                    placeholder="Escribe el motivo..."
+                    className="w-full mt-1.5 px-2.5 py-1.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-rose-500/30"
+                  />
+                )}
+              </div>
+
+              {/* Acciones */}
+              <div className="pt-1.5 flex gap-2">
+                <button
+                  type="button"
+                  disabled={procesandoEliminarItem}
+                  onClick={() => setModalEliminarItem(null)}
+                  className="flex-1 py-2.5 px-3 rounded-xl border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 font-bold text-xs transition-colors disabled:opacity-50"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  disabled={procesandoEliminarItem}
+                  onClick={ejecutarEliminarItemSepare}
+                  className="flex-[1.5] py-2.5 px-3 rounded-xl bg-rose-600 hover:bg-rose-700 disabled:opacity-50 text-white font-bold text-xs shadow-md transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+                >
+                  <Trash2 size={14} />
+                  <span>{procesandoEliminarItem ? "Procesando..." : (esUnicoItem ? "Anular Separe" : "Retirar Artículo")}</span>
+                </button>
+              </div>
+
+            </div>
+          </div>
+        );
+      })()}
 
       {/* MODAL TICKET FACTURA */}
       <TicketFacturaModal

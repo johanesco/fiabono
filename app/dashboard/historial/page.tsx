@@ -548,16 +548,32 @@ Gracias por seguir con nosotros.
       .trim();
   };
 
-  const directorioFiltrado = clientes.filter(c => {
-    const q = normalizarBusqueda(busquedaDirectorio);
+  const coincideClienteDirectorio = (c: any, termino: string) => {
+    const q = normalizarBusqueda(termino);
     if (!q) return true;
+    const nombre = normalizarBusqueda(c.nombre || "");
+    const apodo = normalizarBusqueda(c.apodo || "");
+    const notas = normalizarBusqueda(c.notas || "");
+    const direccion = normalizarBusqueda(c.direccion || "");
+    const celular = (c.celular || "").toString().replace(/\D/g, "");
+    const doc = (c.numeroDocumento || "").toString().replace(/\D/g, "");
+    const etiquetas = (c.etiquetas || []).map((e: string) => normalizarBusqueda(e)).join(" ");
+    const termClean = termino.trim().toLowerCase();
+    const termNum = termino.replace(/\D/g, "");
+
     return (
-      normalizarBusqueda(c.nombre).includes(q) ||
-      (c.celular && c.celular.toString().includes(busquedaDirectorio.trim())) ||
-      normalizarBusqueda(c.notas || "").includes(q) ||
-      normalizarBusqueda(c.direccion || "").includes(q)
+      nombre.includes(q) ||
+      apodo.includes(q) ||
+      notas.includes(q) ||
+      direccion.includes(q) ||
+      etiquetas.includes(q) ||
+      (celular && termNum && celular.includes(termNum)) ||
+      (doc && termNum && doc.includes(termNum)) ||
+      (c.numeroDocumento && c.numeroDocumento.toString().toLowerCase().includes(termClean))
     );
-  });
+  };
+
+  const directorioFiltrado = clientes.filter(c => coincideClienteDirectorio(c, busquedaDirectorio));
 
   const hoyDate = new Date();
   const diaActualNum = hoyDate.getDay() === 0 ? 6 : hoyDate.getDay() - 1; 
@@ -1060,12 +1076,13 @@ Gracias por seguir con nosotros.
                         <p className={`font-black text-xl text-right ${
                           (mov as any).anulado ? 'line-through text-slate-400 dark:text-slate-500 opacity-60' :
                           mov.tipo === 'devolucion' || mov.tipo === 'egreso' ? 'text-amber-600 dark:text-amber-400' :
+                          mov.subtipo === 'retiro_item_separe' ? 'text-rose-600 dark:text-rose-400' :
                           esEntregaSepare ? 'text-purple-600 dark:text-purple-400' :
                           esSepare ? 'text-violet-600 dark:text-violet-400' :
                           mov.tipo === 'fiado' ? 'text-rose-500' : (mov.tipo === 'venta' ? 'text-emerald-500' : 'text-blue-500')
                         }`}>
                           {(mov as any).anulado ? `(Anulado) $${Math.round(mov.monto || 0).toLocaleString('es-CO')}` :
-                           esEntregaSepare ? 'Entregado' : (mov.subtipo === 'apertura_separe_sin_abono' || (mov.monto === 0 && esSepare) ? 'Reservado ($0)' : `${mov.tipo === 'fiado' || mov.tipo === 'egreso' || mov.tipo === 'devolucion' ? '-' : '+'}${Math.round(mov.monto || 0).toLocaleString('es-CO')}`)}
+                           mov.subtipo === 'retiro_item_separe' ? `-${Math.round(mov.monto || 0).toLocaleString('es-CO')}` : (esEntregaSepare ? 'Entregado' : (mov.subtipo === 'apertura_separe_sin_abono' || (mov.monto === 0 && esSepare) ? 'Reservado ($0)' : `${mov.tipo === 'fiado' || mov.tipo === 'egreso' || mov.tipo === 'devolucion' ? '-' : '+'}${Math.round(mov.monto || 0).toLocaleString('es-CO')}`))}
                         </p>
                       )}
                     </div>
@@ -1148,14 +1165,14 @@ Gracias por seguir con nosotros.
 
       {/* MODAL DEL PERFIL DEL CLIENTE CLICKEADO (ESCRITORIO DIVIDIDO) */}
       {clienteActivo && mounted && createPortal(
-        <div className="fixed inset-0 bg-black/70 dark:bg-black/85 backdrop-blur-md flex items-end md:items-center justify-center p-0 md:p-6 z-[99999] overflow-hidden">
-          <div className="bg-white dark:bg-[#0f172a] rounded-t-[2.5rem] md:rounded-[2.5rem] w-full h-[96vh] md:h-[90vh] md:max-w-7xl shadow-2xl flex flex-col md:flex-row overflow-hidden border border-slate-100 dark:border-slate-800/60 animate-in slide-in-from-bottom-8 md:zoom-in-95 duration-300">
+        <div onClick={() => setClienteActivo(null)} className="fixed inset-0 bg-black/70 dark:bg-black/85 backdrop-blur-md flex items-end md:items-center justify-center p-0 md:p-6 z-[99999] overflow-hidden">
+          <div onClick={(e) => e.stopPropagation()} className="bg-white dark:bg-[#0f172a] rounded-t-[2.5rem] md:rounded-[2.5rem] w-full h-[96vh] md:h-[90vh] md:max-w-7xl shadow-2xl flex flex-col md:flex-row overflow-hidden border border-slate-100 dark:border-slate-800/60 animate-in slide-in-from-bottom-8 md:zoom-in-95 duration-300">
             
             {/* PANEL IZQUIERDO: DIRECTORIO (SOLO ESCRITORIO) */}
             <div className="hidden md:flex w-5/12 flex-col border-r border-slate-100 dark:border-slate-800 h-full bg-slate-50/50 dark:bg-[#020617]/50">
               <div className="bg-blue-600 dark:bg-blue-900 p-6 flex justify-between items-center shrink-0">
                 <h2 className="text-2xl font-black text-white tracking-wide flex items-center gap-2"><Users size={26}/> Directorio de Clientes</h2>
-                <button onClick={() => setClienteActivo(null)} className="text-blue-200 hover:text-white transition-colors bg-blue-700/50 p-2 rounded-full"><X size={24}/></button>
+                <button onClick={() => setClienteActivo(null)} title="Cerrar modal (Esc)" className="text-blue-200 hover:text-white transition-colors bg-blue-700/50 hover:bg-blue-700 p-2 rounded-full cursor-pointer"><X size={22}/></button>
               </div>
               
               <div className="p-4 bg-white dark:bg-[#0f172a] shrink-0 border-b border-slate-100 dark:border-slate-800">
@@ -1185,13 +1202,21 @@ Gracias por seguir con nosotros.
                     <div className="min-w-0 pr-2">
                       <div className="flex items-center gap-1.5 flex-wrap">
                         <p className="font-bold text-base text-slate-900 dark:text-slate-100 truncate">{c.nombre}</p>
+                        {c.apodo && (
+                          <span className="text-[10px] font-bold text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/40 px-1.5 py-0.5 rounded border border-amber-200/60 dark:border-amber-800/40 shrink-0">
+                            "{c.apodo}"
+                          </span>
+                        )}
                         {c.notas && (
                           <span className="text-[10px] font-medium bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-400 border border-amber-200/60 dark:border-amber-800/40 px-1.5 py-0.5 rounded-md">
-                            {c.notas}
+                            📝 {c.notas}
                           </span>
                         )}
                       </div>
-                      <p className="text-xs text-slate-500 dark:text-slate-400">{c.celular || "Sin celular"}</p>
+                      <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                        <span>{c.celular ? `📱 ${c.celular}` : "Sin celular"}</span>
+                        {c.numeroDocumento && <span>• CC: {c.numeroDocumento}</span>}
+                      </div>
                     </div>
                     <div className="text-right shrink-0">
                       {(c.deudaTotal || 0) < 0 && <span className="text-[10px] bg-teal-100 text-teal-800 dark:bg-teal-500/20 dark:text-teal-300 font-black px-1.5 py-0.5 rounded mr-1">A favor</span>}
@@ -1213,19 +1238,34 @@ Gracias por seguir con nosotros.
             <div className="flex-1 flex flex-col h-full bg-white dark:bg-[#0f172a] overflow-hidden">
               
               {/* HEADER ESCRITORIO */}
-              <div className="hidden md:flex p-6 bg-slate-900 text-white justify-between items-center shrink-0">
-                <div className="flex items-center gap-3">
-                  <div>
+              <div className="hidden md:flex p-6 bg-slate-900 text-white justify-between items-center shrink-0 gap-4">
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
                       <h3 className="text-2xl font-black">{clienteActivo.nombre}</h3>
+                      {clienteActivo.apodo && (
+                        <span className="text-xs font-bold text-amber-300 bg-amber-500/20 px-2.5 py-0.5 rounded-lg border border-amber-500/30">
+                          "{clienteActivo.apodo}"
+                        </span>
+                      )}
                       {clienteActivo.notas && (
                         <span className="text-xs font-medium bg-amber-500/20 text-amber-300 border border-amber-500/30 px-2 py-0.5 rounded-lg">
-                          {clienteActivo.notas}
+                          📝 {clienteActivo.notas}
                         </span>
                       )}
                     </div>
-                    <div className="flex items-center gap-2 mt-0.5">
-                      <p className="text-slate-400 text-sm">{clienteActivo.celular || "Sin celular registrado"}</p>
+                    <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+                      <p className="text-slate-400 text-sm">{clienteActivo.celular ? `📱 ${clienteActivo.celular}` : "Sin celular registrado"}</p>
+                      {clienteActivo.numeroDocumento && (
+                        <span className="text-xs text-slate-400 bg-slate-800 px-2 py-0.5 rounded-md">
+                          Doc: {clienteActivo.numeroDocumento}
+                        </span>
+                      )}
+                      {clienteActivo.direccion && (
+                        <span className="text-xs text-slate-400">
+                          📍 {clienteActivo.direccion}
+                        </span>
+                      )}
                       {clienteActivo.celular && puedeEnviarWhatsApp && (
                         <button
                           type="button"
@@ -1240,7 +1280,7 @@ Gracias por seguir con nosotros.
                     </div>
                   </div>
                   {datosSesion?.rol !== 'cajero' && (
-                    <div className="flex items-center gap-2 ml-2">
+                    <div className="flex items-center gap-2 ml-2 shrink-0">
                       <button
                         type="button"
                         onClick={() => setModalGestionCliente({ visible: true, modo: 'editar', cliente: clienteActivo })}
@@ -1260,28 +1300,49 @@ Gracias por seguir con nosotros.
                     </div>
                   )}
                 </div>
-                {(() => {
-                  const saldoSeparesActivos = separesCliente
-                    .filter(s => s.estado === 'activo')
-                    .reduce((acc, s) => acc + (s.saldoPendiente || 0), 0);
-                  const totalCompromiso = (clienteActivo.deudaTotal || 0) + saldoSeparesActivos;
 
-                  return (
-                    <div className="text-right">
-                      <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded mb-1 inline-block ${(clienteActivo.deudaTotal || 0) < 0 ? 'bg-emerald-500/20 text-emerald-300' : 'text-slate-400'}`}>
-                        {(clienteActivo.deudaTotal || 0) < 0 ? ' Saldo a favor' : (totalCompromiso === 0 ? 'Cuenta al Día' : (saldoSeparesActivos > 0 ? 'Saldo Total Pendiente' : 'Saldo Actual'))}
-                      </span>
-                      <span className={`text-3xl font-black block ${totalCompromiso === 0 ? 'text-slate-300' : ((clienteActivo.deudaTotal || 0) < 0 ? 'text-emerald-400' : 'text-rose-400')}`}>
-                        ${Math.abs(totalCompromiso).toLocaleString('es-CO')}
-                      </span>
-                    </div>
-                  );
-                })()}
+                <div className="flex items-center gap-4 shrink-0">
+                  {(() => {
+                    const saldoSeparesActivos = separesCliente
+                      .filter(s => s.estado === 'activo')
+                      .reduce((acc, s) => acc + (s.saldoPendiente || 0), 0);
+                    const totalCompromiso = (clienteActivo.deudaTotal || 0) + saldoSeparesActivos;
+
+                    return (
+                      <div className="text-right">
+                        <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded mb-1 inline-block ${(clienteActivo.deudaTotal || 0) < 0 ? 'bg-teal-500/20 text-teal-300 border border-teal-500/30' : 'text-slate-400'}`}>
+                          {(clienteActivo.deudaTotal || 0) < 0 ? 'Saldo a favor' : (totalCompromiso === 0 ? 'Cuenta al Día' : (saldoSeparesActivos > 0 ? 'Saldo Total Pendiente' : 'Saldo Actual'))}
+                        </span>
+                        <span className={`text-3xl font-black block ${totalCompromiso === 0 ? 'text-slate-300' : ((clienteActivo.deudaTotal || 0) < 0 ? 'text-teal-400' : 'text-rose-400')}`}>
+                          ${Math.abs(totalCompromiso).toLocaleString('es-CO')}
+                        </span>
+                      </div>
+                    );
+                  })()}
+
+                  {/* BOTÓN CERRAR MODAL ESCRITORIO (X) - ¡Cierra inmediatamente! */}
+                  <button
+                    type="button"
+                    onClick={() => setClienteActivo(null)}
+                    title="Cerrar modal (Esc)"
+                    className="p-2.5 rounded-full bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition-colors cursor-pointer border border-slate-700 shadow-sm shrink-0"
+                  >
+                    <X size={22} />
+                  </button>
+                </div>
               </div>
 
               {/* BARRA DE ACCIONES RÁPIDAS Y WHATSAPP (SOLO ESCRITORIO / TABLET) */}
               <div className="hidden md:flex flex-col xl:flex-row xl:items-center xl:justify-between gap-2.5 px-6 py-3 bg-slate-50 dark:bg-[#020617] border-b border-slate-200 dark:border-slate-800 shrink-0">
                 <div className="grid grid-cols-4 gap-2 w-full xl:w-auto xl:flex xl:items-center">
+                  <button 
+                    type="button"
+                    onClick={() => router.push(`/dashboard/clientes?clienteId=${clienteActivo.id}`)} 
+                    className="px-3 sm:px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-black rounded-xl text-xs uppercase shadow-xs transition active:scale-95 cursor-pointer text-center flex items-center justify-center gap-1"
+                    title="Ver ficha completa en Directorio y Cartera"
+                  >
+                    <span>Cartera ↗</span>
+                  </button>
                   <button 
                     type="button"
                     onClick={() => router.push(`/dashboard/vender?clienteId=${clienteActivo.id}`)} 
@@ -1357,6 +1418,13 @@ Gracias por seguir con nosotros.
                   <h2 className="text-[26px] sm:text-3xl font-black text-slate-900 dark:text-white tracking-tight leading-tight break-words text-center">
                     {clienteActivo.nombre}
                   </h2>
+                  {clienteActivo.apodo && (
+                    <div className="mt-1">
+                      <span className="text-xs font-bold text-amber-700 dark:text-amber-400 bg-amber-100/70 dark:bg-amber-950/50 px-2.5 py-0.5 rounded-lg border border-amber-200 dark:border-amber-800/40 inline-block">
+                        "{clienteActivo.apodo}"
+                      </span>
+                    </div>
+                  )}
                   
                   {clienteActivo.notas && (
                     <div className="mt-1">
@@ -1376,6 +1444,17 @@ Gracias por seguir con nosotros.
                       "Sin celular registrado"
                     )}
                   </p>
+
+                  {/* Botón ver en Cartera */}
+                  <div className="mt-2 flex items-center justify-center">
+                    <button
+                      type="button"
+                      onClick={() => router.push(`/dashboard/clientes?clienteId=${clienteActivo.id}`)}
+                      className="inline-flex items-center gap-1 px-3.5 py-1 rounded-full text-xs font-bold bg-blue-50 hover:bg-blue-100 dark:bg-blue-950/60 dark:hover:bg-blue-900/60 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800 transition cursor-pointer"
+                    >
+                      <span>Ver en Directorio y Cartera ↗</span>
+                    </button>
+                  </div>
 
                   {/* Acciones de edición y eliminación centradas y estéticas */}
                   {datosSesion?.rol !== 'cajero' && (
@@ -1429,7 +1508,7 @@ Gracias por seguir con nosotros.
                         <span className={`text-xl font-black ${
                           totalCompromiso === 0 
                             ? 'text-slate-400' 
-                            : ((clienteActivo.deudaTotal || 0) < 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400')
+                            : ((clienteActivo.deudaTotal || 0) < 0 ? 'text-teal-600 dark:text-teal-400' : 'text-rose-600 dark:text-rose-400')
                         }`}>
                           {totalCompromiso === 0 ? 'Al Día' : `$${Math.abs(totalCompromiso).toLocaleString('es-CO')}`}
                         </span>
@@ -1612,8 +1691,9 @@ Gracias por seguir con nosotros.
                           ) : esEntregaSepare ? (
                             '📦 SEPARE ENTREGADO'
                           ) : esSepare ? (
-                            mov.subtipo === 'abono_inicial_separe' ? '🔖 SEPARE INICIAL' :
-                            (mov.subtipo === 'apertura_separe_sin_abono' || mov.monto === 0 ? '🔖 NUEVO SEPARE' : '🔖 ABONO SEPARE')) : (mov.tipo === 'abono' ? 'ABONO CUENTA' : mov.tipo)}
+                            mov.subtipo === 'retiro_item_separe' ? '⚠️ AJUSTE SEPARE' :
+                            (mov.subtipo === 'abono_inicial_separe' ? '🔖 SEPARE INICIAL' :
+                            (mov.subtipo === 'apertura_separe_sin_abono' || mov.monto === 0 ? '🔖 NUEVO SEPARE' : '🔖 ABONO SEPARE'))) : (mov.tipo === 'abono' ? 'ABONO CUENTA' : mov.tipo)}
                         </span>
                         
                         <div className="flex items-center gap-x-1.5 text-[10px] md:text-[11px] font-bold uppercase text-slate-400 shrink-0 ml-auto">
@@ -1684,7 +1764,7 @@ Gracias por seguir con nosotros.
                             mov.tipo === 'fiado' ? 'text-rose-500' : (mov.tipo === 'venta' ? 'text-emerald-500' : 'text-blue-500')
                           }`}>
                             {(mov as any).anulado ? `(Anulado) $${Math.round(mov.monto || 0).toLocaleString('es-CO')}` :
-                             esEntregaSepare ? 'Entregado' : (mov.subtipo === 'apertura_separe_sin_abono' || (mov.monto === 0 && esSepare) ? 'Reservado ($0)' : `${mov.tipo === 'fiado' || mov.tipo === 'egreso' || mov.tipo === 'devolucion' ? '-' : '+'}${Math.round(mov.monto || 0).toLocaleString('es-CO')}`)}
+                             mov.subtipo === 'retiro_item_separe' ? `-${Math.round(mov.monto || 0).toLocaleString('es-CO')}` : (esEntregaSepare ? 'Entregado' : (mov.subtipo === 'apertura_separe_sin_abono' || (mov.monto === 0 && esSepare) ? 'Reservado ($0)' : `${mov.tipo === 'fiado' || mov.tipo === 'egreso' || mov.tipo === 'devolucion' ? '-' : '+'}${Math.round(mov.monto || 0).toLocaleString('es-CO')}`))}
                           </span>
                         </div>
                       </div>

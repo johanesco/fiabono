@@ -581,11 +581,15 @@ Estamos atentos para cualquier consulta.
   const clientesFiltradosRegistro = clientesConTotales.filter(c => {
     const query = normalizarBusqueda(busquedaRegistro);
     if (!query) return false;
+    const qTrim = busquedaRegistro.trim();
     return (
       normalizarBusqueda(c.nombre).includes(query) ||
-      (c.celular && c.celular.includes(busquedaRegistro.trim())) ||
-      normalizarBusqueda(c.notas || "").includes(query) ||
-      normalizarBusqueda(c.direccion || "").includes(query)
+      Boolean(c.apodo && normalizarBusqueda(c.apodo).includes(query)) ||
+      Boolean(c.celular && c.celular.includes(qTrim)) ||
+      Boolean(c.numeroDocumento && c.numeroDocumento.includes(qTrim)) ||
+      Boolean(c.direccion && normalizarBusqueda(c.direccion).includes(query)) ||
+      Boolean(c.notas && normalizarBusqueda(c.notas).includes(query)) ||
+      Boolean((c.etiquetas || []).some((t: string) => normalizarBusqueda(t).includes(query)))
     );
   });
 
@@ -650,7 +654,14 @@ Estamos atentos para cualquier consulta.
                   <div className="py-2 px-3 sm:py-2.5 sm:px-3.5 bg-blue-50 dark:bg-blue-500/10 rounded-xl border border-blue-200 flex justify-between items-center shadow-sm">
                     <div className="flex flex-col min-w-0 mr-2">
                       <div className="flex items-center gap-1.5 flex-wrap">
-                        <span className="font-black text-slate-900 dark:text-blue-300 text-sm sm:text-base truncate">{clienteTransaccion.nombre}</span>
+                        <span className="font-black text-slate-900 dark:text-blue-300 text-sm sm:text-base truncate flex items-center gap-1.5 flex-wrap">
+                          <span>{clienteTransaccion.nombre}</span>
+                          {clienteTransaccion.apodo && (
+                            <span className="text-xs font-bold text-amber-700 dark:text-amber-400 bg-amber-100/70 dark:bg-amber-950/50 px-2 py-0.5 rounded-lg border border-amber-200 dark:border-amber-800/40">
+                              "{clienteTransaccion.apodo}"
+                            </span>
+                          )}
+                        </span>
                         {clienteTransaccion.notas && (
                           <span className="text-[10px] font-medium bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 border border-amber-200 dark:border-amber-700 px-1.5 py-0.5 rounded-md">
                             {clienteTransaccion.notas}
@@ -695,7 +706,14 @@ Estamos atentos para cualquier consulta.
                             <div key={c.id} onClick={() => { setClienteTransaccion(c); setBusquedaRegistro(""); setMostrarResultadosBuscador(false); }} className="p-2.5 border-b border-slate-100 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer flex justify-between items-center text-xs sm:text-sm">
                               <div>
                                 <div className="flex items-center gap-1.5 flex-wrap">
-                                  <span className="font-bold text-slate-800 dark:text-slate-200">{c.nombre}</span>
+                                  <span className="font-bold text-slate-800 dark:text-slate-200 flex items-center gap-1.5 flex-wrap">
+                                    <span>{c.nombre}</span>
+                                    {c.apodo && (
+                                      <span className="text-[10px] font-bold bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-400 border border-amber-200/60 dark:border-amber-800/40 px-1.5 py-0.2 rounded">
+                                        "{c.apodo}"
+                                      </span>
+                                    )}
+                                  </span>
                                   {c.notas && (
                                     <span className="text-[10px] font-medium bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-400 border border-amber-200/60 dark:border-amber-800/40 px-1.5 py-0.5 rounded-md">
                                       {c.notas}

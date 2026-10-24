@@ -713,7 +713,7 @@ Gracias por seguir con nosotros.
           {/* 1. DIRECTORIO DE CLIENTES (PRIMERO: CUBRE TODA LA FILA SI CIERRE NO ESTÁ HABILITADO) */}
           {puedeVerDirectorio && (
             <button 
-              onClick={() => setVerTodosClientes(true)}
+              onClick={() => router.push("/dashboard/clientes")}
               className="w-full bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-800 hover:border-blue-400/50 py-3 sm:py-3.5 px-4 sm:px-5 rounded-2xl shadow-sm flex items-center justify-between transition-all group cursor-pointer active:scale-[0.99]"
             >
               <div className="flex items-center gap-3 min-w-0 flex-1 mr-2">
@@ -807,7 +807,7 @@ Gracias por seguir con nosotros.
                     setVerTodosClientes(false);
                     setClienteActivo(null);
                   }} 
-                  className="text-blue-200 hover:text-white transition-colors bg-blue-700/50 p-2 rounded-full cursor-pointer"
+                  title="Cerrar modal (Esc)" className="text-blue-200 hover:text-white transition-colors bg-blue-700/50 hover:bg-blue-700 p-2 rounded-full cursor-pointer"
                 >
                   <X size={24}/>
                 </button>
@@ -868,7 +868,7 @@ Gracias por seguir con nosotros.
                     </div>
                     <div className="text-right shrink-0">
                       {c.tieneSaldoAFavor && (
-                        <span className="text-[10px] bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300 font-black px-1.5 py-0.5 rounded mr-1">
+                        <span className="text-[10px] bg-teal-100 text-teal-800 dark:bg-teal-500/20 dark:text-teal-300 font-black px-1.5 py-0.5 rounded mr-1">
                           A favor
                         </span>
                       )}
@@ -876,7 +876,7 @@ Gracias por seguir con nosotros.
                         c.totalCompromiso === 0 
                           ? 'text-slate-400' 
                           : (c.tieneSaldoAFavor 
-                            ? 'text-emerald-500 dark:text-emerald-400 font-black' 
+                            ? 'text-teal-600 dark:text-teal-400 font-black' 
                             : (c.deudaFiado > 0 ? 'text-rose-500' : 'text-violet-600 dark:text-violet-400 font-black'))
                       }`}>
                         {c.totalCompromiso === 0 ? '$0' : `$${Math.abs(c.totalCompromiso || 0).toLocaleString('es-CO')}`}
@@ -889,7 +889,7 @@ Gracias por seguir con nosotros.
                         ) : c.deudaFiado > 0 ? (
                           'Fiado pendiente'
                         ) : (
-                          'Al día'
+                          c.tieneSaldoAFavor ? 'Billetera a favor' : 'Al día'
                         )}
                       </span>
                     </div>
@@ -926,7 +926,14 @@ Gracias por seguir con nosotros.
                     <div className="hidden md:flex p-6 bg-slate-900 text-white justify-between items-center shrink-0 gap-4">
                       <div className="flex items-center gap-3 min-w-0">
                         <div className="min-w-0">
-                          <h3 className="text-2xl font-black truncate">{clienteActivo.nombre}</h3>
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <h3 className="text-2xl font-black">{clienteActivo.nombre}</h3>
+                            {clienteActivo.apodo && (
+                              <span className="text-xs font-bold text-amber-300 bg-amber-500/20 px-2 py-0.5 rounded-lg border border-amber-500/30">
+                                "{clienteActivo.apodo}"
+                              </span>
+                            )}
+                          </div>
                           <div className="flex items-center gap-2 mt-0.5">
                             <p className="text-slate-400 text-sm flex items-center gap-1.5">
                               {clienteActivo.celular ? (
@@ -965,7 +972,7 @@ Gracias por seguir con nosotros.
                       <div className="flex items-center gap-4 shrink-0">
                         <div className="text-right">
                           <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded mb-1 inline-block ${
-                            tieneSaldoAFavor ? 'bg-emerald-500/20 text-emerald-300' : 'text-slate-400'
+                            tieneSaldoAFavor ? 'bg-teal-500/20 text-teal-300 border border-teal-500/30' : 'text-slate-400'
                           }`}>
                             {tieneSaldoAFavor ? 'Saldo a favor' : (saldoSeparesActivos > 0 ? 'Saldo Total Pendiente' : 'Saldo Actual')}
                           </span>
@@ -1007,6 +1014,14 @@ Gracias por seguir con nosotros.
                 {/* BARRA DE ACCIONES RÁPIDAS Y WHATSAPP (SOLO ESCRITORIO / TABLET) */}
                 <div className="hidden md:flex flex-col xl:flex-row xl:items-center xl:justify-between gap-2.5 px-6 py-3 bg-slate-50 dark:bg-[#020617] border-b border-slate-200 dark:border-slate-800 shrink-0">
                   <div className="grid grid-cols-4 gap-2 w-full xl:w-auto xl:flex xl:items-center">
+                    <button 
+                      type="button"
+                      onClick={() => router.push(`/dashboard/clientes?clienteId=${clienteActivo.id}`)} 
+                      className="px-3 sm:px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-black rounded-xl text-xs uppercase shadow-xs transition active:scale-95 cursor-pointer text-center flex items-center justify-center gap-1"
+                      title="Ver ficha en Cartera y Directorio"
+                    >
+                      <span>Cartera ↗</span>
+                    </button>
                     <button 
                       type="button"
                       onClick={() => router.push(`/dashboard/vender?clienteId=${clienteActivo.id}`)} 

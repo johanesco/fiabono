@@ -77,6 +77,7 @@ export async function POST(request: Request) {
         usuarioId: cuentaPrincipalId,
         clienteId: separeData.clienteId,
         clienteNombre: clienteSnap.data()?.nombre || separeData.clienteNombre || 'Cliente',
+        clienteApodo: clienteSnap.data()?.apodo || separeData.clienteApodo || null,
         estado: 'activo',
         total,
         montoPagado: abonoInicial,

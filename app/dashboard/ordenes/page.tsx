@@ -2784,10 +2784,12 @@ Muchas gracias por tu compra. Estamos atentos para cualquier consulta.
                               const q = (modalEdicion.busquedaCliente || '').toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
                               if (!q) return true;
                               const nom = (c.nombre || '').toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
+                              const apo = (c.apodo || '').toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
                               const cel = (c.celular || '').toString();
+                              const doc = (c.numeroDocumento || '').toString();
                               const not = (c.notas || '').toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
                               const dir = (c.direccion || '').toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
-                              return nom.includes(q) || cel.includes(modalEdicion.busquedaCliente?.trim() || '') || not.includes(q) || dir.includes(q);
+                              return nom.includes(q) || apo.includes(q) || cel.includes(modalEdicion.busquedaCliente?.trim() || '') || doc.includes(modalEdicion.busquedaCliente?.trim() || '') || not.includes(q) || dir.includes(q);
                             })
                             .map(c => (
                               <div
@@ -2802,15 +2804,25 @@ Muchas gracias por tu compra. Estamos atentos para cualquier consulta.
                                 })}
                                 className="p-1.5 text-xs font-bold text-slate-800 dark:text-slate-200 hover:bg-violet-50 dark:hover:bg-slate-800 rounded-lg cursor-pointer flex justify-between items-center"
                               >
-                                <div className="flex items-center gap-1.5 flex-wrap">
-                                  <span>{c.nombre}</span>
-                                  {c.notas && (
-                                    <span className="text-[9px] font-medium bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-400 border border-amber-200/60 dark:border-amber-800/40 px-1 py-0.2 rounded">
-                                      {c.notas}
-                                    </span>
-                                  )}
+                                <div className="min-w-0 pr-2">
+                                  <div className="flex items-center gap-1.5 flex-wrap">
+                                    <span>{c.nombre}</span>
+                                    {c.apodo && (
+                                      <span className="text-[9.5px] font-bold bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-400 border border-amber-200/60 dark:border-amber-800/40 px-1 py-0.2 rounded">
+                                        "{c.apodo}"
+                                      </span>
+                                    )}
+                                    {c.notas && (
+                                      <span className="text-[9px] font-medium bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border border-slate-200/60 dark:border-slate-700/60 px-1 py-0.2 rounded">
+                                        📝 {c.notas}
+                                      </span>
+                                    )}
+                                  </div>
+                                  <div className="flex items-center gap-1.5 text-[9.5px] text-slate-400 mt-0.5">
+                                    {c.celular ? <span>📱 {c.celular}</span> : <span>Sin tel</span>}
+                                    {c.numeroDocumento && <span>• CC: {c.numeroDocumento}</span>}
+                                  </div>
                                 </div>
-                                <span className="text-[10px] text-slate-400">{c.celular || ''}</span>
                               </div>
                             ))}
                         </div>

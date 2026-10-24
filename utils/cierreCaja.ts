@@ -315,24 +315,40 @@ export function calcularMetricasCierre(
   let totalTransacciones = 0;
 
   for (const mov of movimientos) {
-    // Excluir movimientos puramente contables, sin dinero real o anulados por error
-    if (mov.metodoPago === 'ajuste_contable' || mov.tipo === 'ingreso_inventario' || (mov as any).anulado === true) {
+    // Excluir movimientos puramente contables, sin dinero real, anulados o aperturas de separe sin abono
+    if (
+      mov.metodoPago === 'ajuste_contable' ||
+      mov.metodoPago === 'separe_liquidado' ||
+      mov.tipo === 'ingreso_inventario' ||
+      mov.tipo === 'entrega_separe' ||
+      mov.subtipo === 'apertura_separe_sin_abono' ||
+      (mov as any).anulado === true
+    ) {
+      continue;
+    }
+
+    const monto = Number(mov.monto) || 0;
+    const esCompensacionInterna = mov.metodoPago === 'saldo_interno' || mov.metodoPago === 'saldo_a_favor';
+
+    // Si es un abono hecho 100% con saldo a favor interno, no ingresa dinero nuevo en este turno
+    if (mov.tipo === 'abono' && (esCompensacionInterna || monto === 0)) {
       continue;
     }
 
     totalTransacciones++;
-    const monto = Number(mov.monto) || 0;
     const metodoNorm = normalizarMetodoPago(mov.metodoPago, mov.subMetodoPago, mov.descripcion);
 
     if (mov.tipo === 'venta') {
       conteoPorTipo.ventas++;
-      if (metodoNorm === 'efectivo') {
-        // Descontar saldo a favor si fue parte del pago
-        const saldoFavor = Number(mov.montoPagadoConSaldoFavor) || 0;
-        const efectivoNeto = Math.max(0, monto - saldoFavor);
-        ventasEfectivo += efectivoNeto;
+      const saldoFavor = Number(mov.montoPagadoConSaldoFavor) || 0;
+      const montoNeto = Math.max(0, monto - saldoFavor);
+
+      if (esCompensacionInterna || montoNeto === 0) {
+        // Venta cubierta 100% con saldo a favor: no suma a efectivo ni a bancos
+      } else if (metodoNorm === 'efectivo') {
+        ventasEfectivo += montoNeto;
       } else {
-        desgloseDigitales[metodoNorm] = (desgloseDigitales[metodoNorm] || 0) + monto;
+        desgloseDigitales[metodoNorm] = (desgloseDigitales[metodoNorm] || 0) + montoNeto;
       }
     } else if (mov.tipo === 'abono') {
       conteoPorTipo.abonos++;
@@ -346,6 +362,8 @@ export function calcularMetricasCierre(
       // Los egresos restan del efectivo si fueron en efectivo
       if (metodoNorm === 'efectivo') {
         egresosEfectivo += monto;
+      } else if (desgloseDigitales[metodoNorm] !== undefined) {
+        desgloseDigitales[metodoNorm] = Math.max(0, (desgloseDigitales[metodoNorm] || 0) - monto);
       }
     } else if (mov.tipo === 'devolucion') {
       conteoPorTipo.devoluciones++;

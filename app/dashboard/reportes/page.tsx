@@ -319,6 +319,14 @@ export default function ReportesPage() {
       }
       return acc + (m.metodoDevolucion === 'efectivo' || !m.metodoDevolucion ? (m.monto || 0) : 0);
     }, 0);
+  const totalDevolucionesVentas = movsDevoluciones
+    .filter(m => (m as any).origenTipo !== 'fiado')
+    .reduce((acc, m) => acc + (m.monto || 0), 0);
+  const totalVentasNetas = Math.max(0, totalVentas - totalDevolucionesVentas);
+  const totalDevolucionesFiados = movsDevoluciones
+    .filter(m => (m as any).origenTipo === 'fiado')
+    .reduce((acc, m) => acc + (m.monto || 0), 0);
+  const totalFiadosNetos = Math.max(0, totalFiados - totalDevolucionesFiados);
 
   // Dinero Neto en Caja Física: (Ventas Directas Físicas + Abonos Reales) - Egresos de Efectivo - Devoluciones Efectivo
   // Desglose de ingresos por canal y cuadre consolidado
@@ -391,9 +399,9 @@ export default function ReportesPage() {
     });
 
     const utilidad = Math.max(0, totalVentas - costoTotal);
-    const margen = totalVentas > 0 && costoTotal > 0 
+    const margen = totalVentas > 0 && costoTotal > 0 && itemsVendidosConCosto > 0
       ? Math.round((utilidad / totalVentas) * 100) 
-      : (totalVentas > 0 && costoTotal === 0 ? 100 : 0);
+      : 0;
 
     return {
       costoTotalMercanciaVendida: costoTotal,
@@ -484,9 +492,9 @@ export default function ReportesPage() {
             if (mov.tipo === 'abono') datos[idx].abonos += (mov.monto || 0);
             if (mov.tipo === 'devolucion') {
               if ((mov as any).origenTipo === 'fiado') {
-                datos[idx].fiados -= (mov.monto || 0);
-              } else if ((mov as any).origenTipo === 'venta' && (mov as any).metodoDevolucion === 'efectivo') {
-                datos[idx].ventas -= (mov.monto || 0);
+                datos[idx].fiados = Math.max(0, datos[idx].fiados - (mov.monto || 0));
+              } else {
+                datos[idx].ventas = Math.max(0, datos[idx].ventas - (mov.monto || 0));
               }
             }
           }
@@ -528,9 +536,9 @@ export default function ReportesPage() {
             if (mov.tipo === 'abono') datos[idx].abonos += (mov.monto || 0);
             if (mov.tipo === 'devolucion') {
               if ((mov as any).origenTipo === 'fiado') {
-                datos[idx].fiados -= (mov.monto || 0);
-              } else if ((mov as any).origenTipo === 'venta' && (mov as any).metodoDevolucion === 'efectivo') {
-                datos[idx].ventas -= (mov.monto || 0);
+                datos[idx].fiados = Math.max(0, datos[idx].fiados - (mov.monto || 0));
+              } else {
+                datos[idx].ventas = Math.max(0, datos[idx].ventas - (mov.monto || 0));
               }
             }
           }
@@ -561,9 +569,9 @@ export default function ReportesPage() {
             if (mov.tipo === 'abono') datos[idx].abonos += (mov.monto || 0);
             if (mov.tipo === 'devolucion') {
               if ((mov as any).origenTipo === 'fiado') {
-                datos[idx].fiados -= (mov.monto || 0);
-              } else if ((mov as any).origenTipo === 'venta' && (mov as any).metodoDevolucion === 'efectivo') {
-                datos[idx].ventas -= (mov.monto || 0);
+                datos[idx].fiados = Math.max(0, datos[idx].fiados - (mov.monto || 0));
+              } else {
+                datos[idx].ventas = Math.max(0, datos[idx].ventas - (mov.monto || 0));
               }
             }
           }
@@ -606,9 +614,9 @@ export default function ReportesPage() {
                 if (mov.tipo === 'abono') datos[idx].abonos += (mov.monto || 0);
                 if (mov.tipo === 'devolucion') {
                   if ((mov as any).origenTipo === 'fiado') {
-                    datos[idx].fiados -= (mov.monto || 0);
-                  } else if ((mov as any).origenTipo === 'venta' && (mov as any).metodoDevolucion === 'efectivo') {
-                    datos[idx].ventas -= (mov.monto || 0);
+                    datos[idx].fiados = Math.max(0, datos[idx].fiados - (mov.monto || 0));
+                  } else {
+                    datos[idx].ventas = Math.max(0, datos[idx].ventas - (mov.monto || 0));
                   }
                 }
               }
@@ -641,9 +649,9 @@ export default function ReportesPage() {
                 if (mov.tipo === 'abono') datos[idx].abonos += (mov.monto || 0);
                 if (mov.tipo === 'devolucion') {
                   if ((mov as any).origenTipo === 'fiado') {
-                    datos[idx].fiados -= (mov.monto || 0);
-                  } else if ((mov as any).origenTipo === 'venta' && (mov as any).metodoDevolucion === 'efectivo') {
-                    datos[idx].ventas -= (mov.monto || 0);
+                    datos[idx].fiados = Math.max(0, datos[idx].fiados - (mov.monto || 0));
+                  } else {
+                    datos[idx].ventas = Math.max(0, datos[idx].ventas - (mov.monto || 0));
                   }
                 }
               }
@@ -1251,7 +1259,12 @@ export default function ReportesPage() {
             </div>
             <div className="p-2 sm:p-2.5 bg-white/20 backdrop-blur-sm rounded-xl shrink-0"><ShoppingCart size={16} className="xl:w-[20px] xl:h-[20px]" /></div>
           </div>
-          <p className="text-lg md:text-2xl lg:text-lg xl:text-2xl 2xl:text-3xl font-black tracking-tight mt-2 sm:mt-3 whitespace-nowrap overflow-visible leading-none">${totalVentas.toLocaleString('es-CO')}</p>
+          <p className="text-lg md:text-2xl lg:text-lg xl:text-2xl 2xl:text-3xl font-black tracking-tight mt-2 sm:mt-3 whitespace-nowrap overflow-visible leading-none">${totalVentasNetas.toLocaleString('es-CO')}</p>
+          {totalDevolucionesVentas > 0 && (
+            <p className="text-[10px] text-emerald-100/90 font-bold mt-1 truncate">
+              Bruto: ${totalVentas.toLocaleString('es-CO')} (-${totalDevolucionesVentas.toLocaleString('es-CO')} dev.)
+            </p>
+          )}
         </div>
 
         {/* Fiados */}
@@ -1267,7 +1280,12 @@ export default function ReportesPage() {
             </div>
             <div className="p-2 sm:p-2.5 bg-white/20 backdrop-blur-sm rounded-xl shrink-0"><ShoppingBag size={16} className="xl:w-[20px] xl:h-[20px]" /></div>
           </div>
-          <p className="text-lg md:text-2xl lg:text-lg xl:text-2xl 2xl:text-3xl font-black tracking-tight mt-2 sm:mt-3 whitespace-nowrap overflow-visible leading-none">${totalFiados.toLocaleString('es-CO')}</p>
+          <p className="text-lg md:text-2xl lg:text-lg xl:text-2xl 2xl:text-3xl font-black tracking-tight mt-2 sm:mt-3 whitespace-nowrap overflow-visible leading-none">${totalFiadosNetos.toLocaleString('es-CO')}</p>
+          {totalDevolucionesFiados > 0 && (
+            <p className="text-[10px] text-rose-100/90 font-bold mt-1 truncate">
+              Bruto: ${totalFiados.toLocaleString('es-CO')} (-${totalDevolucionesFiados.toLocaleString('es-CO')} dev.)
+            </p>
+          )}
         </div>
 
         {/* Abonos */}

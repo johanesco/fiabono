@@ -219,9 +219,12 @@ function SepareContenido() {
   const qCliNorm = normalizarBusquedaCli(busquedaCliente);
   const clientesFiltrados = (clientes || []).filter((c: any) =>
     normalizarBusquedaCli(c.nombre || "").includes(qCliNorm) ||
-    normalizarBusquedaCli(c.notas || "").includes(qCliNorm) ||
-    normalizarBusquedaCli(c.direccion || "").includes(qCliNorm) ||
-    (c.celular || "").toString().includes(busquedaCliente.trim())
+    Boolean(c.apodo && normalizarBusquedaCli(c.apodo).includes(qCliNorm)) ||
+    Boolean(c.celular && c.celular.toString().includes(busquedaCliente.trim())) ||
+    Boolean(c.numeroDocumento && c.numeroDocumento.toString().includes(busquedaCliente.trim())) ||
+    Boolean(c.direccion && normalizarBusquedaCli(c.direccion).includes(qCliNorm)) ||
+    Boolean(c.notas && normalizarBusquedaCli(c.notas).includes(qCliNorm)) ||
+    Boolean((c.etiquetas || []).some((t: string) => normalizarBusquedaCli(t).includes(qCliNorm)))
   );
 
   // Inventario de la base de datos
@@ -1918,6 +1921,7 @@ function SepareContenido() {
         estado: 'activo',
         clienteId: clienteSeleccionado.id,
         clienteNombre: clienteSeleccionado.nombre,
+        clienteApodo: clienteSeleccionado.apodo || null,
         clienteCelular: clienteSeleccionado.celular || "",
         items: itemsGuardar,
         totalBruto: totalBruto,
@@ -2843,9 +2847,16 @@ Estamos atentos para cualquier consulta.
               {clienteSeleccionado ? (
                 <div className="py-2.5 px-3 bg-violet-50 dark:bg-violet-500/10 rounded-xl border border-violet-200 flex justify-between items-center shadow-sm">
                   <div className="flex flex-col min-w-0 mr-2 flex-1">
-                    <span className="font-black text-slate-900 dark:text-violet-300 text-xs sm:text-sm break-words leading-tight">
-                      {clienteSeleccionado.nombre}
-                    </span>
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <span className="font-black text-slate-900 dark:text-violet-300 text-xs sm:text-sm break-words leading-tight">
+                        {clienteSeleccionado.nombre}
+                      </span>
+                      {clienteSeleccionado.apodo && (
+                        <span className="text-[10px] font-bold text-amber-700 dark:text-amber-400 bg-amber-100/70 dark:bg-amber-950/50 px-1.5 py-0.2 rounded border border-amber-200 dark:border-amber-800/40">
+                          "{clienteSeleccionado.apodo}"
+                        </span>
+                      )}
+                    </div>
                     <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 mt-0.5">
                       {clienteSeleccionado.celular ? `WhatsApp: ${clienteSeleccionado.celular}` : "Sin celular"}
                     </span>
@@ -2898,14 +2909,19 @@ Estamos atentos para cualquier consulta.
                           <div>
                             <span className="font-bold text-slate-800 dark:text-slate-200 flex items-center gap-1.5 flex-wrap">
                               <span>{c.nombre}</span>
+                              {c.apodo && (
+                                <span className="text-[10px] font-bold px-1.5 py-0.2 rounded bg-amber-500/10 text-amber-700 dark:text-amber-300 border border-amber-500/20 truncate max-w-[120px]" title={`Apodo: ${c.apodo}`}>
+                                  "{c.apodo}"
+                                </span>
+                              )}
                               {c.notas && (
-                                <span className="text-[10px] font-bold px-1.5 py-0.2 rounded bg-amber-500/10 text-amber-700 dark:text-amber-300 border border-amber-500/20 truncate max-w-[140px]" title={c.notas}>
-                                  {c.notas}
+                                <span className="text-[9.5px] font-medium px-1 py-0.2 rounded bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border border-slate-200/60 dark:border-slate-700/60 truncate max-w-[130px]" title={c.notas}>
+                                  📝 {c.notas}
                                 </span>
                               )}
                             </span>
                             {c.celular && <span className="text-[10px] text-slate-400 block">{c.celular}</span>}
-                            <span className={`text-[10px] font-black ${Number(c.deudaTotal || 0) > 0 ? 'text-rose-500' : Number(c.deudaTotal || 0) < 0 ? 'text-emerald-600' : 'text-slate-400'}`}>{Number(c.deudaTotal || 0) > 0 ? `Debe $${Number(c.deudaTotal).toLocaleString('es-CO')}` : Number(c.deudaTotal || 0) < 0 ? `A favor $${Math.abs(Number(c.deudaTotal)).toLocaleString('es-CO')}` : 'Al día'}</span>
+                            <span className={`text-[10px] font-black ${Number(c.deudaTotal || 0) > 0 ? 'text-rose-500' : Number(c.deudaTotal || 0) < 0 ? 'text-teal-600 dark:text-teal-400' : 'text-slate-400'}`}>{Number(c.deudaTotal || 0) > 0 ? `Debe $${Number(c.deudaTotal).toLocaleString('es-CO')}` : Number(c.deudaTotal || 0) < 0 ? `A favor $${Math.abs(Number(c.deudaTotal)).toLocaleString('es-CO')}` : 'Al día'}</span>
                           </div>
                           <ChevronRight size={13} className="text-slate-400" />
                         </div>

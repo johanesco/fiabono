@@ -2,7 +2,7 @@
 import { obtenerNombreCercano } from "@/utils/whatsapp";
 import React, { useState, useEffect, useMemo, Suspense } from "react";
 import { createPortal } from "react-dom";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { 
   collection, 
   query, 
@@ -76,6 +76,8 @@ export default function ClientesPage() {
 function ClientesContenido() {
   const { datosSesion, cargando: authCargando } = useAuth();
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const clienteIdParam = searchParams.get("clienteId");
   const cuentaPrincipalId = datosSesion?.cuentaPrincipalId;
   const nombreNegocio = datosSesion?.nombreNegocio || "Mi Negocio";
   const moduloSepareActivo = datosSesion?.moduloSepareActivo !== false;
@@ -518,12 +520,22 @@ function ClientesContenido() {
     return base;
   }, [filtroActivo, etiquetaFiltro, busqueda]);
 
+  // Si viene clienteId en URL, seleccionar directamente ese cliente
+  useEffect(() => {
+    if (clienteIdParam && clientesConAnalisis.length > 0) {
+      const match = clientesConAnalisis.find(c => c.id === clienteIdParam);
+      if (match) {
+        setClienteFicha(match);
+      }
+    }
+  }, [clienteIdParam, clientesConAnalisis]);
+
   // En pantallas grandes (>= 1024px), si no hay cliente seleccionado, auto-seleccionar el primero
   useEffect(() => {
-    if (!clienteFicha && clientesFiltrados.length > 0 && typeof window !== 'undefined' && window.innerWidth >= 1024) {
+    if (!clienteIdParam && !clienteFicha && clientesFiltrados.length > 0 && typeof window !== 'undefined' && window.innerWidth >= 1024) {
       setClienteFicha(clientesFiltrados[0]);
     }
-  }, [clientesFiltrados, clienteFicha]);
+  }, [clientesFiltrados, clienteFicha, clienteIdParam]);
 
   // Si el cliente seleccionado cambia en datos reales, mantenerlo actualizado
   useEffect(() => {
@@ -1142,7 +1154,7 @@ Gracias por seguir con nosotros.
                         mov.tipo === 'fiado' ? 'text-rose-500' : (mov.tipo === 'venta' ? 'text-emerald-500' : 'text-blue-500')
                       }`}>
                         {mov.anulado ? `(Anulado) $${Math.round(mov.monto || 0).toLocaleString('es-CO')}` :
-                         esEntregaSepare ? 'Entregado' : (mov.subtipo === 'apertura_separe_sin_abono' || (mov.monto === 0 && esSepare) ? 'Reservado ($0)' : `${mov.tipo === 'fiado' || mov.tipo === 'devolucion' ? '-' : '+'}$${Math.round(mov.monto || 0).toLocaleString('es-CO')}`)}
+                         mov.subtipo === 'retiro_item_separe' ? `-${Math.round(mov.monto || 0).toLocaleString('es-CO')}` : (esEntregaSepare ? 'Entregado' : (mov.subtipo === 'apertura_separe_sin_abono' || (mov.monto === 0 && esSepare) ? 'Reservado ($0)' : `${mov.tipo === 'fiado' || mov.tipo === 'devolucion' ? '-' : '+'}${Math.round(mov.monto || 0).toLocaleString('es-CO')}`))}
                       </span>
                     </div>
                   </div>

@@ -2050,7 +2050,14 @@ Estamos atentos para cualquier consulta.
               <div className="flex justify-between items-center">
                 <div className="flex items-center gap-1.5 min-w-0">
                   <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0"></span>
-                  <span className="font-bold text-slate-900 dark:text-emerald-300 text-xs truncate">{clienteTransaccion.nombre}</span>
+                  <span className="font-bold text-slate-900 dark:text-emerald-300 text-xs truncate flex items-center gap-1">
+                    <span>{clienteTransaccion.nombre}</span>
+                    {clienteTransaccion.apodo && (
+                      <span className="text-[9.5px] font-bold text-amber-700 dark:text-amber-400 bg-amber-100/70 dark:bg-amber-950/50 px-1 py-0.2 rounded border border-amber-200 dark:border-amber-800/40">
+                        "{clienteTransaccion.apodo}"
+                      </span>
+                    )}
+                  </span>
                   {clienteTransaccion.deudaTotal !== undefined && clienteTransaccion.deudaTotal > 0 && (
                     <span className="text-[9px] font-bold text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-500/10 px-1.5 py-0.5 rounded shrink-0">
                       Debe: ${(clienteTransaccion.deudaTotal || 0).toLocaleString('es-CO')}

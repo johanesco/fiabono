@@ -91,6 +91,23 @@ export default function ModalCierreCaja({ isOpen, onClose, onCierreExitoso }: Mo
     setMounted(true);
   }, []);
 
+  // Cerrar modal de cierre de caja con Escape
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && isOpen) {
+        if (mostrarModalConfirmarCierre) setMostrarModalConfirmarCierre(false);
+        else if (mostrarModalDenominaciones) setMostrarModalDenominaciones(false);
+        else if (mostrarModalDigitales) setMostrarModalDigitales(false);
+        else if (mostrarModalHistorialArqueos) setMostrarModalHistorialArqueos(false);
+        else onClose();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, onClose, mostrarModalConfirmarCierre, mostrarModalDenominaciones, mostrarModalDigitales, mostrarModalHistorialArqueos]);
+
+
+
   // Al abrir el modal, consultar estado de la caja y movimientos
   useEffect(() => {
     if (!isOpen || !cuentaPrincipalId) return;
@@ -119,7 +136,7 @@ export default function ModalCierreCaja({ isOpen, onClose, onCierreExitoso }: Mo
               collection(db, "movimientos"),
               where("usuarioId", "==", cuentaPrincipalId),
               orderBy("fecha", "desc"),
-              limit(150)
+              limit(1000)
             ));
           } catch (errIndex: any) {
             console.warn("Consulta indexada de movimientos con orderBy no disponible, usando fallback:", errIndex?.message || errIndex);
@@ -230,7 +247,17 @@ export default function ModalCierreCaja({ isOpen, onClose, onCierreExitoso }: Mo
   // Lista de transacciones digitales para auditoría de comprobantes / vouchers
   const transaccionesDigitales = useMemo(() => {
     return movimientosPeriodo.filter((m) => {
-      if (m.metodoPago === 'ajuste_contable' || m.tipo === 'ingreso_inventario' || (m as any).anulado === true) return false;
+      if (
+        m.metodoPago === 'ajuste_contable' || 
+        m.metodoPago === 'saldo_interno' || 
+        m.metodoPago === 'saldo_a_favor' || 
+        m.metodoPago === 'separe_liquidado' || 
+        m.tipo === 'ingreso_inventario' || 
+        m.tipo === 'entrega_separe' || 
+        m.subtipo === 'apertura_separe_sin_abono' || 
+        (m as any).anulado === true || 
+        (Number(m.monto) || 0) <= 0
+      ) return false;
       const metodoNorm = normalizarMetodoPago(m.metodoPago, m.subMetodoPago, m.descripcion);
       return metodoNorm !== 'efectivo' && (m.tipo === 'venta' || m.tipo === 'abono');
     });
@@ -603,9 +630,9 @@ export default function ModalCierreCaja({ isOpen, onClose, onCierreExitoso }: Mo
   if (!isOpen || !mounted) return null;
 
   return createPortal(
-    <div className="fixed inset-0 z-[999999] flex items-center justify-center p-2 sm:p-4 bg-slate-900/80 backdrop-blur-sm animate-in fade-in duration-200 overflow-y-auto pb-safe">
+    <div onClick={onClose} className="fixed inset-0 z-[999999] flex items-center justify-center p-2 sm:p-4 bg-slate-900/80 backdrop-blur-sm animate-in fade-in duration-200 overflow-y-auto pb-safe">
       {/* CONTENEDOR MODAL: 2 columnas en desktop para evitar todo scroll */}
-      <div className="bg-white dark:bg-[#0f172a] rounded-3xl w-full max-w-lg md:max-w-4xl max-h-[90dvh] md:max-h-[92vh] flex flex-col shadow-2xl border border-slate-100 dark:border-slate-800 my-auto overflow-hidden">
+      <div onClick={(e) => e.stopPropagation()} className="bg-white dark:bg-[#0f172a] rounded-3xl w-full max-w-lg md:max-w-4xl max-h-[90dvh] md:max-h-[92vh] flex flex-col shadow-2xl border border-slate-100 dark:border-slate-800 my-auto overflow-hidden">
         
         {/* CABECERA COMPACTA */}
         <div className="px-4 py-3 sm:px-5 sm:py-3.5 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between shrink-0 bg-gradient-to-r from-slate-900 via-slate-800 to-indigo-950 text-white">
@@ -1141,6 +1168,7 @@ export default function ModalCierreCaja({ isOpen, onClose, onCierreExitoso }: Mo
                 {/* Botones de Acción: Arqueo Parcial vs Cierre Definitivo */}
                 <div className="space-y-2 pt-1 pb-4 sm:pb-0">
                   {cajaAbierta ? (
+                    <>
                     <div className="grid grid-cols-2 gap-2">
                       <button
                         type="button"
@@ -1173,6 +1201,15 @@ export default function ModalCierreCaja({ isOpen, onClose, onCierreExitoso }: Mo
                         )}
                       </button>
                     </div>
+
+                    <button
+                      type="button"
+                      onClick={onClose}
+                      className="w-full py-1.5 text-center text-xs font-semibold text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors cursor-pointer"
+                    >
+                      Cerrar Ventana (Seguir trabajando)
+                    </button>
+                    </>
                   ) : (
                     <div className="grid grid-cols-2 gap-2">
                       <button
@@ -1211,8 +1248,8 @@ export default function ModalCierreCaja({ isOpen, onClose, onCierreExitoso }: Mo
 
       {/* MODAL SECUNDARIO: DESGLOSE DE BILLETES Y MONEDAS */}
       {mostrarModalDenominaciones && (
-        <div className="fixed inset-0 z-[100000] flex items-center justify-center p-3 bg-black/60 backdrop-blur-xs animate-in fade-in">
-          <div className="bg-white dark:bg-[#0f172a] rounded-3xl w-full max-w-sm p-4 border border-slate-100 dark:border-slate-800 shadow-2xl space-y-3">
+        <div onClick={() => setMostrarModalDenominaciones(false)} className="fixed inset-0 z-[100000] flex items-center justify-center p-3 bg-black/60 backdrop-blur-xs animate-in fade-in">
+          <div onClick={(e) => e.stopPropagation()} className="bg-white dark:bg-[#0f172a] rounded-3xl w-full max-w-sm p-4 border border-slate-100 dark:border-slate-800 shadow-2xl space-y-3">
             <div className="flex justify-between items-center pb-2 border-b border-slate-100 dark:border-slate-800">
               <div className="flex items-center gap-2">
                 <Coins size={16} className="text-amber-500" />
@@ -1268,8 +1305,8 @@ export default function ModalCierreCaja({ isOpen, onClose, onCierreExitoso }: Mo
 
       {/* MODAL SECUNDARIO: AUDITORÍA DE VOUCHERS Y RECAUDO DIGITAL */}
       {mostrarModalDigitales && (
-        <div className="fixed inset-0 z-[100000] flex items-center justify-center p-3 bg-black/60 backdrop-blur-xs animate-in fade-in">
-          <div className="bg-white dark:bg-[#0f172a] rounded-3xl w-full max-w-md p-4 sm:p-5 border border-slate-100 dark:border-slate-800 shadow-2xl space-y-3.5">
+        <div onClick={() => setMostrarModalDigitales(false)} className="fixed inset-0 z-[100000] flex items-center justify-center p-3 bg-black/60 backdrop-blur-xs animate-in fade-in">
+          <div onClick={(e) => e.stopPropagation()} className="bg-white dark:bg-[#0f172a] rounded-3xl w-full max-w-md p-4 sm:p-5 border border-slate-100 dark:border-slate-800 shadow-2xl space-y-3.5">
             <div className="flex justify-between items-center pb-2.5 border-b border-slate-100 dark:border-slate-800">
               <div className="flex items-center gap-2">
                 <div className="w-8 h-8 rounded-xl bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 flex items-center justify-center">
@@ -1435,8 +1472,8 @@ export default function ModalCierreCaja({ isOpen, onClose, onCierreExitoso }: Mo
 
       {/* MODAL SECUNDARIO: HISTORIAL DE ARQUEOS PARCIALES DEL TURNO ACTUAL */}
       {mostrarModalHistorialArqueos && (
-        <div className="fixed inset-0 z-[100000] flex items-center justify-center p-3 bg-black/60 backdrop-blur-xs animate-in fade-in">
-          <div className="bg-white dark:bg-[#0f172a] rounded-3xl w-full max-w-md p-4 sm:p-5 border border-slate-100 dark:border-slate-800 shadow-2xl space-y-3.5">
+        <div onClick={() => setMostrarModalHistorialArqueos(false)} className="fixed inset-0 z-[100000] flex items-center justify-center p-3 bg-black/60 backdrop-blur-xs animate-in fade-in">
+          <div onClick={(e) => e.stopPropagation()} className="bg-white dark:bg-[#0f172a] rounded-3xl w-full max-w-md p-4 sm:p-5 border border-slate-100 dark:border-slate-800 shadow-2xl space-y-3.5">
             <div className="flex justify-between items-center pb-2.5 border-b border-slate-100 dark:border-slate-800">
               <div className="flex items-center gap-2">
                 <div className="w-8 h-8 rounded-xl bg-amber-500/10 text-amber-600 dark:text-amber-400 flex items-center justify-center">
@@ -1525,8 +1562,8 @@ export default function ModalCierreCaja({ isOpen, onClose, onCierreExitoso }: Mo
 
       {/* MODAL DE CONFIRMACIÓN ANTES DE FINALIZAR TURNO */}
       {mostrarModalConfirmarCierre && (
-        <div className="fixed inset-0 z-[100000] flex items-center justify-center p-3 bg-black/60 backdrop-blur-xs animate-in fade-in">
-          <div className="bg-white dark:bg-[#0f172a] rounded-3xl w-full max-w-sm p-4 sm:p-5 border border-slate-100 dark:border-slate-800 shadow-2xl space-y-4">
+        <div onClick={() => setMostrarModalConfirmarCierre(false)} className="fixed inset-0 z-[100000] flex items-center justify-center p-3 bg-black/60 backdrop-blur-xs animate-in fade-in">
+          <div onClick={(e) => e.stopPropagation()} className="bg-white dark:bg-[#0f172a] rounded-3xl w-full max-w-sm p-4 sm:p-5 border border-slate-100 dark:border-slate-800 shadow-2xl space-y-4">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-2xl bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 flex items-center justify-center shrink-0">
                 <Lock size={20} />
