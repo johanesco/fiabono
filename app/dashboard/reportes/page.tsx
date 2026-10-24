@@ -1183,13 +1183,13 @@ export default function ReportesPage() {
 
         {/* Tarjeta Pasivos (Saldos a Favor) */}
         <div className="bg-white dark:bg-[#0f172a] p-4 sm:p-5 xl:p-7 rounded-[2rem] sm:rounded-[2.5rem] border border-slate-100 dark:border-slate-800/60 shadow-sm flex items-center justify-between relative overflow-hidden">
-          <div className="absolute right-0 top-0 bottom-0 w-2 bg-blue-500"></div>
+          <div className="absolute right-0 top-0 bottom-0 w-2 bg-teal-500"></div>
           <div className="min-w-0 flex-1 pr-2">
             <span className="text-[10px] xl:text-xs font-extrabold text-slate-400 uppercase tracking-widest block whitespace-normal">Saldos a Favor</span>
-            <p className="text-lg sm:text-2xl lg:text-lg xl:text-2xl font-black text-blue-500 mt-1 whitespace-nowrap overflow-visible">${pasivoSaldosFavor.toLocaleString('es-CO')}</p>
+            <p className="text-lg sm:text-2xl lg:text-lg xl:text-2xl font-black text-teal-600 dark:text-teal-400 mt-1 whitespace-nowrap overflow-visible">${pasivoSaldosFavor.toLocaleString('es-CO')}</p>
             <p className="text-[10px] xl:text-xs text-slate-500 dark:text-slate-400 mt-1 font-medium whitespace-normal">Dinero que debes.</p>
           </div>
-          <div className="p-3 bg-blue-50 dark:bg-blue-500/10 text-blue-600 rounded-2xl shrink-0"><Banknote size={24} className="xl:w-[28px] xl:h-[28px]" /></div>
+          <div className="p-3 bg-teal-50 dark:bg-teal-500/10 text-teal-600 rounded-2xl shrink-0"><Wallet size={24} className="xl:w-[28px] xl:h-[28px]" /></div>
         </div>
 
         {/* Tarjeta Clientes */}

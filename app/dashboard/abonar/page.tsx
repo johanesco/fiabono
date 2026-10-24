@@ -36,7 +36,8 @@ function AbonarContenido() {
   const [separes, setSepares] = useState<any[]>([]);
   const [clienteTransaccion, setClienteTransaccion] = useState<any | null>(null);
   
-  const [montoAbono, setMontoAbono] = useState(""); 
+  const [montoAbono, setMontoAbono] = useState("");
+  const inputMontoRef = useRef<HTMLInputElement>(null); 
   const [metodoPago, setMetodoPago] = useState<'efectivo' | 'transferencia' | 'datafono' | 'credito_externo' | 'saldo_interno'>('efectivo');
   const [subMetodoPago, setSubMetodoPago] = useState("");
   const [referenciaPago, setReferenciaPago] = useState("");
@@ -656,7 +657,7 @@ Estamos atentos para cualquier consulta.
                           </span>
                         )}
                       </div>
-                      <span className={`text-[11px] font-bold uppercase tracking-wider ${clienteTransaccion.deudaTotal > 0 ? 'text-rose-500' : 'text-emerald-500'}`}>
+                      <span className={`text-[11px] font-bold uppercase tracking-wider ${clienteTransaccion.deudaTotal > 0 ? 'text-rose-500' : 'text-teal-600 dark:text-teal-400'}`}>
                         {clienteTransaccion.deudaTotal > 0 ? 'Deuda actual:' : 'Saldo a favor:'} ${Math.abs(clienteTransaccion.deudaTotal).toLocaleString('es-CO')}
                       </span>
                     </div>
@@ -703,7 +704,7 @@ Estamos atentos para cualquier consulta.
                                 </div>
                                 {c.celular && <span className="text-[10px] text-slate-400 block">{c.celular}</span>}
                                 <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
-                                  <span className={`text-[10.5px] font-black ${c.totalCompromiso > 0 ? 'text-rose-500' : c.tieneSaldoAFavor ? 'text-emerald-600' : 'text-slate-400'}`}>
+                                  <span className={`text-[10.5px] font-black ${c.totalCompromiso > 0 ? 'text-rose-500' : c.tieneSaldoAFavor ? 'text-teal-600 dark:text-teal-400' : 'text-slate-400'}`}>
                                     {c.tieneSaldoAFavor 
                                       ? `A favor $${Math.abs(c.totalCompromiso).toLocaleString('es-CO')}` 
                                       : c.totalCompromiso > 0 
@@ -743,12 +744,12 @@ Estamos atentos para cualquier consulta.
                       {clienteTransaccion.nombre} no tiene deudas pendientes
                     </h3>
                     {clienteTransaccion.deudaTotal < 0 ? (
-                      <div className="mt-2.5 p-3 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/60 inline-block text-left max-w-md">
-                        <div className="flex items-center gap-2 text-xs font-bold text-amber-900 dark:text-amber-200">
-                          <Wallet size={16} className="text-amber-600 shrink-0" />
+                      <div className="mt-2.5 p-3 rounded-xl bg-teal-50 dark:bg-teal-950/40 border border-teal-200 dark:border-teal-800/60 inline-block text-left max-w-md">
+                        <div className="flex items-center gap-2 text-xs font-bold text-teal-900 dark:text-teal-200">
+                          <Wallet size={16} className="text-teal-600 shrink-0" />
                           <span>Saldo a Favor Disponible: <strong>${Math.abs(clienteTransaccion.deudaTotal).toLocaleString('es-CO')}</strong></span>
                         </div>
-                        <p className="text-[11px] text-amber-800/80 dark:text-amber-300/80 mt-1">
+                        <p className="text-[11px] text-teal-800/90 dark:text-teal-300/80 mt-1">
                           Este cliente no tiene fiados ni separes pendientes. Su saldo a favor está guardado para sus próximas compras o para devolución en efectivo si lo requiere.
                         </p>
                       </div>
@@ -827,27 +828,27 @@ Estamos atentos para cualquier consulta.
 
                       {/* Tarjeta inteligente de Saldo a Favor disponible */}
                       {clienteTransaccion.deudaTotal < 0 && (
-                        <div className="p-3 bg-gradient-to-r from-amber-50 to-amber-100/40 dark:from-amber-950/40 dark:to-amber-900/20 border-2 border-amber-300 dark:border-amber-700/60 rounded-xl space-y-2">
+                        <div className="p-3 bg-gradient-to-r from-teal-50 to-teal-100/40 dark:from-teal-950/40 dark:to-teal-900/20 border-2 border-teal-300 dark:border-teal-700/60 rounded-xl space-y-2">
                           <div className="flex items-center justify-between">
                             <div className="flex items-center gap-2">
-                              <div className="w-6 h-6 rounded-lg bg-amber-500 text-white flex items-center justify-center shrink-0">
+                              <div className="w-6 h-6 rounded-lg bg-teal-600 text-white flex items-center justify-center shrink-0">
                                 <Wallet size={13} />
                               </div>
                               <div>
-                                <span className="text-[10px] font-black uppercase text-amber-800 dark:text-amber-300 tracking-wider block">
+                                <span className="text-[10px] font-black uppercase text-teal-800 dark:text-teal-300 tracking-wider block">
                                   Saldo a Favor Disponible
                                 </span>
-                                <span className="text-xs sm:text-sm font-black text-amber-900 dark:text-amber-100">
+                                <span className="text-xs sm:text-sm font-black text-teal-950 dark:text-teal-100">
                                   ${Math.abs(clienteTransaccion.deudaTotal).toLocaleString('es-CO')}
                                 </span>
                               </div>
                             </div>
-                            <span className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-amber-200/80 dark:bg-amber-800/60 text-amber-900 dark:text-amber-200">
+                            <span className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-teal-200/80 dark:bg-teal-800/60 text-teal-950 dark:text-teal-200">
                               Sin fiados pendientes
                             </span>
                           </div>
 
-                          <p className="text-[11px] text-amber-900/85 dark:text-amber-200/90 leading-tight">
+                          <p className="text-[11px] text-teal-900/85 dark:text-teal-200/90 leading-tight">
                             {clienteTransaccion.nombre} no tiene fiados. ¿Deseas abonar a este Separe con su saldo a favor?
                           </p>
 
@@ -862,8 +863,8 @@ Estamos atentos para cualquier consulta.
                               }}
                               className={`flex-1 py-1.5 px-2.5 rounded-lg text-xs font-black transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-xs ${
                                 metodoPago === 'saldo_interno' && (parseFloat(montoAbono.replace(/\D/g, '')) || 0) === Math.min(Math.abs(clienteTransaccion.deudaTotal), separeSeleccionado?.saldoPendiente || 0)
-                                  ? 'bg-amber-600 text-white ring-2 ring-amber-400'
-                                  : 'bg-amber-500 hover:bg-amber-600 text-white active:scale-95'
+                                  ? 'bg-teal-600 text-white ring-2 ring-teal-400'
+                                  : 'bg-teal-600 hover:bg-teal-700 text-white active:scale-95'
                               }`}
                             >
                               <Sparkles size={13} />
@@ -879,15 +880,13 @@ Estamos atentos para cualquier consulta.
                               onClick={() => {
                                 setMetodoPago('saldo_interno');
                                 setSubMetodoPago('');
-                                if (!montoAbono || (parseFloat(montoAbono.replace(/\D/g, '')) || 0) === 0) {
-                                  const sugerido = Math.min(Math.abs(clienteTransaccion.deudaTotal), Math.round((separeSeleccionado?.saldoPendiente || 0) / 2));
-                                  setMontoAbono(sugerido.toLocaleString('es-CO'));
-                                }
+                                setMontoAbono('');
+                                if (inputMontoRef.current) inputMontoRef.current.focus();
                               }}
                               className={`py-1.5 px-3 rounded-lg text-xs font-bold transition-all border flex items-center justify-center gap-1 cursor-pointer ${
                                 metodoPago === 'saldo_interno' && (parseFloat(montoAbono.replace(/\D/g, '')) || 0) < Math.min(Math.abs(clienteTransaccion.deudaTotal), separeSeleccionado?.saldoPendiente || 0)
-                                  ? 'bg-amber-100 dark:bg-amber-900/50 text-amber-900 dark:text-amber-100 border-amber-400 font-black'
-                                  : 'bg-white dark:bg-slate-800 text-amber-800 dark:text-amber-300 border-amber-300 dark:border-amber-700/60 hover:bg-amber-50'
+                                  ? 'bg-teal-100 dark:bg-teal-900/50 text-teal-900 dark:text-teal-100 border-teal-400 font-black'
+                                  : 'bg-white dark:bg-slate-800 text-teal-800 dark:text-teal-300 border-teal-300 dark:border-teal-700/60 hover:bg-teal-50'
                               }`}
                             >
                               <span>Usar Parcial</span>
@@ -895,9 +894,9 @@ Estamos atentos para cualquier consulta.
                           </div>
 
                           {metodoPago === 'saldo_interno' && (
-                            <div className="pt-1.5 border-t border-amber-200/80 dark:border-amber-800/60 flex items-center justify-between text-[11px] font-bold text-amber-900 dark:text-amber-200">
+                            <div className="pt-1.5 border-t border-teal-200/80 dark:border-teal-800/60 flex items-center justify-between text-[11px] font-bold text-teal-900 dark:text-teal-200">
                               <span>Saldo a favor restante tras abono:</span>
-                              <span className="font-black text-amber-700 dark:text-amber-400">
+                              <span className="font-black text-teal-700 dark:text-teal-400">
                                 ${Math.max(0, Math.abs(clienteTransaccion.deudaTotal) - (parseFloat(montoAbono.replace(/\D/g, '')) || 0)).toLocaleString('es-CO')}
                               </span>
                             </div>
@@ -947,6 +946,7 @@ Estamos atentos para cualquier consulta.
                   <div className="relative mb-2">
                     <span className="absolute left-3 top-1/2 -translate-y-1/2 text-blue-600 font-black text-xl sm:text-2xl">$</span>
                     <input 
+                      ref={inputMontoRef}
                       type="text" 
                       inputMode="decimal" pattern="[0-9]*"
                       value={montoAbono} 
@@ -1288,7 +1288,7 @@ Estamos atentos para cualquier consulta.
               ) : (
                 <p className="text-sm mt-2 text-slate-600 dark:text-slate-300">
                   {modalExito.cliente.deudaTotal < 0 ? (
-                    <>Nuevo saldo a favor: <strong className="text-emerald-600 dark:text-emerald-400">${Math.abs(modalExito.cliente.deudaTotal).toLocaleString('es-CO')}</strong></>
+                    <>Nuevo saldo a favor: <strong className="text-teal-600 dark:text-teal-400">${Math.abs(modalExito.cliente.deudaTotal).toLocaleString('es-CO')}</strong></>
                   ) : modalExito.cliente.deudaTotal === 0 ? (
                     <>Cuenta al día: <strong className="text-slate-900 dark:text-white">$0</strong></>
                   ) : (
@@ -1365,7 +1365,7 @@ Estamos atentos para cualquier consulta.
                   setModalConfirmacionExceso(null);
                 }} 
                 disabled={guardandoAbono}
-                className="w-full bg-amber-500 hover:bg-amber-600 text-white font-bold py-3.5 rounded-2xl shadow-sm transition-transform active:scale-95 mt-1"
+                className="w-full bg-teal-600 hover:bg-teal-700 text-white font-bold py-3.5 rounded-2xl shadow-sm transition-transform active:scale-95 mt-1"
               >
                 {guardandoAbono ? "Procesando..." : "No dar cambio (Dejar Saldo a Favor)"}
               </button>

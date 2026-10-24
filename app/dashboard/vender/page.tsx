@@ -2070,20 +2070,20 @@ Estamos atentos para cualquier consulta.
               {/* Saldo a Favor integrado */}
               {saldoFavorDisponible > 0 && (
                 <div className="pt-1 mt-0.5 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between gap-1">
-                  <div className="flex items-center gap-1 text-blue-700 dark:text-blue-300 min-w-0">
+                  <div className="flex items-center gap-1 text-teal-700 dark:text-teal-300 min-w-0">
                     <Wallet size={12} className="shrink-0" />
                     <span className="text-[10px] font-bold truncate">
                       Favor: ${saldoFavorDisponible.toLocaleString('es-CO')}
                     </span>
                   </div>
-                  <div className="flex items-center bg-blue-50 dark:bg-blue-950/60 p-0.5 rounded-lg border border-blue-200 dark:border-blue-800/60 shrink-0">
+                  <div className="flex items-center bg-teal-50 dark:bg-teal-950/60 p-0.5 rounded-lg border border-teal-200 dark:border-teal-800/60 shrink-0">
                     <button
                       type="button"
                       onClick={() => setUsarSaldoFavor(true)}
                       className={`px-2 py-0.5 rounded text-[9.5px] font-black transition-all cursor-pointer ${
                         usarSaldoFavor
-                          ? 'bg-blue-600 text-white shadow-2xs'
-                          : 'text-blue-800 dark:text-blue-300 hover:text-blue-950'
+                          ? 'bg-teal-600 text-white shadow-2xs'
+                          : 'text-teal-800 dark:text-teal-300 hover:text-teal-950'
                       }`}
                     >
                       Usar
@@ -2094,7 +2094,7 @@ Estamos atentos para cualquier consulta.
                       className={`px-2 py-0.5 rounded text-[9.5px] font-bold transition-all cursor-pointer ${
                         !usarSaldoFavor
                           ? 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 shadow-2xs'
-                          : 'text-blue-700 dark:text-blue-400 hover:text-blue-950'
+                          : 'text-teal-700 dark:text-teal-400 hover:text-teal-950'
                       }`}
                     >
                       No usar
@@ -2305,9 +2305,9 @@ Estamos atentos para cualquier consulta.
 
           {/* Sección de Dinero Recibido & Cambio Integrada */}
           {totalNetoACobrar === 0 && montoSaldoFavorAplicado > 0 ? (
-            <div className="p-1.5 bg-emerald-50/70 dark:bg-emerald-950/30 border border-emerald-300 dark:border-emerald-800/60 rounded-lg flex items-center gap-2">
-              <CheckCircle2 size={14} className="text-emerald-600 dark:text-emerald-400 shrink-0" />
-              <span className="text-xs font-bold text-emerald-800 dark:text-emerald-200">
+            <div className="p-1.5 bg-teal-50/70 dark:bg-teal-950/30 border border-teal-300 dark:border-teal-800/60 rounded-lg flex items-center gap-2">
+              <CheckCircle2 size={14} className="text-teal-600 dark:text-teal-400 shrink-0" />
+              <span className="text-xs font-bold text-teal-800 dark:text-teal-200">
                 Cubierto con Saldo a Favor
               </span>
             </div>
@@ -2464,7 +2464,7 @@ Estamos atentos para cualquier consulta.
               )}
 
               {usarSaldoFavor && montoSaldoFavorAplicado > 0 && (
-                <div className="flex justify-between text-blue-600 dark:text-blue-400 font-bold">
+                <div className="flex justify-between text-teal-600 dark:text-teal-400 font-bold">
                   <span>Saldo a favor aplicado:</span>
                   <span>-${montoSaldoFavorAplicado.toLocaleString('es-CO')}</span>
                 </div>
@@ -2487,7 +2487,7 @@ Estamos atentos para cualquier consulta.
               if (puedeVentaDirecta) {
                 if (totalNetoACobrar === 0 && montoSaldoFavorAplicado > 0) {
                   textoBoton = "Cobrar con Saldo a Favor";
-                  bgBoton = "bg-blue-600 hover:bg-blue-700";
+                  bgBoton = "bg-teal-600 hover:bg-teal-700";
                 } else if (clienteTransaccion && pagadoRaw !== "" && pagadoNum === 0 && totalNetoACobrar > 0) {
                   textoBoton = `Fiar Total $${totalNetoACobrar.toLocaleString('es-CO')}`;
                   bgBoton = "bg-rose-600 hover:bg-rose-700";
@@ -3083,7 +3083,7 @@ Estamos atentos para cualquier consulta.
                 )}
 
                 {usarSaldoFavor && montoSaldoFavorAplicado > 0 && (
-                  <div className="flex justify-between items-center text-blue-400 font-bold">
+                  <div className="flex justify-between items-center text-teal-400 font-bold">
                     <span>Saldo a favor aplicado:</span>
                     <span className="font-mono">-${montoSaldoFavorAplicado.toLocaleString('es-CO')}</span>
                   </div>
@@ -3124,7 +3124,7 @@ Estamos atentos para cualquier consulta.
                   if (puedeVentaDirecta) {
                     if (totalNetoACobrar === 0 && montoSaldoFavorAplicado > 0) {
                       textoBoton = "Cobrar con Saldo a Favor";
-                      bgBoton = "bg-blue-600 hover:bg-blue-700";
+                      bgBoton = "bg-teal-600 hover:bg-teal-700";
                     } else if (clienteTransaccion && pagadoRaw !== "" && pagadoNum === 0 && totalNetoACobrar > 0) {
                       textoBoton = "Fiar Total";
                       bgBoton = "bg-rose-600 hover:bg-rose-700";
@@ -3355,7 +3355,7 @@ Estamos atentos para cualquier consulta.
 
               return (
                 <>
-                  <div className={`w-14 h-14 ${saldoFavorAplicadoModal > 0 ? 'bg-blue-100 dark:bg-blue-500/20 text-blue-500' : (esPagoCompleto ? 'bg-emerald-100 dark:bg-emerald-500/20 text-emerald-500' : 'bg-amber-100 dark:bg-amber-500/20 text-amber-500')} rounded-full flex items-center justify-center mx-auto mb-2.5 shadow-inner`}>
+                  <div className={`w-14 h-14 ${saldoFavorAplicadoModal > 0 ? 'bg-teal-100 dark:bg-teal-500/20 text-teal-600 dark:text-teal-400' : (esPagoCompleto ? 'bg-emerald-100 dark:bg-emerald-500/20 text-emerald-500' : 'bg-amber-100 dark:bg-amber-500/20 text-amber-500')} rounded-full flex items-center justify-center mx-auto mb-2.5 shadow-inner`}>
                     {esPagoCompleto ? <CheckCircle2 size={30} /> : <AlertCircle size={30} />}
                   </div>
 
@@ -3458,7 +3458,7 @@ Estamos atentos para cualquier consulta.
                     )}
 
                     {saldoFavorAplicadoModal > 0 && (
-                      <div className="text-[10.5px] text-blue-700 dark:text-blue-300 font-bold flex items-center justify-between pt-0.5 border-t border-slate-200/60 dark:border-slate-800">
+                      <div className="text-[10.5px] text-teal-700 dark:text-teal-300 font-bold flex items-center justify-between pt-0.5 border-t border-slate-200/60 dark:border-slate-800">
                         <span>Saldo a favor ({clienteTransaccion?.nombre}):</span>
                         <span>-${saldoFavorAplicadoModal.toLocaleString('es-CO')}</span>
                       </div>
@@ -3573,16 +3573,16 @@ Estamos atentos para cualquier consulta.
                         <div className="text-xs text-slate-700 dark:text-slate-300 mb-3 text-left bg-slate-50/70 dark:bg-slate-900/40 p-2.5 rounded-xl border border-slate-200/80 dark:border-slate-800 space-y-1">
                           {saldoFavorAplicadoModal > 0 ? (
                             faltanteModal === 0 ? (
-                              <p>¿Confirmas cobrar el total usando <strong className="text-blue-600 dark:text-blue-400">${saldoFavorAplicadoModal.toLocaleString('es-CO')}</strong> del saldo a favor de <strong className="text-emerald-600 dark:text-emerald-400">{clienteTransaccion.nombre}</strong>?</p>
+                              <p>¿Confirmas cobrar el total usando <strong className="text-teal-600 dark:text-teal-400">${saldoFavorAplicadoModal.toLocaleString('es-CO')}</strong> del saldo a favor de <strong className="text-emerald-600 dark:text-emerald-400">{clienteTransaccion.nombre}</strong>?</p>
                             ) : (
-                              <p>¿Confirmas usar <strong className="text-blue-600 dark:text-blue-400">${saldoFavorAplicadoModal.toLocaleString('es-CO')}</strong> de su saldo a favor {pagadoNumModal > 0 ? <>y cobrar en caja <strong className="text-emerald-600 dark:text-emerald-400">${pagadoNumModal.toLocaleString('es-CO')}</strong></> : null}, dejando un saldo fiado restante de <strong className="text-rose-500 font-bold">${faltanteModal.toLocaleString('es-CO')}</strong> a <strong className="text-emerald-600 dark:text-emerald-400">{clienteTransaccion.nombre}</strong>?</p>
+                              <p>¿Confirmas usar <strong className="text-teal-600 dark:text-teal-400">${saldoFavorAplicadoModal.toLocaleString('es-CO')}</strong> de su saldo a favor {pagadoNumModal > 0 ? <>y cobrar en caja <strong className="text-emerald-600 dark:text-emerald-400">${pagadoNumModal.toLocaleString('es-CO')}</strong></> : null}, dejando un saldo fiado restante de <strong className="text-rose-500 font-bold">${faltanteModal.toLocaleString('es-CO')}</strong> a <strong className="text-emerald-600 dark:text-emerald-400">{clienteTransaccion.nombre}</strong>?</p>
                             )
                           ) : (
                             <p>¿Confirmas venta con abono de <strong className="text-emerald-600 dark:text-emerald-400">${pagadoNumModal.toLocaleString('es-CO')}</strong> y saldo fiado de <strong className="text-rose-500 font-bold">${faltanteModal.toLocaleString('es-CO')}</strong> a <strong className="text-emerald-600 dark:text-emerald-400">{clienteTransaccion.nombre}</strong>?</p>
                           )}
 
                           {saldoFavorAplicadoModal > 0 && (
-                            <p className="text-[10.5px] text-blue-700 dark:text-blue-300 font-semibold pt-1 border-t border-slate-200/60 dark:border-slate-800">
+                            <p className="text-[10.5px] text-teal-700 dark:text-teal-300 font-semibold pt-1 border-t border-slate-200/60 dark:border-slate-800">
                               ℹ️ Su saldo a favor pasará de ${saldoFavorDisp.toLocaleString('es-CO')} a ${(saldoFavorDisp - saldoFavorAplicadoModal).toLocaleString('es-CO')}.
                               {faltanteModal > 0 && ` Y quedará debiendo $${faltanteModal.toLocaleString('es-CO')}.`}
                             </p>
@@ -3629,7 +3629,7 @@ Estamos atentos para cualquier consulta.
                             type="button"
                             onClick={() => { setModalConfirmarFiado(false); ejecutarVentaFinal(pagadoNumModal); }} 
                             disabled={guardandoVenta}
-                            className={`w-full ${saldoFavorAplicadoModal > 0 && faltanteModal === 0 ? 'bg-blue-600 hover:bg-blue-700' : 'bg-emerald-600 hover:bg-emerald-700'} ${guardandoVenta ? 'opacity-50 cursor-not-allowed' : 'active:scale-95 cursor-pointer'} text-white font-black py-3 px-4 rounded-xl text-sm shadow-md flex justify-center items-center gap-2 transition-all`}
+                            className={`w-full ${saldoFavorAplicadoModal > 0 && faltanteModal === 0 ? 'bg-teal-600 hover:bg-teal-700' : 'bg-emerald-600 hover:bg-emerald-700'} ${guardandoVenta ? 'opacity-50 cursor-not-allowed' : 'active:scale-95 cursor-pointer'} text-white font-black py-3 px-4 rounded-xl text-sm shadow-md flex justify-center items-center gap-2 transition-all`}
                           >
                             <span>{guardandoVenta ? "Procesando..." : (saldoFavorAplicadoModal > 0 ? (faltanteModal === 0 ? 'Cobrar Total con Saldo' : 'Confirmar Saldo y Fiado') : `Cobrar $${pagadoNumModal.toLocaleString('es-CO')} y Fiar $${faltanteModal.toLocaleString('es-CO')}`)}</span> 
                             <CheckCircle2 size={16}/>

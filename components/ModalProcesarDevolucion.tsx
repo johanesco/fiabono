@@ -364,7 +364,7 @@ export default function ModalProcesarDevolucion({
                 return (
                   <label className={`flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition-all ${
                     metodoDevolucion === 'saldo_a_favor' && !saldoFavorBloqueado
-                      ? 'border-emerald-500 bg-emerald-50 dark:bg-emerald-900/20' 
+                      ? 'border-teal-500 bg-teal-50 dark:bg-teal-900/20' 
                       : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/50'
                   } ${saldoFavorBloqueado ? 'opacity-50 cursor-not-allowed' : ''}`}>
                     <input 
@@ -374,7 +374,7 @@ export default function ModalProcesarDevolucion({
                       disabled={saldoFavorBloqueado}
                       checked={metodoDevolucion === 'saldo_a_favor' && !saldoFavorBloqueado} 
                       onChange={() => setMetodoDevolucion('saldo_a_favor')}
-                      className="w-4 h-4 text-emerald-600"
+                      className="w-4 h-4 text-teal-600"
                     />
                     <div className="flex-1">
                       <p className="font-bold text-slate-800 dark:text-slate-200 text-sm">Abonar como Saldo a Favor</p>
@@ -421,7 +421,7 @@ export default function ModalProcesarDevolucion({
                 </div>
               )}
               {fuePagadoConSaldo && esClienteRegistrado && (
-                <div className="flex gap-2 text-blue-600 dark:text-blue-400 text-xs mt-2 p-2 bg-blue-50 dark:bg-blue-500/10 rounded-lg">
+                <div className="flex gap-2 text-teal-700 dark:text-teal-300 text-xs mt-2 p-2 bg-teal-50 dark:bg-teal-500/10 rounded-lg">
                   <AlertCircle size={14} className="shrink-0" />
                   <p>Esta venta fue pagada con <strong>Saldo a Favor</strong>. El valor se reintegrará automáticamente como saldo a favor a la cuenta del cliente para proteger el dinero físico de la caja.</p>
                 </div>

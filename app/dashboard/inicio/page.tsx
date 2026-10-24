@@ -972,14 +972,14 @@ Gracias por seguir con nosotros.
                           <span className={`text-3xl font-black block ${
                             !tieneSaldoAFavor && totalCompromiso === 0
                               ? 'text-slate-300'
-                              : (tieneSaldoAFavor ? 'text-emerald-400' : 'text-rose-400')
+                              : (tieneSaldoAFavor ? 'text-teal-400' : 'text-rose-400')
                           }`}>
                             ${totalCompromiso.toLocaleString('es-CO')}
                           </span>
                           {saldoSeparesActivos > 0 && (
                             <div className="flex items-center justify-end gap-2 text-[11px] font-bold text-slate-400 mt-0.5">
                               {tieneSaldoAFavor ? (
-                                <span className="text-emerald-400">A favor: ${Math.abs(deudaFiado).toLocaleString('es-CO')}</span>
+                                <span className="text-teal-400">A favor: ${Math.abs(deudaFiado).toLocaleString('es-CO')}</span>
                               ) : (
                                 <span>Fiados: ${deudaFiado.toLocaleString('es-CO')}</span>
                               )}
@@ -1147,7 +1147,7 @@ Gracias por seguir con nosotros.
                         <div>
                           <span className={`text-[10px] font-black uppercase tracking-wider block ${
                             tieneSaldoAFavor 
-                              ? 'text-emerald-600 dark:text-emerald-400' 
+                              ? 'text-teal-600 dark:text-teal-400' 
                               : (totalCompromiso === 0 ? 'text-slate-400' : 'text-slate-500 dark:text-slate-400')
                           }`}>
                             {tieneSaldoAFavor ? 'Saldo a Favor' : (totalCompromiso === 0 ? 'Estado' : (saldoSeparesActivos > 0 ? 'Saldo Total Pendiente' : 'Saldo Actual'))}
@@ -1155,7 +1155,7 @@ Gracias por seguir con nosotros.
                           {saldoSeparesActivos > 0 && (
                             <div className="flex items-center gap-2 text-[10px] font-bold text-slate-400 mt-0.5">
                               {tieneSaldoAFavor ? (
-                                <span className="text-emerald-600 dark:text-emerald-400">A favor: ${Math.abs(deudaFiado).toLocaleString('es-CO')}</span>
+                                <span className="text-teal-600 dark:text-teal-400">A favor: ${Math.abs(deudaFiado).toLocaleString('es-CO')}</span>
                               ) : (
                                 <span>Fiados: ${deudaFiado.toLocaleString('es-CO')}</span>
                               )}
@@ -1168,7 +1168,7 @@ Gracias por seguir con nosotros.
                           <span className={`text-xl font-black ${
                             !tieneSaldoAFavor && totalCompromiso === 0 
                               ? 'text-slate-400' 
-                              : (tieneSaldoAFavor ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400')
+                              : (tieneSaldoAFavor ? 'text-teal-600 dark:text-teal-400' : 'text-rose-600 dark:text-rose-400')
                           }`}>
                             {!tieneSaldoAFavor && totalCompromiso === 0 ? 'Al Día' : `$${totalCompromiso.toLocaleString('es-CO')}`}
                           </span>

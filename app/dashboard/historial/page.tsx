@@ -1194,8 +1194,8 @@ Gracias por seguir con nosotros.
                       <p className="text-xs text-slate-500 dark:text-slate-400">{c.celular || "Sin celular"}</p>
                     </div>
                     <div className="text-right shrink-0">
-                      {(c.deudaTotal || 0) < 0 && <span className="text-[10px] bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300 font-black px-1.5 py-0.5 rounded mr-1">A favor</span>}
-                      <span className={`font-black text-lg tracking-tight ${c.deudaTotal === 0 ? 'text-slate-400' : ((c.deudaTotal || 0) < 0 ? 'text-emerald-500 dark:text-emerald-400 font-black' : 'text-rose-500')}`}>
+                      {(c.deudaTotal || 0) < 0 && <span className="text-[10px] bg-teal-100 text-teal-800 dark:bg-teal-500/20 dark:text-teal-300 font-black px-1.5 py-0.5 rounded mr-1">A favor</span>}
+                      <span className={`font-black text-lg tracking-tight ${c.deudaTotal === 0 ? 'text-slate-400' : ((c.deudaTotal || 0) < 0 ? 'text-teal-600 dark:text-teal-400 font-black' : 'text-rose-500')}`}>
                         {c.deudaTotal === 0 ? '$0' : `$${Math.abs(c.deudaTotal || 0).toLocaleString('es-CO')}`}
                       </span>
                     </div>
