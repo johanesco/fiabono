@@ -495,8 +495,8 @@ Gracias por seguir con nosotros.
               {getSaludo()}, <span className="text-blue-600 dark:text-blue-500">{datosSesion?.nombreUsuario?.split(' ')[0] || 'Usuario'}</span> 
             </h1>
             <div className="flex flex-wrap items-center gap-2 mt-2">
-              <span className="bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-200 text-[10px] md:text-xs font-black uppercase tracking-wider px-2.5 py-1 rounded-md flex items-center gap-1.5 max-w-full">
-                <Store size={14} className="shrink-0 text-blue-600 dark:text-blue-400"/> <span>{nombreNegocio || 'Mi Negocio'}</span>
+              <span className="bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-200 text-[10px] md:text-xs font-black uppercase tracking-wider px-2.5 py-1 rounded-md flex items-center gap-1.5 max-w-full min-w-0" title={nombreNegocio || 'Mi Negocio'}>
+                <Store size={14} className="shrink-0 text-blue-600 dark:text-blue-400"/> <span className="truncate max-w-[200px] sm:max-w-[320px] md:max-w-[450px]">{nombreNegocio || 'Mi Negocio'}</span>
               </span>
               <span className="bg-blue-100 dark:bg-blue-500/20 text-blue-700 dark:text-blue-400 text-[10px] md:text-xs font-black uppercase tracking-wider px-2 py-1 rounded-md shrink-0">
                 {datosSesion?.rol === 'cajero' ? 'Colaborador' : 'Administrador'}
@@ -691,7 +691,7 @@ Gracias por seguir con nosotros.
                       onClick={() => {
                         router.push(btn.ruta);
                       }}
-                      className={`w-full bg-gradient-to-br ${btn.gradiente} text-white font-black text-sm xs:text-base sm:text-2xl lg:text-3xl py-4 sm:py-7 lg:py-8 rounded-2xl sm:rounded-3xl shadow-lg flex flex-col items-center justify-center transition-transform transform active:scale-95 border cursor-pointer relative`}
+                      className={`w-full bg-gradient-to-br ${btn.gradiente} text-white font-black text-xs xs:text-sm sm:text-2xl lg:text-3xl py-4 sm:py-7 lg:py-8 px-1.5 sm:px-3 rounded-2xl sm:rounded-3xl shadow-lg flex flex-col items-center justify-center transition-transform transform active:scale-95 border cursor-pointer relative min-w-0`}
                     >
                       {btn.esProOnly && (
                         <span className="absolute top-2 right-2 bg-amber-400 text-slate-900 text-[9px] font-black uppercase px-1.5 py-0.5 rounded-full flex items-center gap-0.5 shadow-sm">
@@ -699,7 +699,7 @@ Gracias por seguir con nosotros.
                         </span>
                       )}
                       <Icono className="mb-1 sm:mb-2 opacity-90 shrink-0 w-6 h-6 sm:w-8 sm:h-8 lg:w-10 lg:h-10" />
-                      {btn.nombre}
+                      <span className="truncate max-w-full tracking-tight">{btn.nombre}</span>
                     </button>
                   );
                 })}
@@ -716,7 +716,7 @@ Gracias por seguir con nosotros.
               onClick={() => setVerTodosClientes(true)}
               className="w-full bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-800 hover:border-blue-400/50 py-3 sm:py-3.5 px-4 sm:px-5 rounded-2xl shadow-sm flex items-center justify-between transition-all group cursor-pointer active:scale-[0.99]"
             >
-              <div className="flex items-center gap-3 min-w-0">
+              <div className="flex items-center gap-3 min-w-0 flex-1 mr-2">
                 <div className="w-10 h-10 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 group-hover:bg-blue-50 dark:group-hover:bg-blue-500/10 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors flex items-center justify-center shrink-0">
                   <Users size={18} />
                 </div>
@@ -743,7 +743,7 @@ Gracias por seguir con nosotros.
               onClick={() => setModalCierreCajaOpen(true)}
               className="w-full bg-white dark:bg-[#0f172a] hover:bg-slate-50/80 dark:hover:bg-[#1e293b]/70 border border-slate-200 dark:border-slate-800 hover:border-amber-400/60 dark:hover:border-amber-500/40 py-3 sm:py-3.5 px-4 sm:px-5 rounded-2xl shadow-xs flex items-center justify-between transition-all group cursor-pointer active:scale-[0.99]"
             >
-              <div className="flex items-center gap-3 min-w-0">
+              <div className="flex items-center gap-3 min-w-0 flex-1 mr-2">
                 <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 border transition-colors ${
                   estadoCaja?.estaAbierta
                     ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800/60'

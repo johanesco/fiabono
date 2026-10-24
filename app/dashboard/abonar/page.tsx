@@ -126,6 +126,20 @@ function AbonarContenido() {
     };
   }, [cuentaPrincipalId]);
 
+  // Detector de clic o toque fuera para cerrar buscador de clientes
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent | TouchEvent) => {
+      const target = e.target as HTMLElement | null;
+      if (!target) return;
+      if (!target.closest('.buscador-cliente-abonar-container')) {
+        setMostrarResultadosBuscador(false);
+      }
+    };
+
+    document.addEventListener('pointerdown', handleClickOutside);
+    return () => document.removeEventListener('pointerdown', handleClickOutside);
+  }, []);
+
   // Sincronizar clientes con totales calculados unificados (Fiado + Separes)
   const clientesConTotales = useMemo(() => {
     return clientes.map((c) => {
@@ -365,9 +379,9 @@ function AbonarContenido() {
           saldoRestanteSepare: nuevoSaldoPendiente
         });
         return;
-      } catch (error) {
+      } catch (error: any) {
         console.error(error);
-        toast.error("Error al procesar el abono al separe.");
+        toast.error(error?.message || "Error al procesar el abono al separe.");
       } finally {
         isSubmittingAbonoRef.current = false;
         setGuardandoAbono(false);
@@ -636,7 +650,7 @@ Estamos atentos para cualquier consulta.
                     <button onClick={() => {setClienteTransaccion(null); setMontoAbono(""); setSeparesCliente([]);}} className="text-rose-500 shrink-0 hover:bg-rose-100 p-1 rounded-full cursor-pointer"><X size={16}/></button>
                   </div>
                 ) : (
-                  <div className="relative">
+                  <div className="relative buscador-cliente-abonar-container">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-blue-500" size={16} />
                     <input
                       type="text"
@@ -785,10 +799,37 @@ Estamos atentos para cualquier consulta.
                       value={montoAbono} 
                       onChange={(e) => setMontoAbono(formatearMonedaInput(e.target.value))} 
                       placeholder="0" 
-                      className="w-full pl-8 sm:pl-9 pr-3 py-2 sm:py-2.5 bg-slate-50 dark:bg-[#0f172a] border border-slate-200 dark:border-slate-700 rounded-xl outline-none font-black text-xl sm:text-2xl text-slate-900 dark:text-white placeholder:text-slate-400 focus:border-blue-500 transition-colors shadow-inner" 
+                      className="w-full pl-8 sm:pl-9 pr-10 py-2 sm:py-2.5 bg-slate-50 dark:bg-[#0f172a] border border-slate-200 dark:border-slate-700 rounded-xl outline-none font-black text-xl sm:text-2xl text-slate-900 dark:text-white placeholder:text-slate-400 focus:border-blue-500 transition-colors shadow-inner" 
                     />
+                    {montoAbono && (
+                      <button
+                        type="button"
+                        onClick={() => setMontoAbono("")}
+                        className="absolute right-2.5 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full bg-slate-200 dark:bg-slate-700 text-slate-500 hover:text-slate-800 dark:hover:text-white flex items-center justify-center transition-colors cursor-pointer"
+                        title="Borrar monto"
+                      >
+                        <X size={14} />
+                      </button>
+                    )}
                   </div>
                   
+                  {/* Botones de Billetes Rápidos */}
+                  <div className="grid grid-cols-4 gap-1.5 mb-2">
+                    {[10000, 20000, 50000, 100000].map(val => (
+                      <button
+                        key={val}
+                        type="button"
+                        onClick={() => {
+                          const actual = parseFloat(montoAbono.replace(/\D/g, '')) || 0;
+                          setMontoAbono((actual + val).toLocaleString('es-CO'));
+                        }}
+                        className="py-1.5 px-1 bg-slate-100 dark:bg-slate-800 hover:bg-blue-50 dark:hover:bg-blue-900/30 text-slate-700 dark:text-slate-300 hover:text-blue-600 dark:hover:text-blue-400 border border-slate-200 dark:border-slate-700 rounded-lg text-[10px] font-bold transition-all active:scale-95 cursor-pointer text-center"
+                      >
+                        +{val >= 1000 ? `${val / 1000}k` : val}
+                      </button>
+                    ))}
+                  </div>
+
                   {/* Botones Rápidos */}
                   <div className="flex gap-2">
                     {destinoAbono === 'separe' ? (
@@ -1050,17 +1091,17 @@ Estamos atentos para cualquier consulta.
 
       {modalExito && modalExito.visible && (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 z-[950] animate-in zoom-in duration-300">
-          <div className="bg-white p-8 rounded-[2.5rem] w-full max-w-sm shadow-2xl text-center border border-slate-100">
-            <div className="w-24 h-24 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center mx-auto mb-6 shadow-inner">
+          <div className="bg-white dark:bg-[#0f172a] p-8 rounded-[2.5rem] w-full max-w-sm shadow-2xl text-center border border-slate-100 dark:border-slate-800">
+            <div className="w-24 h-24 bg-blue-100 dark:bg-blue-500/20 text-blue-600 dark:text-blue-400 rounded-full flex items-center justify-center mx-auto mb-6 shadow-inner">
               <CheckCircle2 size={50} />
             </div>
-            <h2 className="text-2xl font-black text-slate-900 mb-2">¡Abono Exitoso!</h2>
+            <h2 className="text-2xl font-black text-slate-900 dark:text-white mb-2">¡Abono Exitoso!</h2>
             
-            <div className="mb-8 text-slate-500 text-base flex flex-col gap-2">
-              <p>Se registró el pago de <strong className="text-slate-800">{modalExito.cliente.nombre}</strong></p>
-              <p className="text-blue-600 font-bold bg-blue-50 p-3 rounded-xl mt-2 text-xl">Monto abonado: ${modalExito.montoTotal.toLocaleString('es-CO')}</p>
+            <div className="mb-8 text-slate-500 dark:text-slate-400 text-base flex flex-col gap-2">
+              <p>Se registró el pago de <strong className="text-slate-800 dark:text-slate-200">{modalExito.cliente.nombre}</strong></p>
+              <p className="text-blue-600 dark:text-blue-400 font-bold bg-blue-50 dark:bg-blue-500/10 p-3 rounded-xl mt-2 text-xl border border-blue-100 dark:border-blue-500/20">Monto abonado: ${modalExito.montoTotal.toLocaleString('es-CO')}</p>
               {modalExito.ticketDatos?.devuelta && modalExito.ticketDatos.devuelta > 0 && (
-                <p className="text-emerald-600 font-bold bg-emerald-50 p-2 rounded-lg">Entregar devuelta / cambio: ${modalExito.ticketDatos.devuelta.toLocaleString('es-CO')}</p>
+                <p className="text-emerald-600 dark:text-emerald-400 font-bold bg-emerald-50 dark:bg-emerald-500/10 p-2 rounded-lg border border-emerald-200 dark:border-emerald-500/20">Entregar devuelta / cambio: ${modalExito.ticketDatos.devuelta.toLocaleString('es-CO')}</p>
               )}
               {modalExito.esSepare ? (
                 <p className="text-sm mt-2">
@@ -1070,7 +1111,15 @@ Estamos atentos para cualquier consulta.
                   {modalExito.saldoRestanteSepare === 0 && " (100% Pagado)"}
                 </p>
               ) : (
-                <p className="text-sm mt-2">Nuevo saldo: <strong>${Math.abs(modalExito.cliente.deudaTotal).toLocaleString('es-CO')}</strong> {(modalExito.cliente.deudaTotal < 0) && "(A favor)"}</p>
+                <p className="text-sm mt-2 text-slate-600 dark:text-slate-300">
+                  {modalExito.cliente.deudaTotal < 0 ? (
+                    <>Nuevo saldo a favor: <strong className="text-emerald-600 dark:text-emerald-400">${Math.abs(modalExito.cliente.deudaTotal).toLocaleString('es-CO')}</strong></>
+                  ) : modalExito.cliente.deudaTotal === 0 ? (
+                    <>Cuenta al día: <strong className="text-slate-900 dark:text-white">$0</strong></>
+                  ) : (
+                    <>Nueva deuda total: <strong className="text-slate-900 dark:text-white">${modalExito.cliente.deudaTotal.toLocaleString('es-CO')}</strong></>
+                  )}
+                </p>
               )}
             </div>
 
@@ -1101,7 +1150,7 @@ Estamos atentos para cualquier consulta.
               </button>
             )}
 
-            <button onClick={() => { setModalExito(null); setMontoAbono(""); if(destinoAbono === 'separe') setSepareSeleccionado(null); }} className="w-full bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold py-4 rounded-2xl text-lg">Cerrar Ventana</button>
+            <button onClick={() => { setModalExito(null); setMontoAbono(""); if(destinoAbono === 'separe') setSepareSeleccionado(null); }} className="w-full bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-bold py-4 rounded-2xl text-lg transition-colors cursor-pointer">Cerrar Ventana</button>
           </div>
         </div>
       )}

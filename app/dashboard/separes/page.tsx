@@ -7,7 +7,7 @@ import {
 } from "firebase/firestore";
 import { auth, db } from "../../../firebase";
 import { 
-  Bookmark, ArrowLeft, Search, Plus, Minus, X, ChevronRight, CheckCircle2, 
+  Bookmark, ArrowLeft, Search, Plus, Minus, X, ChevronRight, ChevronLeft, CheckCircle2, 
   MessageCircle, Printer, MoreVertical, Camera, AlertCircle, Banknote, 
   CreditCard, Smartphone, Zap, Clock, Calendar, ChevronDown, ChevronUp, 
   Trash2, User, Eye, Check, AlertTriangle, HelpCircle, FileText, RotateCcw, Package, Wallet, MapPin, Upload
@@ -87,6 +87,8 @@ function SeparesContenido() {
     productoNombre?: string | null;
     detalle?: string | null;
     esDeInventario?: boolean;
+    galeria?: { url: string; productoNombre?: string | null; detalle?: string | null; esDeInventario?: boolean }[];
+    indiceActual?: number;
   } | null>(null);
   const [modalSuscripcionOpen, setModalSuscripcionOpen] = useState<boolean>(false);
 
@@ -269,6 +271,45 @@ function SeparesContenido() {
     return () => unsubInv();
   }, [cuentaPrincipalId]);
 
+  // Obtener toda la galería completa de un separe (fotos de artículos + fotos de evidencia)
+  const obtenerColeccionFotosSepare = (sep: any) => {
+    const coleccion: { url: string; productoNombre?: string | null; detalle?: string | null; esDeInventario?: boolean }[] = [];
+    (sep.items || []).forEach((it: any) => {
+      const fUrl = obtenerFotoProducto(it);
+      if (fUrl && !coleccion.some(f => f.url === fUrl)) {
+        coleccion.push({
+          url: fUrl,
+          productoNombre: it.descripcion,
+          detalle: `Artículo en Separe • ${Number(it.cantidad || 1)} un.`,
+          esDeInventario: Boolean(it.idProducto || mapaInventario[it.descripcion?.trim().toLowerCase()])
+        });
+      }
+    });
+    if (Array.isArray(sep.fotos)) {
+      sep.fotos.forEach((fUrl: string, idx: number) => {
+        if (fUrl && !coleccion.some(f => f.url === fUrl)) {
+          const itemVinculado = (sep.items || []).find((it: any) => it.fotoUrl === fUrl || it.foto === fUrl || it.imagen === fUrl);
+          if (itemVinculado) {
+            coleccion.push({
+              url: fUrl,
+              productoNombre: itemVinculado.descripcion,
+              detalle: `Artículo en Separe • ${Number(itemVinculado.cantidad || 1)} un.`,
+              esDeInventario: false
+            });
+          } else {
+            coleccion.push({
+              url: fUrl,
+              productoNombre: null,
+              detalle: `Evidencia fotográfica #${idx + 1} • Separe`,
+              esDeInventario: false
+            });
+          }
+        }
+      });
+    }
+    return coleccion;
+  };
+
   // Obtener la foto más fidedigna de un artículo (prioriza foto propia > inventario por ID > inventario por nombre)
   const obtenerFotoProducto = (it: any) => {
     if (!it) return null;
@@ -295,6 +336,28 @@ function SeparesContenido() {
       setBusqueda(busquedaParam);
     }
   }, [searchParams]);
+
+  // Manejo de teclado para Lightbox de Galería (Escape, Flechas Izquierda y Derecha)
+  useEffect(() => {
+    if (!fotoLightbox) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setFotoLightbox(null);
+      } else if (e.key === 'ArrowLeft' && Array.isArray(fotoLightbox.galeria) && fotoLightbox.galeria.length > 1) {
+        const g = fotoLightbox.galeria;
+        const cur = typeof fotoLightbox.indiceActual === 'number' ? fotoLightbox.indiceActual : 0;
+        const prevIdx = (cur - 1 + g.length) % g.length;
+        setFotoLightbox({ ...g[prevIdx], galeria: g, indiceActual: prevIdx });
+      } else if (e.key === 'ArrowRight' && Array.isArray(fotoLightbox.galeria) && fotoLightbox.galeria.length > 1) {
+        const g = fotoLightbox.galeria;
+        const cur = typeof fotoLightbox.indiceActual === 'number' ? fotoLightbox.indiceActual : 0;
+        const nextIdx = (cur + 1) % g.length;
+        setFotoLightbox({ ...g[nextIdx], galeria: g, indiceActual: nextIdx });
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [fotoLightbox]);
 
   // Contadores
   const countActivos = separes.filter(s => s.estado === 'activo').length;
@@ -1040,19 +1103,23 @@ ${window.location.origin}/t/${sep.id}`;
 
     try {
       const motivo = notaCancelacion.trim() || "Cancelado por el cliente";
-      const montoDevuelto = Number(separeSeleccionado.montoPagado || 0);
+      const montoDevueltoEsperado = Math.max(0, Number(separeSeleccionado.montoPagado || 0) - Number(separeSeleccionado.valorEntregado || 0));
 
-      // Recopilar productos para reintegro de stock
-
+      // Recopilar productos pendientes de entrega para reintegro de stock (respetando entregas parciales previas)
       const itemsDevolver: Array<{ productoId: string; cantidad: number }> = [];
       if (separeSeleccionado.items && Array.isArray(separeSeleccionado.items)) {
         for (const item of separeSeleccionado.items) {
           const pId = item.idProducto || item.productoId;
           if (pId) {
-            itemsDevolver.push({
-              productoId: pId,
-              cantidad: item.cantidad || 1
-            });
+            const cantTotal = Number(item.cantidad || 1);
+            const cantEntregada = Number(item.cantidadEntregada || 0);
+            const cantPendiente = Math.max(0, cantTotal - cantEntregada);
+            if (cantPendiente > 0) {
+              itemsDevolver.push({
+                productoId: pId,
+                cantidad: cantPendiente
+              });
+            }
           }
         }
       }
@@ -1070,9 +1137,12 @@ ${window.location.origin}/t/${sep.id}`;
           itemsDevolver
         })
       });
+      const resCancelacion = await respuestaCancelacion.json();
       if (!respuestaCancelacion.ok) {
-        throw new Error((await respuestaCancelacion.json()).error || 'No se pudo cancelar el separe.');
+        throw new Error(resCancelacion.error || 'No se pudo cancelar el separe.');
       }
+
+      const montoDevueltoFinal = resCancelacion.montoDevuelto !== undefined ? Number(resCancelacion.montoDevuelto) : montoDevueltoEsperado;
 
       reproducirSonidoAlerta();
       setModalCancelar(false);
@@ -1084,7 +1154,7 @@ ${window.location.origin}/t/${sep.id}`;
         visible: true,
         clienteNombre: separeSeleccionado.clienteNombre,
         clienteCelular: separeSeleccionado.clienteCelular || "",
-        montoDevuelto: montoDevuelto,
+        montoDevuelto: montoDevueltoFinal,
         motivo: motivo
       });
 
@@ -1442,12 +1512,18 @@ Gracias por contactarnos.`;
                                   {fotoItem ? (
                                     <button
                                       type="button"
-                                      onClick={() => setFotoLightbox({
-                                        url: fotoItem,
-                                        productoNombre: it.descripcion,
-                                        detalle: `Artículo en Separe • ${cantTotal > 1 ? `${cantTotal} unidades` : '1 unidad'}`,
-                                        esDeInventario: Boolean(it.idProducto || mapaInventario[it.descripcion?.trim().toLowerCase()])
-                                      })}
+                                      onClick={() => {
+                                        const g = obtenerColeccionFotosSepare(sep);
+                                        const idxFoto = g.findIndex(f => f.url === fotoItem);
+                                        setFotoLightbox({
+                                          url: fotoItem,
+                                          productoNombre: it.descripcion,
+                                          detalle: `Artículo en Separe • ${cantTotal > 1 ? `${cantTotal} unidades` : '1 unidad'}`,
+                                          esDeInventario: Boolean(it.idProducto || mapaInventario[it.descripcion?.trim().toLowerCase()]),
+                                          galeria: g,
+                                          indiceActual: idxFoto >= 0 ? idxFoto : 0
+                                        });
+                                      }}
                                       className="shrink-0 p-1 bg-violet-100 dark:bg-violet-500/20 text-violet-600 dark:text-violet-300 rounded-lg hover:scale-110 transition-transform cursor-pointer"
                                       title={`Ver foto de "${it.descripcion}"`}
                                     >
@@ -1540,7 +1616,7 @@ Gracias por contactarnos.`;
                                   key={fIdx}
                                   src={fotoObj.url}
                                   alt={fotoObj.productoNombre || `Foto ${fIdx + 1}`}
-                                  onClick={() => setFotoLightbox(fotoObj)}
+                                  onClick={() => setFotoLightbox({ ...fotoObj, galeria: fotosColeccion, indiceActual: fIdx })}
                                   className="w-8 h-8 rounded-xl object-cover cursor-pointer border-2 border-violet-300 dark:border-violet-700 hover:scale-110 shadow-sm transition-transform shrink-0"
                                   title={fotoObj.productoNombre ? `Ver foto de "${fotoObj.productoNombre}"` : "Clic para ampliar foto"}
                                 />
@@ -1769,8 +1845,35 @@ Gracias por contactarnos.`;
                   value={montoAbono}
                   onChange={(e) => setMontoAbono(formatearMonedaInput(e.target.value))}
                   placeholder="0"
-                  className="w-full pl-8 pr-4 py-3 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl font-black text-lg text-slate-900 dark:text-white outline-none focus:border-violet-500"
+                  className="w-full pl-8 pr-10 py-3 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl font-black text-lg text-slate-900 dark:text-white outline-none focus:border-violet-500"
                 />
+                {montoAbono && (
+                  <button
+                    type="button"
+                    onClick={() => setMontoAbono("")}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full bg-slate-200 dark:bg-slate-700 text-slate-500 hover:text-slate-800 dark:hover:text-white flex items-center justify-center transition-colors cursor-pointer"
+                    title="Borrar monto"
+                  >
+                    <X size={14} />
+                  </button>
+                )}
+              </div>
+
+              {/* Billetes Rápidos */}
+              <div className="grid grid-cols-4 gap-1.5 pt-1">
+                {[10000, 20000, 50000, 100000].map(val => (
+                  <button
+                    key={val}
+                    type="button"
+                    onClick={() => {
+                      const actual = parseFloat(montoAbono.replace(/\D/g, '')) || 0;
+                      setMontoAbono(formatearMonedaInput((actual + val).toString()));
+                    }}
+                    className="py-1.5 px-1 bg-slate-100 dark:bg-slate-800 hover:bg-violet-50 dark:hover:bg-violet-900/30 text-slate-700 dark:text-slate-300 hover:text-violet-600 dark:hover:text-violet-400 border border-slate-200 dark:border-slate-700 rounded-xl text-[10px] font-bold transition-all active:scale-95 cursor-pointer text-center"
+                  >
+                    +{val >= 1000 ? `${val / 1000}k` : val}
+                  </button>
+                ))}
               </div>
 
               {/* Botón Saldo Completo */}
@@ -2075,11 +2178,17 @@ Gracias por contactarnos.`;
                         key={idx} 
                         src={fotoUrl} 
                         alt="Artículo separado" 
-                        onClick={() => setFotoLightbox({
-                          url: fotoUrl,
-                          productoNombre: itemVinculado?.descripcion || null,
-                          detalle: itemVinculado ? `Artículo a entregar • ${itemVinculado.cantidad || 1} un.` : `Foto de evidencia #${idx + 1}`
-                        })}
+                        onClick={() => {
+                          const g = obtenerColeccionFotosSepare(separeSeleccionado);
+                          const idxFoto = g.findIndex(f => f.url === fotoUrl);
+                          setFotoLightbox({
+                            url: fotoUrl,
+                            productoNombre: itemVinculado?.descripcion || null,
+                            detalle: itemVinculado ? `Artículo a entregar • ${itemVinculado.cantidad || 1} un.` : `Foto de evidencia #${idx + 1}`,
+                            galeria: g,
+                            indiceActual: idxFoto >= 0 ? idxFoto : 0
+                          });
+                        }}
                         className="w-16 h-16 object-cover rounded-xl cursor-pointer hover:scale-105 transition-transform shadow-sm border border-slate-200 dark:border-slate-700"
                         title={itemVinculado ? `Ver foto de "${itemVinculado.descripcion}"` : "Clic para ampliar foto"}
                       />
@@ -2597,12 +2706,18 @@ Gracias por contactarnos.`;
                                 <img
                                   src={fotoAMostrar}
                                   alt={it.descripcion}
-                                  onClick={() => setFotoLightbox({
-                                    url: fotoAMostrar,
-                                    productoNombre: it.descripcion,
-                                    detalle: `Entrega física hoy: ${it.cantidadAEntregar} un. • Valor unitario: $${it.valorUnitNeto.toLocaleString('es-CO')}`,
-                                    esDeInventario: Boolean(it.idProducto || mapaInventario[it.descripcion?.trim().toLowerCase()])
-                                  })}
+                                  onClick={() => {
+                                    const g = obtenerColeccionFotosSepare(separeSeleccionado);
+                                    const idxFoto = g.findIndex(f => f.url === fotoAMostrar);
+                                    setFotoLightbox({
+                                      url: fotoAMostrar,
+                                      productoNombre: it.descripcion,
+                                      detalle: `Entrega física hoy: ${it.cantidadAEntregar} un. • Valor unitario: $${it.valorUnitNeto.toLocaleString('es-CO')}`,
+                                      esDeInventario: Boolean(it.idProducto || mapaInventario[it.descripcion?.trim().toLowerCase()]),
+                                      galeria: g,
+                                      indiceActual: idxFoto >= 0 ? idxFoto : 0
+                                    });
+                                  }}
                                   className="w-16 h-16 rounded-xl object-cover border-2 border-amber-400 cursor-pointer hover:scale-105 transition-transform shadow-sm"
                                   title="Clic para ampliar foto"
                                 />
@@ -3104,6 +3219,47 @@ Gracias por contactarnos.`;
                 alt={fotoLightbox.productoNombre || "Foto de producto"} 
                 className="max-w-full max-h-[75vh] object-contain rounded-2xl" 
               />
+
+              {/* Controles de Navegación de Galería (Anterior / Siguiente) */}
+              {Array.isArray(fotoLightbox.galeria) && fotoLightbox.galeria.length > 1 && (
+                <>
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      const g = fotoLightbox.galeria!;
+                      const cur = typeof fotoLightbox.indiceActual === 'number' ? fotoLightbox.indiceActual : 0;
+                      const prevIdx = (cur - 1 + g.length) % g.length;
+                      setFotoLightbox({ ...g[prevIdx], galeria: g, indiceActual: prevIdx });
+                    }}
+                    className="absolute left-2.5 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-black/60 hover:bg-black/90 text-white flex items-center justify-center transition-transform active:scale-90 border border-white/20 shadow-2xl z-20 cursor-pointer"
+                    title="Foto anterior"
+                  >
+                    <ChevronLeft size={22} />
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      const g = fotoLightbox.galeria!;
+                      const cur = typeof fotoLightbox.indiceActual === 'number' ? fotoLightbox.indiceActual : 0;
+                      const nextIdx = (cur + 1) % g.length;
+                      setFotoLightbox({ ...g[nextIdx], galeria: g, indiceActual: nextIdx });
+                    }}
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-black/60 hover:bg-black/90 text-white flex items-center justify-center transition-transform active:scale-90 border border-white/20 shadow-2xl z-20 cursor-pointer"
+                    title="Foto siguiente"
+                  >
+                    <ChevronRight size={22} />
+                  </button>
+
+                  {/* Badge contador inferior 1 de N */}
+                  <div className="absolute bottom-3 left-1/2 -translate-x-1/2 bg-black/75 backdrop-blur-md px-3 py-1 rounded-full text-white text-[11px] font-black border border-white/20 shadow-xl flex items-center gap-1.5 z-20">
+                    <Camera size={13} className="text-violet-400" />
+                    <span>{(typeof fotoLightbox.indiceActual === 'number' ? fotoLightbox.indiceActual : 0) + 1} de {fotoLightbox.galeria.length}</span>
+                  </div>
+                </>
+              )}
               {!fotoLightbox.productoNombre && !fotoLightbox.detalle && (
                 <button
                   type="button"

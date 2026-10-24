@@ -32,6 +32,23 @@ export default function SeparePage() {
 
 function SepareContenido() {
   const { datosSesion } = useAuth();
+
+  // Detector de clic o toque fuera para cerrar autocompletar de inventario y buscador de clientes
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent | TouchEvent) => {
+      const target = e.target as HTMLElement | null;
+      if (!target) return;
+      if (!target.closest('.buscador-cliente-separe-container')) {
+        setMostrarResultadosCliente(false);
+      }
+      if (!target.closest('.fila-articulo-separe-container')) {
+        setBusquedaProductoIndex(null);
+      }
+    };
+
+    document.addEventListener('pointerdown', handleClickOutside);
+    return () => document.removeEventListener('pointerdown', handleClickOutside);
+  }, []);
   const router = useRouter();
   const searchParams = useSearchParams();
 
@@ -489,6 +506,7 @@ function SepareContenido() {
     if (destino) {
       cargarDatosDePestana(destino);
       setPestanaActivaId(idDestino);
+      setPasoMovil('articulos');
     }
   };
 
@@ -583,6 +601,7 @@ function SepareContenido() {
     persistirPestanas(nuevas, vendedorActivo);
     cargarDatosDePestana(nueva);
     setPestanaActivaId(nuevoId);
+    setPasoMovil('articulos');
   };
 
   // Cerrar pestaña
@@ -2423,7 +2442,7 @@ Estamos atentos para cualquier consulta.
                   return (
                     <div
                       key={fila.id}
-                      className={`flex flex-col xl:flex-row gap-2.5 sm:gap-3 p-2.5 sm:py-2.5 sm:px-3.5 bg-white dark:bg-[#0f172a] rounded-xl sm:rounded-2xl border border-slate-200 dark:border-slate-800 relative shadow-xs transition-colors hover:border-violet-300 ${busquedaProductoIndex === index ? 'z-40' : 'z-10'}`}
+                      className={`fila-articulo-separe-container flex flex-col xl:flex-row gap-2.5 sm:gap-3 p-2.5 sm:py-2.5 sm:px-3.5 bg-white dark:bg-[#0f172a] rounded-xl sm:rounded-2xl border border-slate-200 dark:border-slate-800 relative shadow-xs transition-colors hover:border-violet-300 ${busquedaProductoIndex === index ? 'z-40' : 'z-10'}`}
                     >
 
                       {/* Input de descripción con buscador de inventario */}
@@ -2840,7 +2859,7 @@ Estamos atentos para cualquier consulta.
                   </button>
                 </div>
               ) : (
-                <div className="relative">
+                <div className="relative buscador-cliente-separe-container">
                   <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 text-violet-500" size={15} />
                   <input
                     type="text"
@@ -3072,8 +3091,18 @@ Estamos atentos para cualquier consulta.
                   value={abonoInicial ? parseInt(abonoInicial.replace(/\D/g, '') || '0', 10).toLocaleString('es-CO') : ''}
                   onChange={(e) => setAbonoInicial(e.target.value.replace(/\D/g, ''))}
                   placeholder="¿Cuánto abona para separar? (Obligatorio)"
-                  className="w-full pl-7 pr-2.5 py-1.5 bg-slate-50 dark:bg-[#020617] border border-slate-200 dark:border-slate-700 rounded-xl font-black text-sm text-slate-900 dark:text-white outline-none focus:border-violet-500 transition-colors"
+                  className="w-full pl-7 pr-8 py-1.5 bg-slate-50 dark:bg-[#020617] border border-slate-200 dark:border-slate-700 rounded-xl font-black text-sm text-slate-900 dark:text-white outline-none focus:border-violet-500 transition-colors"
                 />
+                {abonoInicial && (
+                  <button
+                    type="button"
+                    onClick={() => setAbonoInicial("")}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 w-5 h-5 rounded-full bg-slate-200 dark:bg-slate-700 text-slate-500 hover:text-slate-800 dark:hover:text-white flex items-center justify-center transition-colors cursor-pointer"
+                    title="Borrar abono inicial"
+                  >
+                    <X size={12} />
+                  </button>
+                )}
                 {!abonoInicialNum && (
                   <p className="text-[10px] text-amber-600 dark:text-amber-400 font-bold flex items-center gap-1 mt-1">
                     <AlertCircle size={11} /> El plan separe requiere un abono inicial de entrada

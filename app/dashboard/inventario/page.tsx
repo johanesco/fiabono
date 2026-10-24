@@ -266,6 +266,31 @@ export default function InventarioPage() {
     setLimiteRender(20);
   }, [busqueda, filtrosCategoria, filtrosStock]);
 
+  // Cierre táctil inmediato al tocar fuera del selector de categorías en móvil/tablet
+  useEffect(() => {
+    if (!categoriaFoco) return;
+    const handlePointerDown = (e: PointerEvent) => {
+      const target = e.target as HTMLElement | null;
+      if (!target?.closest('.selector-categoria-container')) {
+        setCategoriaFoco(false);
+      }
+    };
+    window.addEventListener('pointerdown', handlePointerDown);
+    return () => window.removeEventListener('pointerdown', handlePointerDown);
+  }, [categoriaFoco]);
+
+  // Manejo de teclado para Lightbox de Fotos (Escape)
+  useEffect(() => {
+    if (!fotoLightbox) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setFotoLightbox(null);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [fotoLightbox]);
+
   const cargarInventario = async (uid?: string | null, reintento = 0) => {
     if (!uid) return;
     try {
@@ -345,7 +370,7 @@ export default function InventarioPage() {
       acc + (p.inventariable !== false && p.tipoProducto !== 'servicio' ? Math.max(0, Number(p.stock) || 0) : 0), 0
     );
     const valorTotal = inventario.reduce((acc, p) => 
-      acc + (Math.max(0, Number(p.stock) || 0) * (Number(p.precioVenta) || 0)), 0
+      acc + (p.inventariable !== false && p.tipoProducto !== 'servicio' ? Math.max(0, Number(p.stock) || 0) * (Number(p.precioVenta) || 0) : 0), 0
     );
     const totalServicios = inventario.filter(p => p.tipoProducto === 'servicio' || p.inventariable === false).length;
     const stockBajo = inventario.filter(p => p.inventariable !== false && p.tipoProducto !== 'servicio' && Number(p.stock) > 0 && Number(p.stock) <= 5).length;
@@ -413,7 +438,8 @@ export default function InventarioPage() {
       descripcion: p.nombre,
       valor: String(p.precioVenta || 0),
       cantidad: 1,
-      idProducto: p.id
+      idProducto: p.id,
+      fotoUrl: p.imagen || p.imagenUrl || p.foto || p.fotoUrl || null
     }));
     sessionStorage.setItem('fiabono_productos_precargados', JSON.stringify(items));
     sessionStorage.setItem('fiabono_origen_despacho', '/dashboard/inventario');
@@ -430,7 +456,8 @@ export default function InventarioPage() {
       descripcion: p.nombre,
       valor: String(p.precioVenta || 0),
       cantidad: 1,
-      idProducto: p.id
+      idProducto: p.id,
+      fotoUrl: p.imagen || p.imagenUrl || p.foto || p.fotoUrl || null
     }));
     sessionStorage.setItem('fiabono_productos_precargados', JSON.stringify(items));
     sessionStorage.setItem('fiabono_origen_despacho', '/dashboard/inventario');
@@ -456,7 +483,8 @@ export default function InventarioPage() {
       descripcion: p.nombre,
       valor: String(p.precioVenta || 0),
       cantidad: 1,
-      idProducto: p.id
+      idProducto: p.id,
+      fotoUrl: p.imagen || p.imagenUrl || p.foto || p.fotoUrl || null
     }));
     sessionStorage.setItem('fiabono_productos_precargados', JSON.stringify(items));
     sessionStorage.setItem('fiabono_origen_despacho', '/dashboard/inventario');
@@ -3383,7 +3411,7 @@ export default function InventarioPage() {
                           : 'border-slate-200 dark:border-slate-800 hover:border-slate-300'
                       }`}
                     >
-                      {/* Fila 1: Checkbox + Nombre + SKU + Precio */}
+                      {/* Fila 1: Checkbox + Foto + Nombre + SKU + Precio */}
                       <div className="flex items-center justify-between gap-2">
                         <div className="flex items-center gap-2 min-w-0 flex-1">
                           <button 
@@ -3397,6 +3425,15 @@ export default function InventarioPage() {
                               <Square size={18} />
                             )}
                           </button>
+                          {prod.imagen && (
+                            <img
+                              src={prod.imagen}
+                              alt={prod.nombre}
+                              onClick={() => setFotoLightbox(prod.imagen)}
+                              className="w-9 h-9 rounded-xl object-cover border border-slate-200 dark:border-slate-700 cursor-pointer hover:scale-105 transition-transform shrink-0 shadow-xs"
+                              title={`Ver foto de "${prod.nombre}"`}
+                            />
+                          )}
                           <div className="min-w-0 flex-1 flex items-baseline gap-1.5 truncate">
                             <h4 className="font-black text-slate-900 dark:text-white text-sm truncate leading-tight">
                               {prod.nombre}
@@ -3620,12 +3657,29 @@ export default function InventarioPage() {
                               </span>
                             </td>
 
-                            {/* Nombre del Producto */}
+                            {/* Nombre del Producto con Miniatura de Foto */}
                             <td className="py-2.5 px-3">
-                              <span className="font-bold text-slate-900 dark:text-white block max-w-[220px] truncate">{prod.nombre}</span>
-                              {prod.tipoProducto === 'servicio' && (
-                                <span className="text-[10px] text-indigo-500 font-bold uppercase tracking-wider block">Servicio</span>
-                              )}
+                              <div className="flex items-center gap-2 max-w-[240px]">
+                                {prod.imagen ? (
+                                  <img
+                                    src={prod.imagen}
+                                    alt={prod.nombre}
+                                    onClick={() => setFotoLightbox(prod.imagen)}
+                                    className="w-8 h-8 rounded-lg object-cover border border-slate-200 dark:border-slate-700 cursor-pointer hover:scale-110 transition-transform shrink-0 shadow-xs"
+                                    title={`Ver foto de "${prod.nombre}"`}
+                                  />
+                                ) : (
+                                  <div className="w-8 h-8 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-600 flex items-center justify-center shrink-0 border border-dashed border-slate-200 dark:border-slate-700">
+                                    <Package size={14} />
+                                  </div>
+                                )}
+                                <div className="min-w-0 flex-1 truncate">
+                                  <span className="font-bold text-slate-900 dark:text-white block truncate">{prod.nombre}</span>
+                                  {prod.tipoProducto === 'servicio' && (
+                                    <span className="text-[10px] text-indigo-500 font-bold uppercase tracking-wider block">Servicio</span>
+                                  )}
+                                </div>
+                              </div>
                             </td>
 
                             {/* SKU */}
@@ -5292,7 +5346,7 @@ export default function InventarioPage() {
                           <Tag size={10} /> <span>Admin</span>
                         </button>
                       </div>
-                      <div className="relative">
+                      <div className="relative selector-categoria-container">
                         <div className={`flex items-center gap-1 rounded-xl border ${errores.categoria ? 'border-rose-500 ring-2 ring-rose-500/30 bg-rose-50/20' : 'border-slate-200 dark:border-slate-700 focus-within:border-emerald-500'} bg-white px-2.5 py-1.5 dark:bg-[#020617] shadow-xs`}>
                           <input
                             value={categoria}
@@ -6292,6 +6346,36 @@ export default function InventarioPage() {
                 title="Capturar Foto"
               >
                 <Camera size={24} />
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* MODAL LIGHTBOX DE FOTO DE PRODUCTO */}
+      {fotoLightbox && mounted && createPortal(
+        <div 
+          onClick={() => setFotoLightbox(null)}
+          className="fixed inset-0 bg-black/90 backdrop-blur-md flex flex-col items-center justify-center p-4 z-[1200] cursor-pointer animate-in fade-in duration-200 select-none"
+        >
+          <div 
+            onClick={(e) => e.stopPropagation()} 
+            className="relative max-w-xl max-h-[85vh] flex flex-col items-center cursor-default gap-3"
+          >
+            <div className="relative rounded-2xl sm:rounded-3xl overflow-hidden shadow-2xl border border-white/15 bg-black/60 max-h-[75vh] flex items-center justify-center">
+              <img 
+                src={fotoLightbox} 
+                alt="Foto de producto" 
+                className="max-w-full max-h-[75vh] object-contain rounded-2xl" 
+              />
+              <button
+                type="button"
+                onClick={() => setFotoLightbox(null)}
+                className="absolute top-3 right-3 p-2 bg-black/70 hover:bg-black text-white rounded-full transition-colors cursor-pointer shadow-lg border border-white/20"
+                title="Cerrar vista previa"
+              >
+                <X size={18} />
               </button>
             </div>
           </div>

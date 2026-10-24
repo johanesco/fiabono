@@ -42,13 +42,31 @@ export async function POST(request: Request) {
       const montoPagado = Number(separe.montoPagado || 0);
       const montoDevuelto = Math.max(0, montoPagado - valorEntregado);
       if (!Number.isFinite(montoDevuelto) || montoDevuelto < 0) throw new Error('MONTO_INVALIDO');
-      const productos = new Map<string, { ref: any; data: any }>();
+      // Calcular inventario pendiente real del separe para evitar reintegros excesivos si hubo entregas parciales
+      const pendientesSepare = new Map<string, number>();
+      if (Array.isArray(separe.items)) {
+        for (const it of separe.items) {
+          const pId = it.idProducto || it.productoId;
+          if (pId) {
+            const cTotal = Number(it.cantidad || 1);
+            const cEntregada = Number(it.cantidadEntregada || 0);
+            const cPendiente = Math.max(0, cTotal - cEntregada);
+            pendientesSepare.set(pId, (pendientesSepare.get(pId) || 0) + cPendiente);
+          }
+        }
+      }
+
+      const productos = new Map<string, { ref: any; data: any; cantidadReintegrar: number }>();
       for (const item of itemsDevolver) {
         if (!item?.productoId || !Number.isInteger(Number(item.cantidad)) || Number(item.cantidad) <= 0) throw new Error('ITEM_INVALIDO');
+        const maxDevolver = pendientesSepare.get(item.productoId) ?? 0;
+        const cantidadReintegrar = Math.min(Number(item.cantidad), maxDevolver);
+        if (cantidadReintegrar <= 0) continue;
+
         const productoRef = adminDb.collection('inventario').doc(item.productoId);
         const productoSnap = await transaction.get(productoRef);
         if (!productoSnap.exists || productoSnap.data()?.usuarioId !== cuentaPrincipalId) throw new Error('PRODUCTO_NO_AUTORIZADO');
-        productos.set(item.productoId, { ref: productoRef, data: productoSnap.data() });
+        productos.set(item.productoId, { ref: productoRef, data: productoSnap.data(), cantidadReintegrar });
       }
 
       let clienteRef: any = null;
@@ -69,10 +87,9 @@ export async function POST(request: Request) {
         montoPagadoAlCancelar: montoDevuelto
       });
 
-      for (const item of itemsDevolver) {
-        const producto = productos.get(item.productoId)!;
-        if (producto.data.tipoProducto !== 'servicio' && producto.data.inventariable !== false) {
-          transaction.update(producto.ref, { stock: Number(producto.data.stock || 0) + Number(item.cantidad) });
+      for (const [, prodInfo] of productos) {
+        if (prodInfo.data.tipoProducto !== 'servicio' && prodInfo.data.inventariable !== false && prodInfo.cantidadReintegrar > 0) {
+          transaction.update(prodInfo.ref, { stock: Number(prodInfo.data.stock || 0) + prodInfo.cantidadReintegrar });
         }
       }
 

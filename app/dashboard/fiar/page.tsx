@@ -290,6 +290,7 @@ function FiarContenido() {
         if (destino) {
             cargarDatosDePestana(destino);
             setPestanaActivaId(idDestino);
+            setPasoMovil('articulos');
         }
     };
 
@@ -369,6 +370,7 @@ function FiarContenido() {
         persistirPestanas(nuevas, vendedorActivo);
         cargarDatosDePestana(nueva);
         setPestanaActivaId(nuevoId);
+        setPasoMovil('articulos');
     };
 
     // Cerrar pestaña (o limpiar si es la única)
@@ -727,7 +729,9 @@ function FiarContenido() {
         }
 
         const productoEncontrado = inventario.find(
-            p => (p.sku && p.sku.toLowerCase() === skuLimpio) || p.id === skuScaneado
+            p => (p.sku && p.sku.toLowerCase() === skuLimpio) || 
+                 (p.codigo && p.codigo.toLowerCase() === skuLimpio) || 
+                 p.id === skuScaneado
         );
 
         if (!productoEncontrado) {
@@ -1360,7 +1364,13 @@ function FiarContenido() {
         setFilasRegistro(nuevasFilas);
     };
 
-    const eliminarFila = (index: number) => { if (filasRegistro.length > 1) setFilasRegistro(filasRegistro.filter((_, i) => i !== index)); };
+    const eliminarFila = (index: number) => {
+        if (filasRegistro.length > 1) {
+            setFilasRegistro(filasRegistro.filter((_, i) => i !== index));
+        } else {
+            setFilasRegistro([{ descripcion: "", valor: "", cantidad: 1 }]);
+        }
+    };
 
     const subtotalBruto = filasRegistro.reduce((acc, fila) => {
         const val = parseFloat(fila.valor || "0");
@@ -1688,6 +1698,23 @@ Estamos atentos para cualquier consulta.
         return () => window.removeEventListener('resize', handleResize);
     }, [filasRegistro]);
 
+    // Detector de clic o toque fuera para cerrar autocompletar de inventario y buscador de clientes
+    useEffect(() => {
+        const handleClickOutside = (e: MouseEvent | TouchEvent) => {
+            const target = e.target as HTMLElement | null;
+            if (!target) return;
+            if (!target.closest('.buscador-cliente-fiar-container')) {
+                setMostrarResultadosBuscador(false);
+            }
+            if (!target.closest('.fila-articulo-fiar-container')) {
+                setBusquedaProductoIndex(null);
+            }
+        };
+
+        document.addEventListener('pointerdown', handleClickOutside);
+        return () => document.removeEventListener('pointerdown', handleClickOutside);
+    }, []);
+
     const normalizarBusquedaCli = (str: string) =>
         (str || "").toString().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
 
@@ -1871,7 +1898,7 @@ Estamos atentos para cualquier consulta.
                                     const productosFiltradosInventario = ordenarProductosSugeridos(inventario, fila.descripcion);
 
                                     return (
-                                        <div key={index} className={`flex flex-col xl:flex-row gap-2.5 sm:gap-3 p-2.5 sm:py-2.5 sm:px-3.5 bg-white dark:bg-[#0f172a] rounded-xl sm:rounded-2xl border border-slate-200 dark:border-slate-800 relative shadow-xs transition-colors hover:border-rose-300 ${busquedaProductoIndex === index ? 'z-40' : 'z-10'}`}>
+                                        <div key={index} className={`fila-articulo-fiar-container flex flex-col xl:flex-row gap-2.5 sm:gap-3 p-2.5 sm:py-2.5 sm:px-3.5 bg-white dark:bg-[#0f172a] rounded-xl sm:rounded-2xl border border-slate-200 dark:border-slate-800 relative shadow-xs transition-colors hover:border-rose-300 ${busquedaProductoIndex === index ? 'z-40' : 'z-10'}`}>
 
                                             <div className="w-full xl:flex-1 min-w-0 relative">
                                                 <label className="text-[9px] md:text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1 block whitespace-nowrap truncate flex items-center gap-1">
@@ -2227,7 +2254,7 @@ Estamos atentos para cualquier consulta.
                                     <button onClick={() => setClienteTransaccion(null)} className="text-rose-500 shrink-0 hover:bg-rose-100 p-0.5 rounded-full"><X size={13} /></button>
                                 </div>
                             ) : (
-                                <div className="relative">
+                                <div className="relative buscador-cliente-fiar-container">
                                     <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 text-rose-400" size={13} />
                                     <input
                                         type="text"
@@ -2595,7 +2622,13 @@ Estamos atentos para cualquier consulta.
                                 Monto: ${modalExito.montoTotal.toLocaleString('es-CO')}
                             </p>
                             <p className="text-sm mt-2 text-slate-600 dark:text-slate-300">
-                                Nueva deuda total: <strong className="text-slate-900 dark:text-white">${modalExito.cliente.deudaTotal.toLocaleString('es-CO')}</strong>
+                                {Number(modalExito.cliente.deudaTotal || 0) < 0 ? (
+                                    <>Nuevo saldo a favor: <strong className="text-emerald-600 dark:text-emerald-400">${Math.abs(Number(modalExito.cliente.deudaTotal)).toLocaleString('es-CO')}</strong></>
+                                ) : Number(modalExito.cliente.deudaTotal || 0) === 0 ? (
+                                    <>Cuenta al día: <strong className="text-slate-900 dark:text-white">$0</strong></>
+                                ) : (
+                                    <>Nueva deuda total: <strong className="text-slate-900 dark:text-white">${modalExito.cliente.deudaTotal.toLocaleString('es-CO')}</strong></>
+                                )}
                             </p>
                         </div>
 

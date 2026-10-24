@@ -237,53 +237,58 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             : (estaExpandido ? 'w-64 shrink-0 z-30 relative' : 'w-20 shrink-0 z-30 relative')
         }`}
       >
-        <div className={`p-4 flex items-center border-b border-slate-100 dark:border-slate-800/60 ${!estaExpandido ? 'justify-center flex-col gap-2.5' : 'justify-between'}`}>
+        <div className={`p-3.5 sm:p-4 border-b border-slate-100 dark:border-slate-800/60 ${!estaExpandido ? 'flex flex-col items-center justify-center gap-2.5' : 'flex flex-col gap-1.5'}`}>
           {estaExpandido ? (
-            <div className="min-w-0 pr-2 animate-in fade-in duration-200">
-              <LogoFiabono size={30} showText={true} showBadge={false} />
-              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider truncate mt-1 pl-1">{nombreNegocio}</p>
+            <div className="w-full animate-in fade-in duration-200">
+              <div className="flex items-center justify-between w-full">
+                <LogoFiabono size={30} showText={true} showBadge={false} />
+                <div className="flex items-center gap-1 shrink-0">
+                  {/* Botón para Fijar / Desfijar Menú Lateral */}
+                  <button
+                    type="button"
+                    onClick={alternarFijarMenu}
+                    title={menuFijo ? "Menú fijado permanentemente (haz clic para contraer con el cursor)" : "Fijar menú siempre abierto"}
+                    className={`p-1.5 rounded-xl transition-all active:scale-95 cursor-pointer flex items-center justify-center ${
+                      menuFijo
+                        ? "bg-emerald-50 text-emerald-600 dark:bg-emerald-500/15 dark:text-emerald-400 border border-emerald-200/80 dark:border-emerald-800/60 shadow-xs hover:bg-emerald-100 dark:hover:bg-emerald-500/25"
+                        : "bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+                    }`}
+                  >
+                    <Pin size={15} className={`transition-transform duration-200 ${menuFijo ? "fill-emerald-500/30 dark:fill-emerald-400/30 -rotate-45" : "rotate-0"}`} />
+                  </button>
+
+                  {/* Botón para colapsar */}
+                  <button
+                    type="button"
+                    onClick={alternarColapsar}
+                    title="Colapsar menú lateral"
+                    className="p-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-500 dark:text-slate-400 transition-all active:scale-95 cursor-pointer"
+                  >
+                    <ChevronLeft size={16} />
+                  </button>
+                </div>
+              </div>
+              <p 
+                className="text-[10px] sm:text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mt-1.5 pl-0.5 line-clamp-2 leading-tight break-words" 
+                title={nombreNegocio}
+              >
+                {nombreNegocio}
+              </p>
             </div>
           ) : (
-            <div className="w-10 h-10 rounded-2xl overflow-hidden shadow-xs hover:scale-105 transition-transform shrink-0" title={nombreNegocio}>
-              <IsotipoFiabono size={40} />
-            </div>
-          )}
-
-          {estaExpandido ? (
-            <div className="flex items-center gap-1 shrink-0 animate-in fade-in duration-200">
-              {/* Botón para Fijar / Desfijar Menú Lateral */}
-              <button
-                type="button"
-                onClick={alternarFijarMenu}
-                title={menuFijo ? "Menú fijado permanentemente (haz clic para contraer con el cursor)" : "Fijar menú siempre abierto"}
-                className={`p-1.5 rounded-xl transition-all active:scale-95 cursor-pointer flex items-center justify-center ${
-                  menuFijo
-                    ? "bg-emerald-50 text-emerald-600 dark:bg-emerald-500/15 dark:text-emerald-400 border border-emerald-200/80 dark:border-emerald-800/60 shadow-xs hover:bg-emerald-100 dark:hover:bg-emerald-500/25"
-                    : "bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
-                }`}
-              >
-                <Pin size={15} className={`transition-transform duration-200 ${menuFijo ? "fill-emerald-500/30 dark:fill-emerald-400/30 -rotate-45" : "rotate-0"}`} />
-              </button>
-
-              {/* Botón para colapsar */}
+            <>
+              <div className="w-10 h-10 rounded-2xl overflow-hidden shadow-xs hover:scale-105 transition-transform shrink-0" title={nombreNegocio}>
+                <IsotipoFiabono size={40} />
+              </div>
               <button
                 type="button"
                 onClick={alternarColapsar}
-                title="Colapsar menú lateral"
-                className="p-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-500 dark:text-slate-400 transition-all active:scale-95 cursor-pointer"
+                title="Expandir y fijar menú lateral"
+                className="p-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-500 dark:text-slate-400 transition-all active:scale-95 cursor-pointer hover:text-emerald-600 dark:hover:text-emerald-400"
               >
-                <ChevronLeft size={16} />
+                <ChevronRight size={16} />
               </button>
-            </div>
-          ) : (
-            <button
-              type="button"
-              onClick={alternarColapsar}
-              title="Expandir y fijar menú lateral"
-              className="p-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-500 dark:text-slate-400 transition-all active:scale-95 cursor-pointer hover:text-emerald-600 dark:hover:text-emerald-400"
-            >
-              <ChevronRight size={16} />
-            </button>
+            </>
           )}
         </div>
 
@@ -313,7 +318,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           >
             <div className="relative shrink-0">
               <Receipt size={22} />
-              {ordenesPendientesCount > 0 && (
+              {menuColapsado && ordenesPendientesCount > 0 && (
                 <span className="absolute -top-1.5 -right-1.5 w-4 h-4 bg-rose-500 text-white text-[9px] font-black rounded-full flex items-center justify-center animate-pulse">
                   {ordenesPendientesCount}
                 </span>
@@ -340,7 +345,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             >
               <div className="relative shrink-0">
                 <Bookmark size={22} />
-                {separesActivosCount > 0 && (
+                {menuColapsado && separesActivosCount > 0 && (
                   <span className="absolute -top-1.5 -right-1.5 w-4 h-4 bg-violet-500 text-white text-[9px] font-black rounded-full flex items-center justify-center">
                     {separesActivosCount}
                   </span>

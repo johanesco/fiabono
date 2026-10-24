@@ -222,6 +222,34 @@ export default function OrdenesPage() {
     };
   }, [modalEdicion.visible, modalEdicion.orden?.id]);
 
+  // Cierre táctil inmediato al tocar fuera de buscador de cliente o autocompletado en el modal de edición
+  useEffect(() => {
+    if (!modalEdicion.mostrarBuscadorCliente && busquedaProductoIndexEdicion === null) return;
+    const handlePointerDown = (e: PointerEvent) => {
+      const target = e.target as HTMLElement | null;
+      if (modalEdicion.mostrarBuscadorCliente && !target?.closest('.buscador-cliente-edicion-container')) {
+        setModalEdicion(prev => ({ ...prev, mostrarBuscadorCliente: false }));
+      }
+      if (busquedaProductoIndexEdicion !== null && !target?.closest('.fila-articulo-edicion-container')) {
+        setBusquedaProductoIndexEdicion(null);
+      }
+    };
+    window.addEventListener('pointerdown', handlePointerDown);
+    return () => window.removeEventListener('pointerdown', handlePointerDown);
+  }, [modalEdicion.mostrarBuscadorCliente, busquedaProductoIndexEdicion]);
+
+  // Manejo de teclado para Lightbox de Fotos en Órdenes (Escape)
+  useEffect(() => {
+    if (!fotoLightboxEdicion) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setFotoLightboxEdicion(null);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [fotoLightboxEdicion]);
+
   // Reacción en vivo si la orden abierta es aprobada/rechazada o tomada por el Administrador
   useEffect(() => {
     if (!modalEdicion.visible || !modalEdicion.orden) return;
@@ -1485,8 +1513,8 @@ Muchas gracias por tu compra. Estamos atentos para cualquier consulta.
 
       toast.success("Orden rechazada.");
       setModalRechazo({ visible: false, orden: null, motivo: "" });
-    } catch (e) {
-      toast.error("Error al rechazar la orden.");
+    } catch (e: any) {
+      toast.error(e?.message || "Error al rechazar la orden.");
     } finally {
       setProcesandoId(null);
     }
@@ -1930,16 +1958,31 @@ Muchas gracias por tu compra. Estamos atentos para cualquier consulta.
 
                       {/* LISTA DE ARTÍCULOS */}
                       <div className="bg-slate-50 dark:bg-[#020617] rounded-2xl p-3 space-y-1.5 mb-3 border border-slate-100 dark:border-slate-800/80">
-                        {ord.items.map((item, idx) => (
-                          <div key={idx} className="flex justify-between items-center text-xs min-w-0 gap-2">
-                            <span className="font-semibold text-slate-700 dark:text-slate-300 truncate flex-1 min-w-0">
-                              {item.cantidad}x {item.descripcion || "Artículo"}
-                            </span>
-                            <span className="font-bold text-slate-900 dark:text-white shrink-0">
-                              ${((parseFloat(item.valor) || 0) * item.cantidad).toLocaleString('es-CO')}
-                            </span>
-                          </div>
-                        ))}
+                        {ord.items.map((item, idx) => {
+                          const fotoItem = (item as any).fotoUrl || (item as any).foto || (item as any).imagen;
+                          return (
+                            <div key={idx} className="flex justify-between items-center text-xs min-w-0 gap-2">
+                              <div className="flex items-center gap-1.5 min-w-0 flex-1">
+                                {fotoItem && (
+                                  <button
+                                    type="button"
+                                    onClick={() => setFotoLightboxEdicion(fotoItem)}
+                                    className="p-1 bg-violet-100 dark:bg-violet-950/60 text-violet-600 dark:text-violet-300 rounded-md hover:scale-110 transition-transform cursor-pointer shrink-0"
+                                    title={`Ver foto de "${item.descripcion}"`}
+                                  >
+                                    <Camera size={11} />
+                                  </button>
+                                )}
+                                <span className="font-semibold text-slate-700 dark:text-slate-300 truncate flex-1 min-w-0">
+                                  {item.cantidad}x {item.descripcion || "Artículo"}
+                                </span>
+                              </div>
+                              <span className="font-bold text-slate-900 dark:text-white shrink-0">
+                                ${((parseFloat(item.valor) || 0) * item.cantidad).toLocaleString('es-CO')}
+                              </span>
+                            </div>
+                          );
+                        })}
 
                         {ord.montoDescuento > 0 && (
                           <div className="flex justify-between items-center text-[11px] text-emerald-600 dark:text-emerald-400 pt-1 border-t border-slate-200/60 dark:border-slate-700 font-bold">
@@ -2320,7 +2363,7 @@ Muchas gracias por tu compra. Estamos atentos para cualquier consulta.
                       return (
                         <div
                           key={idx}
-                          className={`bg-white dark:bg-[#020617] p-2.5 sm:p-3.5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm relative flex flex-col md:flex-row gap-2.5 items-stretch md:items-center group ${busquedaProductoIndexEdicion === idx ? 'z-40' : 'z-10'}`}
+                          className={`bg-white dark:bg-[#020617] p-2.5 sm:p-3.5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm relative flex flex-col md:flex-row gap-2.5 items-stretch md:items-center group fila-articulo-edicion-container ${busquedaProductoIndexEdicion === idx ? 'z-40' : 'z-10'}`}
                         >
                           <button
                             type="button"
@@ -2707,7 +2750,7 @@ Muchas gracias por tu compra. Estamos atentos para cualquier consulta.
                       </button>
                     </div>
                   ) : (
-                    <div className="relative">
+                    <div className="relative buscador-cliente-edicion-container">
                       <Search size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
                       <input
                         type="text"

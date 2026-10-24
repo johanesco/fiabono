@@ -36,6 +36,7 @@ export default function LandingPage() {
   const [mostrarPassword, setMostrarPassword] = useState(false);
   const [mostrarConfirmPassword, setMostrarConfirmPassword] = useState(false);
   const [cargandoGoogle, setCargandoGoogle] = useState(false);
+  const [procesandoRetornoGoogle, setProcesandoRetornoGoogle] = useState(false);
   const [aceptaTerminos, setAceptaTerminos] = useState(false);
   const [aceptaTerminosGoogle, setAceptaTerminosGoogle] = useState(false);
 
@@ -351,6 +352,8 @@ export default function LandingPage() {
       setModalGoogleOnboarding(true);
     } else {
       cerrarModal();
+      setProcesandoRetornoGoogle(true);
+      window.location.href = "/dashboard/inicio";
     }
   };
 
@@ -363,6 +366,7 @@ export default function LandingPage() {
         const esGoogle = user.providerData?.some(p => p.providerId === 'google.com');
         if (esGoogle) {
           uidProcesado = user.uid;
+          setProcesandoRetornoGoogle(true);
           procesarUsuarioGoogle(user);
         }
       }
@@ -373,10 +377,12 @@ export default function LandingPage() {
         await setPersistence(auth, browserLocalPersistence);
         const resultado = await getRedirectResult(auth);
         if (resultado?.user) {
+          setProcesandoRetornoGoogle(true);
           procesarSiEsNecesario(resultado.user);
         }
       } catch (error: any) {
         if (cancelado) return;
+        setProcesandoRetornoGoogle(false);
         console.error("Error al recuperar autenticación de Google:", error);
         setAuthErrores(p => ({ ...p, general: `No se pudo acceder con Google (${error.code || error.message || 'Error'}). Intenta de nuevo o ingresa con correo.` }));
       }
@@ -406,15 +412,37 @@ export default function LandingPage() {
       const provider = new GoogleAuthProvider();
       provider.setCustomParameters({ prompt: 'select_account' });
       await setPersistence(auth, browserLocalPersistence);
-      const esMovilOTablet = typeof window !== 'undefined' && /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
-      const esIOS = typeof window !== 'undefined' && /iPhone|iPad|iPod/i.test(navigator.userAgent);
+      // Detección inteligente de dispositivo móvil y tablet (incluyendo iPadOS con Safari que finge ser Mac)
+      const esIPadOS = typeof navigator !== 'undefined' && (navigator.maxTouchPoints > 1 && /Macintosh/i.test(navigator.userAgent));
+      const esMovilOTablet = typeof navigator !== 'undefined' && (/Android|iPhone|iPad|iPod/i.test(navigator.userAgent) || esIPadOS);
+      const esIOS = typeof navigator !== 'undefined' && (/iPhone|iPad|iPod/i.test(navigator.userAgent) || esIPadOS);
+
+      // En Android y PWA preferimos redirect para evitar bloqueos del navegador; en iOS/iPad y desktop intentamos popup
       if (esMovilOTablet && !esIOS) {
+        setProcesandoRetornoGoogle(true);
         await signInWithRedirect(auth, provider);
         return;
       }
 
-      const resultado = await signInWithPopup(auth, provider);
-      await procesarUsuarioGoogle(resultado.user);
+      let user = null;
+      try {
+        const resultado = await signInWithPopup(auth, provider);
+        user = resultado.user;
+      } catch (popupErr: any) {
+        // Fallback transparente: si el navegador en iOS/iPad/tablet bloquea el popup, usamos redirect
+        if (popupErr.code === 'auth/popup-blocked' || popupErr.code === 'auth/cancelled-popup-request') {
+          console.warn("Popup bloqueado o cancelado, reintentando vía redirect...", popupErr);
+          setProcesandoRetornoGoogle(true);
+          await signInWithRedirect(auth, provider);
+          return;
+        }
+        throw popupErr;
+      }
+
+      if (user) {
+        setProcesandoRetornoGoogle(true);
+        await procesarUsuarioGoogle(user);
+      }
     } catch (error: any) {
       console.error("Error al autenticar con Google:", error);
       if (error.code === 'auth/popup-closed-by-user' || error.code === 'auth/cancelled-popup-request') {
@@ -2402,6 +2430,21 @@ export default function LandingPage() {
           </div>
         </div>
       </div>
+
+      {/* OVERLAY DE CARGA ELEGANTE AL RETORNAR DE GOOGLE O NAVEGAR */}
+      {procesandoRetornoGoogle && (
+        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-md z-[999999] flex flex-col items-center justify-center p-6 text-center animate-in fade-in duration-200">
+          <div className="w-16 h-16 rounded-3xl bg-blue-600/20 border border-blue-500/30 flex items-center justify-center mb-5 text-blue-400 shadow-2xl">
+            <div className="w-8 h-8 border-3 border-blue-400 border-t-transparent rounded-full animate-spin" />
+          </div>
+          <h3 className="text-xl font-black text-white tracking-tight mb-2">
+            Iniciando tu sesión en Fiabono...
+          </h3>
+          <p className="text-xs sm:text-sm text-slate-400 max-w-xs leading-relaxed">
+            Sincronizando tus datos y entrando a tu panel de control. Un momento por favor...
+          </p>
+        </div>
+      )}
 
       {/* 14. MODAL DE LOGIN / REGISTRO */}
       {modalLandingInfo.visible && (

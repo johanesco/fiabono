@@ -43,8 +43,6 @@ function VenderContenido() {
 
   const [vendedorActivo, setVendedorActivo] = useState(nombreUsuario || "Vendedor");
   const [listaVendedores, setListaVendedores] = useState<string[]>([]);
-  const [modalNuevoVendedor, setModalNuevoVendedor] = useState(false);
-  const [nombreNuevoVendedor, setNombreNuevoVendedor] = useState("");
 
   // Estructura de Pestañas Multi-Venta en Vivo
   interface PestanaVenta {
@@ -368,6 +366,7 @@ function VenderContenido() {
     if (destino) {
       cargarDatosDePestana(destino);
       setPestanaActivaId(idDestino);
+      setPasoMovil('articulos');
     }
   };
 
@@ -459,6 +458,7 @@ function VenderContenido() {
     persistirPestanas(nuevas, vendedorActivo);
     cargarDatosDePestana(nueva);
     setPestanaActivaId(nuevoId);
+    setPasoMovil('articulos');
   };
 
   // Cerrar pestaña (o limpiar si es la única)
@@ -484,6 +484,7 @@ function VenderContenido() {
       persistirPestanas([reiniciada], vendedorActivo);
       setPestanaActivaId('1');
       cargarDatosDePestana(reiniciada);
+      setPasoMovil('articulos');
       notificar.info("El formulario de venta quedó listo y en blanco para un nuevo registro.", {
         titulo: "Venta reiniciada",
         icono: <span>🧹</span>
@@ -499,25 +500,10 @@ function VenderContenido() {
       const siguiente = restantes[0];
       setPestanaActivaId(siguiente.id);
       cargarDatosDePestana(siguiente);
+      setPasoMovil('articulos');
     }
   };
 
-  // Agregar vendedor rápido / colaborador
-  const registrarVendedorRapido = () => {
-    const nombreLimpio = nombreNuevoVendedor.trim();
-    if (!nombreLimpio) return;
-    if (!listaVendedores.includes(nombreLimpio)) {
-      const actualizada = [...listaVendedores, nombreLimpio];
-      setListaVendedores(actualizada);
-      try {
-        localStorage.setItem(`fiabono_vendedores_${cuentaPrincipalId || 'local'}`, JSON.stringify(actualizada));
-      } catch (e) {}
-    }
-    cambiarVendedor(nombreLimpio);
-    setNombreNuevoVendedor("");
-    setModalNuevoVendedor(false);
-    toast.success(`Vendedor "${nombreLimpio}" seleccionado`);
-  };
 
   // Cargar colaboradores registrados en Firebase y API
   useEffect(() => {
@@ -621,8 +607,6 @@ function VenderContenido() {
   const finalListaRef = useRef<HTMLDivElement>(null);
   const contenedorScrollRef = useRef<HTMLDivElement>(null);
   const inputsDescripcionRef = useRef<(HTMLInputElement | null)[]>([]);
-  const [posicionScroll, setPosicionScroll] = useState<'arriba' | 'medio' | 'abajo'>('arriba');
-  const [puedeHacerScroll, setPuedeHacerScroll] = useState(false);
 
   useEffect(() => {
     if (cuentaPrincipalId) {
@@ -848,7 +832,9 @@ function VenderContenido() {
     }
 
     const productoEncontrado = inventario.find(
-      p => (p.sku && p.sku.toLowerCase() === skuLimpio) || p.id === skuScaneado
+      p => (p.sku && p.sku.toLowerCase().trim() === skuLimpio) || 
+           (p.codigo && p.codigo.toLowerCase().trim() === skuLimpio) || 
+           p.id === skuScaneado
     );
 
     if (!productoEncontrado) {
@@ -1030,7 +1016,13 @@ function VenderContenido() {
     setFilasRegistro(nuevasFilas);
   };
 
-  const eliminarFila = (index: number) => { if (filasRegistro.length > 1) setFilasRegistro(filasRegistro.filter((_, i) => i !== index)); };
+  const eliminarFila = (index: number) => { 
+    if (filasRegistro.length > 1) {
+      setFilasRegistro(filasRegistro.filter((_, i) => i !== index)); 
+    } else {
+      setFilasRegistro([{ descripcion: "", valor: "", cantidad: 1 }]);
+    }
+  };
 
   const subtotalBruto = filasRegistro.reduce((acc, fila) => { 
     const val = parseFloat(fila.valor || "0"); 
@@ -1143,7 +1135,7 @@ function VenderContenido() {
     const pagadoNum = pagadoRaw === "" ? 0 : parseFloat(pagadoRaw);
     const faltanteNeto = Math.max(0, totalNetoACobrar - pagadoNum);
 
-    if (faltanteNeto > 0) {
+    if (faltanteNeto > 0 || (pagadoRaw === "" && totalNetoACobrar > 0)) {
       setModalConfirmarFiado(true);
       return;
     }
@@ -1151,7 +1143,7 @@ function VenderContenido() {
     ejecutarVentaFinal();
   };
 
-  const ejecutarVentaFinal = async () => {
+  const ejecutarVentaFinal = async (pagoOverride?: number) => {
     if (isSubmittingVentaRef.current) return;
     isSubmittingVentaRef.current = true;
     setGuardandoVenta(true);
@@ -1183,7 +1175,7 @@ function VenderContenido() {
         return;
       }
 
-      const pagadoRaw = pagoCliente.replace(/\D/g, '');
+      const pagadoRaw = pagoOverride !== undefined ? String(pagoOverride) : pagoCliente.replace(/\D/g, '');
       const pagadoNum = pagadoRaw === "" ? 0 : parseFloat(pagadoRaw);
 
       const efectivoRealRecibido = pagadoNum >= totalNetoACobrar ? totalNetoACobrar : pagadoNum;
@@ -1546,42 +1538,22 @@ Estamos atentos para cualquier consulta.
     abrirEnlaceWhatsApp(celularLimpio, agregarMediosPagoAlEstado(texto, datosSesion?.mediosPago, nombreNegocio || 'nuestra tienda', deudaFinal));
   };
 
-  const handleScrollContenedor = () => {
-    const el = contenedorScrollRef.current;
-    if (!el) return;
-    const { scrollTop, scrollHeight, clientHeight } = el;
-    const tieneScroll = scrollHeight > clientHeight + 20;
-    setPuedeHacerScroll(tieneScroll);
-
-    if (scrollTop < 40) {
-      setPosicionScroll('arriba');
-    } else if (scrollTop + clientHeight >= scrollHeight - 60) {
-      setPosicionScroll('abajo');
-    } else {
-      setPosicionScroll('medio');
-    }
-  };
-
-  const deslizarAbajo = () => {
-    contenedorScrollRef.current?.scrollTo({
-      top: contenedorScrollRef.current.scrollHeight,
-      behavior: 'smooth'
-    });
-  };
-
-  const deslizarArriba = () => {
-    contenedorScrollRef.current?.scrollTo({
-      top: 0,
-      behavior: 'smooth'
-    });
-  };
-
+  // Detector de clic fuera para cerrar autocompletar de inventario y buscador de clientes
   useEffect(() => {
-    handleScrollContenedor();
-    const handleResize = () => handleScrollContenedor();
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
-  }, [filasRegistro, metodoPago]);
+    const handleClickOutside = (e: MouseEvent | TouchEvent) => {
+      const target = e.target as HTMLElement | null;
+      if (!target) return;
+      if (!target.closest('.buscador-cliente-container')) {
+        setMostrarResultadosBuscador(false);
+      }
+      if (!target.closest('.fila-articulo-container')) {
+        setBusquedaProductoIndex(null);
+      }
+    };
+
+    document.addEventListener('pointerdown', handleClickOutside);
+    return () => document.removeEventListener('pointerdown', handleClickOutside);
+  }, []);
 
 
   const normalizarBusquedaCli = (str: string) =>
@@ -2132,7 +2104,7 @@ Estamos atentos para cualquier consulta.
               )}
             </div>
           ) : (
-            <div className="relative">
+            <div className="relative buscador-cliente-container">
               <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 text-indigo-500/80 dark:text-indigo-400" size={13} />
               <input
                 type="text"
@@ -2516,7 +2488,7 @@ Estamos atentos para cualquier consulta.
                 if (totalNetoACobrar === 0 && montoSaldoFavorAplicado > 0) {
                   textoBoton = "Cobrar con Saldo a Favor";
                   bgBoton = "bg-blue-600 hover:bg-blue-700";
-                } else if (clienteTransaccion && (pagadoRaw === "" || pagadoNum === 0) && totalNetoACobrar > 0) {
+                } else if (clienteTransaccion && pagadoRaw !== "" && pagadoNum === 0 && totalNetoACobrar > 0) {
                   textoBoton = `Fiar Total $${totalNetoACobrar.toLocaleString('es-CO')}`;
                   bgBoton = "bg-rose-600 hover:bg-rose-700";
                 } else if (clienteTransaccion && pagadoNum > 0 && pagadoNum < totalNetoACobrar) {
@@ -2724,7 +2696,6 @@ Estamos atentos para cualquier consulta.
       {/* CUERPO PRINCIPAL (Flujo vertical en Móvil, 2 columnas en Escritorio) */}
       <div 
         ref={contenedorScrollRef}
-        onScroll={handleScrollContenedor}
         className={`flex flex-col lg:flex-row flex-1 min-h-0 ${pasoMovil === 'cobro' ? 'pb-0 overflow-hidden' : 'pb-24 md:pb-4 lg:pb-0 overflow-y-auto lg:overflow-hidden'} relative`}
       >
         
@@ -2740,7 +2711,7 @@ Estamos atentos para cualquier consulta.
                 const productosFiltradosInventario = ordenarProductosSugeridos(inventario, fila.descripcion);
 
                 return (
-                  <div key={index} className={`flex flex-col xl:flex-row gap-2.5 sm:gap-3 p-2.5 sm:py-2.5 sm:px-3.5 bg-white dark:bg-[#0f172a] rounded-xl sm:rounded-2xl border border-slate-200 dark:border-slate-800 relative shadow-xs transition-colors hover:border-emerald-300 ${busquedaProductoIndex === index ? 'z-40' : 'z-10'}`}>
+                  <div key={index} className={`fila-articulo-container flex flex-col xl:flex-row gap-2.5 sm:gap-3 p-2.5 sm:py-2.5 sm:px-3.5 bg-white dark:bg-[#0f172a] rounded-xl sm:rounded-2xl border border-slate-200 dark:border-slate-800 relative shadow-xs transition-colors hover:border-emerald-300 ${busquedaProductoIndex === index ? 'z-40' : 'z-10'}`}>
                     
                     <div className="w-full xl:flex-1 min-w-0 relative">
                       <label className="text-[9px] md:text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1 block whitespace-nowrap truncate flex items-center gap-1">
@@ -2914,11 +2885,11 @@ Estamos atentos para cualquier consulta.
                         })()}
                       </div>
 
-                      {filasRegistro.length > 1 && (
+                      {(filasRegistro.length > 1 || fila.descripcion.trim().length > 0 || parseFloat(fila.valor || "0") > 0) && (
                         <button 
                           type="button"
                           onClick={() => eliminarFila(index)} 
-                          title="Eliminar artículo"
+                          title={filasRegistro.length > 1 ? "Eliminar artículo" : "Limpiar artículo"}
                           className="h-[38px] sm:h-[40px] md:h-[42px] w-[34px] sm:w-[38px] bg-slate-100/80 dark:bg-slate-800/80 hover:bg-rose-50 hover:text-rose-600 dark:hover:bg-rose-950/40 dark:hover:text-rose-400 text-slate-400 rounded-xl transition-colors flex items-center justify-center shrink-0 cursor-pointer active:scale-95"
                         >
                           <Trash2 size={15}/>
@@ -3154,7 +3125,7 @@ Estamos atentos para cualquier consulta.
                     if (totalNetoACobrar === 0 && montoSaldoFavorAplicado > 0) {
                       textoBoton = "Cobrar con Saldo a Favor";
                       bgBoton = "bg-blue-600 hover:bg-blue-700";
-                    } else if (clienteTransaccion && (pagadoRaw === "" || pagadoNum === 0) && totalNetoACobrar > 0) {
+                    } else if (clienteTransaccion && pagadoRaw !== "" && pagadoNum === 0 && totalNetoACobrar > 0) {
                       textoBoton = "Fiar Total";
                       bgBoton = "bg-rose-600 hover:bg-rose-700";
                     } else if (clienteTransaccion && pagadoNum > 0 && pagadoNum < totalNetoACobrar) {
@@ -3344,67 +3315,215 @@ Estamos atentos para cualquier consulta.
         </div>
       )}
 
-      {/* MODAL CONFIRMAR FIADO */}
+      {/* MODAL CONFIRMAR FIADO / CONFIRMAR COBRO */}
       {modalConfirmarFiado && (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 z-[900] animate-in fade-in duration-200">
-          <div className="bg-white dark:bg-[#0f172a] p-6 sm:p-8 rounded-[2.5rem] w-full max-w-md shadow-2xl text-center border border-slate-100 dark:border-slate-800 animate-in zoom-in-95 duration-300">
+        <div 
+          onClick={(e) => {
+            if (e.target === e.currentTarget) {
+              setModalConfirmarFiado(false);
+            }
+          }}
+          className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center p-3 sm:p-4 z-[900] animate-in fade-in duration-200"
+        >
+          <div 
+            onClick={(e) => e.stopPropagation()}
+            onPointerDown={(e) => e.stopPropagation()}
+            className="bg-white dark:bg-[#0f172a] p-5 sm:p-7 rounded-[2rem] w-full max-w-md shadow-2xl text-center border border-slate-100 dark:border-slate-800 animate-in zoom-in-95 duration-200 relative overflow-hidden"
+          >
+            {/* Botón X de cierre rápido */}
+            <button
+              type="button"
+              onClick={() => setModalConfirmarFiado(false)}
+              className="absolute top-4 right-4 p-2 text-slate-400 hover:text-slate-700 dark:hover:text-white rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer z-10"
+              title="Cerrar ventana"
+            >
+              <X size={18} />
+            </button>
+
             {(() => {
-              const pagadoNumModal = parseFloat(pagoCliente.replace(/\D/g, '')) || 0;
+              const pagadoRawModal = pagoCliente.replace(/\D/g, '');
+              const noIndicoPago = pagadoRawModal === "";
+              const pagadoNumModal = noIndicoPago ? 0 : parseFloat(pagadoRawModal);
+              const saldoFavorDisp = (clienteTransaccion && clienteTransaccion.deudaTotal !== undefined && clienteTransaccion.deudaTotal < 0) 
+                ? Math.abs(clienteTransaccion.deudaTotal) 
+                : 0;
+              const saldoFavorAplicadoModal = (usarSaldoFavor && saldoFavorDisp > 0) ? montoSaldoFavorAplicado : 0;
+              const faltanteModal = Math.max(0, totalNetoACobrar - pagadoNumModal);
+              const devueltaModal = pagadoNumModal > totalNetoACobrar ? pagadoNumModal - totalNetoACobrar : 0;
+              const esPagoCompleto = pagadoNumModal >= totalNetoACobrar && totalNetoACobrar > 0;
               const esCeroPago = pagadoNumModal === 0;
-              const faltanteModal = totalFilasRegistro - pagadoNumModal;
-              const usaSaldoFavor = clienteTransaccion && clienteTransaccion.deudaTotal !== undefined && clienteTransaccion.deudaTotal < 0;
 
               return (
                 <>
-                  <div className={`w-20 h-20 ${usaSaldoFavor ? 'bg-blue-100 dark:bg-blue-500/20 text-blue-500' : (esCeroPago ? 'bg-rose-100 dark:bg-rose-500/20 text-rose-500' : 'bg-amber-100 dark:bg-amber-500/20 text-amber-500 dark:text-amber-400')} rounded-full flex items-center justify-center mx-auto mb-6 shadow-inner`}>
-                    <AlertCircle size={40} />
-                  </div>
-                  <h3 className="text-2xl font-black text-slate-900 dark:text-white mb-2">
-                    {usaSaldoFavor ? (esCeroPago ? 'Cobro con Saldo a Favor' : 'Pago y Uso de Saldo') : (esCeroPago ? 'Registro de Fiado' : 'Pago Parcial y Fiado')}
-                  </h3>
-                  
-                  <div className="text-slate-600 dark:text-slate-300 mb-6 text-sm sm:text-base bg-slate-50 dark:bg-[#020617] p-4 rounded-2xl">
-                    <div className="flex justify-between mb-1">
-                      <span>Total de la cuenta:</span> 
-                      <strong className="text-slate-900 dark:text-white">${totalFilasRegistro.toLocaleString('es-CO')}</strong>
-                    </div>
-                    <div className="flex justify-between mb-1">
-                      <span>Dinero entregado:</span> 
-                      <strong className="text-slate-900 dark:text-white">${pagadoNumModal.toLocaleString('es-CO')}</strong>
-                    </div>
-                    <div className="flex justify-between mt-2 pt-2 border-t border-slate-200 dark:border-slate-700">
-                      <span className={"font-bold " + (usaSaldoFavor ? "text-blue-500" : "text-rose-500")}>{usaSaldoFavor ? "A descontar de saldo:" : "Monto a Fiar:"}</span> 
-                      <strong className={(usaSaldoFavor ? "text-blue-500" : "text-rose-500") + " text-lg"}>${faltanteModal.toLocaleString('es-CO')}</strong>
-                    </div>
+                  <div className={`w-14 h-14 ${saldoFavorAplicadoModal > 0 ? 'bg-blue-100 dark:bg-blue-500/20 text-blue-500' : (esPagoCompleto ? 'bg-emerald-100 dark:bg-emerald-500/20 text-emerald-500' : 'bg-amber-100 dark:bg-amber-500/20 text-amber-500')} rounded-full flex items-center justify-center mx-auto mb-2.5 shadow-inner`}>
+                    {esPagoCompleto ? <CheckCircle2 size={30} /> : <AlertCircle size={30} />}
                   </div>
 
-                  {!clienteTransaccion ? (
-                    <>
-                      <p className="text-sm font-bold text-rose-500 mb-3">⚠️ Para poder fiar debes seleccionar o registrar un cliente:</p>
-                      <div className="relative mb-6 text-left">
-                        <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
-                        {/* BUSCADOR BLINDADO MODAL */}
-                        <input 
-                          type="text" 
-                          value={busquedaRegistro} 
-                          onChange={(e) => { setBusquedaRegistro(e.target.value); setMostrarResultadosBuscador(true); }} 
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter') {
-                              e.preventDefault();
-                              if (clientesFiltradosRegistro.length > 0) {
-                                setClienteTransaccion(clientesFiltradosRegistro[0]);
-                                setBusquedaRegistro("");
-                                setMostrarResultadosBuscador(false);
-                              }
-                            }
-                          }}
-                          placeholder="Buscar cliente..." 
-                          className="w-full p-4 pl-12 bg-white dark:bg-[#020617] border border-slate-200 dark:border-slate-700 rounded-2xl font-bold outline-none focus:border-amber-500 shadow-sm text-slate-900 dark:!text-white placeholder-slate-400 dark:placeholder-slate-500" 
+                  <h3 className="text-xl font-black text-slate-900 dark:text-white mb-1">
+                    {esPagoCompleto 
+                      ? (devueltaModal > 0 ? 'Entregar Cambio' : 'Confirmar Cobro')
+                      : (!clienteTransaccion ? '¿Con cuánto paga el cliente?' : (saldoFavorAplicadoModal > 0 ? 'Cobro y Saldo a Favor' : 'Venta y Saldo Fiado'))}
+                  </h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mb-3">
+                    Total a cobrar: <strong className="text-slate-900 dark:text-white font-mono text-sm">${totalNetoACobrar.toLocaleString('es-CO')}</strong>
+                  </p>
+
+                  {/* CAMPO INTERACTIVO RÁPIDO DE PAGO EN CAJA */}
+                  <div className="bg-slate-50 dark:bg-[#020617] p-3 rounded-2xl border border-slate-200 dark:border-slate-800 mb-3 text-left space-y-2">
+                    <div className="flex justify-between items-center">
+                      <label className="text-[10px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400 block">
+                        ¿Con cuánto paga en efectivo?
+                      </label>
+                      {pagoCliente && (
+                        <button
+                          type="button"
+                          onClick={() => setPagoCliente("")}
+                          className="text-[10px] text-rose-500 hover:text-rose-700 font-bold flex items-center gap-0.5 cursor-pointer"
+                        >
+                          <X size={11} /> Borrar valor
+                        </button>
+                      )}
+                    </div>
+
+                    <div className="flex items-center gap-1.5">
+                      <div className="relative flex-1">
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-sm">$</span>
+                        <input
+                          type="text"
+                          inputMode="numeric"
+                          value={pagoCliente}
+                          onChange={(e) => setPagoCliente(formatearMonedaInput(e.target.value))}
+                          placeholder="0"
+                          className="w-full pl-7 pr-8 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl outline-none font-black text-sm text-slate-900 dark:text-white placeholder:text-slate-400 focus:border-emerald-500"
                         />
+                        {pagoCliente && (
+                          <button
+                            type="button"
+                            onClick={() => setPagoCliente("")}
+                            className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-rose-500 rounded-full transition-colors cursor-pointer"
+                            title="Limpiar valor"
+                          >
+                            <X size={13} />
+                          </button>
+                        )}
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setPagoCliente(totalNetoACobrar.toLocaleString('es-CO'))}
+                        className={`px-3 py-2 rounded-xl font-black text-xs active:scale-95 whitespace-nowrap transition-all border cursor-pointer ${
+                          pagoCliente && parseFloat(pagoCliente.replace(/\D/g, '')) === totalNetoACobrar
+                            ? 'bg-emerald-600 text-white border-emerald-600'
+                            : 'bg-white dark:bg-slate-800 text-emerald-700 dark:text-emerald-300 border-slate-200 dark:border-slate-700 hover:bg-emerald-50'
+                        }`}
+                      >
+                        Exacto
+                      </button>
+                    </div>
+
+                    {/* Chips de billetes rápidos */}
+                    <div className="flex items-center gap-1">
+                      {[10000, 20000, 50000, 100000].map(billete => (
+                        <button
+                          key={billete}
+                          type="button"
+                          onClick={() => {
+                            const actual = parseFloat(pagoCliente.replace(/\D/g, '')) || 0;
+                            const nuevo = actual > 0 ? actual + billete : billete;
+                            setPagoCliente(nuevo.toLocaleString('es-CO'));
+                          }}
+                          className="flex-1 py-1 rounded-lg bg-white dark:bg-slate-800 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 text-slate-700 dark:text-slate-300 font-bold text-[10px] border border-slate-200 dark:border-slate-700 active:scale-95 transition-all cursor-pointer text-center"
+                        >
+                          +${billete / 1000}k
+                        </button>
+                      ))}
+                    </div>
+
+                    {/* Feedback en vivo: Devuelta o Faltante */}
+                    {devueltaModal > 0 && (
+                      <div className="p-2 bg-emerald-100/70 dark:bg-emerald-950/40 border border-emerald-300 dark:border-emerald-700 rounded-xl flex justify-between items-center text-emerald-900 dark:text-emerald-200 animate-in fade-in duration-150">
+                        <span className="text-[10px] uppercase font-black tracking-wider">Devuelta / Cambio a entregar:</span>
+                        <strong className="text-base font-black font-mono text-emerald-700 dark:text-emerald-300">
+                          ${devueltaModal.toLocaleString('es-CO')}
+                        </strong>
+                      </div>
+                    )}
+
+                    {pagadoRawModal !== "" && faltanteModal > 0 && (
+                      <div className="p-2 bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900/60 rounded-xl flex justify-between items-center text-rose-800 dark:text-rose-200 animate-in fade-in duration-150">
+                        <span className="text-[10px] uppercase font-black tracking-wider">Saldo restante por fiar:</span>
+                        <strong className="text-sm font-black font-mono text-rose-600 dark:text-rose-400">
+                          ${faltanteModal.toLocaleString('es-CO')}
+                        </strong>
+                      </div>
+                    )}
+
+                    {saldoFavorAplicadoModal > 0 && (
+                      <div className="text-[10.5px] text-blue-700 dark:text-blue-300 font-bold flex items-center justify-between pt-0.5 border-t border-slate-200/60 dark:border-slate-800">
+                        <span>Saldo a favor ({clienteTransaccion?.nombre}):</span>
+                        <span>-${saldoFavorAplicadoModal.toLocaleString('es-CO')}</span>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* ACCIÓN SEGÚN EL MONTO INGRESADO */}
+                  {esPagoCompleto ? (
+                    <div className="flex flex-col gap-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setModalConfirmarFiado(false);
+                          ejecutarVentaFinal(pagadoNumModal);
+                        }}
+                        disabled={guardandoVenta}
+                        className="w-full py-3.5 px-4 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white font-black text-sm sm:text-base rounded-xl shadow-lg transition-all flex items-center justify-center gap-2 cursor-pointer"
+                      >
+                        <CheckCircle2 size={18} />
+                        <span>
+                          {guardandoVenta 
+                            ? "Procesando..." 
+                            : (devueltaModal > 0 
+                                ? `Cobrar y dar $${devueltaModal.toLocaleString('es-CO')} de cambio` 
+                                : `Cobrar Pago Exacto ($${totalNetoACobrar.toLocaleString('es-CO')})`)}
+                        </span>
+                      </button>
+                      <button 
+                        type="button" 
+                        onClick={() => setModalConfirmarFiado(false)} 
+                        className="w-full bg-slate-100 dark:bg-[#020617] hover:bg-slate-200 dark:hover:bg-[#1e293b] text-slate-600 dark:text-slate-400 font-bold py-2.5 rounded-xl text-xs transition-colors cursor-pointer"
+                      >
+                        Cancelar
+                      </button>
+                    </div>
+                  ) : !clienteTransaccion ? (
+                    <>
+                      <div className="relative mb-3 text-left buscador-cliente-container">
+                        <label className="text-[10px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400 block mb-1">
+                          {pagadoRawModal === "" ? "O si va fiado / a crédito, elige el cliente:" : `Para fiar el saldo de $${faltanteModal.toLocaleString('es-CO')}, elige el cliente:`}
+                        </label>
+                        <div className="relative">
+                          <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+                          <input 
+                            type="text" 
+                            value={busquedaRegistro} 
+                            onChange={(e) => { setBusquedaRegistro(e.target.value); setMostrarResultadosBuscador(true); }} 
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') {
+                                e.preventDefault();
+                                if (clientesFiltradosRegistro.length > 0) {
+                                  setClienteTransaccion(clientesFiltradosRegistro[0]);
+                                  setBusquedaRegistro("");
+                                  setMostrarResultadosBuscador(false);
+                                }
+                              }
+                            }}
+                            placeholder="Buscar o crear cliente para fiar..." 
+                            className="w-full p-2.5 pl-9 bg-white dark:bg-[#020617] border border-slate-200 dark:border-slate-700 rounded-xl font-bold text-xs outline-none focus:border-amber-500 shadow-xs text-slate-900 dark:!text-white placeholder-slate-400 dark:placeholder-slate-500" 
+                          />
+                        </div>
                         {busquedaRegistro.length > 0 && (
-                          <div className="absolute bottom-full left-0 right-0 mb-2 bg-white dark:bg-[#1e293b] border dark:border-slate-700 rounded-2xl shadow-xl z-50 overflow-hidden max-h-48 overflow-y-auto">
+                          <div className="absolute bottom-full left-0 right-0 mb-1.5 bg-white dark:bg-[#1e293b] border dark:border-slate-700 rounded-2xl shadow-xl z-50 overflow-hidden max-h-48 overflow-y-auto">
                             {clientesFiltradosRegistro.map(c => (
-                              <div key={c.id} onClick={() => { setClienteTransaccion(c); setBusquedaRegistro(""); setMostrarResultadosBuscador(false); }} className="p-3.5 border-b dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer flex justify-between items-center min-w-0">
+                              <div key={c.id} onClick={() => { setClienteTransaccion(c); setBusquedaRegistro(""); setMostrarResultadosBuscador(false); }} className="p-2.5 border-b dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer flex justify-between items-center min-w-0">
                                 <div className="min-w-0 mr-2">
                                   <div className="font-bold text-slate-800 dark:text-slate-200 truncate flex items-center gap-1.5 flex-wrap">
                                     <span>{c.nombre}</span>
@@ -3418,54 +3537,111 @@ Estamos atentos para cualquier consulta.
                                     {Number(c.deudaTotal || 0) > 0 ? `Debe $${Number(c.deudaTotal).toLocaleString('es-CO')}` : Number(c.deudaTotal || 0) < 0 ? `A favor $${Math.abs(Number(c.deudaTotal)).toLocaleString('es-CO')}` : 'Al día'}
                                   </span>
                                 </div>
-                                <ChevronRight size={18} className="text-slate-400 shrink-0"/>
+                                <ChevronRight size={15} className="text-slate-400 shrink-0"/>
                               </div>
                             ))}
                             {!clientesFiltradosRegistro.some(c => c.nombre.toLowerCase() === busquedaRegistro.toLowerCase()) && (
-                              <button onClick={() => { setNombreNuevo(busquedaRegistro); setModalNuevoCliente(true); setMostrarResultadosBuscador(false); }} className="w-full text-left p-4 bg-amber-50 dark:bg-amber-500/20 text-amber-700 dark:text-amber-400 font-bold">
+                              <button onClick={() => { setNombreNuevo(busquedaRegistro); setModalNuevoCliente(true); setMostrarResultadosBuscador(false); }} className="w-full text-left p-2.5 bg-amber-50 dark:bg-amber-500/20 text-amber-700 dark:text-amber-400 font-bold text-xs">
                                 + Crear "{busquedaRegistro}"
                               </button>
                             )}
                           </div>
                         )}
                       </div>
-                      <button onClick={() => setModalConfirmarFiado(false)} className="w-full bg-slate-100 dark:bg-[#020617] hover:bg-slate-200 dark:hover:bg-[#1e293b] text-slate-600 dark:text-slate-300 font-bold py-4 rounded-2xl text-lg transition-colors">
-                        Atrás
+
+                      <button 
+                        type="button" 
+                        onClick={() => setModalConfirmarFiado(false)} 
+                        className="w-full bg-slate-100 dark:bg-[#020617] hover:bg-slate-200 dark:hover:bg-[#1e293b] text-slate-600 dark:text-slate-400 font-bold py-2.5 rounded-xl text-xs transition-colors cursor-pointer"
+                      >
+                        Cancelar
                       </button>
                     </>
                   ) : (
                     <>
-                      <p className="text-sm font-bold text-slate-700 dark:text-slate-300 mb-6">
-                        {usaSaldoFavor ? (
-                          esCeroPago ? (
-                            <>¿Confirmas que vas a cobrar el total usando <strong className="text-blue-500">${faltanteModal.toLocaleString('es-CO')}</strong> del saldo a favor de <strong className="text-emerald-600">{clienteTransaccion.nombre}</strong>?</>
+                      {/* CASO: CLIENTE ASIGNADO (EJ. LINA) */}
+                      {noIndicoPago ? (
+                        <div className="text-left bg-amber-50/80 dark:bg-amber-950/30 p-3 rounded-2xl border border-amber-200/80 dark:border-amber-800/60 mb-3 space-y-1.5">
+                          <p className="text-xs text-amber-900 dark:text-amber-200 font-bold leading-relaxed">
+                            No indicaste con cuánto paga <strong>{clienteTransaccion.nombre}</strong>.
+                          </p>
+                          <p className="text-[11px] text-amber-800/80 dark:text-amber-300/80 leading-normal">
+                            Ingresa el monto recibido arriba o toca <strong>"Exacto"</strong> para cobrar en efectivo. Si la venta es a crédito, usa el botón de fiar abajo.
+                          </p>
+                        </div>
+                      ) : (
+                        <div className="text-xs text-slate-700 dark:text-slate-300 mb-3 text-left bg-slate-50/70 dark:bg-slate-900/40 p-2.5 rounded-xl border border-slate-200/80 dark:border-slate-800 space-y-1">
+                          {saldoFavorAplicadoModal > 0 ? (
+                            faltanteModal === 0 ? (
+                              <p>¿Confirmas cobrar el total usando <strong className="text-blue-600 dark:text-blue-400">${saldoFavorAplicadoModal.toLocaleString('es-CO')}</strong> del saldo a favor de <strong className="text-emerald-600 dark:text-emerald-400">{clienteTransaccion.nombre}</strong>?</p>
+                            ) : (
+                              <p>¿Confirmas usar <strong className="text-blue-600 dark:text-blue-400">${saldoFavorAplicadoModal.toLocaleString('es-CO')}</strong> de su saldo a favor {pagadoNumModal > 0 ? <>y cobrar en caja <strong className="text-emerald-600 dark:text-emerald-400">${pagadoNumModal.toLocaleString('es-CO')}</strong></> : null}, dejando un saldo fiado restante de <strong className="text-rose-500 font-bold">${faltanteModal.toLocaleString('es-CO')}</strong> a <strong className="text-emerald-600 dark:text-emerald-400">{clienteTransaccion.nombre}</strong>?</p>
+                            )
                           ) : (
-                            <>¿Confirmas que recibiste <strong className="text-emerald-600">${pagadoNumModal.toLocaleString('es-CO')}</strong> y usarás <strong className="text-blue-500">${faltanteModal.toLocaleString('es-CO')}</strong> del saldo a favor de <strong className="text-emerald-600">{clienteTransaccion.nombre}</strong>?</>
-                          )
+                            <p>¿Confirmas venta con abono de <strong className="text-emerald-600 dark:text-emerald-400">${pagadoNumModal.toLocaleString('es-CO')}</strong> y saldo fiado de <strong className="text-rose-500 font-bold">${faltanteModal.toLocaleString('es-CO')}</strong> a <strong className="text-emerald-600 dark:text-emerald-400">{clienteTransaccion.nombre}</strong>?</p>
+                          )}
+
+                          {saldoFavorAplicadoModal > 0 && (
+                            <p className="text-[10.5px] text-blue-700 dark:text-blue-300 font-semibold pt-1 border-t border-slate-200/60 dark:border-slate-800">
+                              ℹ️ Su saldo a favor pasará de ${saldoFavorDisp.toLocaleString('es-CO')} a ${(saldoFavorDisp - saldoFavorAplicadoModal).toLocaleString('es-CO')}.
+                              {faltanteModal > 0 && ` Y quedará debiendo $${faltanteModal.toLocaleString('es-CO')}.`}
+                            </p>
+                          )}
+                          {saldoFavorAplicadoModal === 0 && (
+                            <p className="text-[10.5px] text-slate-500 dark:text-slate-400 pt-1 border-t border-slate-200/60 dark:border-slate-800">
+                              ℹ️ Su deuda previa de ${(clienteTransaccion.deudaTotal || 0).toLocaleString('es-CO')} pasará a ${(Number(clienteTransaccion.deudaTotal || 0) + faltanteModal).toLocaleString('es-CO')}.
+                            </p>
+                          )}
+                        </div>
+                      )}
+
+                      <div className="flex flex-col gap-2">
+                        {noIndicoPago ? (
+                          <>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setPagoCliente(totalNetoACobrar.toLocaleString('es-CO'));
+                                setModalConfirmarFiado(false);
+                                setTimeout(() => {
+                                  ejecutarVentaFinal(totalNetoACobrar);
+                                }, 50);
+                              }}
+                              disabled={guardandoVenta}
+                              className="w-full bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white font-black py-3 px-4 rounded-xl text-xs sm:text-sm shadow-md flex justify-center items-center gap-2 transition-all cursor-pointer"
+                            >
+                              <CheckCircle2 size={16} />
+                              <span>{clienteTransaccion.nombre} pagó exacto (${totalNetoACobrar.toLocaleString('es-CO')})</span>
+                            </button>
+
+                            <button 
+                              type="button"
+                              onClick={() => { setModalConfirmarFiado(false); ejecutarVentaFinal(0); }} 
+                              disabled={guardandoVenta}
+                              className="w-full bg-rose-600 hover:bg-rose-700 active:scale-95 text-white font-black py-3 px-4 rounded-xl text-xs sm:text-sm shadow-md flex justify-center items-center gap-2 transition-all cursor-pointer"
+                            >
+                              <span>Fiar Total (${totalNetoACobrar.toLocaleString('es-CO')}) a {clienteTransaccion.nombre}</span>
+                              <Receipt size={16} />
+                            </button>
+                          </>
                         ) : (
-                          esCeroPago ? (
-                            <>¿Confirmas que vas a fiar el total de <strong className="text-rose-500">${faltanteModal.toLocaleString('es-CO')}</strong> a <strong className="text-emerald-600">{clienteTransaccion.nombre}</strong>?</>
-                          ) : (
-                            <>¿Confirmas venta con abono de <strong className="text-emerald-600">${pagadoNumModal.toLocaleString('es-CO')}</strong> y saldo fiado de <strong className="text-rose-500">${faltanteModal.toLocaleString('es-CO')}</strong> a <strong className="text-emerald-600">{clienteTransaccion.nombre}</strong>?</>
-                          )
+                          <button 
+                            type="button"
+                            onClick={() => { setModalConfirmarFiado(false); ejecutarVentaFinal(pagadoNumModal); }} 
+                            disabled={guardandoVenta}
+                            className={`w-full ${saldoFavorAplicadoModal > 0 && faltanteModal === 0 ? 'bg-blue-600 hover:bg-blue-700' : 'bg-emerald-600 hover:bg-emerald-700'} ${guardandoVenta ? 'opacity-50 cursor-not-allowed' : 'active:scale-95 cursor-pointer'} text-white font-black py-3 px-4 rounded-xl text-sm shadow-md flex justify-center items-center gap-2 transition-all`}
+                          >
+                            <span>{guardandoVenta ? "Procesando..." : (saldoFavorAplicadoModal > 0 ? (faltanteModal === 0 ? 'Cobrar Total con Saldo' : 'Confirmar Saldo y Fiado') : `Cobrar $${pagadoNumModal.toLocaleString('es-CO')} y Fiar $${faltanteModal.toLocaleString('es-CO')}`)}</span> 
+                            <CheckCircle2 size={16}/>
+                          </button>
                         )}
-                        {(clienteTransaccion.deudaTotal || 0) > 0 && !usaSaldoFavor && (
-                          <><br /><span className="text-xs text-slate-500 dark:text-slate-400">Su deuda previa acumulada pasará a ${(Number(clienteTransaccion.deudaTotal || 0) + faltanteModal).toLocaleString('es-CO')}.</span></>
-                        )}
-                        {usaSaldoFavor && (
-                          <><br /><span className="text-xs text-slate-500 dark:text-slate-400">Su saldo a favor pasará de ${(Math.abs(clienteTransaccion.deudaTotal || 0)).toLocaleString('es-CO')} a ${(Math.abs((clienteTransaccion.deudaTotal || 0) + faltanteModal)).toLocaleString('es-CO')}{(clienteTransaccion.deudaTotal || 0) + faltanteModal > 0 ? " (Ahora debe saldo)" : ""}.</span></>
-                        )}
-                      </p>
-                      <div className="flex flex-col gap-3">
+
                         <button 
-                          onClick={() => { setModalConfirmarFiado(false); ejecutarVentaFinal(); }} 
-                          disabled={guardandoVenta}
-                          className={`w-full ${usaSaldoFavor ? 'bg-blue-600 hover:bg-blue-700' : (esCeroPago ? 'bg-rose-600 hover:bg-rose-700' : 'bg-emerald-600 hover:bg-emerald-700')} ${guardandoVenta ? 'opacity-50 cursor-not-allowed' : 'active:scale-95'} text-white font-black py-4 rounded-2xl text-lg shadow-lg flex justify-center items-center gap-2 transition-all`}
+                          type="button"
+                          onClick={() => setModalConfirmarFiado(false)} 
+                          className="w-full bg-slate-100 dark:bg-[#020617] hover:bg-slate-200 dark:hover:bg-[#1e293b] text-slate-600 dark:text-slate-400 font-bold py-2.5 rounded-xl text-xs transition-colors cursor-pointer"
                         >
-                          <span>{guardandoVenta ? "Procesando..." : (usaSaldoFavor ? (esCeroPago ? 'Cobrar Total con Saldo' : 'Confirmar Venta y Uso de Saldo') : (esCeroPago ? 'Confirmar Fiado' : 'Confirmar Venta y Fiado'))}</span> <CheckCircle2 size={20}/>
-                        </button>
-                        <button onClick={() => setModalConfirmarFiado(false)} className="w-full bg-slate-100 dark:bg-[#020617] hover:bg-slate-200 dark:hover:bg-[#1e293b] text-slate-600 dark:text-slate-300 font-bold py-4 rounded-2xl text-lg transition-colors">
-                          Corregir pago
+                          Cancelar
                         </button>
                       </div>
                     </>
