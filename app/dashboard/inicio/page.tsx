@@ -14,6 +14,7 @@ import ModalProcesarDevolucion from "@/components/ModalProcesarDevolucion";
 import ModalTourBienvenida from "@/components/ModalTourBienvenida";
 import ModalNuevoCliente from "@/components/ModalNuevoCliente";
 import ModalAnularAbono from "@/components/modals/ModalAnularAbono";
+import ModalSuscripcion from "@/components/ModalSuscripcion";
 import { obtenerEstadoCaja, EstadoTurnoCaja } from "@/utils/cierreCaja";
 import ModalCierreCaja from "@/components/caja/ModalCierreCaja";
 import { abrirEnlaceWhatsApp } from "@/utils/whatsapp";
@@ -38,6 +39,7 @@ export default function InicioPage() {
   const puedeEnviarWhatsApp = datosSesion?.puedeEnviarWhatsApp ?? true;
   const puedeHacerCierreCaja = datosSesion?.puedeHacerCierreCaja ?? false;
   const [modalCierreCajaOpen, setModalCierreCajaOpen] = useState(false);
+  const [modalPlanesOpen, setModalPlanesOpen] = useState(false);
   const [estadoCaja, setEstadoCaja] = useState<EstadoTurnoCaja | null>(null);
 
   useEffect(() => {
@@ -1518,13 +1520,35 @@ Gracias por seguir con nosotros.
 
       {modalSuscripcion.visible && (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 z-[800]">
-          <div className="bg-white dark:bg-[#0f172a] p-8 rounded-[2.5rem] w-full max-w-sm shadow-2xl text-center">
+          <div className="bg-white dark:bg-[#0f172a] p-8 rounded-[2.5rem] w-full max-w-sm shadow-2xl text-center border border-slate-100 dark:border-slate-800">
             <Star size={40} className="text-blue-600 mx-auto mb-4" />
             <h3 className="text-2xl font-black text-slate-900 dark:text-white mb-2">{modalSuscripcion.titulo}</h3>
-            <p className="text-base text-slate-500 mb-6">{modalSuscripcion.mensaje}</p>
-            <button onClick={() => setModalSuscripcion({ visible: false, titulo: "", mensaje: "" })} className="w-full bg-blue-600 text-white font-black py-4 rounded-2xl">Entendido</button>
+            <p className="text-sm font-medium text-slate-500 dark:text-slate-400 mb-6">{modalSuscripcion.mensaje}</p>
+            <div className="flex flex-col gap-2.5">
+              {esAdmin && (
+                <button
+                  onClick={() => {
+                    setModalSuscripcion({ visible: false, titulo: "", mensaje: "" });
+                    setModalPlanesOpen(true);
+                  }}
+                  className="w-full bg-blue-600 hover:bg-blue-700 text-white font-black py-3.5 rounded-2xl shadow-lg transition-transform active:scale-95 cursor-pointer"
+                >
+                  Ver Planes y Mejorar Ahora
+                </button>
+              )}
+              <button onClick={() => setModalSuscripcion({ visible: false, titulo: "", mensaje: "" })} className="w-full bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-bold py-3 rounded-2xl cursor-pointer">Cerrar</button>
+            </div>
           </div>
         </div>
+      )}
+
+      {cuentaPrincipalId && (
+        <ModalSuscripcion
+          isOpen={modalPlanesOpen}
+          onClose={() => setModalPlanesOpen(false)}
+          cuentaPrincipalId={cuentaPrincipalId}
+          planInicial="comercio"
+        />
       )}
 
       {/* MODAL DE IMPRESIÓN DE TICKET TÉRMICO */}

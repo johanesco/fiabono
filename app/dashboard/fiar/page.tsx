@@ -1,10 +1,11 @@
 "use client";
-import { obtenerNombreCercano } from "@/utils/whatsapp";
+import {
+    obtenerNombreCercano } from "@/utils/whatsapp";
 import { useState, useEffect, Suspense, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { collection, addDoc, getDocs, getDoc, query, doc, updateDoc, where, increment, writeBatch } from "firebase/firestore";
 import { auth, db } from "../../../firebase";
-import { Search, ShoppingBag, CheckCircle2, ChevronRight, X, AlertCircle, UserCog, Plus, Minus, ArrowLeft, ArrowRight, MessageCircle, Package, QrCode, Volume2, Printer, ChevronDown, ChevronUp, Tag, Receipt, Pause, FolderOpen, User, UserPlus, Trash2, LayoutGrid, List, ShoppingCart, ArrowRightLeft, Bookmark, Wallet, Sparkles } from 'lucide-react';
+import { Banknote, Search, ShoppingBag, CheckCircle2, ChevronRight, X, AlertCircle, UserCog, Plus, Minus, ArrowLeft, ArrowRight, MessageCircle, Package, QrCode, Volume2, Printer, ChevronDown, ChevronUp, Tag, Receipt, Pause, FolderOpen, User, UserPlus, Trash2, LayoutGrid, List, ShoppingCart, ArrowRightLeft, Bookmark, Wallet, Sparkles } from 'lucide-react';
 import { useAuth } from "@/hooks/AuthContext";
 import toast from "react-hot-toast";
 import { notificar } from "@/utils/notificaciones";
@@ -82,6 +83,8 @@ function FiarContenido() {
 
     const [clienteTransaccion, setClienteTransaccion] = useState<any | null>(null);
     const [usarSaldoAFavorFiar, setUsarSaldoAFavorFiar] = useState<boolean>(true);
+    const [abonoInicialFiar, setAbonoInicialFiar] = useState<string>('');
+    const [metodoPagoAbonoFiar, setMetodoPagoAbonoFiar] = useState<string>('efectivo');
     const [busquedaRegistro, setBusquedaRegistro] = useState("");
     const [mostrarResultadosBuscador, setMostrarResultadosBuscador] = useState(false);
     const [pasoMovil, setPasoMovil] = useState<'articulos' | 'cobro'>('articulos');
@@ -113,6 +116,8 @@ function FiarContenido() {
         visible: boolean; 
         cliente: any; 
         montoTotal: number; 
+        abonoInicial?: number;
+        metodoPagoAbono?: string;
         ticketDatos?: any;
         filasGuardadas?: { descripcion: string; valor: string; cantidad: number }[];
         montoDescuentoTotal?: number;
@@ -1392,6 +1397,8 @@ function FiarContenido() {
 
     const montoDescuentoTotal = calcularMontoDescuento();
     const totalFilasRegistro = Math.max(0, subtotalBruto - montoDescuentoTotal);
+    const abonoInicialNum = Math.max(0, Number(abonoInicialFiar.replace(/\D/g, '')) || 0);
+    const montoFiadoFinal = Math.max(0, totalFilasRegistro - abonoInicialNum);
 
     // Guardar orden pendiente de fiado (colaboradores sin permiso de venta directa)
     const enviarOrden = async () => {
@@ -1453,6 +1460,10 @@ function FiarContenido() {
         const filasValidas = filasConDescripcion.filter(f => parseFloat(f.valor) > 0);
         if (filasValidas.length !== filasConDescripcion.length) return toast.error("Hay artículos con precio en cero o vacío. Complétalos o quítalos antes de continuar.");
 
+        if (totalFilasRegistro > 0 && abonoInicialNum >= totalFilasRegistro) {
+            return toast.error("El abono cubre o supera la totalidad de la compra. Regístrala desde 'Vender' para asentar la venta completa de contado.");
+        }
+
         if (!puedeVentaDirecta) {
             enviarOrden();
             return;
@@ -1474,7 +1485,7 @@ function FiarContenido() {
         try {
             const filasValidas = filasRegistro.filter(f => parseFloat(f.valor) > 0);
 
-            const faltante = totalFilasRegistro;
+            const faltante = montoFiadoFinal;
 
             let detallesParaComprobante: any[] = [];
             let resumenNombres: string[] = [];
@@ -1511,14 +1522,14 @@ function FiarContenido() {
                 headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
                 body: JSON.stringify({
                     clienteId: clienteTransaccion.id,
-                    montoVentaReal: 0,
-                    descripcionVenta: '',
+                    montoVentaReal: abonoInicialNum,
+                    descripcionVenta: abonoInicialNum > 0 ? `Pago inicial fiado: ${descripcionUnificada}` : '',
                     detalles: detallesParaComprobante,
-                    metodoPago: 'fiado',
+                    metodoPago: abonoInicialNum > 0 ? metodoPagoAbonoFiar : 'fiado',
                     fiarFaltante: true,
                     montoFiado: faltante,
                     usarSaldoFavor: usarSaldoAFavorFiar,
-                    descripcionFiado: descripcionUnificada + (montoDescuentoTotal > 0 ? ` [Dto: -$${montoDescuentoTotal.toLocaleString('es-CO')}]` : ''),
+                    descripcionFiado: descripcionUnificada + (abonoInicialNum > 0 ? ` [Abono inicial hoy: $${abonoInicialNum.toLocaleString('es-CO')}]` : '') + (montoDescuentoTotal > 0 ? ` [Dto: -$${montoDescuentoTotal.toLocaleString('es-CO')}]` : ''),
                     itemsInventario,
                     descuentoTipo: mostrarDescuento && montoDescuentoTotal > 0 ? tipoDescuento : null,
                     descuentoValor: mostrarDescuento && montoDescuentoTotal > 0 ? (tipoDescuento === 'porcentaje' ? Number(valorDescuento) : montoDescuentoTotal) : undefined,
@@ -1559,10 +1570,15 @@ function FiarContenido() {
                 metodoPago: 'fiado' as const
             };
 
+            (ticketDatos as any).abonoRecibido = abonoInicialNum;
+            (ticketDatos as any).metodoPagoAbono = abonoInicialNum > 0 ? metodoPagoAbonoFiar : null;
+
             setModalExito({
                 visible: true,
                 cliente: clienteFinalActualizado,
                 montoTotal: faltante,
+                abonoInicial: abonoInicialNum,
+                metodoPagoAbono: metodoPagoAbonoFiar,
                 ticketDatos,
                 filasGuardadas: [...filasRegistro],
                 montoDescuentoTotal,
@@ -1570,6 +1586,9 @@ function FiarContenido() {
                 tipoDescuento,
                 valorDescuento
             });
+
+            setAbonoInicialFiar('');
+            setMetodoPagoAbonoFiar('efectivo');
 
             // Limpiar formulario y persistir de inmediato para que el próximo fiado sea nuevo y limpio
             const reiniciada: PestanaFiado = {
@@ -2384,10 +2403,72 @@ Estamos atentos para cualquier consulta.
                             )}
                         </div>
 
+                        {/* CAMPO DE ABONO INICIAL (OPCIONAL) */}
+                        <div className="p-2.5 bg-slate-50 dark:bg-[#020617] rounded-xl border border-slate-200 dark:border-slate-800/80 space-y-2">
+                            <div className="flex items-center justify-between">
+                                <label className="text-[9px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1">
+                                    <Banknote size={11} className="text-emerald-500" />
+                                    ¿Deja abono hoy? (Opcional)
+                                </label>
+                                {abonoInicialNum > 0 && (
+                                    <button
+                                        type="button"
+                                        onClick={() => setAbonoInicialFiar('')}
+                                        className="text-[10px] text-rose-500 hover:underline font-bold cursor-pointer"
+                                    >
+                                        Quitar
+                                    </button>
+                                )}
+                            </div>
+
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+                                <div className="relative">
+                                    <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs font-black text-emerald-600">$</span>
+                                    <input
+                                        type="text"
+                                        inputMode="numeric"
+                                        value={abonoInicialFiar ? Number(abonoInicialFiar.replace(/\D/g, '')).toLocaleString('es-CO') : ''}
+                                        onChange={(e) => setAbonoInicialFiar(e.target.value.replace(/\D/g, ''))}
+                                        placeholder="Monto abono"
+                                        className="w-full pl-6 pr-2 py-1.5 bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-700 rounded-lg text-xs font-bold text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/30"
+                                    />
+                                </div>
+
+                                {abonoInicialNum > 0 ? (
+                                    <select
+                                        value={metodoPagoAbonoFiar}
+                                        onChange={(e) => setMetodoPagoAbonoFiar(e.target.value)}
+                                        className="w-full px-2 py-1.5 bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-700 rounded-lg text-xs font-bold text-slate-900 dark:text-white focus:outline-none"
+                                    >
+                                        <option value="efectivo">Efectivo</option>
+                                        <option value="transferencia">Transferencia</option>
+                                        <option value="datafono">Datáfono / Tarjeta</option>
+                                    </select>
+                                ) : (
+                                    <div className="text-[10.5px] text-slate-400 flex items-center px-1">
+                                        Entra a caja y reduce la deuda.
+                                    </div>
+                                )}
+                            </div>
+
+                            {abonoInicialNum > 0 && (
+                                <div className="pt-1.5 border-t border-slate-200/60 dark:border-slate-800 flex items-center justify-between text-[10.5px]">
+                                    <span className="text-emerald-600 dark:text-emerald-400 font-bold">
+                                        Caja hoy: +$${abonoInicialNum.toLocaleString('es-CO')}
+                                    </span>
+                                    <span className="text-rose-600 dark:text-rose-400 font-bold">
+                                        Deuda neta: $${montoFiadoFinal.toLocaleString('es-CO')}
+                                    </span>
+                                </div>
+                            )}
+                        </div>
+
                         <div className="p-2.5 bg-rose-50 dark:bg-rose-500/10 border border-rose-200 dark:border-rose-800/40 text-rose-700 dark:text-rose-400 rounded-xl flex items-start gap-2">
                             <AlertCircle size={15} className="shrink-0 mt-0.5 text-rose-600" />
                             <p className="text-[11px] font-medium leading-relaxed">
-                                El monto será asignado como deuda pendiente a la cuenta del cliente seleccionado.
+                                {abonoInicialNum > 0
+                                    ? `Se cobrarán $${abonoInicialNum.toLocaleString('es-CO')} hoy de contado y se asignarán $${montoFiadoFinal.toLocaleString('es-CO')} como deuda pendiente.`
+                                    : 'El monto total será asignado como deuda pendiente a la cuenta del cliente seleccionado.'}
                             </p>
                         </div>
 
@@ -2407,16 +2488,28 @@ Estamos atentos para cualquier consulta.
                                 </div>
                             </div>
                         )}
+                        {abonoInicialNum > 0 && (
+                            <div className="text-[10px] text-slate-400 mb-2 space-y-0.5 border-b border-slate-800 pb-2">
+                                <div className="flex justify-between">
+                                    <span>Total mercancía:</span>
+                                    <span className="font-bold text-slate-300">$${totalFilasRegistro.toLocaleString('es-CO')}</span>
+                                </div>
+                                <div className="flex justify-between text-emerald-400">
+                                    <span>Abono recibido hoy:</span>
+                                    <span className="font-bold">-$${abonoInicialNum.toLocaleString('es-CO')}</span>
+                                </div>
+                            </div>
+                        )}
                         <div className="flex justify-between items-baseline mb-2.5">
                             <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Monto a Fiar</span>
-                            <span className="text-3xl xl:text-4xl font-black text-rose-400 leading-none">${totalFilasRegistro.toLocaleString('es-CO')}</span>
+                            <span className="text-3xl xl:text-4xl font-black text-rose-400 leading-none">$${montoFiadoFinal.toLocaleString('es-CO')}</span>
                         </div>
                         <button 
                             onClick={procesarRegistro} 
                             disabled={guardandoFiado}
                             className={`w-full ${puedeVentaDirecta ? 'bg-rose-600 hover:bg-rose-700' : 'bg-amber-500 hover:bg-amber-600'} ${guardandoFiado ? 'opacity-50 cursor-not-allowed' : 'active:scale-95 cursor-pointer'} text-white font-black text-base py-3 rounded-xl shadow-lg flex justify-center items-center gap-2 transition-all`}
                         >
-                            <span>{guardandoFiado ? "Procesando..." : (puedeVentaDirecta ? 'Fiar' : 'Enviar Orden')}</span> {puedeVentaDirecta ? <CheckCircle2 size={18} /> : <Receipt size={18} />}
+                            <span>{guardandoFiado ? "Procesando..." : (puedeVentaDirecta ? (abonoInicialNum > 0 ? `Fiar con Abono ($${abonoInicialNum.toLocaleString('es-CO')})` : 'Fiar') : 'Enviar Orden')}</span> {puedeVentaDirecta ? <CheckCircle2 size={18} /> : <Receipt size={18} />}
                         </button>
                     </div>
 
@@ -2455,7 +2548,7 @@ Estamos atentos para cualquier consulta.
                     )}
                     <div className="flex items-baseline gap-1.5">
                         <span className="text-[10px] font-black uppercase text-slate-400 tracking-wider">Monto a Fiar</span>
-                        <span className="text-lg sm:text-2xl font-black text-rose-500 whitespace-nowrap overflow-visible leading-none min-w-0">${totalFilasRegistro.toLocaleString('es-CO')}</span>
+                        <span className="text-lg sm:text-2xl font-black text-rose-500 whitespace-nowrap overflow-visible leading-none min-w-0">$${montoFiadoFinal.toLocaleString('es-CO')}</span>
                     </div>
                 </div>
                 <button 
@@ -2463,7 +2556,7 @@ Estamos atentos para cualquier consulta.
                     disabled={guardandoFiado}
                     className={`flex-1 ${puedeVentaDirecta ? 'bg-rose-600 hover:bg-rose-700' : 'bg-amber-500 hover:bg-amber-600'} ${guardandoFiado ? 'opacity-50 cursor-not-allowed' : 'active:scale-95'} text-white font-black py-3 sm:py-3.5 px-4 rounded-xl sm:rounded-2xl shadow-lg flex items-center justify-center gap-2 text-base sm:text-lg transition-transform`}
                 >
-                    <span>{guardandoFiado ? "Procesando..." : (puedeVentaDirecta ? 'Fiar' : 'Enviar Orden')}</span> {puedeVentaDirecta ? <CheckCircle2 size={18} /> : <Receipt size={18} />}
+                    <span>{guardandoFiado ? "Procesando..." : (puedeVentaDirecta ? (abonoInicialNum > 0 ? 'Fiar con Abono' : 'Fiar') : 'Enviar Orden')}</span> {puedeVentaDirecta ? <CheckCircle2 size={18} /> : <Receipt size={18} />}
                 </button>
             </div>
             )}
@@ -2681,8 +2774,13 @@ Estamos atentos para cualquier consulta.
                         <div className="mb-8 text-slate-500 dark:text-slate-400 text-base flex flex-col gap-2">
                             <p>Saldo cargado a: <strong className="text-slate-800 dark:text-slate-200">{modalExito.cliente.nombre}</strong></p>
                             <p className="text-rose-600 dark:text-rose-400 font-bold bg-rose-50 dark:bg-rose-500/10 p-3 rounded-xl mt-2 text-xl border border-rose-100 dark:border-rose-500/20">
-                                Monto: ${modalExito.montoTotal.toLocaleString('es-CO')}
+                                Monto fiado: ${modalExito.montoTotal.toLocaleString('es-CO')}
                             </p>
+                            {Boolean(modalExito.abonoInicial && modalExito.abonoInicial > 0) && (
+                                <p className="text-emerald-700 dark:text-emerald-300 font-bold bg-emerald-50 dark:bg-emerald-950/40 p-2.5 rounded-xl text-xs border border-emerald-200 dark:border-emerald-800">
+                                    💵 Abono recibido hoy en caja: +${modalExito.abonoInicial!.toLocaleString('es-CO')} ({modalExito.metodoPagoAbono || 'efectivo'})
+                                </p>
+                            )}
                             <p className="text-sm mt-2 text-slate-600 dark:text-slate-300">
                                 {Number(modalExito.cliente.deudaTotal || 0) < 0 ? (
                                     <>Nuevo saldo a favor: <strong className="text-emerald-600 dark:text-emerald-400">${Math.abs(Number(modalExito.cliente.deudaTotal)).toLocaleString('es-CO')}</strong></>

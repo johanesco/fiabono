@@ -79,29 +79,22 @@ function FilaMeta({
 
 /* ─── Componente principal ────────────────────────────────────────────────── */
 export default function VistaTicketCard({ datos, ticketRef }: VistaTicketCardProps) {
-  /* Formateo de fecha / hora */
+  /* Formateo de fecha / hora compatible con Timestamp, Date, ISO string y {_seconds} */
+  const resolverObjetoFecha = (f: any): Date => {
+    if (!f) return new Date();
+    if (f.toDate && typeof f.toDate === "function") return f.toDate();
+    if (f instanceof Date) return f;
+    if (typeof f._seconds === "number") return new Date(f._seconds * 1000);
+    if (typeof f.seconds === "number") return new Date(f.seconds * 1000);
+    if (typeof f === "string" || typeof f === "number") {
+      const parsed = new Date(f);
+      if (!isNaN(parsed.getTime())) return parsed;
+    }
+    return new Date();
+  };
+
   const formatearFecha = (f: any) => {
-    if (!f)
-      return new Date().toLocaleDateString("es-CO", {
-        day: "2-digit",
-        month: "2-digit",
-        year: "numeric",
-      });
-    if (f.toDate && typeof f.toDate === "function")
-      return f
-        .toDate()
-        .toLocaleDateString("es-CO", {
-          day: "2-digit",
-          month: "2-digit",
-          year: "numeric",
-        });
-    if (f instanceof Date)
-      return f.toLocaleDateString("es-CO", {
-        day: "2-digit",
-        month: "2-digit",
-        year: "numeric",
-      });
-    return new Date().toLocaleDateString("es-CO", {
+    return resolverObjetoFecha(f).toLocaleDateString("es-CO", {
       day: "2-digit",
       month: "2-digit",
       year: "numeric",
@@ -109,27 +102,7 @@ export default function VistaTicketCard({ datos, ticketRef }: VistaTicketCardPro
   };
 
   const formatearHora = (f: any) => {
-    if (!f)
-      return new Date().toLocaleTimeString("es-CO", {
-        hour: "2-digit",
-        minute: "2-digit",
-        hour12: true,
-      });
-    if (f.toDate && typeof f.toDate === "function")
-      return f
-        .toDate()
-        .toLocaleTimeString("es-CO", {
-          hour: "2-digit",
-          minute: "2-digit",
-          hour12: true,
-        });
-    if (f instanceof Date)
-      return f.toLocaleTimeString("es-CO", {
-        hour: "2-digit",
-        minute: "2-digit",
-        hour12: true,
-      });
-    return new Date().toLocaleTimeString("es-CO", {
+    return resolverObjetoFecha(f).toLocaleTimeString("es-CO", {
       hour: "2-digit",
       minute: "2-digit",
       hour12: true,
@@ -173,7 +146,9 @@ export default function VistaTicketCard({ datos, ticketRef }: VistaTicketCardPro
       etiqueta = subMetodo ? `Crédito (${subMetodo})` : "Crédito Externo";
     else if (datos.metodoPago === "efectivo") etiqueta = "Efectivo";
     else if (datos.metodoPago === "fiado") etiqueta = "Crédito Directo (Fiado)";
-    else etiqueta = String(datos.metodoPago ?? "");
+    else if (datos.metodoPago === "saldo_a_favor") etiqueta = "Saldo a Favor";
+    else if (datos.metodoPago === "mixto") etiqueta = "Pago Mixto";
+    else etiqueta = String(datos.metodoPago ?? "").replace(/_/g, " ");
     return { etiqueta, ref: refLimpia };
   };
 
@@ -436,7 +411,13 @@ export default function VistaTicketCard({ datos, ticketRef }: VistaTicketCardPro
             /* TOTAL estándar con recuadro negro sólido */
             <div className="flex justify-between items-center bg-slate-900 text-white rounded-lg px-3 py-2 mt-1.5 mb-1">
               <span className="text-[12px] font-black uppercase tracking-wider">
-                TOTAL
+                {datos.tipo === "abono" || datos.tipo === "abono_separe"
+                  ? "ABONO RECIBIDO"
+                  : datos.tipo === "devolucion"
+                  ? "TOTAL DEVUELTO"
+                  : datos.tipo === "separe"
+                  ? "TOTAL SEPARE"
+                  : "TOTAL"}
               </span>
               <span className="text-base font-black font-mono">
                 ${(datos.montoTotal || 0).toLocaleString("es-CO")}
@@ -449,7 +430,7 @@ export default function VistaTicketCard({ datos, ticketRef }: VistaTicketCardPro
             <>
               <SeccionDivider tipo="suave" />
               <FilaMeta
-                label="Forma de pago:"
+                label={datos.tipo === "devolucion" ? "Reembolso vía:" : "Forma de pago:"}
                 valor={metodoPago.etiqueta.toUpperCase()}
                 negrita
               />
@@ -469,8 +450,8 @@ export default function VistaTicketCard({ datos, ticketRef }: VistaTicketCardPro
           {/* Recibido / Cambio */}
           {datos.pagoRecibido !== undefined && (
             <FilaMeta
-              label="Monto recibido:"
-              valor={`$${datos.pagoRecibido.toLocaleString("es-CO")}`}
+              label={datos.tipo === "separe" ? "Abono inicial:" : "Monto recibido:"}
+              valor={`${datos.pagoRecibido.toLocaleString("es-CO")}`}
             />
           )}
           {datos.devuelta !== undefined && datos.devuelta > 0 && (

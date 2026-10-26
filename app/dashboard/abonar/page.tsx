@@ -4,7 +4,7 @@ import { useState, useEffect, useMemo, Suspense, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { collection, addDoc, getDocs, query, doc, updateDoc, where, arrayUnion, increment, onSnapshot } from "firebase/firestore";
 import { auth, db } from "../../../firebase";
-import { Search, CheckCircle2, ChevronRight, X, AlertCircle, UserCog, ArrowLeft, MessageCircle, Banknote, Printer, Smartphone, CreditCard, Zap, Wallet, Bookmark, Sparkles } from 'lucide-react';
+import { Search, ShoppingBag, Receipt, CheckCircle2, ChevronRight, X, AlertCircle, UserCog, ArrowLeft, MessageCircle, Banknote, Printer, Smartphone, CreditCard, Zap, Wallet, Bookmark, Sparkles } from 'lucide-react';
 import { useAuth } from "../../../hooks/AuthContext";
 import { API_DB } from "../../../servicios/db";
 import TicketFacturaModal from "@/components/TicketFacturaModal";
@@ -777,20 +777,49 @@ Estamos atentos para cualquier consulta.
                       </p>
                     )}
                   </div>
-                  <div className="flex items-center justify-center gap-2 pt-1">
+                  <div className="flex flex-col sm:flex-row items-center justify-center gap-2 pt-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        sessionStorage.setItem('fiabono_cliente_precargado', JSON.stringify(clienteTransaccion));
+                        router.push(`/dashboard/vender?clienteId=${clienteTransaccion.id}`);
+                      }}
+                      className="w-full sm:w-auto px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black rounded-xl transition shadow-xs flex items-center justify-center gap-1.5 cursor-pointer"
+                    >
+                      <ShoppingBag size={14} />
+                      <span>Nueva Venta</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        sessionStorage.setItem('fiabono_cliente_precargado', JSON.stringify(clienteTransaccion));
+                        router.push(`/dashboard/fiar?clienteId=${clienteTransaccion.id}`);
+                      }}
+                      className="w-full sm:w-auto px-3.5 py-2 bg-rose-600 hover:bg-rose-700 text-white text-xs font-black rounded-xl transition shadow-xs flex items-center justify-center gap-1.5 cursor-pointer"
+                    >
+                      <Receipt size={14} />
+                      <span>Nuevo Fiado</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        sessionStorage.setItem('fiabono_cliente_precargado', JSON.stringify(clienteTransaccion));
+                        router.push(`/dashboard/separe?clienteId=${clienteTransaccion.id}`);
+                      }}
+                      className="w-full sm:w-auto px-3.5 py-2 bg-purple-600 hover:bg-purple-700 text-white text-xs font-black rounded-xl transition shadow-xs flex items-center justify-center gap-1.5 cursor-pointer"
+                    >
+                      <Bookmark size={14} />
+                      <span>Nuevo Separe</span>
+                    </button>
+
                     <button
                       type="button"
                       onClick={() => router.push('/dashboard/clientes')}
-                      className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 dark:bg-slate-800 dark:text-slate-300 text-xs font-bold rounded-xl transition cursor-pointer"
+                      className="w-full sm:w-auto px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-600 dark:bg-slate-800 dark:text-slate-300 text-xs font-bold rounded-xl transition cursor-pointer"
                     >
-                      Volver al Directorio
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => router.push(`/dashboard/vender?clienteId=${clienteTransaccion.id}`)}
-                      className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl transition shadow-xs cursor-pointer"
-                    >
-                      Nueva Venta
+                      Directorio
                     </button>
                   </div>
                 </div>

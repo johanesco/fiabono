@@ -137,9 +137,11 @@ export default function ModalSuscripcion({ isOpen, onClose, cuentaPrincipalId, p
         where("rol", "==", "cajero")
       );
       const snapColabs = await getDocs(qColabs);
-      const desactivaciones = snapColabs.docs.map(d =>
-        updateDoc(doc(db, "usuarios", d.id), { activo: false })
-      );
+      const desactivaciones = snapColabs.docs
+        .filter(d => d.data().activo !== false)
+        .map(d =>
+          updateDoc(doc(db, "usuarios", d.id), { activo: false, desactivadoPorSistema: true })
+        );
       await Promise.all(desactivaciones);
 
       if (datosSesion?.esPro) {
@@ -168,7 +170,7 @@ export default function ModalSuscripcion({ isOpen, onClose, cuentaPrincipalId, p
 
     const tipoAccion = datosSesion?.esComercio && tipo === 'pro'
       ? 'mejorar'
-      : (datosSesion?.esPro || (datosSesion?.esComercio && tipo === 'comercio'))
+      : ((datosSesion?.esPro && tipo === 'pro') || (datosSesion?.esComercio && tipo === 'comercio'))
       ? 'renovar'
       : 'activar';
 
@@ -293,9 +295,13 @@ export default function ModalSuscripcion({ isOpen, onClose, cuentaPrincipalId, p
                   {puedeActivarPruebaGratis ? (
                     <span className="text-[11px] font-bold text-emerald-600 dark:text-emerald-400">14 días de prueba gratis</span>
                   ) : datosSesion?.planActual === 'comercio' ? (
-                    <span className="text-[11px] font-bold text-blue-600 dark:text-blue-400">Tu Plan Actual {datosSesion?.diasRestantesPlan !== null ? `(${datosSesion?.diasRestantesPlan}d)` : ''}</span>
+                    <span className={`text-[11px] font-bold ${datosSesion?.enPeriodoGracia ? 'text-rose-600 dark:text-rose-400' : 'text-blue-600 dark:text-blue-400'}`}>
+                      {datosSesion?.enPeriodoGracia
+                        ? 'Tu Plan Actual (En gracia)'
+                        : `Tu Plan Actual ${datosSesion?.diasRestantesPlan !== null ? `(${datosSesion?.diasRestantesPlan}d)` : ''}`}
+                    </span>
                   ) : datosSesion?.planActual === 'pro' ? (
-                    <span className="text-[11px] font-bold text-slate-400">Plan Básico</span>
+                    <span className="text-[11px] font-bold text-slate-400">Plan Comercio</span>
                   ) : (
                     <span className="text-[11px] font-bold text-blue-600 dark:text-blue-400">Suscripción Oficial</span>
                   )}
@@ -306,6 +312,7 @@ export default function ModalSuscripcion({ isOpen, onClose, cuentaPrincipalId, p
                   <li className="flex items-center gap-1.5"><CheckCircle2 size={12} className="text-emerald-500 shrink-0" /> Factura Imprimible (58/80mm)</li>
                   <li className="flex items-center gap-1.5"><CheckCircle2 size={12} className="text-emerald-500 shrink-0" /> Alertas de Stock Bajo y Agotados</li>
                   <li className="flex items-center gap-1.5"><CheckCircle2 size={12} className="text-emerald-500 shrink-0" /> Reportes de Caja Neta y Cartera</li>
+                  <li className="flex items-center gap-1.5"><CheckCircle2 size={12} className="text-emerald-500 shrink-0" /> Copias de Seguridad ILIMITADAS (Excel)</li>
                 </ul>
               </div>
             </div>
@@ -333,7 +340,11 @@ export default function ModalSuscripcion({ isOpen, onClose, cuentaPrincipalId, p
                   {puedeActivarPruebaGratis ? (
                     <span className="text-[11px] font-bold text-purple-600 dark:text-purple-400">14 días de prueba gratis</span>
                   ) : datosSesion?.planActual === 'pro' ? (
-                    <span className="text-[11px] font-bold text-purple-600 dark:text-purple-400">Tu Plan Actual {datosSesion?.diasRestantesPlan !== null ? `(${datosSesion?.diasRestantesPlan}d)` : ''}</span>
+                    <span className={`text-[11px] font-bold ${datosSesion?.enPeriodoGracia ? 'text-rose-600 dark:text-rose-400' : 'text-purple-600 dark:text-purple-400'}`}>
+                      {datosSesion?.enPeriodoGracia
+                        ? 'Tu Plan Actual (En gracia)'
+                        : `Tu Plan Actual ${datosSesion?.diasRestantesPlan !== null ? `(${datosSesion?.diasRestantesPlan}d)` : ''}`}
+                    </span>
                   ) : datosSesion?.planActual === 'comercio' ? (
                     <span className="text-[11px] font-bold text-purple-600 dark:text-purple-400">Mejorar a PRO</span>
                   ) : (
@@ -346,6 +357,7 @@ export default function ModalSuscripcion({ isOpen, onClose, cuentaPrincipalId, p
                   <li className="flex items-center gap-1.5"><CheckCircle2 size={12} className="text-purple-500 shrink-0" /> Modo Terminal Multivendedor</li>
                   <li className="flex items-center gap-1.5"><CheckCircle2 size={12} className="text-purple-500 shrink-0" /> Etiquetas Adhesivas QR para prendas</li>
                   <li className="flex items-center gap-1.5"><CheckCircle2 size={12} className="text-purple-500 shrink-0" /> Carga Masiva en Excel</li>
+                  <li className="flex items-center gap-1.5"><CheckCircle2 size={12} className="text-purple-500 shrink-0" /> Copias de Seguridad ILIMITADAS (Excel)</li>
                 </ul>
               </div>
             </div>
@@ -406,7 +418,19 @@ export default function ModalSuscripcion({ isOpen, onClose, cuentaPrincipalId, p
                   </div>
                 )}
 
-                {datosSesion?.esComercio && (
+                {datosSesion?.enPeriodoGracia && (
+                  <div className="bg-rose-50 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-800/60 rounded-2xl p-4 text-left space-y-1">
+                    <div className="flex items-center gap-2 text-rose-800 dark:text-rose-300 font-bold text-xs">
+                      <AlertTriangle size={16} className="text-rose-600 shrink-0" />
+                      <span>Tu suscripción se encuentra en Periodo de Gracia</span>
+                    </div>
+                    <p className="text-[11px] text-rose-700/90 dark:text-rose-300/90 leading-relaxed">
+                      Renueva hoy por WhatsApp o canjea un código promocional para mantener activos tus colaboradores y beneficios sin interrupciones.
+                    </p>
+                  </div>
+                )}
+
+                {datosSesion?.esComercio && !datosSesion?.enPeriodoGracia && (
                   <div className="bg-blue-50/50 dark:bg-blue-950/20 border border-blue-200/60 dark:border-blue-900/40 rounded-2xl p-4 text-left space-y-1">
                     <div className="flex items-center gap-2 text-blue-900 dark:text-blue-300 font-bold text-xs">
                       <Store size={16} className="text-blue-600 shrink-0" />
@@ -420,14 +444,16 @@ export default function ModalSuscripcion({ isOpen, onClose, cuentaPrincipalId, p
                   </div>
                 )}
 
-                {datosSesion?.esPro && (
+                {datosSesion?.esPro && !datosSesion?.enPeriodoGracia && (
                   <div className="bg-purple-50/50 dark:bg-purple-950/20 border border-purple-200/60 dark:border-purple-900/40 rounded-2xl p-4 text-left space-y-1">
                     <div className="flex items-center gap-2 text-purple-900 dark:text-purple-300 font-bold text-xs">
                       <Crown size={16} className="text-purple-600 shrink-0" />
                       <span>Plan PRO Almacén Activo {datosSesion?.diasRestantesPlan !== null ? `(${datosSesion?.diasRestantesPlan} días restantes)` : ''}</span>
                     </div>
                     <p className="text-[11px] text-slate-600 dark:text-slate-400 leading-relaxed">
-                      Cuentas con todas las funciones profesionales activas. Puedes renovar tu suscripción anticipadamente por WhatsApp.
+                      {planSeleccionado === 'comercio'
+                        ? 'Estás visualizando el Plan Comercio. Si deseas cambiar de plan al finalizar tu ciclo o renovar en Comercio, contáctanos por WhatsApp.'
+                        : 'Cuentas con todas las funciones profesionales activas. Puedes renovar tu suscripción anticipadamente por WhatsApp.'}
                     </p>
                   </div>
                 )}
@@ -446,7 +472,9 @@ export default function ModalSuscripcion({ isOpen, onClose, cuentaPrincipalId, p
                     <MessageCircle size={18} />
                     {datosSesion?.esComercio && planSeleccionado === 'pro'
                       ? 'Mejorar a PRO Almacén por WhatsApp'
-                      : datosSesion?.esPro || (datosSesion?.esComercio && planSeleccionado === 'comercio')
+                      : datosSesion?.esPro && planSeleccionado === 'comercio'
+                      ? 'Cambiar a Plan Comercio por WhatsApp'
+                      : (datosSesion?.esPro && planSeleccionado === 'pro') || (datosSesion?.esComercio && planSeleccionado === 'comercio')
                       ? `Renovar ${planSeleccionado === 'pro' ? 'PRO Almacén' : 'Comercio'} por WhatsApp`
                       : `Adquirir ${planSeleccionado === 'pro' ? 'PRO Almacén' : 'Comercio'} por WhatsApp`}
                   </span>

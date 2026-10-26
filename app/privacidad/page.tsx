@@ -85,7 +85,6 @@ export default function PrivacidadPage() {
               La plataforma <strong>Fiabono</strong> (en adelante, &ldquo;Fiabono&rdquo;), accesible a través de <code>fiabono.com</code>, con domicilio principal en la República de Colombia, actúa como Responsable del tratamiento de los datos personales de los usuarios titulares de las cuentas y como Encargado del tratamiento respecto de los datos de terceros ingresados por los comerciantes para la generación de comprobantes.
             </p>
             <p>
-              Canal oficial para peticiones, consultas y quejas de Habeas Data: <strong>privacidad@fiabono.com</strong>.
               Canal oficial para peticiones, consultas y quejas de Habeas Data: <strong>fiabono.app@gmail.com</strong>.
             </p>
           </section>
@@ -127,7 +126,7 @@ export default function PrivacidadPage() {
             <p>La información suministrada se tratará única y exclusivamente para los siguientes fines:</p>
             <ol className="list-decimal pl-5 space-y-1.5">
               <li>Habilitar la operación, sincronización en tiempo real y persistencia segura de la información contable y de mostrador del usuario.</li>
-              <li>Generar comprobantes mercantiles digitales accesibles mediante enlace público único verificado (ruta <code>/t/[id]</code>) para entrega al consumidor final.</li>
+              <li>Generar comprobantes mercantiles digitales accesibles mediante enlace único verificado no indexable (ruta <code>/t/[id]</code>) para entrega al consumidor final, exponiendo exclusivamente el resumen visual de la transacción y protegiendo en todo momento los costos internos, márgenes y credenciales privadas del comercio.</li>
               <li>Permitir la apertura automatizada del chat de WhatsApp en el dispositivo del usuario con el texto preformateado del comprobante de pago o abono.</li>
               <li>Prestar soporte técnico, atención al cliente y notificaciones sobre el estado de la suscripción o mejoras de la Plataforma.</li>
               <li>Cumplir con los requerimientos legales y regulatorios aplicables en Colombia.</li>
@@ -208,7 +207,7 @@ export default function PrivacidadPage() {
               <span className="text-blue-600">9.</span> Vigencia y Actualizaciones
             </h2>
             <p>
-              Esta Política de Tratamiento entra en vigencia a partir de su publicación en septiembre de 2026. Cualquier modificación sustancial en las finalidades del tratamiento será notificada oportunamente a los usuarios a través del sitio web antes de su entrada en vigor.
+              Esta Política de Tratamiento entra en vigencia a partir de su publicación en octubre de 2026. Cualquier modificación sustancial en las finalidades del tratamiento será notificada oportunamente a los usuarios a través del sitio web antes de su entrada en vigor.
             </p>
           </section>
 

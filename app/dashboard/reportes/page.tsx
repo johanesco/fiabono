@@ -792,7 +792,7 @@ export default function ReportesPage() {
               <div className="p-3 bg-white/20 backdrop-blur-sm rounded-2xl shrink-0"><ShoppingCart size={20} /></div>
             </div>
             <p className="text-2xl sm:text-3xl font-black tracking-tight mt-4">
-              ${totalVentas.toLocaleString('es-CO')}
+              ${totalVentasNetas.toLocaleString('es-CO')}
             </p>
           </div>
 
@@ -802,7 +802,7 @@ export default function ReportesPage() {
               <div className="p-3 bg-white/20 backdrop-blur-sm rounded-2xl shrink-0"><ShoppingBag size={20} /></div>
             </div>
             <p className="text-2xl sm:text-3xl font-black tracking-tight mt-4">
-              ${totalFiados.toLocaleString('es-CO')}
+              ${totalFiadosNetos.toLocaleString('es-CO')}
             </p>
           </div>
 

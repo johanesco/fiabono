@@ -5,6 +5,7 @@ import { Printer, RotateCcw, Package, User, Calculator, Clock, Eye } from "lucid
 interface TablaHistorialProps {
   movimientos: Movimiento[];
   getNombreCliente: (id?: string, tipo?: string, fallbackNombre?: string) => string;
+  getApodoCliente?: (id?: string) => string | undefined;
   onRowClick?: (clienteId?: string, tipo?: string) => void;
   onMovimientoClick?: (mov: Movimiento) => void;
   onImprimir?: (mov: Movimiento) => void;
@@ -15,7 +16,7 @@ interface TablaHistorialProps {
   onAnularAbono?: (mov: Movimiento) => void;
 }
 
-export default function TablaHistorial({ movimientos, getNombreCliente, onRowClick, onMovimientoClick, onImprimir, onDevolucion, puedeHacerDevolucion, onReintentarNC, onVerCierre, onAnularAbono }: TablaHistorialProps) {
+export default function TablaHistorial({ movimientos, getNombreCliente, getApodoCliente, onRowClick, onMovimientoClick, onImprimir, onDevolucion, puedeHacerDevolucion, onReintentarNC, onVerCierre, onAnularAbono }: TablaHistorialProps) {
   return (
     <div className="hidden md:block w-full bg-white dark:bg-[#0f172a] rounded-2xl border border-slate-100 dark:border-slate-800/60 shadow-sm overflow-x-auto">
       <table className="w-full text-left border-collapse">
@@ -92,12 +93,19 @@ export default function TablaHistorial({ movimientos, getNombreCliente, onRowCli
                       <span>Entrada</span>
                     </span>
                   ) : (
-                    <span 
-                      title={getNombreCliente(mov.clienteId, mov.tipo, mov.clienteNombre)}
-                      className="truncate block max-w-[120px] sm:max-w-[160px] lg:max-w-[240px]"
-                    >
-                      {getNombreCliente(mov.clienteId, mov.tipo, mov.clienteNombre)}
-                    </span>
+                    <div className="flex items-center gap-1.5 min-w-0 max-w-[160px] sm:max-w-[220px] lg:max-w-[300px]">
+                      <span 
+                        title={getNombreCliente(mov.clienteId, mov.tipo, mov.clienteNombre)}
+                        className="truncate font-bold"
+                      >
+                        {getNombreCliente(mov.clienteId, mov.tipo, mov.clienteNombre)}
+                      </span>
+                      {getApodoCliente && getApodoCliente(mov.clienteId) && (
+                        <span className="text-[10px] font-black text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/50 px-1.5 py-0.5 rounded border border-amber-200 dark:border-amber-800 shrink-0">
+                          "{getApodoCliente(mov.clienteId)}"
+                        </span>
+                      )}
+                    </div>
                   )}
                 </td>
                 <td className="py-2.5 px-2.5 sm:px-3 lg:px-4 text-xs text-slate-600 dark:text-slate-300">
@@ -155,6 +163,10 @@ export default function TablaHistorial({ movimientos, getNombreCliente, onRowCli
                       (mov.subtipo === 'apertura_separe_sin_abono' || mov.monto === 0 ? 'NUEVO SEPARE' : 'ABONO SEPARE')
                     ) : mov.tipo === 'abono' ? (
                       'ABONO CUENTA'
+                    ) : (mov.tipo === 'venta' && ((mov as any).subtipo === 'venta_parcial' || (mov as any).montoFiadoAsociado || (mov as any).fiarFaltante)) ? (
+                      'ABONO INICIAL'
+                    ) : (mov.tipo === 'fiado' && ((mov as any).subtipo === 'fiado_con_abono' || (mov as any).abonoInicialAsociado)) ? (
+                      'FIADO CON ABONO'
                     ) : (
                       mov.tipo
                     )}

@@ -268,11 +268,11 @@ export default function ModalTourBienvenida({
                 </div>
 
                 <h2 className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-white tracking-tight leading-tight mb-2">
-                  ¡Bienvenido a Fiabono, ${nombreUsuario || 'Comerciante'}! 🎉
+                  ¡Bienvenido a Fiabono, {nombreUsuario || 'Comerciante'}! 🎉
                 </h2>
 
                 <p className="text-sm font-semibold text-blue-600 dark:text-blue-400 mb-1">
-                  Tu negocio "${nombreNegocio || 'Mi Comercio'}" ya está listo en el sistema.
+                  Tu negocio "{nombreNegocio || 'Mi Comercio'}" ya está listo en el sistema.
                 </p>
 
                 <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 max-w-md mx-auto leading-relaxed">
@@ -439,8 +439,10 @@ export default function ModalTourBienvenida({
                   {
                     icono: Sparkles,
                     color: "text-amber-500 bg-amber-50 dark:bg-amber-500/10",
-                    titulo: "14 Días de Prueba Activos",
-                    detalle: "Disfruta de todas las características sin límites."
+                    titulo: plan === 'gratis' ? "Tu Cuenta Está Activa" : "Suscripción / Prueba Activa",
+                    detalle: plan === 'gratis'
+                      ? "Comienza gratis hoy y activa tus 14 días de prueba de Comercio o PRO cuando quieras."
+                      : "Disfruta de todas las herramientas avanzadas de tu plan sin límites."
                   }
                 ].map((t, idx) => {
                   const Icono = t.icono;
@@ -478,7 +480,16 @@ export default function ModalTourBienvenida({
                 <button
                   key={numPaso}
                   type="button"
-                  onClick={() => setPaso(numPaso)}
+                  onClick={async () => {
+                    if (paso === 1 && numPaso > 1) {
+                      if (rubrosSeleccionadosIds.length === 0) {
+                        toast.error("Por favor selecciona al menos un tipo de negocio para continuar.");
+                        return;
+                      }
+                      await guardarConfiguracionRubros();
+                    }
+                    setPaso(numPaso);
+                  }}
                   className={`h-2 rounded-full transition-all cursor-pointer ${
                     paso === numPaso 
                       ? 'w-9 bg-blue-600 shadow-sm' 

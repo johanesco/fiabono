@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { FieldValue } from 'firebase-admin/firestore';
 import { getAdminAuth, getAdminDb } from '@/lib/firebase-admin';
 import { generarSlugNegocio } from '@/utils/slug';
 
@@ -29,9 +30,20 @@ export async function POST(request: Request) {
     }
 
     const adminDb = getAdminDb();
+    const userDocRef = adminDb.collection('usuarios').doc(uid);
+    const existingUserSnap = await userDocRef.get();
+
+    if (existingUserSnap.exists) {
+      const existingData = existingUserSnap.data() as any;
+      if (existingData?.fechaRegistro || existingData?.rol) {
+        return NextResponse.json({ ok: true, slugNegocio: existingData.slugNegocio || generarSlugNegocio(nombreNegocio), yaExistia: true });
+      }
+    }
 
     // Validar código promocional si fue enviado
-    let planFinal = planSolicitado;
+    const planSolicitadoLimpio: 'gratis' | 'comercio' | 'pro' =
+      planSolicitado === 'pro' ? 'pro' : (planSolicitado === 'gratis' ? 'gratis' : 'comercio');
+    let planFinal: 'gratis' | 'comercio' | 'pro' = planSolicitadoLimpio;
     let diasOtorgados: number | null = planFinal !== 'gratis' ? 14 : null;
     let promoData: any = null;
     let esCuponValido = false;
@@ -41,7 +53,15 @@ export async function POST(request: Request) {
         const promoSnap = await adminDb.collection('codigos_promocionales').doc(codigoPromocional).get();
         if (promoSnap.exists) {
           const promo = promoSnap.data() as any;
-          if (promo.activo !== false) {
+          const usosActuales = typeof promo.usosActuales === 'number' ? promo.usosActuales : (typeof promo.totalCanjes === 'number' ? promo.totalCanjes : 0);
+          const cupoDisponible = !(typeof promo.usosMaximos === 'number' && promo.usosMaximos > 0 && usosActuales >= promo.usosMaximos);
+          let noExpirado = true;
+          if (promo.fechaExpiracion) {
+            const expTime = promo.fechaExpiracion.toDate ? promo.fechaExpiracion.toDate().getTime() : new Date(promo.fechaExpiracion).getTime();
+            if (!isNaN(expTime) && Date.now() > expTime) noExpirado = false;
+          }
+
+          if (promo.activo !== false && cupoDisponible && noExpirado) {
             // Verificar restricción de correo
             const emailAutorizado = !promo.emailObjetivo || promo.emailObjetivo.trim() === '' || promo.emailObjetivo.trim().toLowerCase() === email.trim().toLowerCase();
             if (emailAutorizado) {
@@ -85,7 +105,6 @@ export async function POST(request: Request) {
       slugAsignado = `${slugBase}${Math.floor(100 + Math.random() * 900)}`;
     }
 
-    const userDocRef = adminDb.collection('usuarios').doc(uid);
     await userDocRef.set({
       nombreUsuario: nombreUsuario || (decodedToken.name || 'Comerciante'),
       nombreNegocio,
@@ -99,22 +118,48 @@ export async function POST(request: Request) {
       planVence: fechaVence,
       cicloPlan,
       creadoCon: decodedToken.firebase?.sign_in_provider === 'google.com' ? 'google' : 'email',
-      pruebaGratisUsada: esCuponValido ? false : (planFinal !== 'gratis'),
+      pruebaGratisUsada: planFinal !== 'gratis',
       terminosAceptados: true,
       fechaAceptacionTerminos: new Date(),
       fechaRegistro: new Date(),
-      ...(esCuponValido ? { codigoPromocionalUsado: codigoPromocional } : {})
+      ...(esCuponValido ? { codigoPromocionalUsado: codigoPromocional, codigosCanjeados: [codigoPromocional] } : {})
     }, { merge: true });
 
-    if (promoData && promoData.unSoloUso !== false) {
+    if (promoData && esCuponValido) {
       try {
-        await adminDb.collection('codigos_promocionales').doc(codigoPromocional).update({
-          activo: false,
-          usadoPor: uid,
-          fechaUso: new Date()
-        });
+        const emailNorm = email.trim().toLowerCase();
+        const usosPrevios = typeof promoData.usosActuales === 'number' ? promoData.usosActuales : (typeof promoData.totalCanjes === 'number' ? promoData.totalCanjes : 0);
+        const nuevosUsos = usosPrevios + 1;
+        const agotaMultiUso = typeof promoData.usosMaximos === 'number' && promoData.usosMaximos > 0 && nuevosUsos >= promoData.usosMaximos;
+
+        if (promoData.unSoloUso !== false || agotaMultiUso) {
+          await adminDb.collection('codigos_promocionales').doc(codigoPromocional).update({
+            activo: false,
+            usosActuales: nuevosUsos,
+            totalCanjes: FieldValue.increment(1),
+            canjeadoPor: uid,
+            usadoPor: uid,
+            emailCanje: emailNorm,
+            fechaCanje: new Date(),
+            fechaUso: new Date(),
+            usuariosQueCanjearon: FieldValue.arrayUnion(uid)
+          });
+        } else {
+          await adminDb.collection('codigos_promocionales').doc(codigoPromocional).update({
+            usosActuales: FieldValue.increment(1),
+            totalCanjes: FieldValue.increment(1),
+            canjeadoPor: uid,
+            usadoPor: uid,
+            emailCanje: emailNorm,
+            fechaCanje: new Date(),
+            ultimoCanjePor: uid,
+            ultimoEmailCanje: emailNorm,
+            fechaUltimoCanje: new Date(),
+            usuariosQueCanjearon: FieldValue.arrayUnion(uid)
+          });
+        }
       } catch (e) {
-        console.error('Error al desactivar cupón usado:', e);
+        console.error('Error al actualizar trazabilidad del cupón usado:', e);
       }
     }
 

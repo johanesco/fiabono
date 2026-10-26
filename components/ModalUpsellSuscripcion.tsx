@@ -1,7 +1,9 @@
 "use client";
-import React from "react";
+import React, { useState } from "react";
 import { X, CheckCircle2, Sparkles, Crown, Store, ArrowRight } from "lucide-react";
 import { useRouter } from "next/navigation";
+import { useAuth } from "@/hooks/AuthContext";
+import ModalSuscripcion from "./ModalSuscripcion";
 
 export interface ModalUpsellProps {
   visible: boolean;
@@ -19,12 +21,32 @@ export default function ModalUpsellSuscripcion({
   onClose
 }: ModalUpsellProps) {
   const router = useRouter();
+  const { datosSesion } = useAuth() || {};
+  const [modalSuscripcionDirecto, setModalSuscripcionDirecto] = useState(false);
 
-  if (!visible) return null;
+  if (!visible && !modalSuscripcionDirecto) return null;
+
+  if (modalSuscripcionDirecto && datosSesion?.cuentaPrincipalId) {
+    return (
+      <ModalSuscripcion
+        isOpen={true}
+        onClose={() => {
+          setModalSuscripcionDirecto(false);
+          onClose();
+        }}
+        cuentaPrincipalId={datosSesion.cuentaPrincipalId}
+        planInicial={planRecomendado}
+      />
+    );
+  }
 
   const irAPerfilPlanes = () => {
+    if (datosSesion?.cuentaPrincipalId) {
+      setModalSuscripcionDirecto(true);
+      return;
+    }
     onClose();
-    router.push('/dashboard/perfil?tab=planes');
+    router.push(`/dashboard/perfil?tab=planes&plan=${planRecomendado}`);
   };
 
   return (

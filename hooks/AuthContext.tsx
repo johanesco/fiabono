@@ -133,17 +133,26 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
             const timeVence = adminData.planVence.toDate ? adminData.planVence.toDate().getTime() : new Date(adminData.planVence).getTime();
             const timeRemaining = timeVence - new Date().getTime();
             const daysLeft = Math.ceil(timeRemaining / (1000 * 3600 * 24));
-            if (daysLeft <= 0) {
-              planAdmin = 'gratis';
+            // Respetar el mismo periodo de gracia de 2 días (-2, -1, 0) que tiene el negocio principal
+            if (daysLeft < -2) {
+              planAdmin = (adminData.proximoPlan === 'comercio') ? 'comercio' : 'gratis';
               // PARCHE P1-AUTH: Un colaborador NO debe intentar escribir en el
               // documento del admin (eso viola las reglas y arrojaba permission-denied).
               // El downgrade persistente lo hace el admin al iniciar sesión.
             }
           }
 
-          // REGLA CRÍTICA DE NEGOCIO: Si el negocio está en Plan Gratis, el colaborador no puede acceder
-          if (planAdmin === 'gratis') {
-            throw new Error("PlanGratisSinColaboradores");
+          // REGLA CRÍTICA DE NEGOCIO: Si el negocio está en Plan Gratis (o es Terminal Multivendedor sin Plan PRO), mostrar aviso claro
+          if (planAdmin === 'gratis' || (data.esCajaMostrador === true && planAdmin !== 'pro')) {
+            setBloqueoColaborador({
+              motivo: 'plan_vencido',
+              nombreColaborador,
+              nombreNegocio,
+              telefonoAdmin,
+            });
+            setCargando(false);
+            setDatosSesion(null);
+            return;
           }
         }
 
@@ -187,23 +196,37 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
                   where("rol", "==", "cajero")
                 );
                 const snapColabs = await getDocs(qColabs);
-                const desactivaciones = snapColabs.docs.map(d =>
-                  updateDoc(doc(db, "usuarios", d.id), { activo: false })
-                );
+                const desactivaciones = snapColabs.docs
+                  .filter(d => d.data().activo !== false)
+                  .map(d =>
+                    updateDoc(doc(db, "usuarios", d.id), { activo: false, desactivadoPorSistema: true })
+                  );
                 await Promise.all(desactivaciones);
               } else if (nuevoPlan === 'comercio') {
-                // En plan comercio solo se permite 1 colaborador activo
+                // En plan comercio solo se permite 1 colaborador regular activo y NO se permite Terminal Multivendedor
                 const qColabs = query(
                   collection(db, "usuarios"),
                   where("adminId", "==", idParaConsultar),
-                  where("rol", "==", "cajero"),
-                  where("activo", "==", true)
+                  where("rol", "==", "cajero")
                 );
                 const snapColabs = await getDocs(qColabs);
-                if (snapColabs.docs.length > 1) {
-                  const sobrantes = snapColabs.docs.slice(1);
-                  await Promise.all(sobrantes.map(d => updateDoc(doc(db, "usuarios", d.id), { activo: false })));
-                }
+                const promesasAjuste: Promise<any>[] = [];
+                let regularesActivos = 0;
+
+                snapColabs.docs.forEach(d => {
+                  const cData = d.data();
+                  if (cData.esCajaMostrador === true) {
+                    if (cData.activo !== false) {
+                      promesasAjuste.push(updateDoc(doc(db, "usuarios", d.id), { activo: false, desactivadoPorSistema: true }));
+                    }
+                  } else if (cData.activo !== false) {
+                    regularesActivos++;
+                    if (regularesActivos > 1) {
+                      promesasAjuste.push(updateDoc(doc(db, "usuarios", d.id), { activo: false, desactivadoPorSistema: true }));
+                    }
+                  }
+                });
+                await Promise.all(promesasAjuste);
               }
             }
           } else {

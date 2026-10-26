@@ -144,6 +144,10 @@ export default function TicketFacturaModal({ isOpen, onClose, datos, onFacturaEm
   };
 
   const manejarImprimir = () => {
+    if (datosSesion?.puedeFacturaImprimible === false) {
+      setModalUpsell(true);
+      return;
+    }
     try {
       window.print();
     } catch (e) {
@@ -185,11 +189,11 @@ export default function TicketFacturaModal({ isOpen, onClose, datos, onFacturaEm
       detalleTexto = `- ${datos.descripcionGeneral}\n\n`;
     }
 
-    if (datos.montoDescuento && datos.montoDescuento > 0) {
+    if (datos.tipo !== 'venta' && datos.montoDescuento && datos.montoDescuento > 0) {
       if (datos.montoBruto) {
-        detalleTexto += `*Subtotal:* $${datos.montoBruto.toLocaleString('es-CO')}\n`;
+        detalleTexto += `*Subtotal:* ${datos.montoBruto.toLocaleString('es-CO')}\n`;
       }
-      detalleTexto += `*Descuento:* -$${datos.montoDescuento.toLocaleString('es-CO')}\n`;
+      detalleTexto += `*Descuento:* -${datos.montoDescuento.toLocaleString('es-CO')}\n`;
     }
 
     if (datos.subtotal !== undefined && datos.valorIva !== undefined && datos.valorIva > 0) {
@@ -631,9 +635,9 @@ Estamos atentos para cualquier consulta.
             position: static !important;
             left: auto !important;
             top: auto !important;
-            width: 76mm !important;
+            width: 100% !important;
             max-width: 76mm !important;
-            margin: 0 !important;
+            margin: 0 auto !important;
             padding: 0 !important;
             background: #ffffff !important;
             color: #000000 !important;
@@ -777,8 +781,8 @@ Estamos atentos para cualquier consulta.
             
             {/* VISTA MÓVIL: ORGANIZADA SEGÚN SI TIENE NÚMERO O NO */}
             <div className="sm:hidden flex flex-col gap-2 w-full">
-              {/* Botón Factura Electrónica DIAN en móvil */}
-              {datos.tipo === 'venta' && datos.idTransaccion && (
+              {/* Botón Factura Electrónica DIAN en móvil (solo si tiene DIAN habilitada o factura ya emitida) */}
+              {datos.tipo === 'venta' && datos.idTransaccion && (Boolean((datosSesion as any)?.facturacionDianHabilitada) || Boolean(facturaDianLocal?.cufe)) && (
                 facturaDianLocal?.cufe ? (
                   <div className="w-full py-2 px-3 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/60 font-bold rounded-xl flex items-center justify-center gap-1.5 text-xs">
                     <FileText size={14} className="shrink-0 text-emerald-600 dark:text-emerald-400" />
@@ -856,8 +860,8 @@ Estamos atentos para cualquier consulta.
               </button>
 
               <div className="flex items-center gap-2">
-                {/* Botón Factura Electrónica DIAN en escritorio */}
-                {datos.tipo === 'venta' && datos.idTransaccion && (
+                {/* Botón Factura Electrónica DIAN en escritorio (solo si tiene DIAN habilitada o factura ya emitida) */}
+                {datos.tipo === 'venta' && datos.idTransaccion && (Boolean((datosSesion as any)?.facturacionDianHabilitada) || Boolean(facturaDianLocal?.cufe)) && (
                   facturaDianLocal?.cufe ? (
                     <div 
                       className="py-2.5 px-3 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/60 font-bold rounded-xl flex items-center gap-1.5 text-xs whitespace-nowrap shrink-0" 

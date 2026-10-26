@@ -24,6 +24,7 @@ import TicketFacturaModal, { DatosFacturaProps } from "@/components/TicketFactur
 import ModalExportarClientes from "@/components/clientes/ModalExportarClientes";
 import ModalImportarClientes from "@/components/clientes/ModalImportarClientes";
 import ModalAnularAbono from "@/components/modals/ModalAnularAbono";
+import ModalSuscripcion from "@/components/ModalSuscripcion";
 import toast from "react-hot-toast";
 import { 
   RotateCcw,
@@ -106,6 +107,7 @@ function ClientesContenido() {
 
   // Modales
   const [modalNuevoAbierto, setModalNuevoAbierto] = useState(false);
+  const [modalSuscripcionClientesOpen, setModalSuscripcionClientesOpen] = useState(false);
   const [nombreNuevo, setNombreNuevo] = useState("");
   const [nombresNuevo, setNombresNuevo] = useState("");
   const [apellidosNuevo, setApellidosNuevo] = useState("");
@@ -811,6 +813,7 @@ Gracias por seguir con nosotros.
         { duration: 6000 }
       );
       setModalNuevoAbierto(false);
+      if (!esCajero) setModalSuscripcionClientesOpen(true);
       return;
     }
 
@@ -1972,7 +1975,16 @@ Gracias por seguir con nosotros.
 
           <button
             type="button"
-            onClick={() => setModalNuevoAbierto(true)}
+            onClick={() => {
+              const esGratis = datosSesion?.esGratis ?? (datosSesion?.planActual === 'gratis' || datosSesion?.planActual === 'basico');
+              const limite = datosSesion?.limiteClientes ?? (esGratis ? 15 : Infinity);
+              if (esGratis && clientes.length >= limite) {
+                toast.error(`Has alcanzado el límite de ${limite} clientes del Plan Gratuito. Mejora tu plan para registrar clientes ilimitados.`, { duration: 5000 });
+                if (!esCajero) setModalSuscripcionClientesOpen(true);
+                return;
+              }
+              setModalNuevoAbierto(true);
+            }}
             className="flex items-center gap-1.5 px-3 py-2 sm:px-4 sm:py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-xs transition active:scale-95 cursor-pointer"
           >
             <UserPlus size={15} />
@@ -2987,6 +2999,15 @@ Gracias por seguir con nosotros.
         limitePlan={datosSesion?.limiteClientes ?? 15}
         onSuccess={() => {}}
       />
+
+      {cuentaPrincipalId && (
+        <ModalSuscripcion
+          isOpen={modalSuscripcionClientesOpen}
+          onClose={() => setModalSuscripcionClientesOpen(false)}
+          cuentaPrincipalId={cuentaPrincipalId}
+          planInicial="comercio"
+        />
+      )}
 
       <ModalAnularAbono
         isOpen={modalAnularAbono.isOpen}

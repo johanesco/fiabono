@@ -3,6 +3,7 @@
 // utilizando Firebase Admin SDK para prevenir auto-escalamiento de privilegios.
 
 import { NextResponse } from 'next/server';
+import { FieldValue } from 'firebase-admin/firestore';
 import { getAdminDb, getAdminAuth } from '@/lib/firebase-admin';
 
 export async function POST(request: Request) {
@@ -74,7 +75,17 @@ export async function POST(request: Request) {
       }
 
       const userData = userSnap.data()!;
-      const planOtorgado = codigoData.planOtorgado || 'pro';
+      const yaCanjeadoPorUsuario =
+        codigoData.canjeadoPor === usuarioId ||
+        codigoData.usadoPor === usuarioId ||
+        (Array.isArray(codigoData.usuariosQueCanjearon) && codigoData.usuariosQueCanjearon.includes(usuarioId)) ||
+        (Array.isArray(userData.codigosCanjeados) && userData.codigosCanjeados.includes(codigoNormalizado));
+
+      if (yaCanjeadoPorUsuario && !esMaster) {
+        throw new Error('ALREADY_REDEEMED');
+      }
+
+      const planOtorgado = (codigoData.planOtorgado || 'pro').toLowerCase() === 'comercio' ? 'comercio' : 'pro';
       const diasOtorgados = typeof codigoData.diasOtorgados === 'number' ? codigoData.diasOtorgados : 30;
       const esUnSoloUso = codigoData.unSoloUso !== false;
 
@@ -83,7 +94,7 @@ export async function POST(request: Request) {
       if (userData.plan === planOtorgado && userData.planVence) {
         const timeVence = userData.planVence.toDate ? userData.planVence.toDate().getTime() : new Date(userData.planVence).getTime();
         const diasRestantes = Math.ceil((timeVence - Date.now()) / (1000 * 3600 * 24));
-        if (diasRestantes >= -2) {
+        if (diasRestantes >= -2 && timeVence > baseDate.getTime()) {
           baseDate = new Date(timeVence);
         }
       }
@@ -98,16 +109,29 @@ export async function POST(request: Request) {
         planVence: nuevaFechaVencimiento,
         proximoPlan: null,
         cicloPlan: cicloAsignado,
+        pruebaGratisUsada: true,
+        codigoPromocionalUsado: codigoNormalizado,
+        codigosCanjeados: FieldValue.arrayUnion(codigoNormalizado),
         fechaActualizacionPlan: new Date()
       });
 
-      // 2. Quemar el código si es de un solo uso
+      // 2. Quemar el código si es de un solo uso o registrar uso en campaña multi-uso
       if (esUnSoloUso) {
         transaction.update(codigoRef, {
           activo: false,
           canjeadoPor: usuarioId,
+          usadoPor: usuarioId,
           emailCanje: emailUsuario,
-          fechaCanje: new Date()
+          fechaCanje: new Date(),
+          usuariosQueCanjearon: FieldValue.arrayUnion(usuarioId)
+        });
+      } else {
+        transaction.update(codigoRef, {
+          ultimoCanjePor: usuarioId,
+          ultimoEmailCanje: emailUsuario,
+          fechaUltimoCanje: new Date(),
+          usuariosQueCanjearon: FieldValue.arrayUnion(usuarioId),
+          totalCanjes: FieldValue.increment(1)
         });
       }
 
@@ -117,6 +141,80 @@ export async function POST(request: Request) {
         nuevaFechaVencimiento
       };
     });
+
+    // 3. Sincronizar estado de colaboradores y Terminal Multivendedor según el plan otorgado
+    try {
+      const colabsSnap = await adminDb
+        .collection('usuarios')
+        .where('adminId', '==', usuarioId)
+        .where('rol', '==', 'cajero')
+        .get();
+
+      if (!colabsSnap.empty) {
+        const batch = adminDb.batch();
+        let huboCambios = false;
+
+        if (resultadoCanje.planOtorgado === 'pro') {
+          let regularesActivos = 0;
+          // Primero contar cuántos regulares ya están activos
+          colabsSnap.docs.forEach(d => {
+            const c = d.data();
+            if (c.esCajaMostrador !== true && c.activo !== false) {
+              regularesActivos++;
+            }
+          });
+
+          colabsSnap.docs.forEach(d => {
+            const c = d.data();
+            if (c.esCajaMostrador === true) {
+              if (c.activo === false && c.desactivadoPorSistema === true) {
+                batch.update(d.ref, { activo: true, desactivadoPorSistema: false });
+                huboCambios = true;
+              }
+            } else if (c.activo === false && c.desactivadoPorSistema === true && regularesActivos < 4) {
+              batch.update(d.ref, { activo: true, desactivadoPorSistema: false });
+              regularesActivos++;
+              huboCambios = true;
+            }
+          });
+        } else if (resultadoCanje.planOtorgado === 'comercio') {
+          let regularesActivos = 0;
+          colabsSnap.docs.forEach(d => {
+            const c = d.data();
+            if (c.esCajaMostrador === true) {
+              if (c.activo !== false) {
+                batch.update(d.ref, { activo: false, desactivadoPorSistema: true });
+                huboCambios = true;
+              }
+            } else if (c.activo !== false) {
+              regularesActivos++;
+              if (regularesActivos > 1) {
+                batch.update(d.ref, { activo: false, desactivadoPorSistema: true });
+                huboCambios = true;
+              }
+            }
+          });
+
+          // Si no había ningún colaborador regular activo pero había uno desactivado por el sistema, reactivar 1
+          if (regularesActivos === 0) {
+            const candidato = colabsSnap.docs.find(d => {
+              const c = d.data();
+              return c.esCajaMostrador !== true && c.activo === false && c.desactivadoPorSistema === true;
+            });
+            if (candidato) {
+              batch.update(candidato.ref, { activo: true, desactivadoPorSistema: false });
+              huboCambios = true;
+            }
+          }
+        }
+
+        if (huboCambios) {
+          await batch.commit();
+        }
+      }
+    } catch (colabErr) {
+      console.warn('[API canjear-cupon] No se pudo sincronizar colaboradores:', colabErr);
+    }
 
     return NextResponse.json({
       ok: true,
@@ -132,6 +230,9 @@ export async function POST(request: Request) {
     }
     if (error?.message === 'INACTIVE') {
       return NextResponse.json({ error: 'El código ingresado ya fue usado o está inactivo.' }, { status: 400 });
+    }
+    if (error?.message === 'ALREADY_REDEEMED') {
+      return NextResponse.json({ error: 'Ya has canjeado este código promocional anteriormente en tu cuenta.' }, { status: 400 });
     }
     if (error?.message === 'UNAUTHORIZED_EMAIL') {
       return NextResponse.json({ error: 'Este código promocional no está autorizado para tu correo electrónico.' }, { status: 403 });

@@ -48,6 +48,20 @@ export async function POST(request: Request) {
       return NextResponse.json({ ok: false, error: 'Este código ya fue utilizado o no se encuentra activo.' }, { status: 400 });
     }
 
+    if (typeof data.usosMaximos === 'number' && data.usosMaximos > 0) {
+      const usosActuales = typeof data.usosActuales === 'number' ? data.usosActuales : (typeof data.totalCanjes === 'number' ? data.totalCanjes : 0);
+      if (usosActuales >= data.usosMaximos) {
+        return NextResponse.json({ ok: false, error: 'Este código promocional ya alcanzó su límite máximo de usos.' }, { status: 400 });
+      }
+    }
+
+    if (data.fechaExpiracion) {
+      const expTime = data.fechaExpiracion.toDate ? data.fechaExpiracion.toDate().getTime() : new Date(data.fechaExpiracion).getTime();
+      if (!isNaN(expTime) && Date.now() > expTime) {
+        return NextResponse.json({ ok: false, error: 'Este código promocional ha expirado.' }, { status: 400 });
+      }
+    }
+
     if (data.emailObjetivo && data.emailObjetivo.trim() !== '') {
       if (!email || data.emailObjetivo.trim().toLowerCase() !== email) {
         return NextResponse.json({ 

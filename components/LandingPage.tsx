@@ -1425,7 +1425,7 @@ export default function LandingPage() {
                 </li>
                 <li className="flex items-start gap-2.5">
                   <span className="text-emerald-500 font-black shrink-0">✓</span>
-                  <span><strong>Respaldo 100% en la Nube:</strong> Si cambias o pierdes el celular, abres sesión en cualquier otro equipo y todo está intacto.</span>
+                  <span><strong>Nube 24/7 + Copia en Excel (.xlsx):</strong> Si cambias de celular todo sigue intacto, y además descargas un Libro Maestro en Excel cuando quieras.</span>
                 </li>
                 <li className="flex items-start gap-2.5">
                   <span className="text-emerald-500 font-black shrink-0">✓</span>
@@ -1799,7 +1799,7 @@ export default function LandingPage() {
               <div className="w-12 h-12 rounded-2xl bg-amber-100 dark:bg-amber-500/20 text-amber-600 dark:text-amber-400 flex items-center justify-center mb-4">
                 <BarChart3 size={24} />
               </div>
-              <h3 className="text-lg font-black text-slate-900 dark:text-white mb-2">Control, Reportes y DIAN</h3>
+              <h3 className="text-lg font-black text-slate-900 dark:text-white mb-2">Caja, Respaldo Excel y DIAN</h3>
               <ul className="space-y-2.5 text-xs text-slate-600 dark:text-slate-300 font-medium">
                 <li className="flex items-start gap-2">
                   <CheckCircle2 size={15} className="text-amber-600 shrink-0 mt-0.5" />
@@ -1819,15 +1819,56 @@ export default function LandingPage() {
                 </li>
                 <li className="flex items-start gap-2">
                   <CheckCircle2 size={15} className="text-amber-600 shrink-0 mt-0.5" />
-                  <span><strong>100% en la Nube de Google:</strong> nunca pierdes tu información al cambiar o extraviar tu celular.</span>
+                  <span><strong>Copia de Seguridad en Excel (.xlsx):</strong> descarga un Libro Maestro contable con cartera, inventario, ventas y cierres.</span>
                 </li>
               </ul>
             </div>
             <div className="pt-3 border-t border-slate-100 dark:border-slate-800 text-[11px] font-bold text-amber-600 dark:text-amber-400">
-              ✓ Cuentas claras todos los días
+              ✓ Cuentas claras + Nube Google 24/7
             </div>
           </div>
 
+        </div>
+
+        {/* BANNER DE VALOR AGREGADO: PROPIEDAD DE DATOS + COPIA DE SEGURIDAD MAESTRA EN EXCEL (.XLSX) */}
+        <div className="mt-8 bg-gradient-to-br from-slate-900 via-emerald-950 to-slate-900 text-white p-6 sm:p-8 rounded-[2.2rem] border border-emerald-500/30 shadow-xl flex flex-col lg:flex-row items-center justify-between gap-6 text-left">
+          <div className="space-y-2 max-w-2xl">
+            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-400/30 text-[11px] font-black uppercase tracking-wider">
+              <ShieldCheck size={14} /> 100% Dueño de tu Información • Cero Secuestro de Datos
+            </div>
+            <h3 className="text-xl sm:text-2xl font-black text-white leading-snug">
+              Descarga la Copia de Seguridad Maestra de tu Negocio en Excel (.xlsx)
+            </h3>
+            <p className="text-xs sm:text-sm text-slate-300 leading-relaxed">
+              Además del respaldo automático 24/7 en la nube de Google, con <strong>1 solo clic</strong> descargas en tu computador o celular un <strong>Libro Excel Corporativo multi-hoja</strong> con tu Resumen Ejecutivo, Cartera de Clientes, Inventario Valorizado, Historial de Ventas/Abonos, Cierres de Caja y Planes Separe. Listo para tu tranquilidad o para tu contador.
+            </p>
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 w-full lg:w-auto shrink-0 text-xs font-bold">
+            <div className="bg-white/10 backdrop-blur-sm border border-white/15 px-3.5 py-2.5 rounded-xl flex items-center gap-2">
+              <CheckCircle2 size={15} className="text-emerald-400 shrink-0" />
+              <span>1. Resumen Ejecutivo</span>
+            </div>
+            <div className="bg-white/10 backdrop-blur-sm border border-white/15 px-3.5 py-2.5 rounded-xl flex items-center gap-2">
+              <CheckCircle2 size={15} className="text-emerald-400 shrink-0" />
+              <span>2. Clientes y Deudas</span>
+            </div>
+            <div className="bg-white/10 backdrop-blur-sm border border-white/15 px-3.5 py-2.5 rounded-xl flex items-center gap-2">
+              <CheckCircle2 size={15} className="text-emerald-400 shrink-0" />
+              <span>3. Stock y Márgenes</span>
+            </div>
+            <div className="bg-white/10 backdrop-blur-sm border border-white/15 px-3.5 py-2.5 rounded-xl flex items-center gap-2">
+              <CheckCircle2 size={15} className="text-emerald-400 shrink-0" />
+              <span>4. Ventas y Abonos</span>
+            </div>
+            <div className="bg-white/10 backdrop-blur-sm border border-white/15 px-3.5 py-2.5 rounded-xl flex items-center gap-2">
+              <CheckCircle2 size={15} className="text-emerald-400 shrink-0" />
+              <span>5. Cierres de Caja</span>
+            </div>
+            <div className="bg-purple-500/20 backdrop-blur-sm border border-purple-400/30 px-3.5 py-2.5 rounded-xl flex items-center gap-2 text-purple-200">
+              <Crown size={15} className="text-amber-400 shrink-0" />
+              <span>6. Planes Separe (PRO)</span>
+            </div>
+          </div>
         </div>
       </section>
 
@@ -1938,9 +1979,10 @@ export default function LandingPage() {
               <li className="flex items-center gap-2.5"><CheckCircle2 size={16} className="text-emerald-500 shrink-0"/> 1 Usuario Administrador</li>
               <li className="flex items-center gap-2.5"><CheckCircle2 size={16} className="text-emerald-500 shrink-0"/> Hasta 15 clientes registrados</li>
               <li className="flex items-center gap-2.5"><CheckCircle2 size={16} className="text-emerald-500 shrink-0"/> Hasta 30 productos en catálogo</li>
-              <li className="flex items-center gap-2.5"><CheckCircle2 size={16} className="text-emerald-500 shrink-0"/> Hasta 40 ventas, fiados y abonos al mes</li>
+              <li className="flex items-center gap-2.5"><CheckCircle2 size={16} className="text-emerald-500 shrink-0"/> Registro de ventas, fiados y abonos esenciales</li>
               <li className="flex items-center gap-2.5"><CheckCircle2 size={16} className="text-emerald-500 shrink-0"/> Comprobantes y extractos por WhatsApp</li>
               <li className="flex items-center gap-2.5"><CheckCircle2 size={16} className="text-emerald-500 shrink-0"/> Control de existencias en tiempo real</li>
+              <li className="flex items-center gap-2.5"><CheckCircle2 size={16} className="text-emerald-500 shrink-0"/> 1 Respaldo Básico al mes en Excel (.xlsx)</li>
               <li className="flex items-center gap-2.5"><CheckCircle2 size={16} className="text-emerald-500 shrink-0"/> Logo de tu negocio en tu perfil</li>
             </ul>
 
@@ -1982,6 +2024,7 @@ export default function LandingPage() {
               <li className="flex items-center gap-2.5"><CheckCircle2 size={16} className="text-emerald-200 shrink-0"/> Factura imprimible para cualquier impresora térmica</li>
               <li className="flex items-center gap-2.5"><CheckCircle2 size={16} className="text-emerald-200 shrink-0"/> Logo y datos de tu negocio en facturas</li>
               <li className="flex items-center gap-2.5"><CheckCircle2 size={16} className="text-emerald-200 shrink-0"/> Reportes de Caja Neta, Deudas y Cartera Activa</li>
+              <li className="flex items-center gap-2.5"><CheckCircle2 size={16} className="text-emerald-200 shrink-0"/> Copias de Seguridad ILIMITADAS en Excel (.xlsx)</li>
               <li className="flex items-center gap-2.5"><CheckCircle2 size={16} className="text-emerald-200 shrink-0"/> Alertas de Stock Bajo y Productos Agotados</li>
               <li className="flex items-center gap-2.5 opacity-60">
                 <X size={16} className="text-white/60 shrink-0"/>
@@ -2027,6 +2070,7 @@ export default function LandingPage() {
               <li className="flex items-center gap-2.5"><CheckCircle2 size={16} className="text-purple-600 dark:text-purple-400 shrink-0"/> Hasta 4 Usuarios Colaboradores con permisos</li>
               <li className="flex items-center gap-2.5"><CheckCircle2 size={16} className="text-purple-600 dark:text-purple-400 shrink-0"/> Modo Terminal Multivendedor en mostrador</li>
               <li className="flex items-center gap-2.5"><CheckCircle2 size={16} className="text-purple-600 dark:text-purple-400 shrink-0"/> Importar y Exportar masivo de catálogo en Excel</li>
+              <li className="flex items-center gap-2.5"><CheckCircle2 size={16} className="text-purple-600 dark:text-purple-400 shrink-0"/> Copias de Seguridad ILIMITADAS de tu negocio en Excel (.xlsx)</li>
               <li className="flex items-center gap-2.5"><CheckCircle2 size={16} className="text-purple-600 dark:text-purple-400 shrink-0"/> Logo y membrete del negocio en facturas</li>
             </ul>
 
@@ -2080,7 +2124,7 @@ export default function LandingPage() {
                 </tr>
                 <tr className="hover:bg-slate-50 dark:hover:bg-slate-800/30">
                   <td className="py-3.5 px-4 text-slate-800 dark:text-slate-200 font-bold">Ventas, fiados y abonos registrados</td>
-                  <td className="py-3.5 px-4 text-center text-slate-600 dark:text-slate-400">40 al mes</td>
+                  <td className="py-3.5 px-4 text-center text-emerald-500 font-bold">✓ Incluido</td>
                   <td className="py-3.5 px-4 text-center font-bold text-emerald-600">ILIMITADOS</td>
                   <td className="py-3.5 px-4 text-center font-bold text-purple-600">ILIMITADOS</td>
                 </tr>
@@ -2145,10 +2189,10 @@ export default function LandingPage() {
                   <td className="py-3.5 px-4 text-center text-purple-600 font-bold">✓ Exclusivo PRO</td>
                 </tr>
                 <tr className="hover:bg-slate-50 dark:hover:bg-slate-800/30">
-                  <td className="py-3.5 px-4 text-slate-800 dark:text-slate-200 font-bold">Aprobación de ventas de cajeros (Órdenes Pendientes)</td>
-                  <td className="py-3.5 px-4 text-center text-slate-300 dark:text-slate-600">—</td>
-                  <td className="py-3.5 px-4 text-center text-emerald-500 font-bold">✓ Incluido</td>
-                  <td className="py-3.5 px-4 text-center text-emerald-500 font-bold">✓ Incluido</td>
+                  <td className="py-3.5 px-4 text-slate-800 dark:text-slate-200 font-bold">Historial de movimientos y cierres de caja (Ayer, Semana, Mes)</td>
+                  <td className="py-3.5 px-4 text-center text-slate-600 dark:text-slate-400">Solo Hoy</td>
+                  <td className="py-3.5 px-4 text-center text-emerald-500 font-bold">✓ Completo</td>
+                  <td className="py-3.5 px-4 text-center text-emerald-500 font-bold">✓ Completo</td>
                 </tr>
                 <tr className="hover:bg-slate-50 dark:hover:bg-slate-800/30">
                   <td className="py-3.5 px-4 text-slate-800 dark:text-slate-200 font-bold">Modo Visual POS con fotos de productos y categorías</td>
@@ -2167,6 +2211,12 @@ export default function LandingPage() {
                   <td className="py-3.5 px-4 text-center text-slate-300 dark:text-slate-600">—</td>
                   <td className="py-3.5 px-4 text-center font-bold text-emerald-600">✓ 12 Permisos</td>
                   <td className="py-3.5 px-4 text-center font-bold text-purple-600">✓ 12 Permisos</td>
+                </tr>
+                <tr className="hover:bg-slate-50 dark:hover:bg-slate-800/30">
+                  <td className="py-3.5 px-4 text-slate-800 dark:text-slate-200 font-bold">Copia de Seguridad del Negocio en Excel (.xlsx)</td>
+                  <td className="py-3.5 px-4 text-center text-slate-600 dark:text-slate-400">1 al mes (Básico)</td>
+                  <td className="py-3.5 px-4 text-center font-bold text-emerald-600">ILIMITADAS (5 Hojas)</td>
+                  <td className="py-3.5 px-4 text-center font-bold text-purple-600">ILIMITADAS (6 Hojas + Separe)</td>
                 </tr>
                 <tr className="hover:bg-slate-50 dark:hover:bg-slate-800/30">
                   <td className="py-3.5 px-4 text-slate-800 dark:text-slate-200 font-bold">Facturación Electrónica DIAN oficial (CUFE, QR y XML)</td>
@@ -2237,8 +2287,8 @@ export default function LandingPage() {
               a: "Sí, 100%. Fiabono funciona en la nube en tiempo real. Puedes abrirlo en tu teléfono Android o iPhone, tablet o computador portátil. Todos tus datos se sincronizan al instante."
             },
             {
-              q: "¿Qué pasa si se me daña, me roban o cambio de celular?",
-              a: "Toda tu información está respaldada y encriptada en la nube en servidores de alta seguridad de Google. Solo tomas otro celular o computador, ingresas con tu correo y contraseña, y encuentras todos tus clientes, inventario y cuentas por cobrar intactos."
+              q: "¿Qué pasa si se me daña el celular? ¿Puedo descargar copias de seguridad en mi computador?",
+              a: "¡Sí! Cuentas con doble blindaje: 1) Toda tu información se guarda en vivo en servidores seguros de Google Cloud (si cambias de celular, inicias sesión y todo está intacto). 2) Además, eres 100% dueño de tu información: desde Ajustes puedes descargar un Libro Maestro en Excel (.xlsx) con tus clientes, saldos por cobrar, inventario, historial de ventas y cierres de caja para guardarlo en tu computador o enviárselo a tu contador."
             },
             {
               q: "¿Mis empleados o cajeros pueden ver cuánto dinero gano en total?",
@@ -2827,12 +2877,17 @@ export default function LandingPage() {
                   <button
                     type="button"
                     onClick={() => {
-                      if (formGoogleOnboarding.nombreNegocio.trim() && formGoogleOnboarding.telefonoNegocio.trim()) {
-                        setPasoGoogleOnboarding(3);
-                        setErrorGoogleOnboarding("");
-                      } else {
+                      if (!formGoogleOnboarding.nombreNegocio.trim() || !formGoogleOnboarding.telefonoNegocio.trim()) {
                         setErrorGoogleOnboarding("Por favor completa el nombre de tu negocio y tu WhatsApp antes de continuar.");
+                        return;
                       }
+                      if (!formGoogleOnboarding.tipoNegocio || formGoogleOnboarding.moduloSepare === null) {
+                        setPasoGoogleOnboarding(2);
+                        setErrorGoogleOnboarding("Por favor selecciona el tipo de negocio y si deseas activar el Plan Separe.");
+                        return;
+                      }
+                      setPasoGoogleOnboarding(3);
+                      setErrorGoogleOnboarding("");
                     }}
                     className={`h-2 rounded-full transition-all cursor-pointer ${pasoGoogleOnboarding === 3 ? 'w-10 bg-blue-600' : 'w-3.5 bg-slate-200 dark:bg-slate-700'}`}
                     title="Paso 3: Plan y Confirmación"
@@ -3048,7 +3103,8 @@ export default function LandingPage() {
                                 setFormGoogleOnboarding(prev => ({
                                   ...prev, 
                                   tipoNegocio: t.id,
-                                  moduloSepare: t.usaSepare
+                                  moduloSepare: t.usaSepare,
+                                  plan: !codigoAplicado && t.usaSepare ? 'pro' : prev.plan
                                 }));
                                 setErrorGoogleOnboarding("");
                               }}
@@ -3087,7 +3143,11 @@ export default function LandingPage() {
                         <button
                           type="button"
                           onClick={() => {
-                            setFormGoogleOnboarding(prev => ({ ...prev, moduloSepare: true }));
+                            setFormGoogleOnboarding(prev => ({
+                              ...prev,
+                              moduloSepare: true,
+                              plan: !codigoAplicado ? 'pro' : prev.plan
+                            }));
                             setErrorGoogleOnboarding("");
                           }}
                           className={`py-3 px-3 rounded-xl border text-xs font-bold transition-all cursor-pointer text-center active:scale-95 select-none ${
@@ -3110,7 +3170,7 @@ export default function LandingPage() {
                               : 'border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-500 hover:border-slate-300'
                           }`}
                         >
-                          ✕ No, solo ventas de contado
+                          ✕ No, solo ventas y fiados
                         </button>
                       </div>
                       <p className="text-[10px] text-slate-400 dark:text-slate-500">
@@ -3371,6 +3431,19 @@ export default function LandingPage() {
                           </button>
                         </div>
 
+                        {formGoogleOnboarding.moduloSepare && formGoogleOnboarding.plan !== 'pro' && !codigoInput.trim() && (
+                          <div className="p-2.5 rounded-xl bg-purple-50 dark:bg-purple-950/30 border border-purple-200 dark:border-purple-800/60 text-[11px] text-purple-800 dark:text-purple-200 font-bold flex items-center justify-between gap-2">
+                            <span>💡 Elegiste activar Plan Separe. Te recomendamos iniciar con los 14 días gratis del Plan PRO para usarlo completo.</span>
+                            <button
+                              type="button"
+                              onClick={() => setFormGoogleOnboarding(p => ({ ...p, plan: 'pro' }))}
+                              className="px-2.5 py-1 rounded-lg bg-purple-600 text-white text-[10px] font-black shrink-0 cursor-pointer"
+                            >
+                              Elegir PRO
+                            </button>
+                          </div>
+                        )}
+
                         {codigoInput.trim() && !codigoAplicado && (
                           <p className="text-center text-[11px] text-amber-600 dark:text-amber-400 font-bold">
                             🔒 Selección de planes pausada mientras ingresas un código. Borra el texto si deseas elegir una prueba de 14 días.
@@ -3486,8 +3559,8 @@ export default function LandingPage() {
                   <p>El administrador es responsable de la custodia de sus credenciales y de los permisos otorgados a sus usuarios colaboradores.</p>
                 </div>
                 <div>
-                  <h4 className="font-black text-slate-900 dark:text-white mb-1">4. Sin Ataduras ni Permanencia y Soporte</h4>
-                  <p>No existen contratos de permanencia mínima obligatoria. Puedes gestionar tu suscripción en cualquier momento. Para soporte y consultas: <strong className="text-emerald-600 dark:text-emerald-400">fiabono.app@gmail.com</strong>.</p>
+                  <h4 className="font-black text-slate-900 dark:text-white mb-1">4. Sin Permanencia, Conservación de Datos y DIAN Opcional</h4>
+                  <p>Cero cláusulas de permanencia. Si tu plan vence, bajas al Plan Gratuito sin perder tus datos históricos. Los comprobantes son de control interno y solo se reportan a la DIAN si activas voluntariamente el módulo de Facturación Electrónica con tu RUT. Soporte: <strong className="text-emerald-600 dark:text-emerald-400">fiabono.app@gmail.com</strong>.</p>
                 </div>
               </div>
             ) : (

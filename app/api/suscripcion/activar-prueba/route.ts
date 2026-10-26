@@ -44,6 +44,7 @@ export async function POST(request: Request) {
     await userDocRef.update({
       plan: requestedPlan,
       planVence: fechaVence,
+      proximoPlan: null,
       cicloPlan: 'mensual',
       pruebaGratisUsada: true,
       fechaActivacionPrueba: new Date()

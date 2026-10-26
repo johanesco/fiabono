@@ -6,7 +6,7 @@ import { getApps, initializeApp } from "firebase/app";
 import { db, auth } from "../../../firebase";
 import { storage } from "../../../firebase";
 import { getDownloadURL, ref, uploadBytes } from "firebase/storage";
-import { UserCog, LogOut, Sun, Monitor, Moon, Edit2, Mail, ShieldAlert, Shield, CheckCircle2, AlertCircle, Star, Lock, UserPlus, ChevronUp, ChevronDown, ChevronRight, AlertTriangle, Trash2, Info, X, Clock, Upload, Image as ImageIcon, Building2, MapPin, Receipt, PhoneCall, Camera, Smartphone, ArrowUpFromLine, MoreHorizontal, Download, Crown, Store, Sparkles, Bookmark, KeyRound, Eye, EyeOff, CreditCard, Package, Users, Banknote, Tag, FileText, ShieldCheck } from 'lucide-react';
+import { UserCog, LogOut, Sun, Monitor, Moon, Edit2, Mail, ShieldAlert, Shield, CheckCircle2, AlertCircle, Star, Lock, UserPlus, ChevronUp, ChevronDown, ChevronRight, AlertTriangle, Trash2, Info, X, Clock, Upload, Image as ImageIcon, Building2, MapPin, Receipt, PhoneCall, Camera, Smartphone, ArrowUpFromLine, MoreHorizontal, Download, Crown, Store, Sparkles, Bookmark, KeyRound, Eye, EyeOff, CreditCard, Package, Users, Banknote, Tag, FileText, ShieldCheck, Loader2 } from 'lucide-react';
 import ModalHorarios from '@/components/ModalHorarios';
 import { useAuth } from "../../../hooks/AuthContext";
 import ModalSuscripcion from "@/components/ModalSuscripcion";
@@ -15,6 +15,7 @@ import ModalConfirmarCerrarSesion from "@/components/modals/ModalConfirmarCerrar
 import { MediosPagoNegocio, PermisosColaborador } from "@/types";
 import { generarSlugNegocio, limpiarUsuarioColaborador } from "@/utils/slug";
 import { RUBROS_NEGOCIOS } from "@/constants/rubrosCategorias";
+import { generarYDescargarExcelRespaldo } from "@/utils/generarExcelRespaldo";
 import toast from "react-hot-toast";
 
 export default function PerfilPage() {
@@ -187,11 +188,120 @@ export default function PerfilPage() {
     ingresoInventario: false,
     modificarPrecios: false,
     aplicarDescuentos: false,
+    hacerDevoluciones: false,
     cierreCaja: false,
     ventaLibre: false,
     enviarWhatsApp: true
   });
   const [guardandoPermisosCaja, setGuardandoPermisosCaja] = useState(false);
+
+  // Estados para el Centro de Respaldo y Copia de Seguridad en Excel (.xlsx)
+  const [mostrarRespaldoNegocio, setMostrarRespaldoNegocio] = useState(false);
+  const [descargandoRespaldo, setDescargandoRespaldo] = useState(false);
+  const [estadoRespaldo, setEstadoRespaldo] = useState<{
+    ultimoRespaldoFecha: Date | null;
+    ultimoRespaldoGratisFecha: Date | null;
+    ultimoRespaldoComercioFecha: Date | null;
+    totalRespaldosDescargados: number;
+  }>({
+    ultimoRespaldoFecha: null,
+    ultimoRespaldoGratisFecha: null,
+    ultimoRespaldoComercioFecha: null,
+    totalRespaldosDescargados: 0,
+  });
+
+  const [modalResultadoRespaldo, setModalResultadoRespaldo] = useState<{
+    visible: boolean;
+    tipo: "cargando" | "exito" | "limite";
+    planEfectivo: "gratis" | "comercio" | "pro";
+    nombreArchivo?: string;
+    diasRestantes?: number;
+    metricas?: {
+      totalClientes: number;
+      totalProductos: number;
+      totalMovimientos: number;
+      totalCierresCaja: number;
+    };
+    mensaje?: string;
+  }>({
+    visible: false,
+    tipo: "exito",
+    planEfectivo: "gratis",
+  });
+
+  const convertirFechaFirestore = (val: any): Date | null => {
+    if (!val) return null;
+    if (typeof val.toDate === "function") return val.toDate();
+    if (val instanceof Date) return isNaN(val.getTime()) ? null : val;
+    if (typeof val === "object" && (typeof val.seconds === "number" || typeof val._seconds === "number")) {
+      const s = typeof val.seconds === "number" ? val.seconds : val._seconds;
+      return new Date(s * 1000);
+    }
+    const d = new Date(val);
+    return isNaN(d.getTime()) ? null : d;
+  };
+
+  const descargarCopiaSeguridadExcel = async () => {
+    if (!usuarioAuth || descargandoRespaldo) return;
+    const planUI: "gratis" | "comercio" | "pro" =
+      planActual === "pro" ? "pro" : planActual === "comercio" ? "comercio" : "gratis";
+
+    setDescargandoRespaldo(true);
+    setModalResultadoRespaldo({
+      visible: true,
+      tipo: "cargando",
+      planEfectivo: planUI,
+    });
+
+    try {
+      const token = await usuarioAuth.getIdToken();
+      const res = await fetch("/api/negocio/respaldo", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+      });
+      const data = await res.json();
+
+      if (!res.ok) {
+        if (data.codigo === "LIMITE_GRATIS_MENSUAL" || data.codigo === "LIMITE_COMERCIO_MENSUAL") {
+          setModalResultadoRespaldo({
+            visible: true,
+            tipo: "limite",
+            planEfectivo: data.planEfectivo || planUI,
+            diasRestantes: data.diasRestantes || 30,
+            mensaje: data.error,
+          });
+        } else {
+          setModalResultadoRespaldo((prev) => ({ ...prev, visible: false }));
+          toast.error(data.error || "No se pudo generar la copia de seguridad.");
+        }
+        setDescargandoRespaldo(false);
+        return;
+      }
+
+      const nombreArchivo = await generarYDescargarExcelRespaldo(data);
+      setModalResultadoRespaldo({
+        visible: true,
+        tipo: "exito",
+        planEfectivo: data.planEfectivo || planUI,
+        nombreArchivo,
+        metricas: {
+          totalClientes: data.metricas?.totalClientes ?? 0,
+          totalProductos: data.metricas?.totalProductos ?? 0,
+          totalMovimientos: data.metricas?.totalMovimientos ?? 0,
+          totalCierresCaja: data.metricas?.totalCierresCaja ?? 0,
+        },
+      });
+    } catch (error) {
+      console.error("Error descargando respaldo:", error);
+      setModalResultadoRespaldo((prev) => ({ ...prev, visible: false }));
+      toast.error("Error de conexión al generar el respaldo en Excel.");
+    } finally {
+      setDescargandoRespaldo(false);
+    }
+  };
 
   useEffect(() => {
     const verificarInstalada = () => {
@@ -241,6 +351,12 @@ export default function PerfilPage() {
     const unsub = onSnapshot(doc(db, "usuarios", idNegocio), (docSnap) => {
       if (docSnap.exists()) {
         const d = docSnap.data();
+        setEstadoRespaldo({
+          ultimoRespaldoFecha: convertirFechaFirestore(d.ultimoRespaldoFecha),
+          ultimoRespaldoGratisFecha: convertirFechaFirestore(d.ultimoRespaldoGratisFecha),
+          ultimoRespaldoComercioFecha: convertirFechaFirestore(d.ultimoRespaldoComercioFecha),
+          totalRespaldosDescargados: Number(d.totalRespaldosDescargados) || 0,
+        });
         setDatosSesion((prev: any) => {
           if (!prev) return prev;
           return {
@@ -272,6 +388,19 @@ export default function PerfilPage() {
     
     if (adminId && !esCajero) {
       cargarListaColaboradores(adminId!);
+    }
+
+    if (typeof window !== 'undefined' && !esCajero) {
+      const params = new URLSearchParams(window.location.search);
+      const quiereSuscripcion = params.get('suscripcion') === 'true' || params.get('tab') === 'planes';
+      const planParam = params.get('plan');
+      if (quiereSuscripcion) {
+        if (planParam === 'pro' || planParam === 'comercio') {
+          setPlanInicialSuscripcion(planParam);
+        }
+        setModalSuscripcionOpen(true);
+        window.history.replaceState({}, '', window.location.pathname);
+      }
     }
   }, [adminId, esCajero]);
 
@@ -583,7 +712,7 @@ export default function PerfilPage() {
     
     setColaboradoresRegistrados(prev => prev.map(c => c.id === colaborador.id ? { ...c, activo: nuevoEstado } : c));
     try { 
-      await updateDoc(doc(db, "usuarios", colaborador.id), { activo: nuevoEstado }); 
+      await updateDoc(doc(db, "usuarios", colaborador.id), { activo: nuevoEstado, desactivadoPorSistema: false }); 
       toast.success(nuevoEstado ? "Colaborador habilitado correctamente" : "Colaborador deshabilitado");
     } 
     catch (error) { 
@@ -696,8 +825,10 @@ export default function PerfilPage() {
 
   const abrirModalSolicitudDian = () => {
     if (datosSesion?.solicitudDian) {
-      setDianNit(datosSesion.solicitudDian.nit || nitNegocio || "");
-      setDianDv(datosSesion.solicitudDian.dv || "");
+      const nitGuardado = datosSesion.solicitudDian.nit || nitNegocio || "";
+      const dvGuardado = datosSesion.solicitudDian.dv || calcularDvNit(nitGuardado);
+      setDianNit(nitGuardado);
+      setDianDv(dvGuardado);
       setDianRazonSocial(datosSesion.solicitudDian.razonSocial || nombreNegocio || "");
       setDianNombreComercial(datosSesion.solicitudDian.nombreComercial || nombreNegocio || "");
       setDianTipoPersona(datosSesion.solicitudDian.tipoPersona || 'natural');
@@ -706,8 +837,11 @@ export default function PerfilPage() {
       setDianMunicipio(datosSesion.solicitudDian.municipio || "Salgar, Antioquia");
       setDianTelefono(datosSesion.solicitudDian.telefono || telefonoNegocio || "");
     } else {
-      setDianNit(nitNegocio || "");
-      setDianDv("");
+      const partesNit = (nitNegocio || "").split("-");
+      const baseNit = partesNit[0]?.trim() || "";
+      const dvInicial = partesNit[1]?.trim() || (baseNit ? calcularDvNit(baseNit) : "");
+      setDianNit(baseNit);
+      setDianDv(dvInicial);
       setDianRazonSocial(nombreNegocio || "");
       setDianNombreComercial(nombreNegocio || "");
       setDianTipoPersona('natural');
@@ -758,13 +892,18 @@ export default function PerfilPage() {
         telefono: dianTelefono.trim()
       };
 
+      const nitFormateado = dianNit.trim() + (dianDv.trim() ? `-${dianDv.trim()}` : '');
+      const dirFormateada = dianDireccion.trim();
+
       await updateDoc(doc(db, "usuarios", idParaActualizar), {
         solicitudDian: solicitud,
-        nitNegocio: dianNit.trim() + (dianDv.trim() ? `-${dianDv.trim()}` : ''),
-        direccionNegocio: dianDireccion.trim()
+        nitNegocio: nitFormateado,
+        direccionNegocio: dirFormateada
       });
 
-      setDatosSesion(prev => prev ? { ...prev, solicitudDian: solicitud } : null);
+      setNitNegocio(nitFormateado);
+      setDireccionNegocio(dirFormateada);
+      setDatosSesion(prev => prev ? { ...prev, solicitudDian: solicitud, nitNegocio: nitFormateado, direccionNegocio: dirFormateada } : null);
       setModalSolicitudDian(false);
       toast.success(datosSesion?.facturacionDianHabilitada 
         ? "Datos fiscales actualizados con éxito." 
@@ -1139,7 +1278,14 @@ export default function PerfilPage() {
       const qC = query(collection(db, "usuarios"), where("adminId", "==", usuarioAuth!.uid), where("rol", "==", "cajero"));
       const snap = await getDocs(qC);
       const batchPromesas: any[] = [];
-      snap.forEach((documento) => { batchPromesas.push(updateDoc(doc(db, "usuarios", documento.id), { activo: false })); });
+      snap.forEach((documento) => {
+        const dColab = documento.data();
+        const estabaActivo = dColab.activo !== false;
+        batchPromesas.push(updateDoc(doc(db, "usuarios", documento.id), {
+          activo: false,
+          ...(estabaActivo ? { desactivadoPorSistema: true } : {})
+        }));
+      });
       await Promise.all(batchPromesas);
 
       setDatosSesion((prev:any) => ({...prev, planActual: 'gratis', proximoPlan: null, esGratis: true, esPro: false, esComercio: false, diasPro: null}));
@@ -1171,11 +1317,14 @@ export default function PerfilPage() {
 
       // 1. Colecciones a purgar que pertenezcan a este usuario/negocio
       const coleccionesAPurgar = [
+        "inventario",
         "productos",
         "clientes",
         "movimientos",
         "separes",
         "ordenes_pendientes",
+        "cierres_caja",
+        "controles_devolucion",
       ];
 
       for (const colName of coleccionesAPurgar) {
@@ -1189,12 +1338,26 @@ export default function PerfilPage() {
         }
       }
 
-      // 2. Eliminar colaboradores subordinados (cajeros vinculados)
+      // 2. Eliminar colaboradores subordinados (cajeros y terminal multivendedor en Auth + Firestore)
       try {
+        const token = await usuarioAuth.getIdToken().catch(() => null);
         const qColabs = query(collection(db, "usuarios"), where("adminId", "==", uidAdmin));
         const snapColabs = await getDocs(qColabs);
-        const colabDeletes = snapColabs.docs.map((d) => deleteDoc(doc(db, "usuarios", d.id)));
-        await Promise.all(colabDeletes);
+        for (const d of snapColabs.docs) {
+          try {
+            if (token) {
+              await fetch("/api/colaboradores/eliminar", {
+                method: "POST",
+                headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
+                body: JSON.stringify({ colaboradorId: d.id })
+              });
+            } else {
+              await deleteDoc(doc(db, "usuarios", d.id));
+            }
+          } catch {
+            await deleteDoc(doc(db, "usuarios", d.id)).catch(() => {});
+          }
+        }
       } catch (err) {
         console.error("Error purgando colaboradores:", err);
       }
@@ -1546,7 +1709,7 @@ export default function PerfilPage() {
                       Activar Terminal Multivendedor
                     </button>
                   ) : (
-                    <div className="flex items-center gap-2 shrink-0">
+                    <div className="flex flex-wrap items-center gap-2 shrink-0">
                       <button
                         type="button"
                         onClick={() => {
@@ -1687,6 +1850,21 @@ export default function PerfilPage() {
                       }`}>
                         {cajaMostrador.permisos?.abonar ? 'Abonos Permitidos' : 'Abonos Bloqueados'}
                       </span>
+                      {cajaMostrador.permisos?.planSepare && (
+                        <span className="bg-purple-100 text-purple-700 dark:bg-purple-950/40 dark:text-purple-300 px-2 py-0.5 rounded-md font-bold inline-flex items-center gap-1">
+                          Separes
+                        </span>
+                      )}
+                      {cajaMostrador.permisos?.hacerDevoluciones && (
+                        <span className="bg-amber-100 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300 px-2 py-0.5 rounded-md font-bold inline-flex items-center gap-1">
+                          Devoluciones
+                        </span>
+                      )}
+                      {cajaMostrador.permisos?.cierreCaja && (
+                        <span className="bg-amber-100 text-amber-800 dark:bg-amber-950/50 dark:text-amber-300 px-2 py-0.5 rounded-md font-bold inline-flex items-center gap-1">
+                          Cierre de Caja
+                        </span>
+                      )}
                       <span className="bg-indigo-100/70 text-indigo-700 dark:bg-indigo-950/40 dark:text-indigo-300 px-2 py-0.5 rounded-md font-bold inline-flex items-center gap-1">
                         Multivendedor
                       </span>
@@ -1731,7 +1909,7 @@ export default function PerfilPage() {
                             ? 'bg-slate-50 dark:bg-[#020617] border-slate-200 dark:border-slate-800' 
                             : 'bg-slate-100/50 dark:bg-slate-900/30 border-slate-200/50 dark:border-slate-800/50 opacity-70'
                       }`}>
-                        <div className="flex justify-between items-start gap-2">
+                        <div className="flex flex-wrap sm:flex-nowrap justify-between items-start gap-2">
                           <div className="min-w-0 flex-1">
                             <div className="flex items-center gap-2 flex-wrap">
                               <p className="font-bold text-slate-800 dark:text-slate-200 text-lg break-words">{c.nombreUsuario}</p>
@@ -1847,9 +2025,11 @@ export default function PerfilPage() {
                           {c.permisos?.modificarPrecios ? <span className="text-[10px] bg-cyan-100 text-cyan-700 dark:bg-cyan-500/20 dark:text-cyan-400 font-bold px-2 py-0.5 rounded-md">Editar Precios</span> : null}
                           {c.permisos?.editarInventario ? <span className="text-[10px] bg-teal-100 text-teal-700 dark:bg-teal-500/20 dark:text-teal-400 font-bold px-2 py-0.5 rounded-md">Editar Inv.</span> : null}
                           {c.permisos?.hacerDevoluciones ? <span className="text-[10px] bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-400 font-bold px-2 py-0.5 rounded-md">Devoluciones</span> : null}
+                          {c.permisos?.cierreCaja ? <span className="text-[10px] bg-amber-100 text-amber-800 dark:bg-amber-500/20 dark:text-amber-300 font-bold px-2 py-0.5 rounded-md">Cierre de Caja</span> : null}
                           {c.permisos?.verCartera ? <span className="text-[10px] bg-indigo-100 text-indigo-700 dark:bg-indigo-500/20 dark:text-indigo-400 font-bold px-2 py-0.5 rounded-md">Cartera</span> : null}
                           {c.permisos?.verReportes ? <span className="text-[10px] bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-400 font-bold px-2 py-0.5 rounded-md">Reportes</span> : null}
                           {c.permisos?.verDirectorio ? <span className="text-[10px] bg-slate-200 text-slate-700 dark:bg-slate-800 dark:text-slate-300 font-bold px-2 py-0.5 rounded-md">Directorio</span> : null}
+                          {c.permisos?.verCelulares ? <span className="text-[10px] bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300 font-bold px-2 py-0.5 rounded-md">Celulares</span> : null}
                           {c.permisos?.enviarWhatsApp ? <span className="text-[10px] bg-emerald-100 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300 font-bold px-2 py-0.5 rounded-md">WhatsApp</span> : null}
                         </div>
                       </div>
@@ -2044,6 +2224,7 @@ export default function PerfilPage() {
                               verDirectorio: true,
                               verCelulares: true,
                               hacerDevoluciones: true,
+                              cierreCaja: true,
                               enviarWhatsApp: true,
                               verReportes: true,
                               terminalMultivendedor: false
@@ -2074,6 +2255,7 @@ export default function PerfilPage() {
                               verDirectorio: false,
                               verCelulares: false,
                               hacerDevoluciones: false,
+                              cierreCaja: false,
                               enviarWhatsApp: false,
                               verReportes: false,
                               terminalMultivendedor: false
@@ -2110,6 +2292,7 @@ export default function PerfilPage() {
                             verDirectorio: true,
                             verCelulares: false,
                             hacerDevoluciones: false,
+                            cierreCaja: true,
                             enviarWhatsApp: true,
                             verReportes: false
                           }
@@ -2139,6 +2322,7 @@ export default function PerfilPage() {
                             verDirectorio: true,
                             verCelulares: false,
                             hacerDevoluciones: false,
+                            cierreCaja: false,
                             enviarWhatsApp: false,
                             verReportes: false
                           }
@@ -2168,6 +2352,7 @@ export default function PerfilPage() {
                             verDirectorio: true,
                             verCelulares: true,
                             hacerDevoluciones: true,
+                            cierreCaja: true,
                             enviarWhatsApp: true,
                             verReportes: false
                           }
@@ -2512,9 +2697,13 @@ export default function PerfilPage() {
                     }`}>
                       {planActual === 'pro' ? 'Plan PRO Almacén' : (planActual === 'comercio' ? 'Plan Comercio' : 'Plan Gratuito')}
                     </span>
-                    {diasPro !== null && (
+                    {datosSesion?.enPeriodoGracia ? (
+                      <span className="text-xs font-black text-amber-600 dark:text-amber-400">
+                        • En periodo de gracia (¡Renueva hoy!)
+                      </span>
+                    ) : diasPro !== null && (
                       <span className="text-xs font-bold text-slate-500 dark:text-slate-400">
-                        • Quedan {diasPro} días
+                        • Quedan {diasPro} {diasPro === 1 ? 'día' : 'días'}
                       </span>
                     )}
                   </div>
@@ -2523,7 +2712,7 @@ export default function PerfilPage() {
                       ? 'Control total de tu almacén: Separes, Etiquetas QR, Excel y 4 colaboradores.'
                       : (planActual === 'comercio'
                         ? 'Ideal para tu tienda: Clientes e inventario ilimitados, Factura y 1 colaborador.'
-                        : 'Plan de inicio: Hasta 15 clientes, 30 productos y 40 ventas/mes.')}
+                        : 'Plan de inicio: Hasta 15 clientes, 30 productos en inventario y ventas/fiados esenciales.')}
                   </p>
                 </div>
 
@@ -2596,6 +2785,205 @@ export default function PerfilPage() {
             </div>
           </div>
 
+          {/* CENTRO DE RESPALDO Y COPIA DE SEGURIDAD DEL NEGOCIO (EXCEL .XLSX — EXPANDIBLE / RECOGIDO POR DEFECTO) */}
+          {(() => {
+            const esPlanPro = planActual === "pro";
+            const esPlanComercio = planActual === "comercio";
+            const esPlanGratis = !esPlanPro && !esPlanComercio;
+
+            let gratisBloqueadoPorCiclo = false;
+            let diasParaProximoGratis = 0;
+            if (esPlanGratis && estadoRespaldo.ultimoRespaldoGratisFecha) {
+              const msDiff = Date.now() - estadoRespaldo.ultimoRespaldoGratisFecha.getTime();
+              const diasTrans = msDiff / (1000 * 60 * 60 * 24);
+              if (diasTrans < 30) {
+                gratisBloqueadoPorCiclo = true;
+                diasParaProximoGratis = Math.max(1, Math.ceil(30 - diasTrans));
+              }
+            }
+
+            return (
+              <div className="bg-white dark:bg-[#0f172a] p-6 sm:p-8 rounded-[2rem] shadow-sm border border-slate-100 dark:border-slate-800/60 transition-all">
+                <div
+                  className="flex justify-between items-center border-b border-slate-100 dark:border-slate-800/60 pb-4 cursor-pointer select-none"
+                  onClick={() => setMostrarRespaldoNegocio(!mostrarRespaldoNegocio)}
+                >
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <Download size={20} className="text-emerald-500 shrink-0" />
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <h3 className="font-black text-lg text-slate-800 dark:text-slate-100">
+                          Copia de Seguridad de tu Negocio (Excel)
+                        </h3>
+                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-emerald-100 text-emerald-800 dark:bg-emerald-500/20 dark:text-emerald-300">
+                          <CheckCircle2 size={11} /> Nube Activa 24/7
+                        </span>
+                      </div>
+                      {!mostrarRespaldoNegocio && (
+                        <p className="text-xs text-slate-400 font-medium truncate">
+                          {esPlanPro
+                            ? "Descargas ilimitadas en Excel (.xlsx) • 6 hojas completas"
+                            : esPlanComercio
+                              ? "Descargas ilimitadas en Excel (.xlsx) • 5 hojas completas"
+                              : "1 Respaldo básico al mes en Excel (.xlsx)"}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2 shrink-0">
+                    <span
+                      className={`hidden sm:inline-flex px-3 py-1 rounded-xl text-[10px] font-black uppercase tracking-wider ${
+                        esPlanPro
+                          ? "bg-purple-100 text-purple-700 dark:bg-purple-500/20 dark:text-purple-300 border border-purple-200 dark:border-purple-800"
+                          : esPlanComercio
+                            ? "bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-300 border border-blue-200 dark:border-blue-800"
+                            : "bg-amber-100 text-amber-800 dark:bg-amber-500/20 dark:text-amber-300 border border-amber-200 dark:border-amber-800"
+                      }`}
+                    >
+                      {esPlanPro
+                        ? "Ilimitado (PRO)"
+                        : esPlanComercio
+                          ? "Ilimitado (Comercio)"
+                          : "1 al Mes (Gratis)"}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setMostrarRespaldoNegocio(!mostrarRespaldoNegocio);
+                      }}
+                      className="p-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-500 hover:text-slate-800 dark:hover:text-white transition-colors cursor-pointer"
+                    >
+                      {mostrarRespaldoNegocio ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
+                    </button>
+                  </div>
+                </div>
+
+                {mostrarRespaldoNegocio && (
+                  <div className="pt-6 animate-in fade-in duration-200">
+                    <p className="text-xs text-slate-500 dark:text-slate-400 mb-4 leading-relaxed">
+                      Eres 100% dueño de tu información. Descarga tu Libro Excel Maestro (<strong>.xlsx</strong>) para guardarlo en tu computador o celular cuando lo necesites.
+                    </p>
+
+                    {/* Desglose de Hojas Incluidas */}
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 mb-5">
+                      <div className="p-3 rounded-xl bg-slate-50 dark:bg-[#020617] border border-slate-200/70 dark:border-slate-800 flex items-center gap-2">
+                        <CheckCircle2 size={15} className="text-emerald-500 shrink-0" />
+                        <span className="text-xs font-bold text-slate-700 dark:text-slate-200 truncate">1. Resumen Ejecutivo</span>
+                      </div>
+                      <div className="p-3 rounded-xl bg-slate-50 dark:bg-[#020617] border border-slate-200/70 dark:border-slate-800 flex items-center gap-2">
+                        <CheckCircle2 size={15} className="text-emerald-500 shrink-0" />
+                        <span className="text-xs font-bold text-slate-700 dark:text-slate-200 truncate">
+                          2. Clientes {esPlanGratis ? "(Hasta 15)" : "(Ilimitados)"}
+                        </span>
+                      </div>
+                      <div className="p-3 rounded-xl bg-slate-50 dark:bg-[#020617] border border-slate-200/70 dark:border-slate-800 flex items-center gap-2">
+                        <CheckCircle2 size={15} className="text-emerald-500 shrink-0" />
+                        <span className="text-xs font-bold text-slate-700 dark:text-slate-200 truncate">
+                          3. Inventario {esPlanGratis ? "(Básico)" : "+ Márgenes"}
+                        </span>
+                      </div>
+                      <div className="p-3 rounded-xl bg-slate-50 dark:bg-[#020617] border border-slate-200/70 dark:border-slate-800 flex items-center gap-2">
+                        {esPlanGratis ? (
+                          <Lock size={15} className="text-amber-500 shrink-0" />
+                        ) : (
+                          <CheckCircle2 size={15} className="text-emerald-500 shrink-0" />
+                        )}
+                        <span className={`text-xs font-bold truncate ${esPlanGratis ? "text-amber-700 dark:text-amber-400" : "text-slate-700 dark:text-slate-200"}`}>
+                          4. Ventas y Movimientos
+                        </span>
+                      </div>
+                      <div className="p-3 rounded-xl bg-slate-50 dark:bg-[#020617] border border-slate-200/70 dark:border-slate-800 flex items-center gap-2">
+                        {esPlanGratis ? (
+                          <Lock size={15} className="text-amber-500 shrink-0" />
+                        ) : (
+                          <CheckCircle2 size={15} className="text-emerald-500 shrink-0" />
+                        )}
+                        <span className={`text-xs font-bold truncate ${esPlanGratis ? "text-amber-700 dark:text-amber-400" : "text-slate-700 dark:text-slate-200"}`}>
+                          5. Cierres de Caja
+                        </span>
+                      </div>
+                      <div className="p-3 rounded-xl bg-slate-50 dark:bg-[#020617] border border-slate-200/70 dark:border-slate-800 flex items-center gap-2">
+                        {esPlanPro ? (
+                          <CheckCircle2 size={15} className="text-emerald-500 shrink-0" />
+                        ) : (
+                          <Lock size={15} className="text-purple-500 shrink-0" />
+                        )}
+                        <span className={`text-xs font-bold truncate ${esPlanPro ? "text-slate-700 dark:text-slate-200" : "text-purple-700 dark:text-purple-400"}`}>
+                          6. Planes Separe (PRO)
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Estado del último respaldo y botón de acción */}
+                    <div className="p-4 rounded-2xl bg-slate-50 dark:bg-[#020617] border border-slate-200/80 dark:border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                      <div className="space-y-1">
+                        <p className="text-xs font-bold text-slate-600 dark:text-slate-300 flex items-center gap-1.5">
+                          <Clock size={14} className="text-blue-500 shrink-0" />
+                          {estadoRespaldo.ultimoRespaldoFecha ? (
+                            <span>
+                              Última copia descargada:{" "}
+                              <strong className="text-slate-900 dark:text-white">
+                                {estadoRespaldo.ultimoRespaldoFecha.toLocaleString("es-CO", {
+                                  dateStyle: "medium",
+                                  timeStyle: "short",
+                                })}
+                              </strong>
+                            </span>
+                          ) : (
+                            <span>Aún no has descargado ninguna copia de seguridad en este dispositivo.</span>
+                          )}
+                        </p>
+                        <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                          {esPlanPro
+                            ? "En tu Plan PRO Almacén puedes descargar tu Libro Maestro de 6 hojas todas las veces que quieras."
+                            : esPlanComercio
+                              ? "En tu Plan Comercio puedes descargar tu Libro Maestro de 5 hojas todas las veces que quieras (con cartera, inventario, costos, movimientos y cierres)."
+                              : gratisBloqueadoPorCiclo
+                                ? `Ya descargaste tu respaldo básico de este mes. Próximo respaldo básico en ${diasParaProximoGratis} ${diasParaProximoGratis === 1 ? "día" : "días"} (o sube a Comercio/PRO hoy para respaldos completos e ilimitados).`
+                                : "En el Plan Gratuito puedes descargar 1 Respaldo Básico al mes (clientes e inventario básico)."}
+                        </p>
+                      </div>
+
+                      <div className="flex flex-wrap items-center gap-2 shrink-0">
+                        {gratisBloqueadoPorCiclo ? (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setPlanInicialSuscripcion("comercio");
+                              setModalSuscripcionOpen(true);
+                            }}
+                            className="w-full sm:w-auto px-5 py-3 rounded-xl font-black text-xs uppercase tracking-wider text-white bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 shadow-md transition-transform active:scale-95 flex items-center justify-center gap-2 cursor-pointer"
+                          >
+                            <Crown size={15} className="text-amber-300" />
+                            <span>Desbloquear Respaldos Ilimitados</span>
+                          </button>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={descargarCopiaSeguridadExcel}
+                            disabled={descargandoRespaldo}
+                            className="w-full sm:w-auto px-5 py-3 rounded-xl font-black text-xs uppercase tracking-wider text-white bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 shadow-md shadow-emerald-600/20 transition-transform active:scale-95 flex items-center justify-center gap-2 cursor-pointer"
+                          >
+                            <Download size={15} />
+                            <span>
+                              {descargandoRespaldo
+                                ? "Generando Excel..."
+                                : esPlanGratis
+                                  ? "Descargar Respaldo Básico (.xlsx)"
+                                  : "Descargar Copia de Seguridad (.xlsx)"}
+                            </span>
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })()}
+
                     {/* PERFIL DEL NEGOCIO Y MARCA (EXPANDIBLE / RECOGIDO POR DEFECTO) */}
           <div className="bg-white dark:bg-[#0f172a] p-6 sm:p-8 rounded-[2rem] shadow-sm border border-slate-100 dark:border-slate-800/60 transition-all">
             <div className="flex justify-between items-center border-b border-slate-100 dark:border-slate-800/60 pb-4 cursor-pointer select-none" onClick={() => setMostrarPerfilNegocio(!mostrarPerfilNegocio)}>
@@ -2618,18 +3006,6 @@ export default function PerfilPage() {
                   {mostrarPerfilNegocio ? <ChevronUp size={18}/> : <ChevronDown size={18}/>}
                 </button>
               </div>
-
-              <ModalHorarios 
-                isOpen={modalHorariosOpen} 
-                onClose={() => { 
-                  setModalHorariosOpen(false); 
-                  setColabParaHorarios(null); 
-                  cargarListaColaboradores(adminId!); 
-                }} 
-                usuarioId={colabParaHorarios ? colabParaHorarios.id : ""} 
-                nombreColaborador={colabParaHorarios ? colabParaHorarios.nombreUsuario : "Colaborador"}
-                horariosIniciales={colabParaHorarios ? (colabParaHorarios.horariosActividad || []) : []} 
-              />
             </div>
             
             {mostrarPerfilNegocio && (
@@ -3041,8 +3417,31 @@ export default function PerfilPage() {
                     </div>
 
                     <div className="grid grid-cols-2 gap-3 mt-3">
-                      <button onClick={() => setModoEdicionPerfil(false)} className="bg-slate-100 dark:bg-[#020617] hover:bg-slate-200 dark:hover:bg-[#1e293b] text-slate-700 dark:text-slate-300 font-bold py-4 rounded-2xl transition-colors border dark:border-slate-800/80 text-base cursor-pointer">Cancelar</button>
-                      <button onClick={guardarDatosPerfil} className="bg-blue-600 hover:bg-blue-700 text-white font-black py-4 rounded-2xl shadow-lg transition-transform transform active:scale-95 text-base cursor-pointer">Guardar Cambios</button>
+                      <button 
+                        type="button"
+                        onClick={() => {
+                          if (datosSesion) {
+                            setNombreUsuario(datosSesion.nombreUsuario || "");
+                            setEditNombreUsuario(datosSesion.nombreUsuario || "");
+                            setNombreNegocio(datosSesion.nombreNegocio || "");
+                            setRubroNegocio(datosSesion.rubroNegocio || "moda_ropa");
+                            setTelefonoNegocio(datosSesion.telefonoNegocio || "");
+                            setNitNegocio(datosSesion.nitNegocio || "");
+                            setDireccionNegocio(datosSesion.direccionNegocio || "");
+                            setMensajePieTicket(datosSesion.mensajePieTicket || "");
+                            setMediosPago(datosSesion.mediosPago || {});
+                            setHabilitarIva(datosSesion.habilitarIva || false);
+                            setPorcentajeIva(datosSesion.porcentajeIva || 19);
+                            setSlugNegocioEdicion(slugNegocioActual);
+                          }
+                          setErrorSlug("");
+                          setModoEdicionPerfil(false);
+                        }} 
+                        className="bg-slate-100 dark:bg-[#020617] hover:bg-slate-200 dark:hover:bg-[#1e293b] text-slate-700 dark:text-slate-300 font-bold py-4 rounded-2xl transition-colors border dark:border-slate-800/80 text-base cursor-pointer"
+                      >
+                        Cancelar
+                      </button>
+                      <button type="button" onClick={guardarDatosPerfil} className="bg-blue-600 hover:bg-blue-700 text-white font-black py-4 rounded-2xl shadow-lg transition-transform transform active:scale-95 text-base cursor-pointer">Guardar Cambios</button>
                     </div>
                   </div>
                 ) : (
@@ -3513,7 +3912,7 @@ export default function PerfilPage() {
             }
           }}
         >
-          <div className="bg-white dark:bg-[#0f172a] p-6 sm:p-8 rounded-[2.5rem] w-full max-w-sm shadow-2xl border border-slate-100 dark:border-slate-800/60 text-center relative overflow-hidden">
+          <div className="bg-white dark:bg-[#0f172a] p-6 sm:p-8 rounded-[2.5rem] w-full max-w-sm max-h-[90dvh] overflow-y-auto shadow-2xl border border-slate-100 dark:border-slate-800/60 text-center relative">
             <div className="w-16 h-16 sm:w-20 sm:h-20 bg-rose-100 dark:bg-rose-500/20 text-rose-500 dark:text-rose-400 rounded-full flex items-center justify-center mx-auto mb-4 sm:mb-6 shadow-inner mt-2">
               <AlertCircle size={36} />
             </div>
@@ -3577,7 +3976,21 @@ export default function PerfilPage() {
             </div>
             <h3 className="text-2xl font-black text-slate-900 dark:text-white mb-2">{modalSuscripcion.titulo || "Desbloquea Fiabono PRO"}</h3>
             <p className="text-base font-medium text-slate-500 dark:text-slate-400 mb-6 whitespace-pre-line">{modalSuscripcion.mensaje}</p>
-            <button onClick={() => setModalSuscripcion({ visible: false, titulo: "", mensaje: "" })} className="w-full bg-blue-600 hover:bg-blue-700 text-white font-black py-4 rounded-2xl shadow-lg transition-transform transform active:scale-95 text-lg">Entendido</button>
+            <div className="flex flex-col gap-2.5">
+              {!esCajero && (
+                <button
+                  onClick={() => {
+                    setModalSuscripcion({ visible: false, titulo: "", mensaje: "" });
+                    setPlanInicialSuscripcion('pro');
+                    setModalSuscripcionOpen(true);
+                  }}
+                  className="w-full bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-black py-3.5 rounded-2xl shadow-lg transition-transform transform active:scale-95 text-sm cursor-pointer"
+                >
+                  Ver Planes y Mejorar Ahora
+                </button>
+              )}
+              <button onClick={() => setModalSuscripcion({ visible: false, titulo: "", mensaje: "" })} className="w-full bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold py-3 rounded-2xl transition-colors text-sm cursor-pointer">Entendido</button>
+            </div>
           </div>
         </div>
       )}
@@ -3616,7 +4029,7 @@ export default function PerfilPage() {
             }
           }}
         >
-          <div className="bg-white dark:bg-[#0f172a] p-6 sm:p-8 rounded-[2.5rem] w-full max-w-sm shadow-2xl border border-slate-100 dark:border-slate-800/60 text-center">
+          <div className="bg-white dark:bg-[#0f172a] p-6 sm:p-8 rounded-[2.5rem] w-full max-w-sm max-h-[90dvh] overflow-y-auto shadow-2xl border border-slate-100 dark:border-slate-800/60 text-center">
             <div className="w-16 h-16 bg-amber-100 dark:bg-amber-500/20 text-amber-600 dark:text-amber-400 rounded-full flex items-center justify-center mx-auto mb-4">
               <KeyRound size={32} />
             </div>
@@ -3713,7 +4126,7 @@ export default function PerfilPage() {
             }
           }}
         >
-          <div className="bg-white dark:bg-[#0f172a] p-6 sm:p-8 rounded-[2.5rem] w-full max-w-sm shadow-2xl border border-rose-200 dark:border-rose-900/60 text-center">
+          <div className="bg-white dark:bg-[#0f172a] p-6 sm:p-8 rounded-[2.5rem] w-full max-w-sm max-h-[90dvh] overflow-y-auto shadow-2xl border border-rose-200 dark:border-rose-900/60 text-center">
             <div className="w-16 h-16 bg-rose-100 dark:bg-rose-500/20 text-rose-600 dark:text-rose-400 rounded-full flex items-center justify-center mx-auto mb-4">
               <Trash2 size={32} />
             </div>
@@ -3767,7 +4180,7 @@ export default function PerfilPage() {
             }
           }}
         >
-          <div className="bg-white dark:bg-[#0f172a] p-6 sm:p-8 rounded-[2.5rem] w-full max-w-sm shadow-2xl border border-indigo-100 dark:border-indigo-900/60 text-center">
+          <div className="bg-white dark:bg-[#0f172a] p-6 sm:p-8 rounded-[2.5rem] w-full max-w-sm max-h-[90dvh] overflow-y-auto shadow-2xl border border-indigo-100 dark:border-indigo-900/60 text-center">
             <div className="w-16 h-16 bg-indigo-100 dark:bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 rounded-full flex items-center justify-center mx-auto mb-4">
               <Monitor size={32} />
             </div>
@@ -3871,7 +4284,7 @@ export default function PerfilPage() {
             }
           }}
         >
-          <div className="bg-white dark:bg-[#0f172a] p-6 sm:p-8 rounded-[2.5rem] w-full max-w-sm shadow-2xl border border-slate-100 dark:border-slate-800/60 text-center">
+          <div className="bg-white dark:bg-[#0f172a] p-6 sm:p-8 rounded-[2.5rem] w-full max-w-sm max-h-[90dvh] overflow-y-auto shadow-2xl border border-slate-100 dark:border-slate-800/60 text-center">
             <div className="w-16 h-16 bg-amber-100 dark:bg-amber-500/20 text-amber-600 dark:text-amber-400 rounded-full flex items-center justify-center mx-auto mb-4">
               <KeyRound size={32} />
             </div>
@@ -3968,7 +4381,7 @@ export default function PerfilPage() {
             }
           }}
         >
-          <div className="bg-white dark:bg-[#0f172a] p-6 sm:p-8 rounded-[2.5rem] w-full max-w-sm shadow-2xl border border-rose-200 dark:border-rose-900/60 text-center">
+          <div className="bg-white dark:bg-[#0f172a] p-6 sm:p-8 rounded-[2.5rem] w-full max-w-sm max-h-[90dvh] overflow-y-auto shadow-2xl border border-rose-200 dark:border-rose-900/60 text-center">
             <div className="w-16 h-16 bg-rose-100 dark:bg-rose-500/20 text-rose-600 dark:text-rose-400 rounded-full flex items-center justify-center mx-auto mb-4">
               <Trash2 size={32} />
             </div>
@@ -4521,7 +4934,7 @@ export default function PerfilPage() {
           }}
           className="fixed inset-0 bg-black/85 backdrop-blur-md flex items-center justify-center p-4 z-[400] animate-in zoom-in-95 duration-200"
         >
-          <div className="bg-white dark:bg-[#0f172a] p-6 sm:p-8 rounded-[2.5rem] w-full max-w-md shadow-2xl border-2 border-rose-500/80 relative text-center">
+          <div className="bg-white dark:bg-[#0f172a] p-6 sm:p-8 rounded-[2.5rem] w-full max-w-md max-h-[90dvh] overflow-y-auto shadow-2xl border-2 border-rose-500/80 relative text-center">
             <div className="w-16 h-16 bg-rose-500 text-white rounded-full flex items-center justify-center mx-auto mb-4 shadow-lg shadow-rose-500/30 animate-pulse">
               <AlertTriangle size={32} />
             </div>
@@ -4579,7 +4992,7 @@ export default function PerfilPage() {
               setModalSolicitudDian(false);
             }
           }}
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-xs animate-in fade-in duration-200"
+          className="fixed inset-0 z-[350] flex items-center justify-center p-4 bg-slate-950/75 backdrop-blur-md animate-in fade-in duration-200"
         >
           <div className="bg-white dark:bg-slate-900 rounded-3xl max-w-lg w-full max-h-[90vh] overflow-y-auto shadow-2xl border border-slate-200 dark:border-slate-800">
             {/* Header */}
@@ -4781,6 +5194,19 @@ export default function PerfilPage() {
         </div>
       )}
 
+      {/* MODAL DE HORARIOS DE COLABORADOR / TERMINAL */}
+      <ModalHorarios 
+        isOpen={modalHorariosOpen} 
+        onClose={() => { 
+          setModalHorariosOpen(false); 
+          setColabParaHorarios(null); 
+          if (adminId || usuarioAuth?.uid) cargarListaColaboradores(adminId || usuarioAuth!.uid); 
+        }} 
+        usuarioId={colabParaHorarios ? colabParaHorarios.id : ""} 
+        nombreColaborador={colabParaHorarios ? colabParaHorarios.nombreUsuario : "Colaborador"}
+        horariosIniciales={colabParaHorarios ? (colabParaHorarios.horariosActividad || []) : []} 
+      />
+
       {/* MODAL DE AJUSTE Y ZOOM DE LOGO */}
       <ModalAjustarImagen
         isOpen={modalAjustarOpen}
@@ -4798,6 +5224,175 @@ export default function PerfilPage() {
         onConfirm={confirmarCierreSesion}
         procesando={cerrandoSesion}
       />
+
+      {/* MODAL ESTÉTICO DE COPIA DE SEGURIDAD (CARGANDO / ÉXITO / LÍMITE MENSUAL) */}
+      {modalResultadoRespaldo.visible && (
+        <div
+          onClick={(e) => {
+            if (e.target === e.currentTarget && modalResultadoRespaldo.tipo !== "cargando") {
+              setModalResultadoRespaldo((prev) => ({ ...prev, visible: false }));
+            }
+          }}
+          className="fixed inset-0 bg-slate-950/75 backdrop-blur-md flex items-center justify-center p-4 z-[420] animate-in fade-in zoom-in-95 duration-200"
+        >
+          <div className="bg-white dark:bg-[#0f172a] rounded-[2.5rem] w-full max-w-md shadow-2xl border border-slate-100 dark:border-slate-800 relative overflow-hidden p-6 sm:p-8 text-center">
+            {modalResultadoRespaldo.tipo !== "cargando" && (
+              <button
+                type="button"
+                onClick={() => setModalResultadoRespaldo((prev) => ({ ...prev, visible: false }))}
+                className="absolute top-4 right-4 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-500 rounded-full p-2 transition-colors cursor-pointer"
+              >
+                <X size={18} />
+              </button>
+            )}
+
+            {modalResultadoRespaldo.tipo === "cargando" ? (
+              <div className="py-2">
+                <div className="relative w-20 h-20 mx-auto mb-5 flex items-center justify-center">
+                  <div className="absolute inset-0 rounded-3xl bg-emerald-500/15 dark:bg-emerald-500/20 animate-ping opacity-60" />
+                  <div className="relative w-16 h-16 rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-600 text-white flex items-center justify-center shadow-lg shadow-emerald-600/30">
+                    <Loader2 size={32} className="animate-spin" />
+                  </div>
+                </div>
+
+                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider bg-emerald-50 dark:bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border border-emerald-200/70 dark:border-emerald-800/60 mb-2.5">
+                  <Shield size={12} /> Respaldo Encriptado en Curso
+                </span>
+
+                <h3 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white mb-2">
+                  Preparando tu Copia de Seguridad...
+                </h3>
+
+                <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 leading-relaxed mb-5">
+                  Estamos compilando y estructurando el Libro Maestro en Excel (<strong>.xlsx</strong>) de{" "}
+                  <strong className="text-slate-700 dark:text-slate-200">{nombreNegocio || "tu negocio"}</strong>.
+                </p>
+
+                <div className="p-4 rounded-2xl bg-slate-50 dark:bg-[#020617] border border-slate-200/80 dark:border-slate-800 text-left space-y-2.5 mb-4">
+                  <div className="flex items-center gap-2.5 text-xs font-bold text-slate-700 dark:text-slate-200">
+                    <CheckCircle2 size={15} className="text-emerald-500 shrink-0" />
+                    <span>Recopilando directorio de clientes y cartera</span>
+                  </div>
+                  <div className="flex items-center gap-2.5 text-xs font-bold text-slate-700 dark:text-slate-200">
+                    <CheckCircle2 size={15} className="text-emerald-500 shrink-0" />
+                    <span>Valorizando inventario y referencias activas</span>
+                  </div>
+                  <div className="flex items-center gap-2.5 text-xs font-bold text-emerald-600 dark:text-emerald-400">
+                    <Loader2 size={15} className="animate-spin shrink-0" />
+                    <span>Generando hojas contables de Excel (.xlsx)...</span>
+                  </div>
+                </div>
+
+                <p className="text-[11px] font-semibold text-slate-400 dark:text-slate-500">
+                  Por favor espera unos segundos, la descarga iniciará automáticamente.
+                </p>
+              </div>
+            ) : (
+              <>
+                <div
+                  className={`w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-inner ${
+                    modalResultadoRespaldo.tipo === "exito"
+                      ? "bg-emerald-100 dark:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400"
+                      : "bg-amber-100 dark:bg-amber-500/20 text-amber-600 dark:text-amber-400"
+                  }`}
+                >
+                  {modalResultadoRespaldo.tipo === "exito" ? <CheckCircle2 size={34} /> : <Clock size={34} />}
+                </div>
+
+                <h3 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white mb-1.5">
+                  {modalResultadoRespaldo.tipo === "exito"
+                    ? "¡Copia de Seguridad Descargada!"
+                    : "Respaldo Básico Mensual Utilizado"}
+                </h3>
+
+                <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 leading-relaxed mb-5">
+                  {modalResultadoRespaldo.tipo === "exito"
+                    ? "El archivo Excel Maestro de tu negocio ya se guardó en tu carpeta de Descargas."
+                    : modalResultadoRespaldo.mensaje}
+                </p>
+
+                {modalResultadoRespaldo.tipo === "exito" && modalResultadoRespaldo.nombreArchivo && (
+                  <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-[#020617] border border-slate-200/80 dark:border-slate-800 mb-4 text-left flex items-center gap-3">
+                    <div className="p-2.5 rounded-xl bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 shrink-0">
+                      <Download size={18} />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 block">
+                        Archivo generado (.xlsx)
+                      </span>
+                      <p className="text-xs font-mono font-bold text-slate-800 dark:text-slate-200 truncate">
+                        {modalResultadoRespaldo.nombreArchivo}
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+                {modalResultadoRespaldo.tipo === "exito" && modalResultadoRespaldo.metricas && (
+                  <div className="grid grid-cols-2 gap-2.5 mb-5 text-left">
+                    <div className="p-3 rounded-xl bg-slate-50 dark:bg-[#020617] border border-slate-200/60 dark:border-slate-800">
+                      <span className="text-[10px] font-bold uppercase text-slate-400 block">Clientes Exportados</span>
+                      <span className="text-sm font-black text-slate-900 dark:text-white">
+                        {modalResultadoRespaldo.planEfectivo === "gratis"
+                          ? `${Math.min(15, modalResultadoRespaldo.metricas.totalClientes)} (Básico)`
+                          : modalResultadoRespaldo.metricas.totalClientes}
+                      </span>
+                    </div>
+                    <div className="p-3 rounded-xl bg-slate-50 dark:bg-[#020617] border border-slate-200/60 dark:border-slate-800">
+                      <span className="text-[10px] font-bold uppercase text-slate-400 block">Productos en Catálogo</span>
+                      <span className="text-sm font-black text-slate-900 dark:text-white">
+                        {modalResultadoRespaldo.planEfectivo === "gratis"
+                          ? `${Math.min(30, modalResultadoRespaldo.metricas.totalProductos)} (Básico)`
+                          : modalResultadoRespaldo.metricas.totalProductos}
+                      </span>
+                    </div>
+                  </div>
+                )}
+
+                {/* Banner de incentivo para Plan Gratuito */}
+                {modalResultadoRespaldo.planEfectivo === "gratis" && (
+                  <div className="p-4 rounded-2xl bg-gradient-to-br from-amber-50 to-orange-50/60 dark:from-amber-950/30 dark:to-slate-900 border border-amber-200/80 dark:border-amber-800/50 text-left mb-5 space-y-1.5">
+                    <p className="text-xs font-black text-amber-900 dark:text-amber-300 flex items-center gap-1.5">
+                      <Crown size={14} className="text-amber-500 shrink-0" />
+                      <span>¿Quieres respaldos completos e ilimitados?</span>
+                    </p>
+                    <p className="text-[11px] text-amber-800/90 dark:text-amber-200/80 leading-relaxed">
+                      Tu negocio ya acumula{" "}
+                      <strong>{modalResultadoRespaldo.metricas?.totalMovimientos ?? 0} movimientos históricos</strong>. Revisa la{" "}
+                      <strong>Hoja 4</strong> de tu Excel o sube al <strong>Plan Comercio</strong> o{" "}
+                      <strong>Plan PRO Almacén</strong> para descargar copias completas e ilimitadas cuando quieras.
+                    </p>
+                  </div>
+                )}
+
+                <div className="flex flex-col gap-2.5">
+                  {modalResultadoRespaldo.planEfectivo === "gratis" && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setModalResultadoRespaldo((prev) => ({ ...prev, visible: false }));
+                        setPlanInicialSuscripcion("comercio");
+                        setModalSuscripcionOpen(true);
+                      }}
+                      className="w-full py-3.5 rounded-2xl font-black text-xs uppercase tracking-wider text-white bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 shadow-lg transition-transform active:scale-95 flex items-center justify-center gap-2 cursor-pointer"
+                    >
+                      <Crown size={15} className="text-amber-300" />
+                      <span>Ver Planes Comercio y PRO (Ilimitados)</span>
+                    </button>
+                  )}
+
+                  <button
+                    type="button"
+                    onClick={() => setModalResultadoRespaldo((prev) => ({ ...prev, visible: false }))}
+                    className="w-full py-3.5 rounded-2xl font-bold text-sm text-slate-700 dark:text-slate-200 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors cursor-pointer"
+                  >
+                    Entendido
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

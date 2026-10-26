@@ -134,10 +134,10 @@ export default function ModalAjustarImagen({
 
   return (
     <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center p-3 sm:p-4 z-[9999] animate-in fade-in duration-200">
-      <div className="bg-white dark:bg-[#0f172a] text-slate-900 dark:text-white rounded-[2.5rem] w-full max-w-md shadow-2xl border border-slate-100 dark:border-slate-800 flex flex-col overflow-hidden">
+      <div className="bg-white dark:bg-[#0f172a] text-slate-900 dark:text-white rounded-[2.5rem] w-full max-w-md max-h-[92dvh] shadow-2xl border border-slate-100 dark:border-slate-800 flex flex-col overflow-hidden">
         
         {/* Cabecera */}
-        <div className="p-4 sm:p-5 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center bg-slate-50 dark:bg-slate-900/60">
+        <div className="p-4 sm:p-5 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center bg-slate-50 dark:bg-slate-900/60 shrink-0">
           <div className="flex items-center gap-2">
             <div className="p-2 bg-blue-500/10 text-blue-600 dark:text-blue-400 rounded-xl">
               <Sparkles size={18} />
@@ -160,7 +160,7 @@ export default function ModalAjustarImagen({
         </div>
 
         {/* Área de Encuadre Interactivo */}
-        <div className="p-6 flex flex-col items-center select-none">
+        <div className="p-4 sm:p-6 flex flex-col items-center select-none overflow-y-auto flex-1">
           
           <div
             className="relative rounded-3xl overflow-hidden border-2 border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 shadow-inner flex items-center justify-center cursor-grab active:cursor-grabbing"
@@ -254,7 +254,7 @@ export default function ModalAjustarImagen({
         </div>
 
         {/* Acciones */}
-        <div className="p-4 sm:p-5 border-t border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/60 flex gap-3">
+        <div className="p-4 sm:p-5 border-t border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/60 flex gap-3 shrink-0">
           <button
             type="button"
             onClick={onClose}

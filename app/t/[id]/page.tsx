@@ -29,7 +29,19 @@ export default function PaginaTicketPublico() {
       setError(null);
 
       try {
-        // 1. Intentar consultar en colección 'movimientos'
+        // 0. Consultar vía API pública segura (Admin SDK sanitizado) para que funcione
+        // en cualquier celular de cliente sin requerir sesión iniciada en Firestore
+        const resPublico = await fetch(`/api/ticket-publico/${encodeURIComponent(id)}`, { cache: 'no-store' });
+        if (resPublico.ok) {
+          const jsonPublico = await resPublico.json();
+          if (jsonPublico?.ok && jsonPublico?.datosFactura) {
+            setDatosFactura(jsonPublico.datosFactura);
+            setCargando(false);
+            return;
+          }
+        }
+
+        // 1. Fallback local si el comerciante está autenticado: consultar en 'movimientos'
         const docRefMov = doc(db, "movimientos", id);
         const snapMov = await getDoc(docRefMov);
 
@@ -57,6 +69,7 @@ export default function PaginaTicketPublico() {
             subtotal: movData.subtotal,
             valorIva: movData.valorIva,
             porcentajeIva: movData.porcentajeIva,
+            montoBruto: movData.montoBruto || (movData.montoDescuento ? (movData.monto || 0) + movData.montoDescuento : undefined),
             descuentoTipo: movData.descuentoTipo,
             descuentoValor: movData.descuentoValor,
             montoDescuento: movData.montoDescuento,
@@ -409,7 +422,8 @@ const renderSkeletonTicketCard = () => {
             {(() => {
               const tel = (datosFactura.telefonoNegocio || "").replace(/\D/g, "");
               if (!tel) return null;
-              const waUrl = `https://wa.me/57${tel.startsWith("57") ? tel.slice(2) : tel}?text=${encodeURIComponent(
+              const telConPrefijo = tel.startsWith("57") && tel.length > 10 ? tel : `57${tel}`;
+              const waUrl = `https://wa.me/${telConPrefijo}?text=${encodeURIComponent(
                 `Hola ${datosFactura.nombreNegocio || ""}, tengo una consulta sobre mi comprobante #${
                   datosFactura.idTransaccion ? datosFactura.idTransaccion.slice(0, 8).toUpperCase() : ""
                 }`

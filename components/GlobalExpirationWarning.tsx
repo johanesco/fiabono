@@ -86,10 +86,14 @@ export default function GlobalExpirationWarning() {
                 {enGracia ? '¡Plan Vencido!' : esCritico ? 'Atención Requerida' : 'Tu plan está por vencer'}
               </h2>
               
-              <p className="text-slate-500 dark:text-slate-400 font-medium mb-8 leading-relaxed">
+              <p className="text-slate-500 dark:text-slate-400 font-medium mb-8 leading-relaxed text-sm">
                 {enGracia 
-                  ? `Estás utilizando tus últimos ${2 + dias} días de gracia. Renueva ahora para no perder el acceso a tu información.`
-                  : `Te quedan solo ${dias} ${dias === 1 ? 'día' : 'días'} de suscripción. Asegura la continuidad de tu negocio renovando hoy mismo. ¡No te preocupes! Los ${dias} ${dias === 1 ? 'día que te queda se sumará' : 'días que te quedan se sumarán'} automáticamente a tu nuevo plan.`
+                  ? (dias === 0
+                      ? 'Tu plan venció hoy. Tienes 2 días de gracia para renovar sin perder tus funciones activas ni tus colaboradores.'
+                      : dias === -1
+                        ? 'Tu plan ha vencido. Te queda 1 día de gracia antes de pasar automáticamente al Plan Gratuito.'
+                        : 'Tu plan ha vencido. Hoy es tu último día de gracia antes de pasar al Plan Gratuito.')
+                  : `Te quedan solo ${dias} ${dias === 1 ? 'día' : 'días'} de suscripción. Asegura la continuidad de tu negocio renovando hoy mismo. ¡No te preocupes! ${dias === 1 ? 'El día que te queda se sumará' : `Los ${dias} días que te quedan se sumarán`} automáticamente a tu nuevo plan.`
                 }
               </p>
 

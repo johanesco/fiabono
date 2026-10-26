@@ -209,10 +209,13 @@ export async function POST(request: Request) {
         transaction.create(movimientoRef, quitarUndefined({
           ...baseMovimiento,
           tipo: 'venta',
+          subtipo: fiarFaltante && montoFiadoReal > 0 ? 'venta_parcial' : undefined,
           monto: totalVentaRegistrar,
           descripcion: descripcionVenta,
           metodoPago: montoVentaReal > 0 ? metodoPago : 'saldo_interno',
-          montoPagadoConSaldoFavor: consumoSaldoFavor || undefined
+          montoPagadoConSaldoFavor: consumoSaldoFavor || undefined,
+          fiarFaltante: fiarFaltante ? true : undefined,
+          montoFiadoAsociado: fiarFaltante && montoFiadoReal > 0 ? montoFiadoReal : undefined
         }));
       }
       if (montoFiadoReal > 0 && clienteRef) {
@@ -221,10 +224,12 @@ export async function POST(request: Request) {
         transaction.create(movimientoRef, quitarUndefined({
           ...baseMovimiento,
           tipo: 'fiado',
+          subtipo: totalVentaRegistrar > 0 ? 'fiado_con_abono' : undefined,
           monto: montoFiadoReal,
           descripcion: typeof body.descripcionFiado === 'string' ? body.descripcionFiado : 'Saldo pendiente de venta',
           metodoPago: 'fiado',
-          saldoResultante: nuevoSaldoCliente
+          saldoResultante: nuevoSaldoCliente,
+          abonoInicialAsociado: totalVentaRegistrar > 0 ? totalVentaRegistrar : undefined
         }));
       }
 

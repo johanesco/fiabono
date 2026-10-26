@@ -17,6 +17,7 @@ import TicketFacturaModal, { DatosFacturaProps } from "@/components/TicketFactur
 import ModalProcesarDevolucion from "@/components/ModalProcesarDevolucion";
 import ModalGestionCliente from "@/components/ModalGestionCliente";
 import ModalAnularAbono from "@/components/modals/ModalAnularAbono";
+import ModalSuscripcion from "@/components/ModalSuscripcion";
 import { abrirEnlaceWhatsApp } from "@/utils/whatsapp";
 import { agregarMediosPagoAlEstado } from "@/utils/mediosPago";
 
@@ -43,6 +44,8 @@ export default function HistorialPage() {
   const [filtroTipoHistorial, setFiltroTipoHistorial] = useState<'todos' | 'venta' | 'abono' | 'separe' | 'fiado' | 'devolucion' | 'ingreso_inventario' | 'cierres_caja'>('todos');
   const puedeVerCierres = esAdmin || Boolean(datosSesion?.puedeHacerCierreCaja) || Boolean(datosSesion?.permisos?.cierreCaja) || Boolean(datosSesion?.puedeVerReportes);
   const [filtroVendedorHistorial, setFiltroVendedorHistorial] = useState<string>('todos');
+  const [modalPlanesOpen, setModalPlanesOpen] = useState(false);
+  const esPlanGratis = Boolean(datosSesion?.esGratis || planActual === 'gratis' || planActual === 'basico');
   const [colaboradoresNegocio, setColaboradoresNegocio] = useState<string[]>([]);
   const [cierresNegocio, setCierresNegocio] = useState<CierreCaja[]>([]);
   const [cierreSeleccionado, setCierreSeleccionado] = useState<CierreCaja | null>(null);
@@ -292,6 +295,11 @@ export default function HistorialPage() {
     };
 
     setModalTicketFactura({ visible: true, datos: datosTicket });
+  };
+
+  const getApodoCliente = (id?: string) => {
+    if (!id || id === 'mostrador') return undefined;
+    return clientes.find(c => c.id === id)?.apodo || undefined;
   };
 
   const getNombreCliente = (id?: string, tipo?: string, fallbackNombre?: string) => {
@@ -638,7 +646,7 @@ Gracias por seguir con nosotros.
   }, [todosMovimientos, cierresNegocio, puedeVerCierres]);
 
   const historialFiltrado = movimientosConCierres.filter(mov => {
-    const filtroForzado = (!puedeVerReportes || planActual === 'basico') ? 'hoy' : filtroTiempoHistorial;
+    const filtroForzado = (!puedeVerReportes || esPlanGratis) ? 'hoy' : filtroTiempoHistorial;
     
     // Regla de privacidad: Inventario solo visible si tiene permiso de inventario
     if (mov.tipo === 'ingreso_inventario') {
@@ -673,9 +681,11 @@ Gracias por seguir con nosotros.
       mov.detalles.some((d: any) => normalizarBusqueda(d.descripcion || '').includes(qNorm))
     );
     
+    const apodoCliente = clienteMov?.apodo || '';
     const matchBusqueda = 
       !qNorm ||
       normalizarBusqueda(nombreCliente).includes(qNorm) ||
+      (apodoCliente && normalizarBusqueda(apodoCliente).includes(qNorm)) ||
       celularCliente.toString().includes(busquedaHistorial.trim()) ||
       normalizarBusqueda(vendedorMov).includes(qNorm) ||
       normalizarBusqueda(notasCliente).includes(qNorm) ||
@@ -693,7 +703,8 @@ Gracias por seguir con nosotros.
     if (filtroTipoHistorial === 'separe') {
       if (!esSepareMov) return false;
     } else if (filtroTipoHistorial === 'abono') {
-      if (mov.tipo !== 'abono' || (mov.monto === 0 && (mov as any).subtipo === 'apertura_separe_sin_abono')) return false;
+      const esAbonoMov = mov.tipo === 'abono' || (mov.tipo === 'venta' && ((mov as any).subtipo === 'venta_parcial' || (mov as any).montoFiadoAsociado || (mov as any).fiarFaltante));
+      if (!esAbonoMov || (mov.monto === 0 && (mov as any).subtipo === 'apertura_separe_sin_abono')) return false;
     } else if (filtroTipoHistorial === 'cierres_caja') {
       if (mov.tipo !== 'cierre_caja') return false;
     } else if (filtroTipoHistorial !== 'todos' && mov.tipo !== filtroTipoHistorial) {
@@ -750,7 +761,7 @@ Gracias por seguir con nosotros.
     // Regla estricta: Solo ofrecer "Cargar más" si ya se muestran al menos 15 registros de este filtro
     if (historialFiltrado.length < 15) return false;
 
-    const filtroForzado = (!puedeVerReportes || planActual === 'basico') ? 'hoy' : filtroTiempoHistorial;
+    const filtroForzado = (!puedeVerReportes || esPlanGratis) ? 'hoy' : filtroTiempoHistorial;
 
     const ultimoCargado = todosMovimientos[todosMovimientos.length - 1];
     const msUltimoCargado = ultimoCargado?.fecha?.toMillis 
@@ -833,7 +844,7 @@ Gracias por seguir con nosotros.
               {['hoy', 'ayer', 'semana', 'mes', 'todos'].map((filtro) => (
                 <button key={filtro} 
                   onClick={() => {
-                    if (planActual === 'basico' && filtro !== 'hoy') setModalSuscripcion({ visible: true, titulo: "Función PRO", mensaje: "Los filtros históricos avanzados están disponibles en el plan PRO." });
+                    if (esPlanGratis && filtro !== 'hoy') setModalSuscripcion({ visible: true, titulo: "Historial Completo", mensaje: "En el Plan Gratuito visualizas los movimientos de hoy. Mejora al Plan Comercio o PRO Almacén para consultar ayer, semana, mes y todo tu historial." });
                     else setFiltroTiempoHistorial(filtro as any);
                   }}
                   className={`px-3 md:px-3.5 py-1.5 md:py-1 text-xs font-bold rounded-lg capitalize transition-all cursor-pointer ${filtroTiempoHistorial === filtro ? 'bg-white dark:bg-[#1e293b] text-blue-600 dark:text-blue-400 shadow-xs' : 'text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200'}`}>
@@ -992,8 +1003,25 @@ Gracias por seguir con nosotros.
                       </div>
                     ) : (
                       <>
-                        <p className="font-bold text-lg text-slate-900 dark:text-slate-200 truncate">{getNombreCliente(mov.clienteId, mov.tipo, mov.clienteNombre)}</p>
+                        <div className="flex items-center gap-1.5 flex-wrap min-w-0">
+                          <p className="font-bold text-lg text-slate-900 dark:text-slate-200 truncate">{getNombreCliente(mov.clienteId, mov.tipo, mov.clienteNombre)}</p>
+                          {getApodoCliente(mov.clienteId) && (
+                            <span className="text-xs font-bold text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/50 px-1.5 py-0.5 rounded border border-amber-200 dark:border-amber-800 shrink-0">
+                              "{getApodoCliente(mov.clienteId)}"
+                            </span>
+                          )}
+                        </div>
                         <p className="text-sm text-slate-500 dark:text-slate-400 truncate mt-0.5">{mov.descripcion}</p>
+                        {(mov as any).montoFiadoAsociado ? (
+                          <span className="inline-block mt-1 text-[10.5px] font-bold text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/40 px-1.5 py-0.5 rounded border border-amber-200 dark:border-amber-800">
+                            Cobrado: $${Math.round(mov.monto || 0).toLocaleString('es-CO')} • Fiado restante: $${Math.round((mov as any).montoFiadoAsociado).toLocaleString('es-CO')}
+                          </span>
+                        ) : null}
+                        {(mov as any).abonoInicialAsociado ? (
+                          <span className="inline-block mt-1 text-[10.5px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40 px-1.5 py-0.5 rounded border border-emerald-200 dark:border-emerald-800">
+                            Deuda: $${Math.round(mov.monto || 0).toLocaleString('es-CO')} • Abono inicial recibido: $${Math.round((mov as any).abonoInicialAsociado).toLocaleString('es-CO')}
+                          </span>
+                        ) : null}
                       </>
                     )}
                     
@@ -1096,7 +1124,7 @@ Gracias por seguir con nosotros.
                       mov.tipo === 'fiado' ? 'bg-rose-100 text-rose-700 dark:bg-rose-500/20 dark:text-rose-300' : 
                       (mov.tipo === 'venta' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300' : 'bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-300')
                     }`}>
-                      {(mov as any).anulado ? '🚫 ANULADO' : (esIngresoInv ? '+STOCK' : (mov.tipo === 'devolucion' ? '↩ DEVOLUCIÓN' : (esEntregaSepare ? '📦 SEPARE ENTREGADO' : (esSepare ? (mov.subtipo === 'abono_inicial_separe' ? '🔖 SEPARE INICIAL' : (mov.subtipo === 'apertura_separe_sin_abono' || mov.monto === 0 ? '🔖 NUEVO SEPARE' : '🔖 ABONO SEPARE')) : (mov.tipo === 'abono' ? 'ABONO CUENTA' : mov.tipo)))))}
+                      {(mov as any).anulado ? '🚫 ANULADO' : (esIngresoInv ? '+STOCK' : (mov.tipo === 'devolucion' ? '↩ DEVOLUCIÓN' : (esEntregaSepare ? '📦 SEPARE ENTREGADO' : (esSepare ? (mov.subtipo === 'abono_inicial_separe' ? '🔖 SEPARE INICIAL' : (mov.subtipo === 'apertura_separe_sin_abono' || mov.monto === 0 ? '🔖 NUEVO SEPARE' : '🔖 ABONO SEPARE')) : (mov.tipo === 'abono' ? 'ABONO CUENTA' : (mov.tipo === 'venta' && ((mov as any).subtipo === 'venta_parcial' || (mov as any).montoFiadoAsociado || (mov as any).fiarFaltante) ? 'ABONO INICIAL' : (mov.tipo === 'fiado' && ((mov as any).subtipo === 'fiado_con_abono' || (mov as any).abonoInicialAsociado) ? 'FIADO CON ABONO' : mov.tipo)))))))}
                     </span>
                   </div>
                 </div>
@@ -1108,7 +1136,8 @@ Gracias por seguir con nosotros.
         {/* VISTA ESCRITORIO */}
         <TablaHistorial 
           movimientos={historialFiltrado} 
-          getNombreCliente={getNombreCliente} 
+          getNombreCliente={getNombreCliente}
+          getApodoCliente={getApodoCliente} 
           onRowClick={(cliId) => abrirHistorialCliente(cliId)}
           onMovimientoClick={(mov) => {
             if (mov.tipo === 'cierre_caja') {
@@ -1693,7 +1722,7 @@ Gracias por seguir con nosotros.
                           ) : esSepare ? (
                             mov.subtipo === 'retiro_item_separe' ? '⚠️ AJUSTE SEPARE' :
                             (mov.subtipo === 'abono_inicial_separe' ? '🔖 SEPARE INICIAL' :
-                            (mov.subtipo === 'apertura_separe_sin_abono' || mov.monto === 0 ? '🔖 NUEVO SEPARE' : '🔖 ABONO SEPARE'))) : (mov.tipo === 'abono' ? 'ABONO CUENTA' : mov.tipo)}
+                            (mov.subtipo === 'apertura_separe_sin_abono' || mov.monto === 0 ? '🔖 NUEVO SEPARE' : '🔖 ABONO SEPARE'))) : (mov.tipo === 'abono' ? 'ABONO CUENTA' : (mov.tipo === 'venta' && ((mov as any).subtipo === 'venta_parcial' || (mov as any).montoFiadoAsociado || (mov as any).fiarFaltante) ? 'ABONO INICIAL' : (mov.tipo === 'fiado' && ((mov as any).subtipo === 'fiado_con_abono' || (mov as any).abonoInicialAsociado) ? 'FIADO CON ABONO' : mov.tipo)))}
                         </span>
                         
                         <div className="flex items-center gap-x-1.5 text-[10px] md:text-[11px] font-bold uppercase text-slate-400 shrink-0 ml-auto">
@@ -1759,6 +1788,7 @@ Gracias por seguir con nosotros.
                           <span className={`text-base md:text-xl font-black ${
                             (mov as any).anulado ? 'line-through text-slate-400 dark:text-slate-500 opacity-60' :
                             mov.tipo === 'devolucion' || mov.tipo === 'egreso' ? 'text-amber-600 dark:text-amber-400' :
+                            mov.subtipo === 'retiro_item_separe' ? 'text-rose-600 dark:text-rose-400' :
                             esEntregaSepare ? 'text-purple-600 dark:text-purple-400' :
                             esSepare ? 'text-violet-600 dark:text-violet-400' :
                             mov.tipo === 'fiado' ? 'text-rose-500' : (mov.tipo === 'venta' ? 'text-emerald-500' : 'text-blue-500')
@@ -1840,13 +1870,35 @@ Gracias por seguir con nosotros.
       {/* MODAL SUSCRIPCIÓN */}
       {modalSuscripcion.visible && (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 z-[800]">
-          <div className="bg-white dark:bg-[#0f172a] p-8 rounded-[2.5rem] w-full max-w-sm shadow-2xl text-center">
+          <div className="bg-white dark:bg-[#0f172a] p-8 rounded-[2.5rem] w-full max-w-sm shadow-2xl text-center border border-slate-100 dark:border-slate-800">
             <Star size={40} className="text-blue-600 mx-auto mb-4" />
             <h3 className="text-2xl font-black text-slate-900 dark:text-white mb-2">{modalSuscripcion.titulo}</h3>
-            <p className="text-base text-slate-500 mb-6">{modalSuscripcion.mensaje}</p>
-            <button onClick={() => setModalSuscripcion({ visible: false, titulo: "", mensaje: "" })} className="w-full bg-blue-600 text-white font-black py-4 rounded-2xl">Entendido</button>
+            <p className="text-sm font-medium text-slate-500 dark:text-slate-400 mb-6">{modalSuscripcion.mensaje}</p>
+            <div className="flex flex-col gap-2.5">
+              {esAdmin && (
+                <button
+                  onClick={() => {
+                    setModalSuscripcion({ visible: false, titulo: "", mensaje: "" });
+                    setModalPlanesOpen(true);
+                  }}
+                  className="w-full bg-blue-600 hover:bg-blue-700 text-white font-black py-3.5 rounded-2xl shadow-lg transition-transform active:scale-95 cursor-pointer"
+                >
+                  Ver Planes y Mejorar Ahora
+                </button>
+              )}
+              <button onClick={() => setModalSuscripcion({ visible: false, titulo: "", mensaje: "" })} className="w-full bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-bold py-3 rounded-2xl cursor-pointer">Cerrar</button>
+            </div>
           </div>
         </div>
+      )}
+
+      {cuentaPrincipalId && (
+        <ModalSuscripcion
+          isOpen={modalPlanesOpen}
+          onClose={() => setModalPlanesOpen(false)}
+          cuentaPrincipalId={cuentaPrincipalId}
+          planInicial="comercio"
+        />
       )}
 
       {/* MODAL DE IMPRESIÓN DE TICKET TÉRMICO */}
@@ -1864,6 +1916,7 @@ Gracias por seguir con nosotros.
           ventaOrigen={modalDevolucion.venta}
           onSuccess={() => {
             if (cuentaPrincipalId) cargarDatosHistorial(cuentaPrincipalId);
+            if (clienteActivo) abrirHistorialCliente(clienteActivo.id);
           }}
         />
       )}
@@ -1979,7 +2032,8 @@ Gracias por seguir con nosotros.
         clienteNombre={modalAnularAbono.cliente?.nombre || modalAnularAbono.movimiento?.clienteNombre || 'Cliente'}
         clienteDeudaActual={modalAnularAbono.cliente?.deudaTotal || 0}
         onSuccess={() => {
-          // Re-cargar historial o actualizar en snapshot
+          if (cuentaPrincipalId) cargarDatosHistorial(cuentaPrincipalId);
+          if (clienteActivo) abrirHistorialCliente(clienteActivo.id);
         }}
       />
 

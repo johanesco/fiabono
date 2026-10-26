@@ -5,7 +5,7 @@ import { Clock, Lock, MessageCircle, X, ShieldAlert, ArrowRight, Calendar } from
 import { abrirEnlaceWhatsApp } from "@/utils/whatsapp";
 
 export interface BloqueoColaboradorInfo {
-  motivo: 'inactivo' | 'fuera_de_horario';
+  motivo: 'inactivo' | 'fuera_de_horario' | 'plan_vencido';
   nombreColaborador?: string;
   nombreNegocio?: string;
   telefonoAdmin?: string;
@@ -46,6 +46,7 @@ export default function ModalAccesoColaborador({
   if (!info || !mounted) return null;
 
   const esHorario = info.motivo === 'fuera_de_horario';
+  const esPlanVencido = info.motivo === 'plan_vencido';
   const nombreColab = info.nombreColaborador || 'Vendedor';
   const nombreNeg = info.nombreNegocio || 'tu negocio';
   const telefonoAdmin = info.telefonoAdmin || '';
@@ -78,7 +79,9 @@ export default function ModalAccesoColaborador({
     if (!telefonoAdmin) return;
     const mensaje = esHorario
       ? `Hola! Intento ingresar a Fiabono pero mi cuenta de vendedor (${nombreColab}) figura fuera de horario laboral. ¿Podrías apoyarme?`
-      : `Hola! Mi usuario de vendedor (${nombreColab}) en Fiabono aparece actualmente en pausa. ¿Podrías reactivar mi acceso?`;
+      : esPlanVencido
+        ? `Hola! Intento ingresar a Fiabono con mi cuenta (${nombreColab}), pero el sistema indica que el plan de ${nombreNeg} requiere renovación para habilitar colaboradores.`
+        : `Hola! Mi usuario de vendedor (${nombreColab}) en Fiabono aparece actualmente en pausa. ¿Podrías reactivar mi acceso?`;
     
     abrirEnlaceWhatsApp(telefonoAdmin, mensaje);
   };
@@ -130,6 +133,11 @@ export default function ModalAccesoColaborador({
                 <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
                 <span className="text-amber-800 dark:text-amber-300">Fuera de Horario Laboral</span>
               </>
+            ) : esPlanVencido ? (
+              <>
+                <span className="w-1.5 h-1.5 rounded-full bg-rose-500" />
+                <span className="text-rose-800 dark:text-rose-300">Suscripción del Negocio</span>
+              </>
             ) : (
               <>
                 <span className="w-1.5 h-1.5 rounded-full bg-rose-500" />
@@ -139,13 +147,17 @@ export default function ModalAccesoColaborador({
           </div>
 
           <h3 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white tracking-tight">
-            {esHorario ? 'Acceso Restringido por Horario' : 'Cuenta de Vendedor Inactiva'}
+            {esHorario ? 'Acceso Restringido por Horario' : esPlanVencido ? 'Plan del Negocio sin Colaboradores' : 'Cuenta de Vendedor Inactiva'}
           </h3>
 
           <p className="text-xs text-slate-600 dark:text-slate-400 mt-1.5 max-w-sm mx-auto leading-relaxed">
             {esHorario ? (
               <>
                 Hola <strong className="text-slate-900 dark:text-white">{nombreColab}</strong>. Tu cuenta en <strong className="text-slate-900 dark:text-white">{nombreNeg}</strong> está programada para operar únicamente durante tu jornada laboral.
+              </>
+            ) : esPlanVencido ? (
+              <>
+                Hola <strong className="text-slate-900 dark:text-white">{nombreColab}</strong>. Actualmente <strong className="text-slate-900 dark:text-white">{nombreNeg}</strong> se encuentra en un plan que no incluye cuentas de colaboradores activas.
               </>
             ) : (
               <>

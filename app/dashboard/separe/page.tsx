@@ -202,6 +202,40 @@ function SepareContenido() {
   // Clientes
   const [clientes, setClientes] = useState<any[]>([]);
   const [clienteSeleccionado, setClienteSeleccionado] = useState<any | null>(null);
+  const [separeActivoCliente, setSepareActivoCliente] = useState<any | null>(null);
+  const [uniendoASepareExistente, setUniendoASepareExistente] = useState<boolean>(false);
+
+  // Detectar inteligentemente si el cliente seleccionado ya tiene un Plan Separe activo
+  useEffect(() => {
+    let cancelado = false;
+    const consultarSepareActivo = async () => {
+      if (!cuentaPrincipalId || !clienteSeleccionado?.id) {
+        setSepareActivoCliente(null);
+        return;
+      }
+      try {
+        const qSep = query(
+          collection(db, "separes"),
+          where("usuarioId", "==", cuentaPrincipalId),
+          where("clienteId", "==", clienteSeleccionado.id),
+          where("estado", "==", "activo")
+        );
+        const snap = await getDocs(qSep);
+        if (cancelado) return;
+        if (snap.empty) {
+          setSepareActivoCliente(null);
+        } else {
+          const lista = snap.docs.map(d => ({ id: d.id, ...d.data() })) as any[];
+          lista.sort((a, b) => (b.fechaCreacion?.toMillis?.() || 0) - (a.fechaCreacion?.toMillis?.() || 0));
+          setSepareActivoCliente(lista[0]);
+        }
+      } catch (err) {
+        console.warn("No se pudo verificar separe activo del cliente:", err);
+      }
+    };
+    consultarSepareActivo();
+    return () => { cancelado = true; };
+  }, [cuentaPrincipalId, clienteSeleccionado?.id]);
   const [busquedaCliente, setBusquedaCliente] = useState("");
   const [mostrarResultadosCliente, setMostrarResultadosCliente] = useState(false);
   const [modalNuevoCliente, setModalNuevoCliente] = useState(false);
@@ -1828,6 +1862,153 @@ function SepareContenido() {
     router.push('/dashboard/fiar');
   };
 
+  // Unir los artículos actuales al Plan Separe activo que ya tiene el cliente (con o sin nuevo abono)
+  const unirASepareActivoExistente = async () => {
+    if (!separeActivoCliente || !clienteSeleccionado || uniendoASepareExistente || guardando) return;
+
+    const filasConDescripcion = filas.filter(f => f.descripcion.trim().length > 0);
+    if (filasConDescripcion.length === 0) {
+      toast.error("Debes agregar al menos un producto para unir al Plan Separe.");
+      return;
+    }
+
+    const itemsFiltrados = filasConDescripcion.filter(f => parseFloat(f.valor) > 0);
+    if (itemsFiltrados.length !== filasConDescripcion.length) {
+      toast.error("Hay artículos con precio en cero o vacío. Complétalos o quítalos antes de continuar.");
+      return;
+    }
+
+    const itemsGuardar = itemsFiltrados.map(f => {
+      const pInv = inventario.find(p =>
+        (f.idProducto && p.id === f.idProducto) ||
+        (p.nombre || "").trim().toLowerCase() === f.descripcion.trim().toLowerCase()
+      );
+      const fotoFinal = f.fotoUrl || pInv?.imagen || pInv?.imagenUrl || pInv?.foto || pInv?.fotoUrl || null;
+      return {
+        descripcion: f.descripcion.trim(),
+        valor: (parseFloat(f.valor) || 0).toString(),
+        cantidad: f.cantidad,
+        fotoUrl: fotoFinal,
+        idProducto: f.idProducto || pInv?.id || null
+      };
+    });
+
+    setUniendoASepareExistente(true);
+    setGuardando(true);
+    try {
+      const token = await auth.currentUser?.getIdToken();
+      if (!token) throw new Error("Sesión inválida.");
+
+      const abonoAdic = abonoInicialNum > 0 ? abonoInicialNum : 0;
+      const res = await fetch('/api/separes/agregar-item', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer ' + token
+        },
+        body: JSON.stringify({
+          separeId: separeActivoCliente.id,
+          nuevosItems: itemsGuardar,
+          abonoAdicional: abonoAdic,
+          metodoPago,
+          subMetodoPago: subMetodoPago.trim() || null,
+          referenciaPago: referenciaPago.trim() || null,
+          notaOpcional: notas.trim() || 'Unido desde módulo Crear Separe'
+        })
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || "No se pudo unir el producto al Plan Separe activo.");
+      }
+
+      setMostrarModalAbonoRequerido(false);
+      reproducirSonidoExito();
+      toast.success("¡Producto(s) unido(s) al Plan Separe activo del cliente! 🛍️");
+
+      const itemsUnificados = data.itemsActualizados || [...(separeActivoCliente.items || []), ...itemsGuardar];
+
+      const ticketDatos: DatosFacturaProps = {
+        nombreNegocio: nombreNegocio || "Mi Negocio",
+        telefonoNegocio: datosSesion?.telefonoNegocio || "",
+        correoNegocio: datosSesion?.correoNegocio || "",
+        logoNegocio: datosSesion?.logoNegocio || null,
+        nitNegocio: datosSesion?.nitNegocio || "",
+        direccionNegocio: datosSesion?.direccionNegocio || "",
+        mensajePieTicket: datosSesion?.mensajePieTicket || "",
+        nombreCliente: clienteSeleccionado.nombre,
+        celularCliente: clienteSeleccionado.celular || "",
+        registradoPor: vendedorActivo || nombreUsuario || "Vendedor",
+        fecha: new Date(),
+        tipo: 'separe',
+        detalles: itemsUnificados.map((it: any) => ({
+          descripcion: it.descripcion,
+          cantidad: it.cantidad,
+          valorUnitario: parseFloat(it.valor) || 0,
+          valor: (parseFloat(it.valor) || 0) * (it.cantidad || 1)
+        })),
+        descripcionGeneral: 'Plan Separe Unificado (+ Anexo): Total $' + (data.nuevoTotal || 0).toLocaleString('es-CO') + ' | Abonado $' + (data.nuevoMontoPagado || 0).toLocaleString('es-CO') + ' | Saldo $' + (data.nuevoSaldoPendiente || 0).toLocaleString('es-CO'),
+        montoTotal: data.nuevoTotal || 0,
+        pagoRecibido: data.nuevoMontoPagado || 0,
+        saldoNuevo: data.nuevoSaldoPendiente || 0,
+        idTransaccion: separeActivoCliente.id,
+        metodoPago: abonoAdic > 0 ? metodoPago : (separeActivoCliente.metodoPago || 'efectivo')
+      };
+
+      setModalExito({
+        visible: true,
+        separe: {
+          ...separeActivoCliente,
+          id: separeActivoCliente.id,
+          items: itemsUnificados,
+          total: data.nuevoTotal,
+          totalBruto: data.nuevoTotalBruto,
+          montoPagado: data.nuevoMontoPagado,
+          saldoPendiente: data.nuevoSaldoPendiente
+        },
+        ticketDatos,
+        esOrdenPendiente: false
+      });
+
+      // Limpiar pestaña actual
+      const reiniciada: PestanaSepare = {
+        id: '1',
+        nombre: 'Separe #1',
+        vendedor: vendedorActivo || nombreUsuario || "Vendedor",
+        filas: [{ id: "1", descripcion: "", valor: "", cantidad: 1, fotoUrl: null, esDeInventario: false }],
+        cliente: null,
+        descuentoTipo: null,
+        descuentoValor: "",
+        fechaLimite: "",
+        notas: "",
+        abonoInicial: "",
+        metodoPago: 'efectivo',
+        subMetodoPago: "",
+        referenciaPago: ""
+      };
+
+      if (pestanas.length <= 1) {
+        setPestanas([reiniciada]);
+        persistirPestanas([reiniciada], vendedorActivo);
+        setPestanaActivaId('1');
+        cargarDatosDePestana(reiniciada);
+      } else {
+        const restantes = pestanas.filter(p => p.id !== pestanaActivaId);
+        const siguiente = restantes[0] || reiniciada;
+        setPestanas(restantes.length > 0 ? restantes : [reiniciada]);
+        persistirPestanas(restantes.length > 0 ? restantes : [reiniciada], vendedorActivo);
+        setPestanaActivaId(siguiente.id);
+        cargarDatosDePestana(siguiente);
+      }
+    } catch (error: any) {
+      console.error("Error uniendo a separe activo:", error);
+      toast.error(error.message || "Error al unir los productos al separe activo.");
+    } finally {
+      setUniendoASepareExistente(false);
+      setGuardando(false);
+    }
+  };
+
   const guardarSepare = async (abonoOverride?: number) => {
     const abonoEfectivo = typeof abonoOverride === 'number' ? abonoOverride : abonoInicialNum;
     const saldoPendienteEfectivo = Math.max(0, totalSepare - abonoEfectivo);
@@ -2845,29 +3026,61 @@ Estamos atentos para cualquier consulta.
               </div>
 
               {clienteSeleccionado ? (
-                <div className="py-2.5 px-3 bg-violet-50 dark:bg-violet-500/10 rounded-xl border border-violet-200 flex justify-between items-center shadow-sm">
-                  <div className="flex flex-col min-w-0 mr-2 flex-1">
-                    <div className="flex items-center gap-1.5 flex-wrap">
-                      <span className="font-black text-slate-900 dark:text-violet-300 text-xs sm:text-sm break-words leading-tight">
-                        {clienteSeleccionado.nombre}
-                      </span>
-                      {clienteSeleccionado.apodo && (
-                        <span className="text-[10px] font-bold text-amber-700 dark:text-amber-400 bg-amber-100/70 dark:bg-amber-950/50 px-1.5 py-0.2 rounded border border-amber-200 dark:border-amber-800/40">
-                          "{clienteSeleccionado.apodo}"
+                <div className="space-y-2">
+                  <div className="py-2.5 px-3 bg-violet-50 dark:bg-violet-500/10 rounded-xl border border-violet-200 flex justify-between items-center shadow-sm">
+                    <div className="flex flex-col min-w-0 mr-2 flex-1">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span className="font-black text-slate-900 dark:text-violet-300 text-xs sm:text-sm break-words leading-tight">
+                          {clienteSeleccionado.nombre}
                         </span>
+                        {clienteSeleccionado.apodo && (
+                          <span className="text-[10px] font-bold text-amber-700 dark:text-amber-400 bg-amber-100/70 dark:bg-amber-950/50 px-1.5 py-0.2 rounded border border-amber-200 dark:border-amber-800/40">
+                            "{clienteSeleccionado.apodo}"
+                          </span>
+                        )}
+                      </div>
+                      <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 mt-0.5">
+                        {clienteSeleccionado.celular ? 'WhatsApp: ' + clienteSeleccionado.celular : "Sin celular"}
+                      </span>
+                    </div>
+                    <button
+                      onClick={() => { setClienteSeleccionado(null); setBusquedaCliente(""); }}
+                      className="text-rose-500 shrink-0 hover:bg-rose-100 p-1.5 rounded-full cursor-pointer transition-colors"
+                      title="Cambiar cliente"
+                    >
+                      <X size={15} />
+                    </button>
+                  </div>
+
+                  {/* Detector Inteligente: El cliente ya tiene un Plan Separe Activo */}
+                  {separeActivoCliente && (
+                    <div className="p-2.5 rounded-xl bg-emerald-50/90 dark:bg-emerald-950/40 border border-emerald-300/80 dark:border-emerald-800/60 space-y-1.5 animate-in fade-in duration-200">
+                      <div className="flex items-center justify-between gap-2 text-[11px]">
+                        <span className="font-black text-emerald-900 dark:text-emerald-200 flex items-center gap-1">
+                          <Bookmark size={12} className="text-emerald-600 shrink-0" />
+                          Tiene un Separe Activo
+                        </span>
+                        <span className="text-[10px] font-bold text-emerald-700 dark:text-emerald-300">
+                          Abonado: {'$' + Number(separeActivoCliente.montoPagado || 0).toLocaleString('es-CO')} • Saldo: {'$' + Number(separeActivoCliente.saldoPendiente || 0).toLocaleString('es-CO')}
+                        </span>
+                      </div>
+                      {totalSepare > 0 && (
+                        <button
+                          type="button"
+                          disabled={uniendoASepareExistente || guardando}
+                          onClick={unirASepareActivoExistente}
+                          className="w-full py-1.5 px-2.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-black text-[11px] shadow-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer"
+                        >
+                          <Plus size={13} />
+                          <span>
+                            {uniendoASepareExistente
+                              ? "Uniendo productos..."
+                              : "Unir estos artículos a su Separe actual (Respaldar con abono previo)"}
+                          </span>
+                        </button>
                       )}
                     </div>
-                    <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 mt-0.5">
-                      {clienteSeleccionado.celular ? `WhatsApp: ${clienteSeleccionado.celular}` : "Sin celular"}
-                    </span>
-                  </div>
-                  <button
-                    onClick={() => { setClienteSeleccionado(null); setBusquedaCliente(""); }}
-                    className="text-rose-500 shrink-0 hover:bg-rose-100 p-1.5 rounded-full cursor-pointer transition-colors"
-                    title="Cambiar cliente"
-                  >
-                    <X size={15} />
-                  </button>
+                  )}
                 </div>
               ) : (
                 <div className="relative buscador-cliente-separe-container">
@@ -3599,6 +3812,38 @@ Estamos atentos para cualquier consulta.
                 <X size={16} />
               </button>
             </div>
+
+            {/* Opción Inteligente Destacada si el cliente YA tiene un Plan Separe activo */}
+            {separeActivoCliente && (
+              <div className="p-3.5 rounded-2xl bg-emerald-50 dark:bg-emerald-950/40 border-2 border-emerald-400/80 dark:border-emerald-700 text-xs space-y-2 shadow-sm">
+                <div className="flex items-start gap-2">
+                  <div className="p-1.5 rounded-lg bg-emerald-600 text-white shrink-0 mt-0.5">
+                    <Plus size={14} />
+                  </div>
+                  <div className="space-y-0.5">
+                    <p className="font-black text-emerald-950 dark:text-emerald-200 text-xs sm:text-sm">
+                      ¡{clienteSeleccionado?.nombre} ya tiene un Plan Separe activo!
+                    </p>
+                    <p className="text-[11px] text-emerald-800 dark:text-emerald-300 leading-snug">
+                      Ya dio un abono acumulado de <strong>{'$' + Number(separeActivoCliente.montoPagado || 0).toLocaleString('es-CO')}</strong>. Puedes incluir estos productos dentro de ese mismo Plan Separe sin exigirle un nuevo abono hoy:
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  disabled={uniendoASepareExistente || guardando}
+                  onClick={unirASepareActivoExistente}
+                  className="w-full py-2.5 px-3 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-black rounded-xl text-xs shadow-md transition-all flex items-center justify-center gap-1.5 cursor-pointer active:scale-95"
+                >
+                  <CheckCircle2 size={15} />
+                  <span>
+                    {uniendoASepareExistente
+                      ? "Uniendo al Plan Separe..."
+                      : 'Unir al Separe Activo (+$' + totalSepare.toLocaleString('es-CO') + ' sin exigir abono hoy)'}
+                  </span>
+                </button>
+              </div>
+            )}
 
             {/* Mensaje Explicativo Pedagógico */}
             <div className="p-3.5 rounded-2xl bg-amber-50/80 dark:bg-amber-950/20 border border-amber-200/90 dark:border-amber-800/60 text-xs text-slate-700 dark:text-slate-300 space-y-1.5 leading-relaxed">

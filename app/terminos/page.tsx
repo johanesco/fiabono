@@ -43,7 +43,7 @@ export default function TerminosPage() {
             Términos y Condiciones
           </h1>
           <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 font-medium">
-            Última actualización: Septiembre de 2026 • Válido para la República de Colombia
+            Última actualización: Octubre de 2026 • Válido para la República de Colombia
           </p>
         </div>
 
@@ -64,7 +64,7 @@ export default function TerminosPage() {
             </li>
             <li className="flex items-start gap-2">
               <CheckCircle2 size={16} className="text-emerald-600 shrink-0 mt-0.5" />
-              <span><strong>Herramienta de control interno:</strong> Fiabono te permite organizar tu negocio al instante. No somos banco, no prestamos dinero ni reportamos tus movimientos a la DIAN.</span>
+              <span><strong>Control interno y DIAN opcional:</strong> No somos banco ni prestamos dinero. Tus registros cotidianos son comprobantes internos de control y solo se transmiten a la DIAN si tú solicitas y activas expresamente el módulo opcional de Facturación Electrónica con tu propio RUT.</span>
             </li>
           </ul>
         </div>
@@ -121,14 +121,17 @@ export default function TerminosPage() {
           {/* SECCIÓN 4 */}
           <section className="space-y-2">
             <h2 className="text-base sm:text-lg font-black text-slate-900 dark:text-white flex items-center gap-2">
-              <span className="text-emerald-600">4.</span> Exoneración Tributaria y Responsabilidad Fiscal (Escudo DIAN)
+              <span className="text-emerald-600">4.</span> Régimen Tributario, Control Interno y Facturación Electrónica DIAN Opcional
             </h2>
-            <div className="p-4 bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800/40 rounded-2xl space-y-1.5">
+            <div className="p-4 bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800/40 rounded-2xl space-y-2">
               <p className="font-bold text-amber-800 dark:text-amber-300 flex items-center gap-1.5">
                 <AlertCircle size={16} /> Responsabilidad Exclusiva del Contribuyente
               </p>
               <p className="text-xs text-slate-600 dark:text-slate-400">
-                Fiabono actúa como una herramienta de <strong>control interno y comprobantes mercantiles</strong> para facilitar la contabilidad operativa del negocio. Fiabono no comparte proactivamente la información ingresada por los usuarios con la Dirección de Impuestos y Aduanas Nacionales (DIAN) ni con secretarías de hacienda locales. Es responsabilidad única y exclusiva del Comerciante determinar su régimen tributario (responsable o no responsable de IVA), declarar sus ingresos reales, liquidar sus impuestos y emitir factura electrónica de venta cuando la ley colombiana así se lo exija. Fiabono no asume ninguna responsabilidad por sanciones, multas, cierres de establecimientos o investigaciones tributarias impuestas al Comerciante.
+                <strong>a) Operación por defecto (Control Interno):</strong> Por defecto, Fiabono opera como una herramienta de control interno administrativo y emisión de comprobantes mercantiles / estados de cuenta. Los movimientos registrados en esta modalidad no constituyen factura electrónica de venta ni se transmiten a la Dirección de Impuestos y Aduanas Nacionales (DIAN).
+              </p>
+              <p className="text-xs text-slate-600 dark:text-slate-400">
+                <strong>b) Módulo Opcional de Facturación Electrónica DIAN:</strong> Cuando el Comerciante solicite y habilite voluntariamente la integración de Facturación Electrónica DIAN con su propio RUT y resolución vigente, el Comerciante actúa como único emisor fiscal responsable de la veracidad de los datos tributarios, tarifas de IVA/impuestos y cumplimiento normativo, autorizando la transmisión técnica de los documentos que seleccione emitir mediante el proveedor tecnológico aliado. Fiabono no asume responsabilidad alguna por sanciones, multas tributarias, errores de parametrización del contribuyente o interrupciones atribuibles a los servicios informáticos de la DIAN.
               </p>
             </div>
           </section>
@@ -179,13 +182,16 @@ export default function TerminosPage() {
           {/* SECCIÓN 8 */}
           <section className="space-y-2">
             <h2 className="text-base sm:text-lg font-black text-slate-900 dark:text-white flex items-center gap-2">
-              <span className="text-emerald-600">8.</span> Planes, Tarifas y Cancelación
+              <span className="text-emerald-600">8.</span> Planes, Periodo de Prueba, Vencimientos y Condiciones de Pago (Ley 1480 de 2011)
             </h2>
             <p>
-              Fiabono ofrece un Plan Gratuito permanente con límites definidos de clientes y productos, así como planes avanzados (Comercio y PRO) con periodo de prueba sin costo de 14 días.
+              Fiabono ofrece un <strong>Plan Gratuito permanente</strong> (con tope de hasta 15 clientes y 30 productos), así como planes de suscripción (<strong>Plan Comercio</strong> y <strong>Plan PRO Almacén</strong>) que incluyen un periodo único de evaluación gratuita de <strong>14 días</strong> por negocio sin requerir tarjeta de crédito.
             </p>
             <p>
-              <strong>Sin Permanencia:</strong> Las suscripciones se liquidan de forma mensual o anual según lo seleccionado por el usuario. No existe cláusula de permanencia mínima obligatoria. El usuario puede cancelar su suscripción en cualquier momento; el servicio permanecerá activo hasta la finalización del periodo facturado vigente.
+              <strong>Continuidad y Conservación de Datos al Vencer un Plan:</strong> Al finalizar el periodo pagado o de prueba (tras un periodo de cortesía de 3 días), si el Comerciante decide no renovar, su cuenta pasará automáticamente al <strong>Plan Gratuito sin eliminar ni perder su información histórica</strong>. Los registros que superen los límites del Plan Gratuito (más de 15 clientes o más de 30 productos) y los perfiles de colaboradores quedarán pausados en modo de consulta/solo lectura hasta que se reactive un plan superior.
+            </p>
+            <p>
+              <strong>Sin Cláusula de Permanencia y Política de Reembolsos:</strong> No existe cláusula de permanencia mínima obligatoria. Dado que el Comerciante dispone de 14 días de prueba gratuita previa y el Plan Gratuito para evaluar íntegramente la Plataforma antes de contratar, una vez realizado el pago y activado el servicio digital para el ciclo mensual o anual elegido, la prestación se entiende ejecutada con acuerdo del usuario (Art. 47 numeral 1 de la Ley 1480 de 2011), por lo que la cancelación anticipada detendrá cobros futuros pero no generará reembolsos parciales o prorrateados por días restantes del ciclo en curso.
             </p>
           </section>
 

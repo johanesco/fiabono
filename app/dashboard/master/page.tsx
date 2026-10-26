@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { 
-  collection, getDocs, query, where, updateDoc, doc, setDoc, deleteDoc, Timestamp, getCountFromServer 
+  collection, getDocs, query, where, updateDoc, doc, setDoc, deleteDoc, Timestamp, getCountFromServer, arrayUnion 
 } from "firebase/firestore";
 import { db, auth } from "../../../firebase";
 import { sendPasswordResetEmail } from "firebase/auth";
@@ -14,7 +14,7 @@ import {
   Trash2, Power, Users, Phone, MessageCircle, TrendingUp, DollarSign, 
   AlertTriangle, Sparkles, FileText, Activity, RefreshCw, Send, 
   Store, Clock, ExternalLink, Check, UserCheck, Eye, ShieldCheck, ChevronRight,
-  Sun, Moon, CreditCard, KeyRound, Smartphone, Building, User, Mail, Hash, UserX
+  Sun, Moon, CreditCard, KeyRound, Smartphone, Building, User, Mail, Hash, UserX, Download
 } from 'lucide-react';
 
 interface TelemetriaNegocio {
@@ -96,7 +96,7 @@ export default function MasterPage() {
   // Modal para crear bono
   const [modalBono, setModalBono] = useState(false);
   const [formBono, setFormBono] = useState({ 
-    codigo: "", planOtorgado: "pro", diasOtorgados: 30, emailObjetivo: "", unSoloUso: true 
+    codigo: "", planOtorgado: "pro", diasOtorgados: 30, emailObjetivo: "", unSoloUso: true, usosMaximos: 0, fechaExpiracion: "" 
   });
 
   // Modal CRM WhatsApp contextual
@@ -215,7 +215,47 @@ export default function MasterPage() {
 
   useEffect(() => {
     // PROTECCIÓN ULTRA ESTRICTA: Solo el email de login real johanescobar1@gmail.com
-    const emailLogin = auth.currentUser?.email?.toLowerCase().trim();
+    const exportarTiendasCSV = () => {
+    try {
+      const filas = [
+        ['ID', 'Negocio', 'Titular', 'Correo', 'Telefono', 'Plan', 'Estado Plan', 'Dias Restantes', 'Ultimo Acceso', 'DIAN Habilitada', 'Notas Master']
+      ];
+      usuariosFiltrados.forEach(u => {
+        const est = calcularEstadoPlan(u);
+        const dias = calcularDiasRestantes(u);
+        const inac = calcularInactividad(u);
+        const limpiar = (v: any) => `"${String(v ?? '').replace(/"/g, '""')}"`;
+        filas.push([
+          limpiar(u.id),
+          limpiar(u.nombreNegocio || 'Sin nombre'),
+          limpiar(u.nombreUsuario || ''),
+          limpiar(u.email || ''),
+          limpiar(u.telefonoNegocio || u.celular || ''),
+          limpiar((u.plan || 'gratis').toUpperCase()),
+          limpiar(est.label),
+          limpiar(u.plan === 'gratis' ? 'N/A' : dias),
+          limpiar(inac.texto),
+          limpiar(u.facturacionDianHabilitada ? 'SI' : 'NO'),
+          limpiar(u.notasMaster || '')
+        ]);
+      });
+      const csvContent = '\uFEFF' + filas.map(r => r.join(',')).join('\r\n');
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `Fiabono-Comercios-${new Date().toISOString().slice(0, 10)}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      toast.success(`${usuariosFiltrados.length} comercios exportados a CSV.`);
+    } catch (e) {
+      toast.error('Error al exportar CSV.');
+    }
+  };
+
+  const emailLogin = auth.currentUser?.email?.toLowerCase().trim();
     const esMasterValido = (emailLogin === 'johanescobar1@gmail.com' || datosSesion?.datosUsuarioOriginales?.email?.toLowerCase().trim() === 'johanescobar1@gmail.com') && 
       datosSesion?.rol !== 'cajero' && 
       (datosSesion?.tipoUsuario === 'principal' || datosSesion?.tipoUsuario === undefined);
@@ -420,9 +460,20 @@ export default function MasterPage() {
     const ahora = new Date().getTime();
     const sieteDiasAtras = ahora - (7 * 24 * 3600 * 1000);
 
+    const dieciseisDiasAtras = ahora - (16 * 24 * 3600 * 1000);
+    const esUsuarioEnPrueba = (u: any, dias: number) => {
+      if (u.plan === 'gratis' || !u.plan || dias < -2 || dias > 14) return false;
+      if (u.fechaUltimaRenovacionMaster || u.codigoPromocionalUsado) return false;
+      const fPrueba = u.fechaActivacionPrueba?.toDate ? u.fechaActivacionPrueba.toDate().getTime() : (u.fechaActivacionPrueba ? new Date(u.fechaActivacionPrueba).getTime() : null);
+      const fReg = u.fechaRegistro?.toDate ? u.fechaRegistro.toDate().getTime() : (u.createdAt?.toDate ? u.createdAt.toDate().getTime() : null);
+      const refTime = fPrueba || fReg;
+      return Boolean(refTime && refTime >= dieciseisDiasAtras);
+    };
+
     usuarios.forEach(u => {
       const dias = calcularDiasRestantes(u);
-      const esActivo = u.plan !== 'gratis' && dias > 0;
+      // Incluye los 3 días de gracia (0, -1, -2) como negocio con acceso activo/en gracia
+      const esActivo = u.plan !== 'gratis' && Boolean(u.plan) && dias >= -2;
       const esGratis = u.plan === 'gratis' || !u.plan;
 
       if (u.activo === false || u.suspendido === true) {
@@ -442,14 +493,15 @@ export default function MasterPage() {
       }
 
       if (esActivo) {
+        const estaEnPrueba = esUsuarioEnPrueba(u, dias);
         if (u.plan === 'pro') activosPro++;
         if (u.plan === 'comercio') activosComercio++;
         if (dias <= 7) porVencer7d++;
-        if (dias <= 14 && (u.pruebaGratisUsada || !u.cicloPlan || u.cicloPlan === 'mensual')) {
+        if (estaEnPrueba) {
           enPrueba++;
         }
       } else if (!esGratis) {
-        // Estuvo en plan pago pero ya se venció
+        // Estuvo en plan pago y ya superó incluso el periodo de gracia
         vencidos++;
       }
 
@@ -466,7 +518,21 @@ export default function MasterPage() {
       }
     });
 
-    const mrr = (activosComercio * 30000) + (activosPro * 50000);
+    let mrrPagado = 0;
+    let mrrEnPrueba = 0;
+    usuarios.forEach(u => {
+      const dias = calcularDiasRestantes(u);
+      const esActivo = u.plan !== 'gratis' && Boolean(u.plan) && dias >= -2;
+      if (!esActivo) return;
+      const tarifa = u.plan === 'pro' ? 50000 : (u.plan === 'comercio' ? 30000 : 0);
+      if (esUsuarioEnPrueba(u, dias)) {
+        mrrEnPrueba += tarifa;
+      } else {
+        mrrPagado += tarifa;
+      }
+    });
+
+    const mrr = mrrPagado + mrrEnPrueba;
 
     return {
       total,
@@ -482,24 +548,36 @@ export default function MasterPage() {
       suspendidos,
       conDian,
       solicitudesDian,
-      mrr
+      mrr,
+      mrrPagado,
+      mrrEnPrueba
     };
   }, [usuarios]);
 
   const usuariosFiltrados = useMemo(() => {
+    const ahora = new Date().getTime();
+    const dieciseisDiasAtras = ahora - (16 * 24 * 3600 * 1000);
     return usuarios.filter(u => {
-      const coincideBusqueda = !busqueda.trim() || 
-        (u.nombreNegocio?.toLowerCase().includes(busqueda.toLowerCase()) || 
-         u.nombreUsuario?.toLowerCase().includes(busqueda.toLowerCase()) || 
-         u.email?.toLowerCase().includes(busqueda.toLowerCase()) || 
-         u.telefonoNegocio?.includes(busqueda) ||
-         u.celular?.includes(busqueda));
+      const q = busqueda.trim().toLowerCase();
+      const coincideBusqueda = !q || 
+        (u.nombreNegocio?.toLowerCase().includes(q) || 
+         u.nombreUsuario?.toLowerCase().includes(q) || 
+         u.email?.toLowerCase().includes(q) || 
+         u.id?.toLowerCase().includes(q) ||
+         u.slugNegocio?.toLowerCase().includes(q) ||
+         u.solicitudDian?.nit?.toLowerCase().includes(q) ||
+         u.telefonoNegocio?.includes(busqueda.trim()) ||
+         u.celular?.includes(busqueda.trim()));
 
       if (!coincideBusqueda) return false;
 
       const dias = calcularDiasRestantes(u);
-      const esActivo = u.plan !== 'gratis' && dias > 0;
+      const esActivo = u.plan !== 'gratis' && Boolean(u.plan) && dias >= -2;
       const esGratis = u.plan === 'gratis' || !u.plan;
+      const fPrueba = u.fechaActivacionPrueba?.toDate ? u.fechaActivacionPrueba.toDate().getTime() : (u.fechaActivacionPrueba ? new Date(u.fechaActivacionPrueba).getTime() : null);
+      const fReg = u.fechaRegistro?.toDate ? u.fechaRegistro.toDate().getTime() : (u.createdAt?.toDate ? u.createdAt.toDate().getTime() : null);
+      const refTime = fPrueba || fReg;
+      const enPruebaGratis = esActivo && dias <= 14 && !u.fechaUltimaRenovacionMaster && !u.codigoPromocionalUsado && Boolean(refTime && refTime >= dieciseisDiasAtras);
 
       if (filtroEstado === 'todos') return true;
       if (filtroEstado === 'gratis') return esGratis;
@@ -507,7 +585,7 @@ export default function MasterPage() {
       if (filtroEstado === 'porVencer') return esActivo && dias <= 7;
       if (filtroEstado === 'pro') return esActivo && u.plan === 'pro';
       if (filtroEstado === 'comercio') return esActivo && u.plan === 'comercio';
-      if (filtroEstado === 'prueba') return esActivo && dias <= 14;
+      if (filtroEstado === 'prueba') return enPruebaGratis;
       if (filtroEstado === 'vencidos') return !esActivo && !esGratis;
       if (filtroEstado === 'conDian') return u.facturacionDianHabilitada === true;
       if (filtroEstado === 'solicitudDian') return Boolean(u.solicitudDian && u.solicitudDian.estado === 'pendiente');
@@ -524,6 +602,48 @@ export default function MasterPage() {
       return true;
     });
   }, [usuarios, busqueda, filtroEstado]);
+
+    const exportarTiendasCSV = () => {
+    try {
+      const filas = [
+        ['ID', 'Negocio', 'Titular', 'Correo', 'Telefono', 'Plan', 'Estado Plan', 'Dias Restantes', 'Ultimo Acceso', 'DIAN Habilitada', 'Notas Master']
+      ];
+      usuariosFiltrados.forEach(u => {
+        const est = calcularEstadoPlan(u);
+        const dias = calcularDiasRestantes(u);
+        const inac = calcularInactividad(u);
+        const limpiar = (v: any) => `"${String(v ?? '').replace(/"/g, '""')}"`;
+        filas.push([
+          limpiar(u.id),
+          limpiar(u.nombreNegocio || 'Sin nombre'),
+          limpiar(u.nombreUsuario || ''),
+          limpiar(u.email || ''),
+          limpiar(u.telefonoNegocio || u.celular || ''),
+          limpiar((u.plan || 'gratis').toUpperCase()),
+          limpiar(est.label),
+          limpiar(u.plan === 'gratis' ? 'N/A' : dias),
+          limpiar(inac.texto),
+          limpiar(u.facturacionDianHabilitada ? 'SI' : 'NO'),
+          limpiar(u.notasMaster || '')
+        ]);
+      });
+      const csvContent = '\uFEFF' + filas.map(r => r.join(',')).join('\r\n');
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `Fiabono-Comercios-${new Date().toISOString().slice(0, 10)}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      toast.success(`${usuariosFiltrados.length} comercios exportados a CSV.`);
+    } catch (e) {
+      toast.error('Error al exportar CSV.');
+    }
+  };
+
+
 
   const auditarActividadTienda = async (usuarioId: string) => {
     setTelemetriaMap(prev => ({
@@ -570,12 +690,20 @@ export default function MasterPage() {
     const emailNeg = u.email || 'sin correo';
 
     let baseDate = new Date();
+    let tieneFechaFutura = false;
     if (u.planVence) {
       const timeVence = u.planVence.toDate ? u.planVence.toDate().getTime() : new Date(u.planVence).getTime();
       if (timeVence > baseDate.getTime()) {
         baseDate = new Date(timeVence);
+        tieneFechaFutura = true;
       }
     }
+
+    if (Number(diasAdicionales) === 0 && !tieneFechaFutura) {
+      toast.error("Este negocio no tiene días activos vigentes. Selecciona +15, +30 o +365 días para activar el plan.");
+      return;
+    }
+
     const nuevaFecha = new Date(baseDate);
     nuevaFecha.setDate(nuevaFecha.getDate() + Number(diasAdicionales));
 
@@ -585,12 +713,14 @@ export default function MasterPage() {
 
     const aprobado = await customConfirm(
       `[CONFIRMACION REQUERIDA DEL MASTER]\n\n` +
-      `¿Confirmas otorgar +${diasAdicionales} DIAS a:\n\n` +
+      (Number(diasAdicionales) > 0
+        ? `¿Confirmas otorgar +${diasAdicionales} DIAS a:\n\n`
+        : `¿Confirmas cambiar el nivel de plan (conservando su vencimiento actual) a:\n\n`) +
       `Negocio: "${nombreNeg}"\n` +
       `Correo: ${emailNeg}\n` +
       `Plan Asignado: ${planFinal.toUpperCase()}\n` +
-      `Nueva Fecha de Vencimiento: ${fechaFormateada}\n\n` +
-      `Presiona Confirmar para autorizar la extension en el sistema.`
+      `Fecha de Vencimiento: ${fechaFormateada}\n\n` +
+      `Presiona Confirmar para autorizar el cambio en el sistema.`
     );
 
     if (!aprobado) {
@@ -599,13 +729,83 @@ export default function MasterPage() {
     }
 
     try {
+      const registroRenovacion = {
+        fecha: new Date().toISOString(),
+        plan: planFinal,
+        dias: Number(diasAdicionales),
+        nuevaFechaVencimiento: nuevaFecha.toISOString(),
+      };
       await updateDoc(doc(db, "usuarios", u.id), {
         plan: planFinal,
         planVence: nuevaFecha,
         proximoPlan: null,
-        cicloPlan: diasAdicionales >= 365 ? 'anual' : 'mensual'
+        pruebaGratisUsada: true,
+        ...(Number(diasAdicionales) > 0 ? { fechaUltimaRenovacionMaster: new Date() } : {}),
+        historialRenovaciones: arrayUnion(registroRenovacion),
+        cicloPlan: diasAdicionales >= 365 ? 'anual' : (u.cicloPlan || 'mensual')
       });
-      toast.success(`+${diasAdicionales} dias acreditados exitosamente a ${nombreNeg}.`);
+
+      // Sincronizar estado de colaboradores según el plan asignado (Comercio vs PRO)
+      try {
+        const qCajeros = query(
+          collection(db, "usuarios"),
+          where("adminId", "==", u.id),
+          where("rol", "==", "cajero")
+        );
+        const snapC = await getDocs(qCajeros);
+        if (!snapC.empty) {
+          const promesasColab: Promise<any>[] = [];
+          if (planFinal === 'pro') {
+            let activosRegulares = 0;
+            snapC.docs.forEach(d => {
+              const dataC = d.data();
+              if (dataC.esCajaMostrador !== true && dataC.activo !== false) activosRegulares++;
+            });
+            snapC.docs.forEach(d => {
+              const dataC = d.data();
+              if (dataC.desactivadoPorSistema === true && dataC.activo === false) {
+                if (dataC.esCajaMostrador === true) {
+                  promesasColab.push(updateDoc(doc(db, "usuarios", d.id), { activo: true, desactivadoPorSistema: false }));
+                } else if (activosRegulares < 4) {
+                  activosRegulares++;
+                  promesasColab.push(updateDoc(doc(db, "usuarios", d.id), { activo: true, desactivadoPorSistema: false }));
+                }
+              }
+            });
+          } else if (planFinal === 'comercio') {
+            const regularesActivos: string[] = [];
+            const regularesAutoDesactivados: string[] = [];
+            snapC.docs.forEach(d => {
+              const dataC = d.data();
+              if (dataC.esCajaMostrador === true) {
+                if (dataC.activo !== false) {
+                  promesasColab.push(updateDoc(doc(db, "usuarios", d.id), { activo: false, desactivadoPorSistema: true }));
+                }
+              } else if (dataC.activo !== false) {
+                regularesActivos.push(d.id);
+              } else if (dataC.desactivadoPorSistema === true) {
+                regularesAutoDesactivados.push(d.id);
+              }
+            });
+            if (regularesActivos.length > 1) {
+              regularesActivos.slice(1).forEach(idExceso => {
+                promesasColab.push(updateDoc(doc(db, "usuarios", idExceso), { activo: false, desactivadoPorSistema: true }));
+              });
+            } else if (regularesActivos.length === 0 && regularesAutoDesactivados.length > 0) {
+              promesasColab.push(updateDoc(doc(db, "usuarios", regularesAutoDesactivados[0]), { activo: true, desactivadoPorSistema: false }));
+            }
+          }
+          if (promesasColab.length > 0) await Promise.all(promesasColab);
+        }
+      } catch (colabErr) {
+        console.warn("Advertencia sincronizando colaboradores desde Master:", colabErr);
+      }
+
+      toast.success(
+        diasAdicionales > 0
+          ? `+${diasAdicionales} dias acreditados exitosamente a ${nombreNeg} (${planFinal.toUpperCase()}).`
+          : `Plan actualizado a ${planFinal.toUpperCase()} para ${nombreNeg}.`
+      );
       cargarDatos();
     } catch (err) {
       console.error(err);
@@ -640,9 +840,14 @@ export default function MasterPage() {
           where("rol", "==", "cajero")
         );
         const snapC = await getDocs(qCajeros);
-        const batchDesact = snapC.docs.map(d =>
-          updateDoc(doc(db, "usuarios", d.id), { activo: false })
-        );
+        const batchDesact = snapC.docs.map(d => {
+          const dataC = d.data();
+          const estabaActivo = dataC.activo !== false;
+          return updateDoc(doc(db, "usuarios", d.id), {
+            activo: false,
+            ...(estabaActivo ? { desactivadoPorSistema: true } : {})
+          });
+        });
         await Promise.all(batchDesact);
 
         toast.success("Negocio pasado a plan gratuito.");
@@ -929,17 +1134,27 @@ export default function MasterPage() {
     if (!confirmado) return;
 
     try {
+      let fechaExpDate: Date | null = null;
+      if (formBono.fechaExpiracion) {
+        const [y, m, d] = formBono.fechaExpiracion.split('-').map(Number);
+        if (y && m && d) {
+          fechaExpDate = new Date(y, m - 1, d, 23, 59, 59, 999);
+        }
+      }
       await setDoc(doc(db, "codigos_promocionales", formBono.codigo.trim().toUpperCase()), {
         activo: true,
         planOtorgado: formBono.planOtorgado,
         diasOtorgados: Number(formBono.diasOtorgados),
         emailObjetivo: formBono.emailObjetivo.trim().toLowerCase(),
         unSoloUso: formBono.unSoloUso,
+        usosMaximos: formBono.unSoloUso ? 1 : Math.max(0, Number(formBono.usosMaximos || 0)),
+        usosActuales: 0,
+        ...(fechaExpDate ? { fechaExpiracion: fechaExpDate } : {}),
         fechaCreacion: new Date()
       });
       toast.success("Bono creado exitosamente.");
       setModalBono(false);
-      setFormBono({ codigo: "", planOtorgado: "pro", diasOtorgados: 30, emailObjetivo: "", unSoloUso: true });
+      setFormBono({ codigo: "", planOtorgado: "pro", diasOtorgados: 30, emailObjetivo: "", unSoloUso: true, usosMaximos: 0, fechaExpiracion: "" });
       cargarDatos();
     } catch (e) {
       toast.error("Error al crear bono.");
@@ -1193,6 +1408,20 @@ export default function MasterPage() {
               {!tieneMediosDePagoValidos && <span className="w-2 h-2 rounded-full bg-rose-500"></span>}
             </button>
 
+            {/* BOTÓN EXPORTAR CSV */}
+            <button 
+              onClick={exportarTiendasCSV}
+              title="Exportar listado de tiendas a Excel / CSV"
+              className={`px-3 py-2.5 rounded-2xl border transition active:scale-95 cursor-pointer flex items-center gap-1.5 text-xs font-bold ${
+                modoOscuro 
+                  ? 'bg-slate-900 hover:bg-slate-800 text-emerald-400 border-slate-800' 
+                  : 'bg-white hover:bg-slate-100 text-emerald-700 border-slate-200 shadow-xs'
+              }`}
+            >
+              <Download size={15} />
+              <span className="hidden sm:inline">Exportar CSV</span>
+            </button>
+
             {/* BOTÓN REFRESCAR */}
             <button 
               onClick={cargarDatos}
@@ -1251,14 +1480,14 @@ export default function MasterPage() {
               : 'bg-gradient-to-br from-purple-50 to-indigo-50 border-purple-200'
           }`}>
             <div className="flex items-center justify-between text-purple-600 dark:text-purple-400 mb-2">
-              <span className="text-[10px] sm:text-[11px] font-black uppercase tracking-wider truncate">MRR Proyectado</span>
+              <span className="text-[10px] sm:text-[11px] font-black uppercase tracking-wider truncate">MRR Real / Total</span>
               <DollarSign size={16} className="shrink-0" />
             </div>
-            <p className={`text-lg sm:text-2xl font-black ${theme.textMain} tabular-nums truncate`}>
-              ${metricas.mrr.toLocaleString('es-CO')}
+            <p className={`text-lg sm:text-2xl font-black ${theme.textMain} tabular-nums truncate`} title={`MRR Pagado/Bono: ${metricas.mrrPagado.toLocaleString('es-CO')} | En prueba 14d: ${metricas.mrrEnPrueba.toLocaleString('es-CO')}`}>
+              ${metricas.mrrPagado.toLocaleString('es-CO')}
             </p>
             <p className="text-[10px] text-purple-700 dark:text-purple-300 font-medium mt-1 truncate">
-              {metricas.activosPro} PRO - {metricas.activosComercio} Comercio
+              +${metricas.mrrEnPrueba.toLocaleString('es-CO')} en prueba ({metricas.activosPro} PRO / {metricas.activosComercio} Com.)
             </p>
           </div>
 
@@ -1551,7 +1780,7 @@ export default function MasterPage() {
                               </span>
                             )}
 
-                            {u.moduloSepare && (
+                            {(u.moduloSepare || (u.plan === 'pro' && u.moduloSepareActivo !== false)) && (
                               <span className="px-2 py-0.5 rounded-full text-[9px] font-black bg-pink-500/15 text-pink-700 dark:text-pink-300 border border-pink-500/30">
                                 Plan Separe
                               </span>
@@ -1624,7 +1853,11 @@ export default function MasterPage() {
 
                         {/* Botón Gestionar Plan Completo */}
                         <button 
-                          onClick={() => setModalPlan({ visible: true, usuario: u })}
+                          onClick={() => {
+                            const planActual = (u.plan === 'pro' || u.plan === 'comercio' || u.plan === 'gratis') ? u.plan : 'comercio';
+                            setFormPlan({ plan: planActual, dias: 30 });
+                            setModalPlan({ visible: true, usuario: u });
+                          }}
                           className="px-3.5 py-2.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black rounded-xl text-xs flex items-center justify-center gap-1.5 shadow-md shadow-amber-500/20 transition active:scale-95 cursor-pointer"
                         >
                           <Edit2 size={14} />
@@ -1673,7 +1906,7 @@ export default function MasterPage() {
                         </button>
 
                         {/* Botón Restablecer Clave (Solo si tiene email) */}
-                        {u.email && u.email.includes('@') && !u.email.endsWith('@fiabono.internal') && (
+                        {u.email && u.email.includes('@') && !u.email.endsWith('@fiabono.internal') && !u.email.endsWith('@fiabono.caja') && (
                           <button
                             onClick={() => abrirModalResetPass(u)}
                             className={`px-3 py-2.5 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition active:scale-95 cursor-pointer ${
@@ -1855,14 +2088,44 @@ export default function MasterPage() {
                           <p className="text-blue-600 dark:text-blue-400 font-bold truncate">{b.emailObjetivo}</p>
                         </div>
                       )}
+
+                      {(b.emailCanje || b.ultimoEmailCanje || b.canjeadoPor) && (
+                        <div className={`p-2.5 rounded-xl border ${theme.cardSubtle} space-y-1`}>
+                          <p className="text-[10px] uppercase font-bold opacity-60">Ultimo canje registrado:</p>
+                          <p className={`font-bold truncate ${theme.textMain}`}>
+                            {b.emailCanje || b.ultimoEmailCanje || b.canjeadoPor}
+                          </p>
+                          {(b.fechaCanje || b.fechaUltimoCanje) && (
+                            <p className="text-[10px] opacity-75">
+                              {((b.fechaCanje || b.fechaUltimoCanje)?.toDate
+                                ? (b.fechaCanje || b.fechaUltimoCanje).toDate()
+                                : new Date(b.fechaCanje || b.fechaUltimoCanje)
+                              ).toLocaleDateString('es-CO', { day: '2-digit', month: 'short', year: 'numeric' })}
+                            </p>
+                          )}
+                        </div>
+                      )}
                       
-                      <div className="flex items-center gap-1.5 text-[11px] font-bold pt-1">
-                        {b.unSoloUso !== false ? (
-                          <><ShieldAlert size={14} className="text-amber-500" /> <span className="text-amber-600 dark:text-amber-400">UN SOLO USO</span></>
-                        ) : (
-                          <><CheckCircle2 size={14} className="text-emerald-500" /> <span className="text-emerald-600 dark:text-emerald-400">MULTIUSO PERMANENTE</span></>
-                        )}
+                      <div className="flex items-center justify-between gap-2 text-[11px] font-bold pt-1">
+                        <div className="flex items-center gap-1.5">
+                          {b.unSoloUso !== false ? (
+                            <><ShieldAlert size={14} className="text-amber-500" /> <span className="text-amber-600 dark:text-amber-400">UN SOLO USO</span></>
+                          ) : (
+                            <><CheckCircle2 size={14} className="text-emerald-500" /> <span className="text-emerald-600 dark:text-emerald-400">{b.usosMaximos > 0 ? `MULTIUSO (${b.usosMaximos} CUPO MAX)` : 'MULTIUSO ILIMITADO'}</span></>
+                          )}
+                        </div>
+                        <span className={`px-2 py-0.5 rounded-lg text-[10px] font-black border ${theme.cardSubtle} ${theme.textMain}`}>
+                          Usos: {b.usosActuales ?? b.totalCanjes ?? (b.canjeadoPor ? 1 : 0)}{b.unSoloUso !== false ? ' / 1' : (b.usosMaximos > 0 ? ` / ${b.usosMaximos}` : '')}
+                        </span>
                       </div>
+                      {b.fechaExpiracion && (
+                        <div className="text-[10px] font-bold text-amber-600 dark:text-amber-400 pt-0.5 flex items-center gap-1">
+                          <Calendar size={11} />
+                          <span>
+                            Expira: {(b.fechaExpiracion?.toDate ? b.fechaExpiracion.toDate() : new Date(b.fechaExpiracion)).toLocaleDateString('es-CO', { day: '2-digit', month: 'short', year: 'numeric' })}
+                          </span>
+                        </div>
+                      )}
                     </div>
                   </div>
 
@@ -2460,27 +2723,35 @@ export default function MasterPage() {
               {formPlan.plan !== 'gratis' && (
                 <div>
                   <label className={`block text-xs font-black uppercase ${theme.textMuted} mb-2`}>Dias a Sumar (Extension)</label>
-                  <div className="grid grid-cols-3 gap-2 mb-2">
+                  <div className="grid grid-cols-4 gap-1.5 mb-2">
+                    <button 
+                      type="button" 
+                      onClick={() => setFormPlan(p => ({ ...p, dias: 0 }))} 
+                      className={`p-2 rounded-xl text-[11px] font-black border cursor-pointer ${formPlan.dias === 0 ? 'bg-amber-500 text-slate-950 border-amber-500' : `${theme.cardSubtle} ${theme.textMain}`}`}
+                      title="Cambiar de plan conservando la fecha de vencimiento actual"
+                    >
+                      0 dias
+                    </button>
                     <button 
                       type="button" 
                       onClick={() => setFormPlan(p => ({ ...p, dias: 15 }))} 
-                      className={`p-2 rounded-xl text-xs font-black border ${formPlan.dias === 15 ? 'bg-amber-500 text-slate-950 border-amber-500' : `${theme.cardSubtle} ${theme.textMain}`}`}
+                      className={`p-2 rounded-xl text-[11px] font-black border cursor-pointer ${formPlan.dias === 15 ? 'bg-amber-500 text-slate-950 border-amber-500' : `${theme.cardSubtle} ${theme.textMain}`}`}
                     >
-                      15 dias
+                      +15 dias
                     </button>
                     <button 
                       type="button" 
                       onClick={() => setFormPlan(p => ({ ...p, dias: 30 }))} 
-                      className={`p-2 rounded-xl text-xs font-black border ${formPlan.dias === 30 ? 'bg-amber-500 text-slate-950 border-amber-500' : `${theme.cardSubtle} ${theme.textMain}`}`}
+                      className={`p-2 rounded-xl text-[11px] font-black border cursor-pointer ${formPlan.dias === 30 ? 'bg-amber-500 text-slate-950 border-amber-500' : `${theme.cardSubtle} ${theme.textMain}`}`}
                     >
-                      30 dias
+                      +30 dias
                     </button>
                     <button 
                       type="button" 
                       onClick={() => setFormPlan(p => ({ ...p, dias: 365 }))} 
-                      className={`p-2 rounded-xl text-xs font-black border ${formPlan.dias === 365 ? 'bg-amber-500 text-slate-950 border-amber-500' : `${theme.cardSubtle} ${theme.textMain}`}`}
+                      className={`p-2 rounded-xl text-[11px] font-black border cursor-pointer ${formPlan.dias === 365 ? 'bg-amber-500 text-slate-950 border-amber-500' : `${theme.cardSubtle} ${theme.textMain}`}`}
                     >
-                      1 ano
+                      +1 ano
                     </button>
                   </div>
                   <input 
@@ -2489,6 +2760,26 @@ export default function MasterPage() {
                     value={formPlan.dias} 
                     onChange={e => setFormPlan({ ...formPlan, dias: Number(e.target.value) })} 
                   />
+                </div>
+              )}
+
+              {Array.isArray(modalPlan.usuario.historialRenovaciones) && modalPlan.usuario.historialRenovaciones.length > 0 && (
+                <div className={`p-3 rounded-2xl border ${theme.cardSubtle} space-y-1.5`}>
+                  <p className={`text-[10px] font-black uppercase tracking-wider ${theme.textMuted}`}>
+                    Ultimas renovaciones autorizadas ({modalPlan.usuario.historialRenovaciones.length})
+                  </p>
+                  <div className="max-h-24 overflow-y-auto space-y-1 pr-1 text-[11px]">
+                    {modalPlan.usuario.historialRenovaciones.slice(-4).reverse().map((h: any, idx: number) => (
+                      <div key={idx} className="flex justify-between items-center border-b border-slate-700/20 pb-1 last:border-none">
+                        <span className={`font-bold ${theme.textMain}`}>
+                          {String(h.plan || '').toUpperCase()} ({h.dias > 0 ? `+${h.dias}d` : 'Cambio'})
+                        </span>
+                        <span className={`text-[10px] ${theme.textMuted}`}>
+                          {h.fecha ? new Date(h.fecha).toLocaleDateString('es-CO', { day: '2-digit', month: 'short', year: 'numeric' }) : ''}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               )}
 
@@ -2558,19 +2849,29 @@ export default function MasterPage() {
                 </div>
               </div>
 
-              <div>
-                <label className={`block text-[10px] font-black uppercase ${theme.textMuted} mb-1.5 ml-1`}>Correo Restringido (Opcional)</label>
-                <input 
-                  type="email" 
-                  placeholder="cliente@correo.com" 
-                  className={`w-full p-3.5 rounded-2xl font-medium border outline-none text-xs ${theme.input} focus:border-blue-500`} 
-                  value={formBono.emailObjetivo} 
-                  onChange={e => setFormBono({ ...formBono, emailObjetivo: e.target.value })} 
-                />
-                <p className="text-[10px] opacity-60 mt-1 ml-1">Si lo dejas vacio, cualquier persona podra usarlo.</p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className={`block text-[10px] font-black uppercase ${theme.textMuted} mb-1.5 ml-1`}>Correo Restringido (Opcional)</label>
+                  <input 
+                    type="email" 
+                    placeholder="cliente@correo.com" 
+                    className={`w-full p-3 rounded-2xl font-medium border outline-none text-xs ${theme.input} focus:border-blue-500`} 
+                    value={formBono.emailObjetivo} 
+                    onChange={e => setFormBono({ ...formBono, emailObjetivo: e.target.value })} 
+                  />
+                </div>
+                <div>
+                  <label className={`block text-[10px] font-black uppercase ${theme.textMuted} mb-1.5 ml-1`}>Expira el (Opcional)</label>
+                  <input 
+                    type="date" 
+                    className={`w-full p-3 rounded-2xl font-bold border outline-none text-xs ${theme.input} focus:border-blue-500`} 
+                    value={formBono.fechaExpiracion} 
+                    onChange={e => setFormBono({ ...formBono, fechaExpiracion: e.target.value })} 
+                  />
+                </div>
               </div>
 
-              <div className={`p-4 rounded-2xl border ${theme.cardSubtle}`}>
+              <div className={`p-4 rounded-2xl border space-y-3 ${theme.cardSubtle}`}>
                 <label className="flex items-start gap-3 cursor-pointer">
                   <div className="mt-0.5">
                     <input 
@@ -2587,6 +2888,22 @@ export default function MasterPage() {
                     </p>
                   </div>
                 </label>
+
+                {!formBono.unSoloUso && (
+                  <div className="pt-2 border-t border-slate-700/20">
+                    <label className={`block text-[10px] font-black uppercase ${theme.textMuted} mb-1`}>
+                      Limite Maximo de Usos (0 = Ilimitado)
+                    </label>
+                    <input
+                      type="number"
+                      min={0}
+                      placeholder="Ej: 10 (o 0 para ilimitado)"
+                      className={`w-full p-2.5 rounded-xl font-bold text-xs border outline-none ${theme.input} focus:border-blue-500`}
+                      value={formBono.usosMaximos}
+                      onChange={e => setFormBono({ ...formBono, usosMaximos: Math.max(0, Number(e.target.value)) })}
+                    />
+                  </div>
+                )}
               </div>
 
               <button 
@@ -3024,7 +3341,7 @@ export default function MasterPage() {
                     <div>
                       <span className={theme.textMuted}>Regimen / Tipo:</span>
                       <p className={`font-bold ${theme.textMain}`}>
-                        {modalDian.usuario.solicitudDian.regimen === 'responsable' ? 'Responsable IVA' : 'No Responsable'} ({modalDian.usuario.solicitudDian.tipoPersona === 'juridica' ? 'Juridica' : 'Natural'})
+                        {(modalDian.usuario.solicitudDian.regimenIva === 'responsable_iva' || modalDian.usuario.solicitudDian.regimen === 'responsable') ? 'Responsable de IVA' : 'No Responsable de IVA'} ({modalDian.usuario.solicitudDian.tipoPersona === 'juridica' ? 'Juridica' : 'Natural'})
                       </p>
                     </div>
                     <div>

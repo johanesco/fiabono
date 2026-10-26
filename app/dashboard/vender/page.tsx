@@ -1248,7 +1248,7 @@ function VenderContenido() {
         body: JSON.stringify({
           clienteId: clienteTransaccion ? clienteTransaccion.id : 'mostrador',
           montoVentaReal,
-          descripcionVenta: descripcionUnificada + (montoSaldoFavorAplicado > 0 ? ` [Saldo a favor: -$${montoSaldoFavorAplicado.toLocaleString('es-CO')}]` : '') + (fiarFaltante && (totalNetoACobrar - efectivoRealRecibido) > 0 ? ` (Fiado: $${(totalNetoACobrar - efectivoRealRecibido).toLocaleString('es-CO')})` : '') + (montoDescuentoTotal > 0 ? ` [Dto: -$${montoDescuentoTotal.toLocaleString('es-CO')}]` : ''),
+          descripcionVenta: (fiarFaltante && (totalNetoACobrar - efectivoRealRecibido) > 0 ? 'Abono inicial por: ' : '') + descripcionUnificada + (montoSaldoFavorAplicado > 0 ? ` [Saldo a favor: -$${montoSaldoFavorAplicado.toLocaleString('es-CO')}]` : '') + (fiarFaltante && (totalNetoACobrar - efectivoRealRecibido) > 0 ? ` (Fiado restante: $${(totalNetoACobrar - efectivoRealRecibido).toLocaleString('es-CO')})` : '') + (montoDescuentoTotal > 0 ? ` [Dto: -$${montoDescuentoTotal.toLocaleString('es-CO')}]` : ''),
           detalles: detallesParaComprobante,
           metodoPago,
           referenciaPago: refPagoCompleta,
@@ -2319,26 +2319,41 @@ Estamos atentos para cualquier consulta.
               </span>
             </div>
           ) : (
-            <div className="flex flex-col gap-1 pt-1 border-t border-slate-200/70 dark:border-slate-800">
+            <div className="flex flex-col gap-1.5 p-2 bg-emerald-50/60 dark:bg-emerald-950/20 border-2 border-emerald-400/60 dark:border-emerald-600/40 rounded-xl shadow-xs animate-in fade-in duration-150">
+              <div className="flex items-center justify-between">
+                <label className="text-[10px] font-black uppercase tracking-wider text-emerald-800 dark:text-emerald-300 flex items-center gap-1">
+                  <Banknote size={12} className="text-emerald-600 dark:text-emerald-400" />
+                  {metodoPago === 'efectivo' ? '💵 ¿Con cuánto paga? (Paga con)' : '💳 Dinero recibido'}
+                </label>
+                {pagoCliente && (
+                  <button
+                    type="button"
+                    onClick={() => setPagoCliente('')}
+                    className="text-[10px] text-rose-500 hover:underline font-bold cursor-pointer"
+                  >
+                    Borrar
+                  </button>
+                )}
+              </div>
               <div className="flex items-center gap-1.5">
                 <div className="relative flex-1">
-                  <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-xs">$</span>
+                  <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-emerald-700 dark:text-emerald-400 font-black text-sm">$</span>
                   <input
                     type="text"
                     inputMode="numeric"
                     value={pagoCliente}
                     onChange={(e) => setPagoCliente(formatearMonedaInput(e.target.value))}
-                    placeholder={metodoPago === 'efectivo' ? "Paga con..." : "Monto recibido"}
-                    className="w-full pl-6 pr-2 py-1 bg-white dark:bg-[#020617] border border-slate-200 dark:border-slate-700 rounded-lg outline-none font-bold text-xs text-slate-900 dark:text-white placeholder:text-slate-400 focus:border-emerald-500"
+                    placeholder={metodoPago === 'efectivo' ? "Ej: 50.000 (Paga con)" : "Monto recibido"}
+                    className="w-full pl-6 pr-2 py-1.5 bg-white dark:bg-[#020617] border-2 border-emerald-500/70 dark:border-emerald-500 rounded-lg outline-none font-black text-sm text-slate-900 dark:text-white placeholder:text-slate-400 focus:ring-2 focus:ring-emerald-500/30 transition-all shadow-xs"
                   />
                 </div>
                 <button
                   type="button"
                   onClick={() => setPagoCliente(totalNetoACobrar.toLocaleString('es-CO'))}
-                  className={`px-2.5 py-1 rounded-lg font-bold text-xs active:scale-95 whitespace-nowrap transition-all border cursor-pointer ${
+                  className={`px-3 py-1.5 rounded-lg font-black text-xs active:scale-95 whitespace-nowrap transition-all border cursor-pointer ${
                     pagoCliente && parseFloat(pagoCliente.replace(/\D/g, '')) === totalNetoACobrar
-                      ? 'bg-emerald-600 text-white border-emerald-600'
-                      : 'bg-white dark:bg-slate-800 text-emerald-700 dark:text-emerald-300 border-slate-200 dark:border-slate-700 hover:bg-emerald-50'
+                      ? 'bg-emerald-600 text-white border-emerald-600 shadow-xs'
+                      : 'bg-white dark:bg-slate-800 text-emerald-700 dark:text-emerald-300 border-emerald-300 dark:border-emerald-700 hover:bg-emerald-100/50'
                   }`}
                   title="Marcar pago exacto sin cambio"
                 >

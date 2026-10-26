@@ -139,6 +139,38 @@ function SeparesContenido() {
   const [destinoExcedenteItem, setDestinoExcedenteItem] = useState<'saldo_favor' | 'efectivo'>('saldo_favor');
   const [procesandoEliminarItem, setProcesandoEliminarItem] = useState<boolean>(false);
 
+  // Estados para Anexar Nuevo(s) Artículo(s) a un Plan Separe Activo (Con o Sin Abono Adicional)
+  const [modalAgregarItem, setModalAgregarItem] = useState<{
+    visible: boolean;
+    separe: any;
+  } | null>(null);
+  const [itemsAnexar, setItemsAnexar] = useState<Array<{
+    id: number;
+    descripcion: string;
+    valor: string;
+    cantidad: number;
+    idProducto: string | null;
+    fotoUrl: string | null;
+  }>>([]);
+  const [filaActivaSugerenciaAnexo, setFilaActivaSugerenciaAnexo] = useState<number | null>(null);
+  const [modoAbonoAnexo, setModoAbonoAnexo] = useState<'respaldar' | 'abonar_adicional'>('respaldar');
+  const [montoAbonoAnexo, setMontoAbonoAnexo] = useState<string>("");
+  const [metodoPagoAnexo, setMetodoPagoAnexo] = useState<string>("efectivo");
+  const [subMetodoAnexo, setSubMetodoAnexo] = useState<string>("");
+  const [referenciaAnexo, setReferenciaAnexo] = useState<string>("");
+  const [notaAnexo, setNotaAnexo] = useState<string>("");
+  const [procesandoAnexoItem, setProcesandoAnexoItem] = useState<boolean>(false);
+  const [modalExitoAnexoItem, setModalExitoAnexoItem] = useState<{
+    visible: boolean;
+    separe: any;
+    nuevosItems: any[];
+    valorAgregado: number;
+    abonoAdicional: number;
+    nuevoTotal: number;
+    nuevoSaldo: number;
+    ticketDatos: DatosFacturaProps;
+  } | null>(null);
+
   // Generadores de Sonidos Web Audio API
   const reproducirSonidoExito = () => {
     try {
@@ -1374,6 +1406,200 @@ ${itemsTexto || '• Artículos apartados'}
     }
   };
 
+  // Lista única de productos activos en inventario para autocompletar al anexar artículo
+  const listaProductosInventario = Object.entries(mapaInventario)
+    .filter(([key, val]) => val && val.id === key && val.activo !== false)
+    .map(([, val]) => val);
+
+  // Abrir modal para anexar 1 o más artículos a un Plan Separe activo
+  const abrirModalAgregarItemSepare = (sep: any) => {
+    setItemsAnexar([
+      {
+        id: Date.now(),
+        descripcion: "",
+        valor: "",
+        cantidad: 1,
+        idProducto: null,
+        fotoUrl: null
+      }
+    ]);
+    setFilaActivaSugerenciaAnexo(null);
+    setModoAbonoAnexo('respaldar');
+    setMontoAbonoAnexo("");
+    setMetodoPagoAnexo("efectivo");
+    setSubMetodoAnexo("");
+    setReferenciaAnexo("");
+    setNotaAnexo("");
+    setModalAgregarItem({
+      visible: true,
+      separe: sep
+    });
+  };
+
+  // Ejecutar anexo transaccional de nuevos artículos al Plan Separe activo
+  const ejecutarAgregarItemSepare = async () => {
+    if (!modalAgregarItem || procesandoAnexoItem) return;
+    const sep = modalAgregarItem.separe;
+
+    const itemsValidos = itemsAnexar
+      .map(it => ({
+        descripcion: it.descripcion.trim(),
+        valor: String(Number(it.valor.replace(/\D/g, '')) || 0),
+        valorNum: Number(it.valor.replace(/\D/g, '')) || 0,
+        cantidad: Math.max(1, Number(it.cantidad || 1)),
+        idProducto: it.idProducto,
+        fotoUrl: it.fotoUrl
+      }))
+      .filter(it => it.descripcion.length > 0 && it.valorNum > 0);
+
+    if (itemsValidos.length === 0) {
+      toast.error("Ingresa el nombre y el precio del producto que deseas anexar.");
+      return;
+    }
+
+    const abonoAdicNum = modoAbonoAnexo === 'abonar_adicional'
+      ? Math.max(0, Number(montoAbonoAnexo.replace(/\D/g, '')) || 0)
+      : 0;
+
+    if (modoAbonoAnexo === 'abonar_adicional' && abonoAdicNum <= 0) {
+      toast.error("Ingresa un valor de abono adicional mayor a $0 o selecciona 'Respaldar con abono actual ($0 hoy)'.");
+      return;
+    }
+
+    setProcesandoAnexoItem(true);
+    try {
+      const token = await auth.currentUser?.getIdToken();
+      if (!token) throw new Error("No se pudo autenticar la sesión.");
+
+      const res = await fetch('/api/separes/agregar-item', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer ' + token
+        },
+        body: JSON.stringify({
+          separeId: sep.id,
+          nuevosItems: itemsValidos,
+          abonoAdicional: abonoAdicNum,
+          metodoPago: metodoPagoAnexo,
+          subMetodoPago: subMetodoAnexo || null,
+          referenciaPago: referenciaAnexo || null,
+          notaOpcional: notaAnexo.trim()
+        })
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || "No se pudo anexar el artículo al Plan Separe.");
+      }
+
+      reproducirSonidoExito();
+
+      const separeActualizado = {
+        ...sep,
+        items: data.itemsActualizados || sep.items,
+        total: data.nuevoTotal,
+        totalBruto: data.nuevoTotalBruto,
+        montoPagado: data.nuevoMontoPagado,
+        saldoPendiente: data.nuevoSaldoPendiente,
+        abonos: data.abonosActualizados || sep.abonos
+      };
+
+      const ticketAnexoDatos: DatosFacturaProps = {
+        nombreNegocio,
+        telefonoNegocio: datosSesion?.telefonoNegocio || "",
+        correoNegocio: datosSesion?.correoNegocio || "",
+        logoNegocio: datosSesion?.logoNegocio || null,
+        nitNegocio: datosSesion?.nitNegocio || "",
+        direccionNegocio: datosSesion?.direccionNegocio || "",
+        mensajePieTicket: datosSesion?.mensajePieTicket || "Comprobante actualizado de Plan Separe.",
+        nombreCliente: sep.clienteNombre,
+        celularCliente: sep.clienteCelular || "",
+        registradoPor: nombreUsuario,
+        fecha: new Date(),
+        tipo: 'separe',
+        detalles: (separeActualizado.items || []).map((it: any) => ({
+          descripcion: it.descripcion,
+          cantidad: it.cantidad,
+          valor: (Number(it.valor) || 0) * (it.cantidad || 1),
+          valorUnitario: Number(it.valor) || 0
+        })),
+        descripcionGeneral: 'PLAN SEPARE ACTUALIZADO (+ Artículo anexado): Total $' + (data.nuevoTotal || 0).toLocaleString('es-CO') + ' | Pagado $' + (data.nuevoMontoPagado || 0).toLocaleString('es-CO') + ' | Saldo $' + (data.nuevoSaldoPendiente || 0).toLocaleString('es-CO'),
+        montoTotal: data.nuevoMontoPagado || 0,
+        pagoRecibido: abonoAdicNum > 0 ? abonoAdicNum : (data.nuevoMontoPagado || 0),
+        saldoNuevo: data.nuevoSaldoPendiente || 0,
+        idTransaccion: sep.id,
+        metodoPago: abonoAdicNum > 0 ? metodoPagoAnexo : (sep.metodoPago || 'efectivo')
+      };
+
+      setModalAgregarItem(null);
+      setModalExitoAnexoItem({
+        visible: true,
+        separe: separeActualizado,
+        nuevosItems: itemsValidos,
+        valorAgregado: data.valorAgregado,
+        abonoAdicional: abonoAdicNum,
+        nuevoTotal: data.nuevoTotal,
+        nuevoSaldo: data.nuevoSaldoPendiente,
+        ticketDatos: ticketAnexoDatos
+      });
+    } catch (error: any) {
+      console.error("Error al anexar artículo al separe:", error);
+      toast.error(error.message || "Error al anexar el artículo al separe.");
+    } finally {
+      setProcesandoAnexoItem(false);
+    }
+  };
+
+  // Enviar comprobante actualizado por WhatsApp tras anexar artículo(s)
+  const enviarWhatsAppAnexoSepare = (datosExito: {
+    separe: any;
+    nuevosItems: any[];
+    valorAgregado: number;
+    abonoAdicional: number;
+    nuevoTotal: number;
+    nuevoSaldo: number;
+  }) => {
+    const sep = datosExito.separe;
+    const apodoEfectivo = sep.clienteApodo || (sep.clienteId && mapaClientes[sep.clienteId]?.apodo);
+    const nombre = apodoEfectivo ? (obtenerNombreCercano(sep.clienteNombre) + ' ("' + apodoEfectivo + '")') : obtenerNombreCercano(sep.clienteNombre);
+    const celular = sep.clienteCelular?.replace(/\D/g, '') || "";
+    if (!celular) {
+      toast.error("El cliente no tiene un número de celular registrado.");
+      return;
+    }
+
+    const nuevosTexto = (datosExito.nuevosItems || []).map((it: any) => {
+      const c = Number(it.cantidad || 1);
+      return '+ ' + (c > 1 ? c + 'x ' : '') + it.descripcion + ' ($' + ((Number(it.valor) || 0) * c).toLocaleString('es-CO') + ')';
+    }).join('\n');
+
+    const todosTexto = (sep.items || []).map((it: any) => {
+      const c = Number(it.cantidad || 1);
+      return '• ' + (c > 1 ? c + 'x ' : '') + it.descripcion;
+    }).join('\n');
+
+    let texto = '¡Hola, *' + nombre + '*! 👋 Te saludamos de *' + (nombreNegocio || 'nuestra tienda') + '*.\n\n' +
+      'Hemos incluido tu(s) nuevo(s) producto(s) dentro de tu *Plan Separe activo*:\n\n' +
+      '✨ *Nuevo(s) artículo(s) agregado(s) hoy:*\n' + nuevosTexto + '\n\n' +
+      '📦 *Lista completa de tu Plan Separe:*\n' + todosTexto + '\n\n' +
+      '💰 *Nuevo total del apartado:* *$' + (datosExito.nuevoTotal || 0).toLocaleString('es-CO') + '*\n' +
+      '✅ *Total abonado acumulado:* *$' + (sep.montoPagado || 0).toLocaleString('es-CO') + '*' +
+      (datosExito.abonoAdicional > 0 ? ' (incluye abono hoy de $' + datosExito.abonoAdicional.toLocaleString('es-CO') + ')' : ' (respaldado con tu abono actual)') + '\n' +
+      '⏳ *Nuevo saldo pendiente:* *$' + (datosExito.nuevoSaldo || 0).toLocaleString('es-CO') + '*';
+
+    if (sep.fechaLimite) {
+      texto += '\n📅 *Fecha límite:* ' + formatearFecha(sep.fechaLimite);
+    }
+
+    if (sep.id && typeof window !== 'undefined') {
+      texto += '\n\n📄 *Ver comprobante digital actualizado:*\n' + window.location.origin + '/t/' + sep.id;
+    }
+
+    texto += '\n\n¡Muchas gracias por tu confianza y preferencia!';
+    abrirEnlaceWhatsApp(celular, texto);
+  };
+
   return (
     <div className="flex-1 flex flex-col h-full bg-slate-100 dark:bg-[#090d16] overflow-y-auto">
       {/* CABECERA VIOLETA */}
@@ -1787,17 +2013,28 @@ ${itemsTexto || '• Artículos apartados'}
                               ))}
                             </div>
 
-                            {/* Botón Anexar Evidencia General */}
+                            {/* Botones de Acción Rápida sobre Artículos: + Artículo y + Evidencia */}
                             {!esCancelado && !esCompletado && (
-                              <button
-                                type="button"
-                                onClick={() => abrirModalCamaraPostSepare(sep, null)}
-                                className="px-2.5 py-1 rounded-lg bg-violet-100 dark:bg-violet-950/50 hover:bg-violet-200 text-violet-700 dark:text-violet-300 text-[10.5px] font-black flex items-center gap-1 shrink-0 transition-colors cursor-pointer"
-                                title="Tomar foto con cámara o adjuntar evidencia general del separe"
-                              >
-                                <Plus size={11} />
-                                <span>Evidencia</span>
-                              </button>
+                              <div className="flex items-center gap-1.5 shrink-0">
+                                <button
+                                  type="button"
+                                  onClick={() => abrirModalAgregarItemSepare(sep)}
+                                  className="px-2.5 py-1 rounded-lg bg-emerald-100 dark:bg-emerald-950/60 hover:bg-emerald-200 dark:hover:bg-emerald-900/70 text-emerald-800 dark:text-emerald-300 border border-emerald-200/80 dark:border-emerald-800/60 text-[10.5px] font-black flex items-center gap-1 shrink-0 transition-colors cursor-pointer shadow-xs"
+                                  title="Incluir o anexar un nuevo producto a este Plan Separe activo (con o sin nuevo abono)"
+                                >
+                                  <Plus size={11} />
+                                  <span>Artículo</span>
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => abrirModalCamaraPostSepare(sep, null)}
+                                  className="px-2.5 py-1 rounded-lg bg-violet-100 dark:bg-violet-950/50 hover:bg-violet-200 text-violet-700 dark:text-violet-300 text-[10.5px] font-black flex items-center gap-1 shrink-0 transition-colors cursor-pointer"
+                                  title="Tomar foto con cámara o adjuntar evidencia general del separe"
+                                >
+                                  <Camera size={11} />
+                                  <span>Foto</span>
+                                </button>
+                              </div>
                             )}
                           </div>
                         );
@@ -3784,6 +4021,426 @@ ${itemsTexto || '• Artículos apartados'}
           </div>
         );
       })()}
+
+      {/* MODAL ANEXAR NUEVO ARTÍCULO A PLAN SEPARE ACTIVO */}
+      {modalAgregarItem?.visible && modalAgregarItem.separe && (() => {
+        const sep = modalAgregarItem.separe;
+        const totalActual = Number(sep.total || 0);
+        const pagadoActual = Number(sep.montoPagado || 0);
+
+        const valorNuevosItems = itemsAnexar.reduce((acc, it) => {
+          const v = Number(it.valor.replace(/\D/g, '')) || 0;
+          const c = Math.max(1, Number(it.cantidad || 1));
+          return acc + (v * c);
+        }, 0);
+
+        const abonoAdicNum = modoAbonoAnexo === 'abonar_adicional'
+          ? Math.max(0, Number(montoAbonoAnexo.replace(/\D/g, '')) || 0)
+          : 0;
+
+        const nuevoTotalProyectado = totalActual + valorNuevosItems;
+        const nuevoPagadoProyectado = pagadoActual + abonoAdicNum;
+        const nuevoSaldoProyectado = Math.max(0, nuevoTotalProyectado - nuevoPagadoProyectado);
+
+        return (
+          <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center p-2 sm:p-4 z-[225] animate-in fade-in duration-150">
+            <div className="bg-white dark:bg-[#0f172a] p-3.5 sm:p-5 rounded-3xl w-full max-w-xl md:max-w-3xl shadow-2xl border border-slate-200 dark:border-slate-800 space-y-3">
+              
+              {/* Encabezado Compacto */}
+              <div className="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-800">
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <div className="w-8 h-8 rounded-xl bg-emerald-100 dark:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0">
+                    <Plus size={16} />
+                  </div>
+                  <div className="min-w-0">
+                    <h3 className="text-sm sm:text-base font-black text-slate-900 dark:text-white leading-tight truncate">
+                      Anexar Producto a este Plan Separe
+                    </h3>
+                    <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate">
+                      Cliente: <strong className="text-slate-800 dark:text-slate-200">{sep.clienteNombre}</strong> • Abonado actual: <strong className="text-emerald-600 dark:text-emerald-400">${pagadoActual.toLocaleString('es-CO')}</strong>
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => !procesandoAnexoItem && setModalAgregarItem(null)}
+                  className="p-1.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors shrink-0 cursor-pointer"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+
+              {/* Grid 2 Columnas Zero-Scroll en Tablet/Desktop */}
+              <div className="grid grid-cols-1 md:grid-cols-12 gap-3 items-start">
+                
+                {/* COLUMNA IZQUIERDA: Artículos y Modo de Respaldo */}
+                <div className="md:col-span-7 space-y-2.5">
+                  <div className="flex items-center justify-between">
+                    <label className="text-[10px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                      Producto(s) a incluir en el apartado
+                    </label>
+                  </div>
+
+                  {/* Lista de productos */}
+                  <div className="space-y-2 max-h-48 md:max-h-56 overflow-y-auto pr-0.5">
+                    {itemsAnexar.map((fila) => {
+                      const termino = fila.descripcion.trim().toLowerCase();
+                      const sugerencias = filaActivaSugerenciaAnexo === fila.id && termino.length >= 1
+                        ? listaProductosInventario.filter((p: any) =>
+                            (p.nombre || "").toLowerCase().includes(termino) ||
+                            (p.codigoBarras || "").toLowerCase().includes(termino) ||
+                            (p.categoria || "").toLowerCase().includes(termino)
+                          ).slice(0, 6)
+                        : [];
+
+                      return (
+                        <div key={fila.id} className="p-2 bg-slate-50 dark:bg-slate-900/70 rounded-xl border border-slate-200/80 dark:border-slate-800 space-y-1.5 relative">
+                          <div className="flex items-center gap-1.5">
+                            <div className="relative flex-1 min-w-0">
+                              <input
+                                type="text"
+                                value={fila.descripcion}
+                                onFocus={() => setFilaActivaSugerenciaAnexo(fila.id)}
+                                onBlur={() => setTimeout(() => setFilaActivaSugerenciaAnexo(null), 200)}
+                                onChange={(e) => {
+                                  const val = e.target.value;
+                                  setItemsAnexar(prev => prev.map(it => it.id === fila.id ? { ...it, descripcion: val, idProducto: null } : it));
+                                  setFilaActivaSugerenciaAnexo(fila.id);
+                                }}
+                                placeholder="Buscar en inventario o escribir prenda/artículo..."
+                                className="w-full px-2.5 py-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-xs font-bold text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-violet-500/30"
+                              />
+
+                              {/* Dropdown de autocompletado */}
+                              {sugerencias.length > 0 && (
+                                <div className="absolute left-0 right-0 top-full mt-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl shadow-xl z-50 max-h-40 overflow-y-auto divide-y divide-slate-100 dark:divide-slate-800">
+                                  {sugerencias.map((prod: any) => {
+                                    const sinStock = prod.tipoProducto !== 'servicio' && prod.inventariable !== false && Number(prod.stock || 0) <= 0;
+                                    return (
+                                      <button
+                                        key={prod.id}
+                                        type="button"
+                                        onMouseDown={(ev) => {
+                                          ev.preventDefault();
+                                          if (sinStock) {
+                                            toast(`⚠️ "${prod.nombre}" sin stock en sistema — Añadido en déficit temporal.`);
+                                          }
+                                          setItemsAnexar(prev => prev.map(it => it.id === fila.id ? {
+                                            ...it,
+                                            descripcion: prod.nombre || "",
+                                            valor: String(prod.precioVenta || prod.precio || 0),
+                                            idProducto: prod.id,
+                                            fotoUrl: prod.fotoUrl || prod.imagenUrl || prod.foto || null
+                                          } : it));
+                                          setFilaActivaSugerenciaAnexo(null);
+                                        }}
+                                        className="w-full px-3 py-1.5 text-left hover:bg-violet-50 dark:hover:bg-violet-950/40 flex items-center justify-between gap-2 text-xs transition-colors cursor-pointer"
+                                      >
+                                        <div className="min-w-0 flex-1">
+                                          <p className="font-bold text-slate-900 dark:text-white truncate">{prod.nombre}</p>
+                                          <p className="text-[10px] text-slate-400">
+                                            {prod.tipoProducto === 'servicio' || prod.inventariable === false
+                                              ? 'Servicio / Libre'
+                                              : `Stock: ${prod.stock ?? 0} disp.`}
+                                          </p>
+                                        </div>
+                                        <span className="font-black text-violet-600 dark:text-violet-400 shrink-0">
+                                          ${Number(prod.precioVenta || prod.precio || 0).toLocaleString('es-CO')}
+                                        </span>
+                                      </button>
+                                    );
+                                  })}
+                                </div>
+                              )}
+                            </div>
+
+                            {itemsAnexar.length > 1 && (
+                              <button
+                                type="button"
+                                onClick={() => setItemsAnexar(prev => prev.filter(it => it.id !== fila.id))}
+                                className="p-1 text-slate-400 hover:text-rose-600 rounded hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors cursor-pointer shrink-0"
+                                title="Quitar línea"
+                              >
+                                <Trash2 size={13} />
+                              </button>
+                            )}
+                          </div>
+
+                          <div className="flex items-center justify-between gap-2">
+                            {/* Selector de Cantidad */}
+                            <div className="flex items-center gap-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg px-1.5 py-0.5">
+                              <button
+                                type="button"
+                                onClick={() => setItemsAnexar(prev => prev.map(it => it.id === fila.id ? { ...it, cantidad: Math.max(1, it.cantidad - 1) } : it))}
+                                className="w-5 h-5 rounded bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-700 dark:text-slate-300 hover:bg-slate-200 cursor-pointer"
+                              >
+                                <Minus size={11} />
+                              </button>
+                              <span className="w-6 text-center text-xs font-black text-slate-900 dark:text-white">
+                                {fila.cantidad}
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => setItemsAnexar(prev => prev.map(it => it.id === fila.id ? { ...it, cantidad: it.cantidad + 1 } : it))}
+                                className="w-5 h-5 rounded bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-700 dark:text-slate-300 hover:bg-slate-200 cursor-pointer"
+                              >
+                                <Plus size={11} />
+                              </button>
+                            </div>
+
+                            {/* Valor Unitario */}
+                            <div className="relative flex-1">
+                              <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs font-black text-slate-400">$</span>
+                              <input
+                                type="text"
+                                inputMode="numeric"
+                                value={fila.valor ? Number(fila.valor.replace(/\D/g, '')).toLocaleString('es-CO') : ''}
+                                onChange={(e) => {
+                                  const limpio = e.target.value.replace(/\D/g, '');
+                                  setItemsAnexar(prev => prev.map(it => it.id === fila.id ? { ...it, valor: limpio } : it));
+                                }}
+                                placeholder="Precio unitario"
+                                className="w-full pl-6 pr-2 py-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-xs font-black text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-violet-500/30"
+                              />
+                            </div>
+
+                            {/* Subtotal */}
+                            <div className="text-right shrink-0 min-w-[70px]">
+                              <strong className="text-xs font-black text-emerald-600 dark:text-emerald-400">
+                                +${((Number(fila.valor.replace(/\D/g, '')) || 0) * fila.cantidad).toLocaleString('es-CO')}
+                              </strong>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+
+                    <button
+                      type="button"
+                      onClick={() => setItemsAnexar(prev => [...prev, {
+                        id: Date.now() + Math.random(),
+                        descripcion: "",
+                        valor: "",
+                        cantidad: 1,
+                        idProducto: null,
+                        fotoUrl: null
+                      }])}
+                      className="w-full py-1.5 px-3 border border-dashed border-violet-300 dark:border-violet-700/60 rounded-xl text-violet-600 dark:text-violet-400 hover:bg-violet-50 dark:hover:bg-violet-950/30 text-xs font-black transition-colors flex items-center justify-center gap-1.5 cursor-pointer mt-1"
+                    >
+                      <Plus size={13} />
+                      <span>Añadir producto</span>
+                    </button>
+                  </div>
+
+                  {/* Selector Inteligente de Respaldo */}
+                  <div className="p-2.5 bg-violet-50/70 dark:bg-violet-950/30 rounded-xl border border-violet-200/80 dark:border-violet-800/50 space-y-1.5">
+                    <span className="text-[10px] font-black uppercase tracking-wider text-violet-800 dark:text-violet-300 block">
+                      ¿Cómo se respalda este nuevo producto?
+                    </span>
+
+                    <div className="grid grid-cols-2 gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setModoAbonoAnexo('respaldar');
+                          setMontoAbonoAnexo("");
+                        }}
+                        className={`p-2 rounded-lg border text-left transition-all cursor-pointer ${
+                          modoAbonoAnexo === 'respaldar'
+                            ? 'bg-violet-600 text-white border-violet-600 shadow-sm'
+                            : 'bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 border-violet-200 dark:border-violet-800/50 hover:bg-violet-100/40'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between gap-1">
+                          <span className="text-xs font-black">Con abono previo</span>
+                          {modoAbonoAnexo === 'respaldar' && <CheckCircle2 size={13} className="shrink-0" />}
+                        </div>
+                        <p className={`text-[9.5px] mt-0.5 leading-tight ${modoAbonoAnexo === 'respaldar' ? 'text-violet-100' : 'text-slate-400'}`}>
+                          $0 hoy. No altera caja.
+                        </p>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => setModoAbonoAnexo('abonar_adicional')}
+                        className={`p-2 rounded-lg border text-left transition-all cursor-pointer ${
+                          modoAbonoAnexo === 'abonar_adicional'
+                            ? 'bg-emerald-600 text-white border-emerald-600 shadow-sm'
+                            : 'bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 border-violet-200 dark:border-violet-800/50 hover:bg-emerald-50/40'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between gap-1">
+                          <span className="text-xs font-black">+ Abono hoy</span>
+                          {modoAbonoAnexo === 'abonar_adicional' && <CheckCircle2 size={13} className="shrink-0" />}
+                        </div>
+                        <p className={`text-[9.5px] mt-0.5 leading-tight ${modoAbonoAnexo === 'abonar_adicional' ? 'text-emerald-100' : 'text-slate-400'}`}>
+                          Dinero extra recibido.
+                        </p>
+                      </button>
+                    </div>
+
+                    {modoAbonoAnexo === 'abonar_adicional' && (
+                      <div className="pt-1.5 grid grid-cols-2 gap-2 border-t border-violet-200/60 dark:border-violet-800/50 animate-in fade-in duration-150">
+                        <div className="relative">
+                          <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs font-black text-emerald-600">$</span>
+                          <input
+                            type="text"
+                            inputMode="numeric"
+                            value={montoAbonoAnexo ? Number(montoAbonoAnexo.replace(/\D/g, '')).toLocaleString('es-CO') : ''}
+                            onChange={(e) => setMontoAbonoAnexo(e.target.value.replace(/\D/g, ''))}
+                            placeholder="Monto abono"
+                            className="w-full pl-6 pr-2 py-1.5 bg-white dark:bg-slate-900 border border-emerald-300 dark:border-emerald-700 rounded-lg text-xs font-black text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/30"
+                          />
+                        </div>
+                        <select
+                          value={metodoPagoAnexo}
+                          onChange={(e) => setMetodoPagoAnexo(e.target.value)}
+                          className="w-full px-2 py-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-xs font-bold text-slate-900 dark:text-white focus:outline-none"
+                        >
+                          <option value="efectivo">Efectivo</option>
+                          <option value="transferencia">Transferencia</option>
+                          <option value="datafono">Datáfono / Tarjeta</option>
+                        </select>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* COLUMNA DERECHA: Resumen Matemático + Nota + Acciones */}
+                <div className="md:col-span-5 flex flex-col justify-between space-y-2.5 h-full">
+                  
+                  {/* Resumen Matemático Integrado */}
+                  <div className="p-3 bg-slate-900 dark:bg-slate-950 text-white rounded-2xl space-y-2 border border-slate-800">
+                    <div className="flex items-center justify-between text-[11px] text-slate-400">
+                      <span>Total anterior:</span>
+                      <strong className="text-slate-200">${totalActual.toLocaleString('es-CO')}</strong>
+                    </div>
+                    <div className="flex items-center justify-between text-[11px] text-slate-400">
+                      <span>Valor anexado:</span>
+                      <strong className="text-emerald-400">+${valorNuevosItems.toLocaleString('es-CO')}</strong>
+                    </div>
+
+                    <div className="pt-2 border-t border-slate-800 grid grid-cols-2 gap-1.5">
+                      <div className="bg-slate-800/70 p-2 rounded-xl text-center">
+                        <span className="text-[9px] uppercase text-slate-400 block">Nuevo Total</span>
+                        <strong className="text-xs font-black text-white">${nuevoTotalProyectado.toLocaleString('es-CO')}</strong>
+                      </div>
+                      <div className="bg-slate-800/70 p-2 rounded-xl text-center">
+                        <span className="text-[9px] uppercase text-slate-400 block">Total Abonado</span>
+                        <strong className="text-xs font-black text-emerald-400">${nuevoPagadoProyectado.toLocaleString('es-CO')}</strong>
+                      </div>
+                    </div>
+
+                    <div className="bg-violet-600/30 border border-violet-500/40 p-2.5 rounded-xl text-center">
+                      <span className="text-[9.5px] uppercase font-bold text-violet-300 block">Nuevo Saldo Pendiente</span>
+                      <strong className="text-base font-black text-violet-100">${nuevoSaldoProyectado.toLocaleString('es-CO')}</strong>
+                    </div>
+                  </div>
+
+                  {/* Nota Opcional */}
+                  <div>
+                    <input
+                      type="text"
+                      value={notaAnexo}
+                      onChange={(e) => setNotaAnexo(e.target.value)}
+                      placeholder="Nota opcional (ej: cliente volvió por otra prenda)..."
+                      className="w-full px-2.5 py-1.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-violet-500/30"
+                    />
+                  </div>
+
+                  {/* Botones de Acción */}
+                  <div className="flex gap-2 pt-0.5">
+                    <button
+                      type="button"
+                      disabled={procesandoAnexoItem}
+                      onClick={() => setModalAgregarItem(null)}
+                      className="flex-1 py-2 px-3 rounded-xl border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 font-bold text-xs transition-colors disabled:opacity-50 cursor-pointer"
+                    >
+                      Cancelar
+                    </button>
+                    <button
+                      type="button"
+                      disabled={procesandoAnexoItem || valorNuevosItems <= 0}
+                      onClick={ejecutarAgregarItemSepare}
+                      className="flex-[1.8] py-2 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-black text-xs shadow-md transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+                    >
+                      <CheckCircle2 size={15} />
+                      <span>{procesandoAnexoItem ? "Anexando..." : "Unir al Separe"}</span>
+                    </button>
+                  </div>
+
+                </div>
+              </div>
+
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* MODAL ÉXITO AL ANEXAR ARTÍCULO(S) AL PLAN SEPARE */}
+      {modalExitoAnexoItem?.visible && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 z-[230] animate-in zoom-in-95 duration-200">
+          <div className="bg-white dark:bg-[#0f172a] p-6 sm:p-7 rounded-3xl w-full max-w-md shadow-2xl border border-slate-100 dark:border-slate-800 text-center space-y-4">
+            <div className="w-16 h-16 bg-emerald-100 dark:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 rounded-full flex items-center justify-center mx-auto shadow-inner">
+              <CheckCircle2 size={36} />
+            </div>
+
+            <div className="space-y-1">
+              <h3 className="text-xl font-black text-slate-900 dark:text-white">¡Producto Unido al Separe!</h3>
+              <p className="text-xs text-slate-500 dark:text-slate-400">
+                Cliente: <strong className="text-slate-800 dark:text-slate-200">{modalExitoAnexoItem.separe.clienteNombre}</strong>
+              </p>
+            </div>
+
+            <div className="p-4 bg-slate-50 dark:bg-slate-900/80 rounded-2xl space-y-1.5 text-xs text-left font-bold border border-slate-200/60 dark:border-slate-800">
+              <div className="flex justify-between text-slate-600 dark:text-slate-400">
+                <span>Valor nuevo(s) artículo(s):</span>
+                <span className="text-emerald-600 font-black">+${modalExitoAnexoItem.valorAgregado.toLocaleString('es-CO')}</span>
+              </div>
+              <div className="flex justify-between text-slate-600 dark:text-slate-400">
+                <span>Nuevo total del separe:</span>
+                <span className="text-slate-900 dark:text-white font-black">${modalExitoAnexoItem.nuevoTotal.toLocaleString('es-CO')}</span>
+              </div>
+              <div className="flex justify-between text-slate-600 dark:text-slate-400">
+                <span>Abono respaldado acumulado:</span>
+                <span className="text-emerald-600 font-black">${(modalExitoAnexoItem.separe.montoPagado || 0).toLocaleString('es-CO')}</span>
+              </div>
+              <div className="flex justify-between text-slate-600 dark:text-slate-400 pt-1.5 border-t border-slate-200 dark:border-slate-800">
+                <span>Nuevo saldo pendiente:</span>
+                <span className="text-violet-600 dark:text-violet-400 font-black text-sm">${modalExitoAnexoItem.nuevoSaldo.toLocaleString('es-CO')}</span>
+              </div>
+            </div>
+
+            <div className="space-y-2 pt-1">
+              {puedeEnviarWhatsApp && (
+                <button
+                  type="button"
+                  onClick={() => enviarWhatsAppAnexoSepare(modalExitoAnexoItem)}
+                  className="w-full bg-[#25D366] hover:bg-[#1ebd5a] text-white font-bold py-3.5 rounded-xl transition-all flex items-center justify-center gap-2 text-sm shadow-md cursor-pointer"
+                >
+                  <MessageCircle size={18} /> Enviar Comprobante Actualizado por WhatsApp
+                </button>
+              )}
+
+              <button
+                type="button"
+                onClick={() => setModalTicketFactura({ visible: true, datos: modalExitoAnexoItem.ticketDatos })}
+                className="w-full bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 font-bold py-3 rounded-xl transition-all flex items-center justify-center gap-2 text-xs cursor-pointer"
+              >
+                <Printer size={16} /> Ver / Imprimir Ticket Actualizado
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setModalExitoAnexoItem(null)}
+                className="w-full bg-violet-600 hover:bg-violet-700 text-white font-bold py-3 rounded-xl transition-all text-xs cursor-pointer"
+              >
+                Listo, Continuar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* MODAL TICKET FACTURA */}
       <TicketFacturaModal
