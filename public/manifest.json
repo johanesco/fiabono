@@ -71,7 +71,7 @@
       "name": "Plan Separe",
       "short_name": "Separe",
       "description": "Gestionar planes separe de clientes",
-      "url": "/dashboard/plan-separe?source=pwa-shortcut",
+      "url": "/dashboard/separes?source=pwa-shortcut",
       "icons": [
         {
           "src": "/icon-192.png",
