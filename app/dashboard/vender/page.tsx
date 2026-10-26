@@ -1515,7 +1515,7 @@ function VenderContenido() {
       enlaceTexto = `\n\n*Ver o descargar comprobante digital:*\n${window.location.origin}/t/${idTransaccion}`;
     }
 
-    const nombreDestino = !cliente || cliente.id === "mostrador" || !cliente.nombre ? "Cliente" : cliente.nombre;
+    const nombreDestino = !cliente || cliente.id === "mostrador" || !cliente.nombre ? "Cliente" : obtenerNombreCercano(cliente);
 
     const texto = `¡Hola, *${nombreDestino}*! Gracias por tu compra en *${nombreNegocio || 'nuestra tienda'}*.
 

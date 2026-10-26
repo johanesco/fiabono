@@ -1372,10 +1372,9 @@ Gracias por contactarnos.`;
     abrirEnlaceWhatsApp(celular, texto);
   };
 
-  // Enviar estado de cuenta del plan separe directamente por WhatsApp
+  // Enviar estado de cuenta del plan separe directamente por WhatsApp (NUNCA incluye apodo)
   const enviarWhatsAppEstadoSepare = (sep: any) => {
-    const apodoEfectivo = sep.clienteApodo || (sep.clienteId && mapaClientes[sep.clienteId]?.apodo);
-    const nombre = apodoEfectivo ? `${obtenerNombreCercano(sep.clienteNombre)} ("${apodoEfectivo}")` : obtenerNombreCercano(sep.clienteNombre);
+    const nombre = obtenerNombreCercano(sep.clienteNombre);
     const celular = sep.clienteCelular?.replace(/\D/g, '') || "";
     if (!celular) {
       toast.error("El cliente no tiene un número de celular registrado.");
@@ -1664,8 +1663,7 @@ ${itemsTexto || '• Artículos apartados'}
     nuevoSaldo: number;
   }) => {
     const sep = datosExito.separe;
-    const apodoEfectivo = sep.clienteApodo || (sep.clienteId && mapaClientes[sep.clienteId]?.apodo);
-    const nombre = apodoEfectivo ? (obtenerNombreCercano(sep.clienteNombre) + ' ("' + apodoEfectivo + '")') : obtenerNombreCercano(sep.clienteNombre);
+    const nombre = obtenerNombreCercano(sep.clienteNombre);
     const celular = sep.clienteCelular?.replace(/\D/g, '') || "";
     if (!celular) {
       toast.error("El cliente no tiene un número de celular registrado.");

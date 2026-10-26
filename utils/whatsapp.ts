@@ -16,6 +16,8 @@ export function limpiarTextoWhatsApp(texto: string): string {
     .replace(/[•●▪▶►]/g, '-')
     // Limpiar caracteres de sustitucion o corruptos de codificaciones antiguas
     .replace(/\uFFFD/g, '')
+    // Garantizar que NINGÚN apodo entre paréntesis o comillas se envíe en mensajes al cliente
+    .replace(/\s*\(["'“«][^)"'”»]+["'”»]\)/g, '')
     // Corregir espacios dobles que hayan quedado tras remover emojis
     .replace(/[ \t]{2,}/g, ' ')
     // Normalizar saltos de linea
@@ -124,8 +126,9 @@ export function obtenerNombreCercano(cliente: any): string {
   if (typeof cliente === 'string') {
     return extraerPrimerNombre(cliente);
   }
+  // Si el cliente tiene nombres registrados, extraerlo sin apodos
   if (cliente.nombres && typeof cliente.nombres === 'string' && cliente.nombres.trim()) {
-    return cliente.nombres.trim();
+    return extraerPrimerNombre(cliente.nombres.trim());
   }
   const nombreCompleto = cliente.nombre || cliente.clienteNombre || '';
   return extraerPrimerNombre(nombreCompleto);
@@ -137,7 +140,10 @@ function capitalizar(str: string): string {
 }
 
 export function extraerPrimerNombre(nombreCompleto: string): string {
-  const limpio = (nombreCompleto || '').trim();
+  // Limpiar cualquier apodo, alias o texto entre comillas/paréntesis para que nunca vaya en el mensaje
+  const limpio = (nombreCompleto || '')
+    .replace(/\s*["'“«(][^)"'”»]*[)"'”»]/g, '')
+    .trim();
   if (!limpio || limpio.toLowerCase() === 'mostrador' || limpio.toLowerCase() === 'consumidor final') {
     return 'Cliente';
   }

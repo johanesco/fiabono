@@ -7,7 +7,7 @@ import toast from "react-hot-toast";
 import { useAuth } from "@/hooks/AuthContext";
 import ModalUpsellSuscripcion from "./ModalUpsellSuscripcion";
 import VistaTicketCard from "./VistaTicketCard";
-import { abrirEnlaceWhatsApp, limpiarTextoWhatsApp } from "@/utils/whatsapp";
+import { abrirEnlaceWhatsApp, limpiarTextoWhatsApp, obtenerNombreCercano } from "@/utils/whatsapp";
 
 export interface DetalleFacturaItem {
   descripcion: string;
@@ -169,7 +169,7 @@ export default function TicketFacturaModal({ isOpen, onClose, datos, onFacturaEm
 
   const generarTextoTicketWhatsApp = () => {
     const nombreNegocio = datos.nombreNegocio || "nuestra tienda";
-    const nombreCliente = datos.nombreCliente && datos.nombreCliente !== "Venta de Mostrador" && datos.nombreCliente !== "Mostrador" && datos.nombreCliente !== "Consumidor Final" ? datos.nombreCliente : "Cliente";
+    const nombreCliente = datos.nombreCliente && datos.nombreCliente !== "Venta de Mostrador" && datos.nombreCliente !== "Mostrador" && datos.nombreCliente !== "Consumidor Final" ? obtenerNombreCercano(datos.nombreCliente) : "Cliente";
 
     let enlaceTexto = "";
     if (datos.idTransaccion && typeof window !== 'undefined') {

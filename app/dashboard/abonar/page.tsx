@@ -525,7 +525,7 @@ function AbonarContenido() {
       enlaceTexto = `\n\n*Ver o descargar comprobante digital:*\n${window.location.origin}/t/${idTransaccion}`;
     }
 
-    const cliNombre = cliente?.nombre || modalExito?.cliente?.nombre || "Cliente";
+    const cliNombre = obtenerNombreCercano(cliente || modalExito?.cliente);
 
     let texto = "";
     if (modalExito?.esSepare) {

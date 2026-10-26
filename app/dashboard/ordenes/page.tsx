@@ -371,7 +371,7 @@ export default function OrdenesPage() {
   };
 
   const abrirWhatsAppComprobanteOrden = (orden: OrdenPendiente) => {
-    const nombreDestino = orden.clienteNombre && orden.clienteNombre !== 'Mostrador' ? orden.clienteNombre : 'Estimado/a Cliente';
+    const nombreDestino = orden.clienteNombre && orden.clienteNombre !== 'Mostrador' ? obtenerNombreCercano(orden.clienteNombre) : 'Estimado/a Cliente';
     const esFiado = orden.tipo === 'fiado';
     const esSepare = orden.tipo === 'separe';
     const encabezadoTitulo = esSepare ? 'COMPROBANTE DE PLAN SEPARE' : (esFiado ? 'COMPROBANTE DE FIADO' : 'COMPROBANTE DE COMPRA');
