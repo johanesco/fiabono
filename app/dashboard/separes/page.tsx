@@ -155,6 +155,15 @@ function SeparesContenido() {
   const [filaActivaSugerenciaAnexo, setFilaActivaSugerenciaAnexo] = useState<number | null>(null);
   const inputFotoAnexoRef = useRef<HTMLInputElement | null>(null);
   const [filaIdParaFotoAnexo, setFilaIdParaFotoAnexo] = useState<number | null>(null);
+  const [filaAnexoParaCamara, setFilaAnexoParaCamara] = useState<number | null>(null);
+
+  const abrirModalCamaraParaAnexo = (idFila: number, clienteNombre?: string) => {
+    setFilaAnexoParaCamara(idFila);
+    setSepareParaFoto({ clienteNombre: clienteNombre || "Plan Separe", items: [] });
+    setProductoIndexParaFoto(null);
+    setModalCamaraPostSepare(true);
+    iniciarCamaraPost('environment');
+  };
 
   const dispararSelectorFotoAnexo = (idFila: number) => {
     setFilaIdParaFotoAnexo(idFila);
@@ -1142,6 +1151,7 @@ ${window.location.origin}/t/${sep.id}`;
     setModalCamaraPostSepare(false);
     setSepareParaFoto(null);
     setProductoIndexParaFoto(null);
+    setFilaAnexoParaCamara(null);
   };
 
   const alternarCamaraPost = async () => {
@@ -1169,6 +1179,13 @@ ${window.location.origin}/t/${sep.id}`;
     if (!ctx) return;
     ctx.drawImage(videoPostRef.current, 0, 0, canvas.width, canvas.height);
     const dataUrl = canvas.toDataURL("image/jpeg", 0.75);
+
+    if (filaAnexoParaCamara !== null) {
+      setItemsAnexar(prev => prev.map(it => it.id === filaAnexoParaCamara ? { ...it, fotoUrl: dataUrl } : it));
+      toast.success("Foto del producto capturada con éxito 📸");
+      cerrarCamaraPost();
+      return;
+    }
 
     cerrarCamaraPost();
     await guardarFotoEnServidor(separeParaFoto.id, dataUrl, productoIndexParaFoto);
@@ -1210,6 +1227,40 @@ ${window.location.origin}/t/${sep.id}`;
     reader.onload = async (ev) => {
       const dataUrl = ev.target?.result as string;
       if (!dataUrl) return;
+
+      if (filaAnexoParaCamara !== null) {
+        const img = new Image();
+        img.onload = () => {
+          const MAX_DIM = 800;
+          let width = img.width;
+          let height = img.height;
+          if (width > MAX_DIM || height > MAX_DIM) {
+            if (width > height) {
+              height = Math.round((height * MAX_DIM) / width);
+              width = MAX_DIM;
+            } else {
+              width = Math.round((width * MAX_DIM) / height);
+              height = MAX_DIM;
+            }
+          }
+          const canvas = document.createElement("canvas");
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext("2d");
+          let finalUrl = dataUrl;
+          if (ctx) {
+            ctx.drawImage(img, 0, 0, width, height);
+            finalUrl = canvas.toDataURL("image/jpeg", 0.75);
+          }
+          setItemsAnexar(prev => prev.map(it => it.id === filaAnexoParaCamara ? { ...it, fotoUrl: finalUrl } : it));
+          toast.success("Foto del producto adjuntada con éxito 📸");
+          cerrarCamaraPost();
+          if (fileInputPostSepareRef.current) fileInputPostSepareRef.current.value = "";
+        };
+        img.src = dataUrl;
+        return;
+      }
+
       cerrarCamaraPost();
       await guardarFotoEnServidor(separeParaFoto.id, dataUrl, productoIndexParaFoto);
       if (fileInputPostSepareRef.current) fileInputPostSepareRef.current.value = "";
@@ -3416,10 +3467,18 @@ ${itemsTexto || '• Artículos apartados'}
               <div>
                 <h3 className="text-base font-black flex items-center gap-2">
                   <Camera size={18} className="text-violet-400" />
-                  Tomar Foto de Evidencia
+                  {filaAnexoParaCamara !== null ? "Tomar Foto del Producto" : "Tomar Foto de Evidencia"}
                 </h3>
                 <p className="text-xs text-slate-400 break-words">
                   Cliente: <strong className="text-slate-200">{separeParaFoto.clienteNombre}</strong>
+                  {filaAnexoParaCamara !== null && (() => {
+                    const itm = itemsAnexar.find(it => it.id === filaAnexoParaCamara);
+                    return itm?.descripcion ? (
+                      <span className="block text-[11px] text-violet-300 font-semibold truncate mt-0.5">
+                        Prenda: {itm.descripcion}
+                      </span>
+                    ) : null;
+                  })()}
                 </p>
               </div>
               <button
@@ -3431,7 +3490,8 @@ ${itemsTexto || '• Artículos apartados'}
               </button>
             </div>
 
-            {/* Selector de Producto / Referencia */}
+            {/* Selector de Producto / Referencia (solo en modo evidencia post-separe) */}
+            {filaAnexoParaCamara === null && (
             <div className="px-4 space-y-1.5">
               <label className="text-[11px] font-bold text-slate-300 flex items-center gap-1.5">
                 <Package size={13} className="text-violet-400" />
@@ -3465,6 +3525,7 @@ ${itemsTexto || '• Artículos apartados'}
                 ))}
               </div>
             </div>
+            )}
 
             {/* Viewport del Video en Vivo */}
             <div className="relative bg-black aspect-[4/3] flex items-center justify-center overflow-hidden mx-4 rounded-2xl border border-slate-800">
@@ -4178,9 +4239,9 @@ ${itemsTexto || '• Artículos apartados'}
                             ) : (
                               <button
                                 type="button"
-                                onClick={() => dispararSelectorFotoAnexo(fila.id)}
+                                onClick={() => abrirModalCamaraParaAnexo(fila.id, sep.clienteNombre)}
                                 className="h-8 px-2 rounded-lg border border-dashed border-violet-300 dark:border-violet-700 hover:border-violet-500 hover:bg-violet-50 dark:hover:bg-violet-950/40 text-violet-600 dark:text-violet-400 text-[10.5px] font-bold flex items-center gap-1 shrink-0 transition-colors cursor-pointer"
-                                title="Tomar o subir foto de la prenda"
+                                title="Tomar foto con la cámara o subir imagen"
                               >
                                 <Camera size={13} />
                                 <span className="hidden sm:inline">+ Foto</span>
