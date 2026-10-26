@@ -153,6 +153,58 @@ function SeparesContenido() {
     fotoUrl: string | null;
   }>>([]);
   const [filaActivaSugerenciaAnexo, setFilaActivaSugerenciaAnexo] = useState<number | null>(null);
+  const inputFotoAnexoRef = useRef<HTMLInputElement | null>(null);
+  const [filaIdParaFotoAnexo, setFilaIdParaFotoAnexo] = useState<number | null>(null);
+
+  const dispararSelectorFotoAnexo = (idFila: number) => {
+    setFilaIdParaFotoAnexo(idFila);
+    if (inputFotoAnexoRef.current) {
+      inputFotoAnexoRef.current.value = "";
+      inputFotoAnexoRef.current.click();
+    }
+  };
+
+  const manejarArchivoFotoAnexo = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || filaIdParaFotoAnexo === null) return;
+
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const dataUrl = ev.target?.result as string;
+      if (!dataUrl) return;
+
+      const img = new Image();
+      img.onload = () => {
+        const MAX_DIM = 800;
+        let width = img.width;
+        let height = img.height;
+        if (width > MAX_DIM || height > MAX_DIM) {
+          if (width > height) {
+            height = Math.round((height * MAX_DIM) / width);
+            width = MAX_DIM;
+          } else {
+            width = Math.round((width * MAX_DIM) / height);
+            height = MAX_DIM;
+          }
+        }
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+          ctx.drawImage(img, 0, 0, width, height);
+          const comprimida = canvas.toDataURL('image/jpeg', 0.75);
+          setItemsAnexar(prev => prev.map(it => it.id === filaIdParaFotoAnexo ? { ...it, fotoUrl: comprimida } : it));
+          toast.success("Foto adjuntada al producto 📸");
+        } else {
+          setItemsAnexar(prev => prev.map(it => it.id === filaIdParaFotoAnexo ? { ...it, fotoUrl: dataUrl } : it));
+          toast.success("Foto adjuntada al producto 📸");
+        }
+      };
+      img.src = dataUrl;
+    };
+    reader.readAsDataURL(file);
+  };
   const [modoAbonoAnexo, setModoAbonoAnexo] = useState<'respaldar' | 'abonar_adicional'>('respaldar');
   const [montoAbonoAnexo, setMontoAbonoAnexo] = useState<string>("");
   const [metodoPagoAnexo, setMetodoPagoAnexo] = useState<string>("efectivo");
@@ -4044,6 +4096,14 @@ ${itemsTexto || '• Artículos apartados'}
 
         return (
           <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center p-2 sm:p-4 z-[225] animate-in fade-in duration-150">
+            <input
+              type="file"
+              ref={inputFotoAnexoRef}
+              onChange={manejarArchivoFotoAnexo}
+              accept="image/*"
+              capture="environment"
+              className="hidden"
+            />
             <div className="bg-white dark:bg-[#0f172a] p-3.5 sm:p-5 rounded-3xl w-full max-w-xl md:max-w-3xl shadow-2xl border border-slate-200 dark:border-slate-800 space-y-3">
               
               {/* Encabezado Compacto */}
@@ -4096,6 +4156,37 @@ ${itemsTexto || '• Artículos apartados'}
                       return (
                         <div key={fila.id} className="p-2 bg-slate-50 dark:bg-slate-900/70 rounded-xl border border-slate-200/80 dark:border-slate-800 space-y-1.5 relative">
                           <div className="flex items-center gap-1.5">
+                            {/* Botón o Miniatura de Foto */}
+                            {fila.fotoUrl ? (
+                              <div className="relative w-8 h-8 rounded-lg overflow-hidden border border-slate-200 dark:border-slate-700 shrink-0">
+                                <img
+                                  src={fila.fotoUrl}
+                                  alt="Foto prenda"
+                                  className="w-full h-full object-cover cursor-pointer"
+                                  onClick={() => setFotoLightbox({ url: fila.fotoUrl!, productoNombre: fila.descripcion || "Prenda anexada" })}
+                                  title="Clic para ver foto ampliada"
+                                />
+                                <button
+                                  type="button"
+                                  onClick={() => setItemsAnexar(prev => prev.map(it => it.id === fila.id ? { ...it, fotoUrl: null } : it))}
+                                  className="absolute top-0 right-0 w-3.5 h-3.5 bg-rose-600 hover:bg-rose-700 text-white flex items-center justify-center rounded-bl cursor-pointer"
+                                  title="Quitar foto"
+                                >
+                                  <X size={9} />
+                                </button>
+                              </div>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={() => dispararSelectorFotoAnexo(fila.id)}
+                                className="h-8 px-2 rounded-lg border border-dashed border-violet-300 dark:border-violet-700 hover:border-violet-500 hover:bg-violet-50 dark:hover:bg-violet-950/40 text-violet-600 dark:text-violet-400 text-[10.5px] font-bold flex items-center gap-1 shrink-0 transition-colors cursor-pointer"
+                                title="Tomar o subir foto de la prenda"
+                              >
+                                <Camera size={13} />
+                                <span className="hidden sm:inline">+ Foto</span>
+                              </button>
+                            )}
+
                             <div className="relative flex-1 min-w-0">
                               <input
                                 type="text"
