@@ -7,6 +7,7 @@ import { collection, getDocs, query, where, onSnapshot, orderBy, limit } from "f
 import { db, auth } from "../../../firebase";
 import { Search, X, Clock, MessageCircle, Star, Users, Store, Printer, Edit3, Trash2, Bookmark, ChevronRight, Package, ArrowRight, User, RotateCcw, Smartphone, Calendar, ChevronDown, Calculator } from 'lucide-react';
 import toast from "react-hot-toast";
+import BannerDatosLocales from '@/components/BannerDatosLocales';
 
 import { useAuth } from "../../../hooks/AuthContext";
 import { API_DB } from "../../../servicios/db";
@@ -797,6 +798,7 @@ Gracias por seguir con nosotros.
 
   return (
     <div className="flex flex-col animate-in fade-in slide-in-from-bottom-4 duration-500 bg-white dark:bg-[#0f172a] rounded-[2rem] shadow-sm border border-slate-100 dark:border-slate-800/60 overflow-hidden h-full">
+        <div className="p-3 pb-0"><BannerDatosLocales modulo="historial de ventas y movimientos" /></div>
       <div className="bg-slate-50 dark:bg-[#0f172a] p-4 md:py-3 md:px-5 border-b border-slate-100 dark:border-slate-800/60 flex flex-col gap-3 md:gap-2.5 sticky top-0 z-10 shrink-0">
         
         {/* FILA SUPERIOR: BUSCADOR, SELECTOR DE VENDEDOR Y SELECTOR DE TIEMPO */}

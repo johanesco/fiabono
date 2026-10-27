@@ -64,6 +64,7 @@ import jsPDF from 'jspdf';
 import * as XLSX from 'xlsx';
 import ExcelJS from 'exceljs';
 import ModalUpsellSuscripcion from "@/components/ModalUpsellSuscripcion";
+import BannerDatosLocales from '@/components/BannerDatosLocales';
 
 type ColumnaOrden = 'categoria' | 'nombre' | 'sku' | 'stock' | 'precioVenta';
 type DireccionOrden = 'asc' | 'desc';
@@ -2743,6 +2744,7 @@ export default function InventarioPage() {
 
   return (
     <div className="flex flex-col w-full h-full bg-slate-50 dark:bg-[#020617] md:rounded-[2.5rem] overflow-hidden md:border md:border-slate-100 dark:md:border-slate-800/60 shadow-none md:shadow-2xl animate-in fade-in duration-300">
+        <div className="p-2 sm:p-3 pb-0"><BannerDatosLocales modulo="productos e inventario" /></div>
       
       {/* HEADER ULTRA RESPONSIVE */}
       <div className="bg-emerald-600 dark:bg-emerald-700 p-3 sm:p-4 text-white flex justify-between items-center shrink-0 z-30 shadow-sm relative">

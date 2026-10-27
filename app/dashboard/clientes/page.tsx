@@ -1,3 +1,4 @@
+import BannerDatosLocales from '@/components/BannerDatosLocales';
 "use client";
 import { obtenerNombreCercano } from "@/utils/whatsapp";
 import React, { useState, useEffect, useMemo, Suspense } from "react";
@@ -1928,6 +1929,7 @@ Gracias por seguir con nosotros.
 
   return (
     <div className="w-full space-y-4 pb-24 lg:pb-8 pt-1 px-2 sm:px-4">
+      <BannerDatosLocales modulo="clientes y cartera" />
 
       {/* 1. HEADER COMPACTO Y ELEGANTE */}
       <div className="flex items-center justify-between gap-3 bg-white dark:bg-[#0f172a] p-3.5 sm:p-4 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-xs">

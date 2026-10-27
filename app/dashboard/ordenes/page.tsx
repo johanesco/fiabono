@@ -52,6 +52,7 @@ import {
   Wrench
 } from "lucide-react";
 import ModalSuscripcion from "@/components/ModalSuscripcion";
+import BannerDatosLocales from '@/components/BannerDatosLocales';
 
 export default function OrdenesPage() {
   const { datosSesion } = useAuth();
@@ -1537,6 +1538,7 @@ Muchas gracias por tu compra. Estamos atentos para cualquier consulta.
   if (datosSesion?.esGratis && !datosSesion?.esPro && !datosSesion?.esComercio) {
     return (
       <div className="flex flex-col gap-6 animate-in fade-in duration-500 max-w-6xl mx-auto w-full pb-16 px-2 sm:px-4">
+        <BannerDatosLocales modulo="órdenes de venta" />
         {/* Barra superior con navegación hacia Inicio */}
         <div className="flex items-center justify-between">
           <button
