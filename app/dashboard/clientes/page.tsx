@@ -348,7 +348,10 @@ function ClientesContenido() {
         return tB - tA;
       });
       const ultimoMov = movsOrdenados[0] || null;
-      const fechaUltimoMov = ultimoMov ? obtenerFechaJS(ultimoMov.fecha) : (c.fecha_creacion ? obtenerFechaJS(c.fecha_creacion) : null);
+      const fechaCreacionCliente = c.fecha_creacion 
+        ? obtenerFechaJS(c.fecha_creacion) 
+        : ((c as any).creadoEl ? obtenerFechaJS((c as any).creadoEl) : ((c as any).createdAt ? obtenerFechaJS((c as any).createdAt) : null));
+      const fechaUltimoMov = ultimoMov ? obtenerFechaJS(ultimoMov.fecha) : fechaCreacionCliente;
 
       // Cálculo de días sin abonar
       let diasSinAbonar = 0;
@@ -358,7 +361,7 @@ function ClientesContenido() {
         } else if (fechaUltimoMov) {
           diasSinAbonar = Math.max(0, Math.floor((hoyMs - fechaUltimoMov.getTime()) / (1000 * 60 * 60 * 24)));
         } else {
-          diasSinAbonar = 31; // Asumir riesgo si debe y no hay registro
+          diasSinAbonar = 0; // Si no hay registro de fecha, no marcarlo como moroso por defecto
         }
       }
 

@@ -420,10 +420,12 @@ export default function ReportesPage() {
     clientes.forEach((c) => {
       const deuda = c.deudaTotal || 0;
       if (deuda > 0) {
-        // Buscar el último abono de este cliente en el historial general
-        const abonos = todosMovimientos.filter(
-          (m) => m.tipo === 'abono' && (m.clienteId === c.id || (m.clienteNombre && m.clienteNombre.trim().toLowerCase() === c.nombre.trim().toLowerCase()))
+        // Buscar movimientos de este cliente (tanto abonos como fiados)
+        const movsCliente = todosMovimientos.filter(
+          (m) => m.clienteId === c.id || (m.clienteNombre && m.clienteNombre.trim().toLowerCase() === c.nombre.trim().toLowerCase())
         );
+
+        const abonos = movsCliente.filter((m) => m.tipo === 'abono');
 
         let ultimoAbonoMs = 0;
         abonos.forEach((ab) => {
@@ -431,7 +433,26 @@ export default function ReportesPage() {
           if (t > ultimoAbonoMs) ultimoAbonoMs = t;
         });
 
-        const diasSinAbono = ultimoAbonoMs > 0 ? Math.floor((ahoraMs - ultimoAbonoMs) / (1000 * 60 * 60 * 24)) : 40;
+        let fechaReferenciaMs = ultimoAbonoMs;
+        // Si nunca ha abonado, calcular los días desde la fecha en que se le otorgó el fiado o se creó el cliente
+        if (fechaReferenciaMs === 0) {
+          let ultimoMovMs = 0;
+          movsCliente.forEach((m) => {
+            const t = m.fecha?.seconds ? m.fecha.seconds * 1000 : (m.fecha?.toDate ? m.fecha.toDate().getTime() : new Date(m.fecha).getTime() || 0);
+            if (t > ultimoMovMs) ultimoMovMs = t;
+          });
+
+          if (ultimoMovMs > 0) {
+            fechaReferenciaMs = ultimoMovMs;
+          } else if (c.fecha_creacion || (c as any).creadoEl || (c as any).createdAt) {
+            const fc = c.fecha_creacion || (c as any).creadoEl || (c as any).createdAt;
+            fechaReferenciaMs = fc?.seconds ? fc.seconds * 1000 : (fc?.toDate ? fc.toDate().getTime() : new Date(fc).getTime() || 0);
+          }
+        }
+
+        const diasSinAbono = fechaReferenciaMs > 0 
+          ? Math.max(0, Math.floor((ahoraMs - fechaReferenciaMs) / (1000 * 60 * 60 * 24))) 
+          : 0;
 
         if (diasSinAbono > 30) {
           carteraRiesgo += deuda;
