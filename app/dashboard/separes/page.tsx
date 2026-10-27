@@ -6,6 +6,7 @@ import {
   collection, query, where, onSnapshot, doc, updateDoc, addDoc, getDocs, getDoc, increment, Timestamp 
 } from "firebase/firestore";
 import { auth, db } from "../../../firebase";
+import { guardarOperacionOffline } from "@/lib/colaOffline";
 import { 
   Bookmark, ArrowLeft, Search, Plus, Minus, X, ChevronRight, ChevronLeft, CheckCircle2, 
   MessageCircle, Printer, MoreVertical, Camera, AlertCircle, Banknote, 
@@ -621,31 +622,47 @@ function SeparesContenido() {
       if (referenciaAbono.trim()) abonoRegistrado.referenciaPago = referenciaAbono.trim();
 
       const abonosActuales = separeSeleccionado.abonos || [];
-      const token = await auth.currentUser?.getIdToken();
-      if (!token) throw new Error('Sesión inválida.');
-      const respuestaAbono = await fetch('/api/separes/abonar', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({
-          separeId: separeSeleccionado.id,
-          clienteId: separeSeleccionado.clienteId,
-          montoAbono: monto,
-          metodoPago: metodoPagoAbono,
-          subMetodoPago: subMetodoAbono.trim(),
-          referenciaPago: referenciaAbono.trim(),
-          detallesItems: (separeSeleccionado.items || []).map((it: any) => ({
-            descripcion: it.descripcion || "Artículo",
-            cantidad: it.cantidad || 1,
-            valor: (Number(it.valor) || 0) * (it.cantidad || 1),
-            valorUnitario: Number(it.valor) || 0
-          }))
-        })
-      });
-      const resAbono = await respuestaAbono.json();
-      if (!respuestaAbono.ok) throw new Error(resAbono.error || 'No se pudo registrar el abono.');
+      const payloadAbonoSepare = {
+        separeId: separeSeleccionado.id,
+        clienteId: separeSeleccionado.clienteId,
+        montoAbono: monto,
+        metodoPago: metodoPagoAbono,
+        subMetodoPago: subMetodoAbono.trim(),
+        referenciaPago: referenciaAbono.trim(),
+        detallesItems: (separeSeleccionado.items || []).map((it: any) => ({
+          descripcion: it.descripcion || "Artículo",
+          cantidad: it.cantidad || 1,
+          valor: (Number(it.valor) || 0) * (it.cantidad || 1),
+          valorUnitario: Number(it.valor) || 0
+        }))
+      };
 
-      const nuevoMontoPagado = resAbono.nuevoMontoPagado;
-      const nuevoSaldoPendiente = resAbono.nuevoSaldoPendiente;
+      let nuevoMontoPagado = (Number(separeSeleccionado.montoPagado) || 0) + monto;
+      let nuevoSaldoPendiente = Math.max(0, (Number(separeSeleccionado.saldoPendiente) || 0) - monto);
+
+      if (typeof window !== 'undefined' && !navigator.onLine) {
+        guardarOperacionOffline({
+          tipo: 'separe_abonar',
+          endpoint: '/api/separes/abonar',
+          payload: payloadAbonoSepare
+        });
+        toast.success("¡Abono al Separe guardado localmente! Se sincronizará al volver la red.", {
+          icon: '🏷️',
+          duration: 5000
+        });
+      } else {
+        const token = await auth.currentUser?.getIdToken();
+        if (!token) throw new Error('Sesión inválida.');
+        const respuestaAbono = await fetch('/api/separes/abonar', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+          body: JSON.stringify(payloadAbonoSepare)
+        });
+        const resAbono = await respuestaAbono.json();
+        if (!respuestaAbono.ok) throw new Error(resAbono.error || 'No se pudo registrar el abono.');
+        nuevoMontoPagado = resAbono.nuevoMontoPagado;
+        nuevoSaldoPendiente = resAbono.nuevoSaldoPendiente;
+      }
 
       reproducirSonidoExito();
       toast.success(`Abono de $${monto.toLocaleString('es-CO')} registrado con éxito`);

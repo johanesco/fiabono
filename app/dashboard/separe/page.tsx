@@ -4,6 +4,7 @@ import { useState, useEffect, Suspense, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { collection, addDoc, getDocs, getDoc, query, where, Timestamp, doc, updateDoc, increment } from "firebase/firestore";
 import { auth, db } from "../../../firebase";
+import { guardarOperacionOffline } from "@/lib/colaOffline";
 import { 
   Camera, X, Plus, Minus, ArrowLeft, Bookmark, Calendar, 
   MessageCircle, CheckCircle2, Search, User, ChevronRight, 
@@ -2145,25 +2146,39 @@ function SepareContenido() {
         }));
 
         // Creación de Separe + abono inicial + stock en una transacción server-side
-        const token = await auth.currentUser?.getIdToken();
-        if (!token) throw new Error('Sesión inválida.');
-        const respuestaSepare = await fetch('/api/separes/crear', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-          body: JSON.stringify({
-            separeData: payloadSepare,
-            abonoInicial: abonoEfectivo,
-            metodoPago,
-            subMetodoPago: subMetodoPago.trim(),
-            referenciaPago: referenciaPago.trim(),
-            itemsInventario
-          })
-        });
-        const resSepare = await respuestaSepare.json();
-        if (!respuestaSepare.ok) throw new Error(resSepare.error || 'No se pudo crear el Plan Separe.');
+        const payloadCrearSepare = {
+          separeData: payloadSepare,
+          abonoInicial: abonoEfectivo,
+          metodoPago,
+          subMetodoPago: subMetodoPago.trim(),
+          referenciaPago: referenciaPago.trim(),
+          itemsInventario
+        };
 
-        separeIdFinal = resSepare.separeId;
-        toast.success("¡Plan Separe registrado con éxito! 🏷️");
+        if (typeof window !== 'undefined' && !navigator.onLine) {
+          const op = guardarOperacionOffline({
+            tipo: 'separe_crear',
+            endpoint: '/api/separes/crear',
+            payload: payloadCrearSepare
+          });
+          separeIdFinal = op.idLocal;
+          toast.success("¡Plan Separe guardado localmente! Se sincronizará al volver la red. 🏷️", {
+            icon: '🔖',
+            duration: 5000
+          });
+        } else {
+          const token = await auth.currentUser?.getIdToken();
+          if (!token) throw new Error('Sesión inválida.');
+          const respuestaSepare = await fetch('/api/separes/crear', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+            body: JSON.stringify(payloadCrearSepare)
+          });
+          const resSepare = await respuestaSepare.json();
+          if (!respuestaSepare.ok) throw new Error(resSepare.error || 'No se pudo crear el Plan Separe.');
+          separeIdFinal = resSepare.separeId;
+          toast.success("¡Plan Separe registrado con éxito! 🏷️");
+        }
       } else {
 
         // Enviar como orden pendiente para que el administrador la apruebe

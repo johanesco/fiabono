@@ -1,15 +1,20 @@
 /**
  * Gestor Unificado de Cola Offline para Fiabono.
- * Soporta ventas, fiados y abonos realizados sin conexión.
+ * Soporta:
+ * - Ventas (contado y parcial fiada)
+ * - Fiados
+ * - Abonos a cartera
+ * - Creación de Plan Separe
+ * - Abonos a Plan Separe
  */
 
-export type TipoOperacionOffline = 'venta' | 'fiado' | 'abono_cartera' | 'abono_separe';
+export type TipoOperacionOffline = 'venta' | 'fiado' | 'abono_cartera' | 'separe_crear' | 'separe_abonar';
 
 export interface OperacionOfflinePendiente {
   idLocal: string;
   tipo: TipoOperacionOffline;
   creadoEn: number;
-  endpoint: '/api/ventas/registrar' | '/api/movimientos/registrar' | '/api/separes/abonar';
+  endpoint: '/api/ventas/registrar' | '/api/movimientos/registrar' | '/api/separes/crear' | '/api/separes/abonar';
   payload: any;
   ticketDatosPreview?: any;
   intentos: number;
@@ -66,7 +71,7 @@ export function contarOperacionesOffline(): number {
   return obtenerColaOffline().length;
 }
 
-// Compatibilidad retroactiva con código existente
+// Compatibilidad retroactiva
 export const obtenerColaVentasOffline = obtenerColaOffline;
 export const eliminarDeColaVentasOffline = eliminarOperacionOffline;
 export const contarVentasOfflinePendientes = contarOperacionesOffline;
