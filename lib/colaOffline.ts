@@ -1,75 +1,80 @@
 /**
- * Gestor de Cola de Ventas Offline para Fiabono.
- * Almacena de forma segura las ventas realizadas sin conexión
- * y las sincroniza en orden cuando regresa internet.
+ * Gestor Unificado de Cola Offline para Fiabono.
+ * Soporta ventas, fiados y abonos realizados sin conexión.
  */
 
-export interface VentaOfflinePendiente {
-  idLocal: string; // Clave única local (timestamp + random)
+export type TipoOperacionOffline = 'venta' | 'fiado' | 'abono_cartera' | 'abono_separe';
+
+export interface OperacionOfflinePendiente {
+  idLocal: string;
+  tipo: TipoOperacionOffline;
   creadoEn: number;
-  payload: {
-    clienteId: string;
-    montoVentaReal: number;
-    descripcionVenta: string;
-    detalles: any[];
-    metodoPago: string;
-    referenciaPago?: string;
-    subtotal: number;
-    valorIva: number;
-    porcentajeIva: number;
-    descuentoTipo?: string | null;
-    descuentoValor?: number;
-    montoDescuento?: number;
-    itemsInventario: any[];
-    fiarFaltante?: boolean;
-    montoFiado?: number;
-    descripcionFiado?: string;
-  };
-  ticketDatosPreview: any;
+  endpoint: '/api/ventas/registrar' | '/api/movimientos/registrar' | '/api/separes/abonar';
+  payload: any;
+  ticketDatosPreview?: any;
   intentos: number;
   ultimoError?: string;
 }
 
-const STORAGE_KEY = 'fiabono_ventas_offline_cola_v1';
+const STORAGE_KEY = 'fiabono_operaciones_offline_cola_v2';
 
-export function obtenerColaVentasOffline(): VentaOfflinePendiente[] {
+export function obtenerColaOffline(): OperacionOfflinePendiente[] {
   if (typeof window === 'undefined') return [];
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     return raw ? JSON.parse(raw) : [];
   } catch (e) {
-    console.error('[OfflineQueue] Error leyendo cola:', e);
+    console.error('[ColaOffline] Error leyendo cola:', e);
     return [];
   }
 }
 
-export function guardarEnColaVentasOffline(venta: Omit<VentaOfflinePendiente, 'idLocal' | 'creadoEn' | 'intentos'>): VentaOfflinePendiente {
-  const cola = obtenerColaVentasOffline();
-  const nuevaVenta: VentaOfflinePendiente = {
-    ...venta,
-    idLocal: `local_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`,
+export function guardarOperacionOffline(
+  op: Omit<OperacionOfflinePendiente, 'idLocal' | 'creadoEn' | 'intentos'>
+): OperacionOfflinePendiente {
+  const cola = obtenerColaOffline();
+  const nuevaOp: OperacionOfflinePendiente = {
+    ...op,
+    idLocal: `local_${op.tipo}_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
     creadoEn: Date.now(),
     intentos: 0,
   };
 
-  cola.push(nuevaVenta);
+  cola.push(nuevaOp);
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(cola));
-    window.dispatchEvent(new CustomEvent('fiabono_cola_offline_actualizada', { detail: { count: cola.length } }));
+    window.dispatchEvent(
+      new CustomEvent('fiabono_cola_offline_actualizada', { detail: { count: cola.length } })
+    );
   } catch (e) {
-    console.error('[OfflineQueue] Error guardando en cola:', e);
+    console.error('[ColaOffline] Error guardando operacion:', e);
   }
-  return nuevaVenta;
+  return nuevaOp;
 }
 
-export function eliminarDeColaVentasOffline(idLocal: string) {
-  const cola = obtenerColaVentasOffline().filter(v => v.idLocal !== idLocal);
+export function eliminarOperacionOffline(idLocal: string) {
+  const cola = obtenerColaOffline().filter((v) => v.idLocal !== idLocal);
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(cola));
-    window.dispatchEvent(new CustomEvent('fiabono_cola_offline_actualizada', { detail: { count: cola.length } }));
+    window.dispatchEvent(
+      new CustomEvent('fiabono_cola_offline_actualizada', { detail: { count: cola.length } })
+    );
   } catch (e) {}
 }
 
-export function contarVentasOfflinePendientes(): number {
-  return obtenerColaVentasOffline().length;
+export function contarOperacionesOffline(): number {
+  return obtenerColaOffline().length;
+}
+
+// Compatibilidad retroactiva con código existente
+export const obtenerColaVentasOffline = obtenerColaOffline;
+export const eliminarDeColaVentasOffline = eliminarOperacionOffline;
+export const contarVentasOfflinePendientes = contarOperacionesOffline;
+export function guardarEnColaVentasOffline(venta: any) {
+  return guardarOperacionOffline({
+    tipo: 'venta',
+    endpoint: '/api/ventas/registrar',
+    payload: venta.payload,
+    ticketDatosPreview: venta.ticketDatosPreview,
+  });
 }

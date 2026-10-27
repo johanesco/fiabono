@@ -5,6 +5,7 @@ import { useState, useEffect, Suspense, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { collection, addDoc, getDocs, getDoc, query, doc, updateDoc, where, increment, writeBatch } from "firebase/firestore";
 import { auth, db } from "../../../firebase";
+import { guardarOperacionOffline } from "@/lib/colaOffline";
 import { Banknote, Search, ShoppingBag, CheckCircle2, ChevronRight, X, AlertCircle, UserCog, Plus, Minus, ArrowLeft, ArrowRight, MessageCircle, Package, QrCode, Volume2, Printer, ChevronDown, ChevronUp, Tag, Receipt, Pause, FolderOpen, User, UserPlus, Trash2, LayoutGrid, List, ShoppingCart, ArrowRightLeft, Bookmark, Wallet, Sparkles } from 'lucide-react';
 import { useAuth } from "@/hooks/AuthContext";
 import toast from "react-hot-toast";
@@ -1517,32 +1518,54 @@ function FiarContenido() {
             // Ejecución Unificada en una sola Transacción Atómica de Firestore (Fiado + Stock + Deuda)
             const token = await auth.currentUser?.getIdToken();
             if (!token) throw new Error('Sesión inválida.');
-            const respuestaFiado = await fetch('/api/ventas/registrar', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-                body: JSON.stringify({
-                    clienteId: clienteTransaccion.id,
-                    montoVentaReal: abonoInicialNum,
-                    descripcionVenta: abonoInicialNum > 0 ? `Pago inicial fiado: ${descripcionUnificada}` : '',
-                    detalles: detallesParaComprobante,
-                    metodoPago: abonoInicialNum > 0 ? metodoPagoAbonoFiar : 'fiado',
-                    fiarFaltante: true,
-                    montoFiado: faltante,
-                    usarSaldoFavor: usarSaldoAFavorFiar,
-                    descripcionFiado: descripcionUnificada + (abonoInicialNum > 0 ? ` [Abono inicial hoy: $${abonoInicialNum.toLocaleString('es-CO')}]` : '') + (montoDescuentoTotal > 0 ? ` [Dto: -$${montoDescuentoTotal.toLocaleString('es-CO')}]` : ''),
-                    itemsInventario,
-                    descuentoTipo: mostrarDescuento && montoDescuentoTotal > 0 ? tipoDescuento : null,
-                    descuentoValor: mostrarDescuento && montoDescuentoTotal > 0 ? (tipoDescuento === 'porcentaje' ? Number(valorDescuento) : montoDescuentoTotal) : undefined,
-                    montoDescuento: montoDescuentoTotal > 0 ? montoDescuentoTotal : undefined
-                })
-            });
-            const resFiado = await respuestaFiado.json();
-            if (!respuestaFiado.ok) {
-                toast.error(resFiado.error || 'No se pudo registrar el fiado.');
-                return;
-            }
+            const payloadFiado = {
+                clienteId: clienteTransaccion.id,
+                montoVentaReal: abonoInicialNum,
+                descripcionVenta: abonoInicialNum > 0 ? `Pago inicial fiado: ${descripcionUnificada}` : '',
+                detalles: detallesParaComprobante,
+                metodoPago: abonoInicialNum > 0 ? metodoPagoAbonoFiar : 'fiado',
+                fiarFaltante: true,
+                montoFiado: faltante,
+                usarSaldoFavor: usarSaldoAFavorFiar,
+                descripcionFiado: descripcionUnificada + (abonoInicialNum > 0 ? ` [Abono inicial hoy: $${abonoInicialNum.toLocaleString('es-CO')}]` : '') + (montoDescuentoTotal > 0 ? ` [Dto: -$${montoDescuentoTotal.toLocaleString('es-CO')}]` : ''),
+                itemsInventario,
+                descuentoTipo: mostrarDescuento && montoDescuentoTotal > 0 ? tipoDescuento : null,
+                descuentoValor: mostrarDescuento && montoDescuentoTotal > 0 ? (tipoDescuento === 'porcentaje' ? Number(valorDescuento) : montoDescuentoTotal) : undefined,
+                montoDescuento: montoDescuentoTotal > 0 ? montoDescuentoTotal : undefined
+            };
 
-            const saldoFinal = resFiado.nuevoSaldoCliente !== undefined ? resFiado.nuevoSaldoCliente : ((clienteTransaccion.deudaTotal || 0) + faltante);
+            let saldoFinal = (clienteTransaccion.deudaTotal || 0) + faltante;
+            let idTransaccionFiado = "";
+
+            if (typeof window !== 'undefined' && !navigator.onLine) {
+                const op = guardarOperacionOffline({
+                    tipo: 'fiado',
+                    endpoint: '/api/ventas/registrar',
+                    payload: payloadFiado
+                });
+                idTransaccionFiado = op.idLocal;
+                toast.success('¡Fiado guardado localmente! Se sincronizará al volver la red.', {
+                    icon: '🤝',
+                    duration: 5000
+                });
+            } else {
+                const token = await auth.currentUser?.getIdToken();
+                if (!token) throw new Error('Sesión inválida.');
+                const respuestaFiado = await fetch('/api/ventas/registrar', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+                    body: JSON.stringify(payloadFiado)
+                });
+                const resFiado = await respuestaFiado.json();
+                if (!respuestaFiado.ok) {
+                    toast.error(resFiado.error || 'No se pudo registrar el fiado.');
+                    return;
+                }
+                if (resFiado.nuevoSaldoCliente !== undefined) {
+                    saldoFinal = resFiado.nuevoSaldoCliente;
+                }
+                idTransaccionFiado = resFiado.movimientoFiadoId || resFiado.movimientoVentaId || "";
+            }
             const clienteFinalActualizado = { ...clienteTransaccion, deudaTotal: saldoFinal };
 
             const ticketDatos = {
@@ -1566,7 +1589,7 @@ function FiarContenido() {
                 descuentoValor: mostrarDescuento && montoDescuentoTotal > 0 ? (tipoDescuento === 'porcentaje' ? Number(valorDescuento) : montoDescuentoTotal) : undefined,
                 montoDescuento: montoDescuentoTotal > 0 ? montoDescuentoTotal : undefined,
                 saldoNuevo: saldoFinal,
-                idTransaccion: resFiado.movimientoFiadoId || resFiado.movimientoVentaId || '',
+                idTransaccion: idTransaccionFiado,
                 metodoPago: 'fiado' as const
             };
 

@@ -126,7 +126,18 @@ export default function ModalAnularAbono({
         {fase === 'formulario' ? (
           <>
             {/* Tarjeta de Resumen del Abono */}
-            <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-[#020617] border border-slate-200/80 dark:border-slate-800 space-y-2 text-xs">
+            {typeof window !== 'undefined' && !navigator.onLine && (
+          <div className="flex items-start gap-2.5 p-3 rounded-2xl bg-amber-500/10 border border-amber-500/25 text-amber-200 text-xs">
+            <AlertTriangle size={16} className="text-amber-400 shrink-0 mt-0.5" />
+            <div className="space-y-0.5">
+              <p className="font-bold text-amber-300">Conexión requerida para anular</p>
+              <p className="text-[11px] text-amber-200/80 leading-snug">
+                Por seguridad contable y auditoría fiscal, no es posible revertir abonos sin validar primero los saldos en el servidor central.
+              </p>
+            </div>
+          </div>
+        )}
+        <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-[#020617] border border-slate-200/80 dark:border-slate-800 space-y-2 text-xs">
               <div className="flex justify-between items-center text-slate-500 dark:text-slate-400">
                 <span>Cliente:</span>
                 <span className="font-bold text-slate-900 dark:text-white">{nombreFinal}</span>

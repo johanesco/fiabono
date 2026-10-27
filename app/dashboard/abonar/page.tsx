@@ -4,6 +4,7 @@ import { useState, useEffect, useMemo, Suspense, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { collection, addDoc, getDocs, query, doc, updateDoc, where, arrayUnion, increment, onSnapshot } from "firebase/firestore";
 import { auth, db } from "../../../firebase";
+import { guardarOperacionOffline } from "@/lib/colaOffline";
 import { Search, ShoppingBag, Receipt, CheckCircle2, ChevronRight, X, AlertCircle, UserCog, ArrowLeft, MessageCircle, Banknote, Printer, Smartphone, CreditCard, Zap, Wallet, Bookmark, Sparkles } from 'lucide-react';
 import { useAuth } from "../../../hooks/AuthContext";
 import { API_DB } from "../../../servicios/db";
@@ -436,34 +437,46 @@ function AbonarContenido() {
         toast.error('Sesión inválida. Por favor, inicia sesión de nuevo.');
         return;
       }
-      const respuesta = await fetch('/api/movimientos/registrar', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({
-          clienteId: clienteTransaccion.id,
-          tipo: 'abono',
-          monto: abonoAplicado,
-          descripcion: `Abono a cuenta (${metodoPagoLabel})`,
-          metodoPago,
-          referenciaPago: refPagoCompleta,
-          esPublico: true
-        })
-      });
-      const datosAbono = await respuesta.json();
-      if (!respuesta.ok) {
-        toast.error(datosAbono.error || 'No se pudo registrar el abono.');
-        return;
-      }
-
-      reproducirSonidoExito();
-
-      ultimoAbonoRef.current = {
+      const payloadAbono = {
         clienteId: clienteTransaccion.id,
+        tipo: 'abono',
         monto: abonoAplicado,
-        timestamp: Date.now()
+        descripcion: `Abono a cuenta (${metodoPagoLabel})`,
+        metodoPago,
+        referenciaPago: refPagoCompleta,
+        esPublico: true
       };
 
-      const saldoFinal = datosAbono.nuevoSaldo;
+      let saldoFinal = (clienteTransaccion.deudaTotal || 0) - abonoAplicado;
+      let idTransaccionAbono = "";
+
+      if (typeof window !== 'undefined' && !navigator.onLine) {
+        const op = guardarOperacionOffline({
+          tipo: 'abono_cartera',
+          endpoint: '/api/movimientos/registrar',
+          payload: payloadAbono
+        });
+        idTransaccionAbono = op.idLocal;
+        toast.success('¡Abono guardado localmente! Se sincronizará al volver la red.', {
+          icon: '💰',
+          duration: 5000
+        });
+      } else {
+        const respuesta = await fetch('/api/movimientos/registrar', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+          body: JSON.stringify(payloadAbono)
+        });
+        const datosAbono = await respuesta.json();
+        if (!respuesta.ok) {
+          toast.error(datosAbono.error || 'No se pudo registrar el abono.');
+          return;
+        }
+        if (datosAbono.nuevoSaldo !== undefined) {
+          saldoFinal = datosAbono.nuevoSaldo;
+        }
+        idTransaccionAbono = datosAbono.movimientoId || "";
+      }
       const clienteFinalActualizado = { ...clienteTransaccion, deudaTotal: saldoFinal };
 
       const devuelta = pagoCliente && pagoCliente > abonoAplicado ? pagoCliente - abonoAplicado : 0;
@@ -487,7 +500,7 @@ function AbonarContenido() {
         pagoRecibido: pagoCliente || abonoAplicado,
         devuelta: devuelta > 0 ? devuelta : undefined,
         saldoNuevo: saldoFinal,
-        idTransaccion: datosAbono.movimientoId,
+        idTransaccion: idTransaccionAbono,
         metodoPago: metodoPago,
         referenciaPago: refPagoCompleta
       };

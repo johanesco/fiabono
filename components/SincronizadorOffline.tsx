@@ -1,21 +1,22 @@
 "use client";
 import React, { useEffect, useState } from "react";
-import { CloudUpload, CheckCircle2, AlertTriangle, RefreshCw } from "lucide-react";
-import { contarVentasOfflinePendientes, obtenerColaVentasOffline, eliminarDeColaVentasOffline } from "@/lib/colaOffline";
+import { CloudUpload, RefreshCw } from "lucide-react";
+import { contarOperacionesOffline, obtenerColaOffline, eliminarOperacionOffline } from "@/lib/colaOffline";
 import { auth } from "@/firebase";
 import toast from "react-hot-toast";
 
 /**
- * Componente centinela que se encarga de:
- * 1. Mostrar badge discreto si hay ventas guardadas en este equipo pendientes por subir.
- * 2. Escuchar la reconexión a internet (`online`) y sincronizar automáticamente cada venta.
+ * Centinela de sincronización offline:
+ * - Detecta operaciones pendientes (ventas, fiados, abonos).
+ * - Muestra un badge flotante compacto y estilizado.
+ * - Sincroniza automáticamente en bucle controlado al detectar red.
  */
 export default function SincronizadorOffline() {
   const [pendientes, setPendientes] = useState(0);
   const [sincronizando, setSincronizando] = useState(false);
 
   const actualizarConteo = () => {
-    setPendientes(contarVentasOfflinePendientes());
+    setPendientes(contarOperacionesOffline());
   };
 
   useEffect(() => {
@@ -33,7 +34,7 @@ export default function SincronizadorOffline() {
 
   const sincronizarAhora = async () => {
     if (typeof window === "undefined" || !navigator.onLine) return;
-    const cola = obtenerColaVentasOffline();
+    const cola = obtenerColaOffline();
     if (cola.length === 0 || sincronizando) return;
 
     setSincronizando(true);
@@ -48,7 +49,7 @@ export default function SincronizadorOffline() {
 
       for (const item of cola) {
         try {
-          const res = await fetch("/api/ventas/registrar", {
+          const res = await fetch(item.endpoint, {
             method: "POST",
             headers: {
               "Content-Type": "application/json",
@@ -58,20 +59,22 @@ export default function SincronizadorOffline() {
           });
 
           if (res.ok) {
-            eliminarDeColaVentasOffline(item.idLocal);
+            eliminarOperacionOffline(item.idLocal);
             subidas++;
+          } else {
+            console.warn(`[SincronizadorOffline] Error en ${item.endpoint}:`, await res.text());
           }
         } catch (err) {
-          console.error("[SincronizadorOffline] Error sincronizando venta:", err);
-          break; // Si se cortó la red en pleno bucle, pausar hasta la próxima reconexión
+          console.error("[SincronizadorOffline] Error de red durante sincronización:", err);
+          break; // Pausar hasta nueva reconexión estable
         }
       }
 
       if (subidas > 0) {
         toast.success(
           subidas === 1
-            ? "¡Venta offline sincronizada con éxito en la nube!"
-            : `¡${subidas} ventas offline sincronizadas con éxito!`,
+            ? "¡Operación offline sincronizada con la nube!"
+            : `¡${subidas} operaciones offline sincronizadas con éxito!`,
           { icon: "☁️", duration: 4000 }
         );
       }
@@ -84,22 +87,17 @@ export default function SincronizadorOffline() {
   if (pendientes === 0) return null;
 
   return (
-    <div className="fixed bottom-20 lg:bottom-4 right-4 z-[85] animate-in slide-in-from-bottom-2 duration-300">
-      <div className="flex items-center gap-2.5 px-3.5 py-2 rounded-2xl bg-slate-900/95 dark:bg-slate-900/95 text-white border border-amber-500/30 shadow-2xl backdrop-blur-md">
+    <div className="fixed bottom-20 lg:bottom-4 right-4 z-[85] animate-in slide-in-from-bottom-2 duration-300 pointer-events-auto">
+      <div className="flex items-center gap-2.5 px-3 py-1.5 rounded-full bg-slate-900/90 dark:bg-slate-900/95 text-white border border-amber-500/30 shadow-2xl backdrop-blur-md">
         <div className="relative">
-          <CloudUpload size={17} className={`text-amber-400 ${sincronizando ? "animate-bounce" : ""}`} />
-          <span className="absolute -top-1.5 -right-1.5 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-amber-500 text-[9px] font-black text-slate-950">
+          <CloudUpload size={15} className={`text-amber-400 ${sincronizando ? "animate-bounce" : ""}`} />
+          <span className="absolute -top-1 -right-1 flex h-3 w-3 items-center justify-center rounded-full bg-amber-500 text-[8px] font-black text-slate-950">
             {pendientes}
           </span>
         </div>
 
-        <div className="flex flex-col text-left">
-          <span className="text-xs font-bold text-amber-200">
-            {pendientes === 1 ? "1 venta por subir" : `${pendientes} ventas por subir`}
-          </span>
-          <span className="text-[10px] text-slate-400">
-            {sincronizando ? "Subiendo a la nube..." : "Se sincronizarán al haber red"}
-          </span>
+        <div className="flex items-center gap-1.5 text-left text-xs font-semibold text-amber-200">
+          <span>{pendientes === 1 ? "1 pendiente por subir" : `${pendientes} pendientes por subir`}</span>
         </div>
 
         <button
@@ -107,9 +105,9 @@ export default function SincronizadorOffline() {
           onClick={sincronizarAhora}
           disabled={sincronizando}
           title="Sincronizar ahora"
-          className="ml-1 p-1.5 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 transition-all active:scale-95 disabled:opacity-50 cursor-pointer"
+          className="ml-0.5 p-1 rounded-full bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 transition-all active:scale-95 disabled:opacity-50 cursor-pointer"
         >
-          <RefreshCw size={13} className={sincronizando ? "animate-spin" : ""} />
+          <RefreshCw size={11} className={sincronizando ? "animate-spin" : ""} />
         </button>
       </div>
     </div>
