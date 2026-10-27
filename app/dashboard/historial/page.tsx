@@ -18,6 +18,7 @@ import TicketFacturaModal, { DatosFacturaProps } from "@/components/TicketFactur
 import ModalProcesarDevolucion from "@/components/ModalProcesarDevolucion";
 import ModalGestionCliente from "@/components/ModalGestionCliente";
 import ModalAnularAbono from "@/components/modals/ModalAnularAbono";
+import ModalAnularVenta from "@/components/modals/ModalAnularVenta";
 import ModalSuscripcion from "@/components/ModalSuscripcion";
 import { abrirEnlaceWhatsApp } from "@/utils/whatsapp";
 import { agregarMediosPagoAlEstado } from "@/utils/mediosPago";
@@ -78,6 +79,7 @@ export default function HistorialPage() {
   const [modalMostrador, setModalMostrador] = useState(false);
   const [movimientoMostrador, setMovimientoMostrador] = useState<Movimiento | null>(null);
   const [modalDevolucion, setModalDevolucion] = useState<{ isOpen: boolean; venta: Movimiento | null }>({ isOpen: false, venta: null });
+  const [modalAnularVenta, setModalAnularVenta] = useState<{ isOpen: boolean; venta: Movimiento | null }>({ isOpen: false, venta: null });
   const [modalAnularAbono, setModalAnularAbono] = useState<{
     isOpen: boolean;
     movimiento: any | null;
@@ -2025,6 +2027,15 @@ Gracias por seguir con nosotros.
         cierre={cierreSeleccionado}
         isOpen={Boolean(cierreSeleccionado)}
         onClose={() => setCierreSeleccionado(null)}
+      />
+
+            <ModalAnularVenta
+        isOpen={modalAnularVenta.isOpen}
+        onClose={() => setModalAnularVenta({ isOpen: false, venta: null })}
+        venta={modalAnularVenta.venta}
+        onSuccess={() => {
+          if (cuentaPrincipalId) cargarDatosHistorial(cuentaPrincipalId);
+        }}
       />
 
       <ModalAnularAbono

@@ -164,6 +164,7 @@ export default function ReportesPage() {
 
   const filtrarPorTiempo = (movs: Movimiento[], tipoFiltro: 'hoy' | 'ayer' | 'semana' | 'mes' | 'ano' | 'todos') => {
     return movs.filter(mov => {
+      if ((mov as any).anulado === true) return false;
       const fJS = obtenerFechaJS(mov.fecha);
       const ms = fJS.getTime();
       const inicioHoy = new Date(hoyDate.getFullYear(), hoyDate.getMonth(), hoyDate.getDate(), 0, 0, 0, 0).getTime();
