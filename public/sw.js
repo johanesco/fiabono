@@ -1,4 +1,4 @@
-const CACHE_NAME = 'fiabono-pwa-v3';
+const CACHE_NAME = 'fiabono-pwa-v4';
 
 const STATIC_ASSETS = [
   '/',
@@ -51,21 +51,31 @@ self.addEventListener('fetch', (event) => {
   // Ignorar rutas de API dinámicas internas
   if (url.pathname.startsWith('/api/')) return;
 
+  const esNavegacion = event.request.mode === 'navigate';
+  const esAssetEstatico =
+    url.pathname.startsWith('/_next/static/') ||
+    /\.(png|jpg|jpeg|svg|webp|ico|css|js|woff2?)$/i.test(url.pathname);
+
   // Estrategia Network-First:
   // Intentar red siempre para tener los datos más frescos en tiempo real.
   // Si no hay red (offline), responder con la versión cacheada.
   event.respondWith(
     fetch(event.request)
       .then((networkResponse) => {
-        // Cachear en segundo plano solo assets estáticos del mismo origen
+        // MODO OFFLINE (Fase 1): cachear en segundo plano los assets estáticos y las
+        // pantallas visitadas (HTML del panel). Si se cae el internet, las pantallas
+        // que ya se abrieron antes vuelven a cargar.
         if (
           networkResponse &&
           networkResponse.status === 200 &&
-          (url.pathname.match(/\.(png|jpg|jpeg|svg|webp|ico|css|js|woff2?)$/i) || url.pathname === '/')
+          networkResponse.type === 'basic' &&
+          (esAssetEstatico || esNavegacion || url.pathname === '/')
         ) {
           const responseToCache = networkResponse.clone();
+          // Las pantallas se guardan sin parámetros (?x=) para encontrarlas luego offline
+          const clave = esNavegacion ? url.origin + url.pathname : event.request;
           caches.open(CACHE_NAME).then((cache) => {
-            cache.put(event.request, responseToCache);
+            cache.put(clave, responseToCache);
           });
         }
         return networkResponse;
@@ -74,8 +84,20 @@ self.addEventListener('fetch', (event) => {
         const cached = await caches.match(event.request);
         if (cached) return cached;
 
-        // Si navega a una pantalla sin conexión, responder con la raíz cacheada
-        if (event.request.mode === 'navigate') {
+        if (esNavegacion) {
+          // 1. La misma pantalla guardada (ignorando parámetros)
+          const mismaPantalla = await caches.match(url.origin + url.pathname);
+          if (mismaPantalla) return mismaPantalla;
+
+          // 2. Dentro del panel, abrir otra pantalla del panel ya visitada
+          if (url.pathname.startsWith('/dashboard')) {
+            const pantallaPanel =
+              (await caches.match(url.origin + '/dashboard/inicio')) ||
+              (await caches.match(url.origin + '/dashboard/vender'));
+            if (pantallaPanel) return pantallaPanel;
+          }
+
+          // 3. Último recurso: la raíz cacheada
           const rootCached = await caches.match('/');
           if (rootCached) return rootCached;
         }
