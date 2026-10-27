@@ -1,6 +1,6 @@
 "use client";
 import { Movimiento } from "../types";
-import { Printer, RotateCcw, Package, User, Calculator, Clock, Eye } from "lucide-react";
+import { Printer, RotateCcw, Package, User, Calculator, Clock, Eye, Ban } from "lucide-react";
 
 interface TablaHistorialProps {
   movimientos: Movimiento[];
@@ -14,9 +14,10 @@ interface TablaHistorialProps {
   onReintentarNC?: (mov: Movimiento) => void;
   onVerCierre?: (cierre: any) => void;
   onAnularAbono?: (mov: Movimiento) => void;
+  onAnularVenta?: (mov: Movimiento) => void;
 }
 
-export default function TablaHistorial({ movimientos, getNombreCliente, getApodoCliente, onRowClick, onMovimientoClick, onImprimir, onDevolucion, puedeHacerDevolucion, onReintentarNC, onVerCierre, onAnularAbono }: TablaHistorialProps) {
+export default function TablaHistorial({ movimientos, getNombreCliente, getApodoCliente, onRowClick, onMovimientoClick, onImprimir, onDevolucion, puedeHacerDevolucion, onReintentarNC, onVerCierre, onAnularAbono, onAnularVenta }: TablaHistorialProps) {
   return (
     <div className="hidden md:block w-full bg-white dark:bg-[#0f172a] rounded-2xl border border-slate-100 dark:border-slate-800/60 shadow-sm overflow-x-auto">
       <table className="w-full text-left border-collapse">
@@ -230,6 +231,16 @@ export default function TablaHistorial({ movimientos, getNombreCliente, getApodo
                         className="p-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/40 dark:hover:bg-rose-900/50 text-rose-600 dark:text-rose-400 border border-rose-200 dark:border-rose-800/60 transition-colors inline-flex items-center justify-center cursor-pointer"
                       >
                         <RotateCcw size={13} />
+                      </button>
+                    )}
+                    {(mov.tipo === 'venta' || mov.tipo === 'fiado') && !(mov as any).anulado && onAnularVenta && (puedeHacerDevolucion !== false) && (
+                      <button
+                        type="button"
+                        onClick={() => onAnularVenta(mov)}
+                        title={mov.tipo === 'fiado' ? "Anular fiado por error (reversar saldo y stock)" : "Anular venta por error (reversar stock)"}
+                        className="p-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/40 dark:hover:bg-rose-900/50 text-rose-600 dark:text-rose-400 border border-rose-200 dark:border-rose-800/60 transition-colors inline-flex items-center justify-center cursor-pointer"
+                      >
+                        <Ban size={13} />
                       </button>
                     )}
                     {(mov.tipo === 'venta' || mov.tipo === 'fiado') && mov.detalles && mov.detalles.length > 0 && onDevolucion && (puedeHacerDevolucion !== false) && (

@@ -6,7 +6,7 @@ import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import { collection, getDocs, query, where, onSnapshot, orderBy, limit } from "firebase/firestore";
 import { db, auth } from "../../../firebase";
-import { Search, X, Clock, MessageCircle, Star, Users, Store, Printer, Edit3, Trash2, Bookmark, ChevronRight, Package, ArrowRight, User, RotateCcw, Smartphone, Calendar, ChevronDown, Calculator } from 'lucide-react';
+import { Search, X, Clock, MessageCircle, Star, Users, Store, Printer, Edit3, Trash2, Bookmark, ChevronRight, Package, ArrowRight, User, RotateCcw, Smartphone, Calendar, ChevronDown, Calculator, Ban } from 'lucide-react';
 import toast from "react-hot-toast";
 
 import { useAuth } from "../../../hooks/AuthContext";
@@ -1074,6 +1074,19 @@ Gracias por seguir con nosotros.
                           <RotateCcw size={15} />
                         </button>
                       )}
+                      {(mov.tipo === 'venta' || mov.tipo === 'fiado') && !(mov as any).anulado && puedeHacerDevolucion && (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setModalAnularVenta({ isOpen: true, venta: mov });
+                          }}
+                          title={mov.tipo === 'fiado' ? 'Anular Fiado por error' : 'Anular Venta por error'}
+                          className="p-2 rounded-xl bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/40 dark:hover:bg-rose-900/50 text-rose-600 dark:text-rose-400 border border-rose-200 dark:border-rose-800 transition-colors cursor-pointer"
+                        >
+                          <Ban size={15} />
+                        </button>
+                      )}
                       {(mov.tipo === 'venta' || mov.tipo === 'fiado') && mov.detalles && mov.detalles.length > 0 && puedeHacerDevolucion && (
                         <button
                           type="button"
@@ -1167,6 +1180,12 @@ Gracias por seguir con nosotros.
               cliente: clientes.find(c => c.id === mov.clienteId) || null
             });
           }}
+            onAnularVenta={(mov) => {
+              setModalAnularVenta({
+                isOpen: true,
+                venta: mov
+              });
+            }}
         />
 
         {historialFiltrado.length === 0 && (
@@ -1772,6 +1791,16 @@ Gracias por seguir con nosotros.
                               <RotateCcw size={12} /> Anular Abono
                             </button>
                           )}
+                          {(mov.tipo === 'venta' || mov.tipo === 'fiado') && !(mov as any).anulado && (datosSesion?.rol !== 'cajero' || datosSesion?.permisos?.hacerDevoluciones) && (
+                            <button
+                              type="button"
+                              onClick={() => setModalAnularVenta({ isOpen: true, venta: mov })}
+                              className="text-[10px] font-bold px-2 py-1 bg-rose-50 hover:bg-rose-100 text-rose-600 dark:bg-rose-950/40 dark:hover:bg-rose-900/60 dark:text-rose-400 rounded-lg transition-colors cursor-pointer border border-rose-200 dark:border-rose-800 flex items-center gap-1"
+                              title={mov.tipo === 'fiado' ? "Anular fiado por error" : "Anular venta por error"}
+                            >
+                              <Ban size={12} /> {mov.tipo === 'fiado' ? 'Anular Fiado' : 'Anular Venta'}
+                            </button>
+                          )}
                           {(mov.tipo === 'venta' || mov.tipo === 'fiado') && mov.detalles && mov.detalles.length > 0 && (datosSesion?.rol !== 'cajero' || datosSesion?.permisos?.hacerDevoluciones) && (
                             <button
                               type="button"
@@ -1839,6 +1868,20 @@ Gracias por seguir con nosotros.
                   className="w-full bg-amber-500 hover:bg-amber-600 text-white font-black py-3 px-4 rounded-xl transition-colors text-sm flex items-center justify-center gap-2 shadow-sm cursor-pointer"
                 >
                   <RotateCcw size={16} /> Hacer Devolución
+                </button>
+              )}
+
+              {movimientoMostrador && (movimientoMostrador.tipo === 'venta' || movimientoMostrador.tipo === 'fiado') && !(movimientoMostrador as any).anulado && puedeHacerDevolucion && (
+                <button 
+                  type="button"
+                  onClick={() => {
+                    const v = movimientoMostrador;
+                    setModalMostrador(false);
+                    setModalAnularVenta({ isOpen: true, venta: v });
+                  }} 
+                  className="w-full bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/40 dark:hover:bg-rose-900/50 text-rose-600 dark:text-rose-400 font-black py-3 px-4 rounded-xl transition-colors text-sm flex items-center justify-center gap-2 border border-rose-200 dark:border-rose-800/60 shadow-xs cursor-pointer"
+                >
+                  <Ban size={16} /> Anular Venta por Error
                 </button>
               )}
 
@@ -2034,8 +2077,9 @@ Gracias por seguir con nosotros.
         onClose={() => setModalAnularVenta({ isOpen: false, venta: null })}
         venta={modalAnularVenta.venta}
         onSuccess={() => {
-          if (cuentaPrincipalId) cargarDatosHistorial(cuentaPrincipalId);
-        }}
+            if (cuentaPrincipalId) cargarDatosHistorial(cuentaPrincipalId);
+            if (clienteActivo) abrirHistorialCliente(clienteActivo.id);
+          }}
       />
 
       <ModalAnularAbono
