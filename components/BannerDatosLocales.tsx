@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
-import { Database, WifiOff } from "lucide-react";
+import { HardDrive, WifiOff } from "lucide-react";
 
 interface Props {
   className?: string;
@@ -8,8 +8,8 @@ interface Props {
 }
 
 /**
- * Banner contextual que avisa con elegancia cuando una pantalla
- * está mostrando datos guardados en el dispositivo por falta de conexión.
+ * Indicador contextual sobrio y compacto.
+ * En lugar de una caja pesada, es una línea sutil con estilo glassmorphism.
  */
 export default function BannerDatosLocales({ className = "", modulo }: Props) {
   const [enLinea, setEnLinea] = useState(true);
@@ -32,14 +32,16 @@ export default function BannerDatosLocales({ className = "", modulo }: Props) {
   return (
     <div
       role="status"
-      className={`flex items-center gap-2.5 px-3.5 py-2 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-700 dark:text-amber-300 text-xs font-medium animate-in fade-in duration-200 ${className}`}
+      className={`flex items-center justify-between gap-2 px-3 py-1.5 rounded-xl bg-slate-900/60 dark:bg-slate-900/80 backdrop-blur-xs border border-amber-500/25 text-amber-200/90 text-[11px] font-medium transition-all duration-200 ${className}`}
     >
-      <Database size={15} className="shrink-0 text-amber-600 dark:text-amber-400" />
-      <span className="flex-1">
-        Viendo {modulo ? `${modulo} guardados` : "información guardada"} en tu dispositivo. Las actualizaciones de otros equipos se sincronizarán al recuperar la red.
-      </span>
-      <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider bg-amber-500/20 px-2 py-0.5 rounded-full shrink-0">
-        <WifiOff size={11} /> Offline
+      <div className="flex items-center gap-1.5 min-w-0">
+        <HardDrive size={13} className="shrink-0 text-amber-400" />
+        <span className="truncate">
+          Datos {modulo ? `de ${modulo}` : ""} guardados en este equipo
+        </span>
+      </div>
+      <span className="inline-flex items-center gap-1 text-[9px] font-bold uppercase tracking-wider text-amber-300 bg-amber-500/15 border border-amber-500/20 px-1.5 py-0.5 rounded-md shrink-0">
+        <WifiOff size={10} /> Local
       </span>
     </div>
   );
