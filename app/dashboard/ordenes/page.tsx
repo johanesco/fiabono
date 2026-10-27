@@ -1,4 +1,5 @@
 "use client";
+import BannerDatosLocales from "@/components/BannerDatosLocales";
 import { obtenerNombreCercano } from "@/utils/whatsapp";
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
@@ -52,7 +53,6 @@ import {
   Wrench
 } from "lucide-react";
 import ModalSuscripcion from "@/components/ModalSuscripcion";
-import BannerDatosLocales from '@/components/BannerDatosLocales';
 
 export default function OrdenesPage() {
   const { datosSesion } = useAuth();

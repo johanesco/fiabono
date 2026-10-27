@@ -1,5 +1,5 @@
-import BannerDatosLocales from '@/components/BannerDatosLocales';
 "use client";
+import BannerDatosLocales from "@/components/BannerDatosLocales";
 import { obtenerNombreCercano } from "@/utils/whatsapp";
 import React, { useState, useEffect, useMemo, Suspense } from "react";
 import { createPortal } from "react-dom";

@@ -1,4 +1,5 @@
 "use client";
+import BannerDatosLocales from "@/components/BannerDatosLocales";
 import { useState, useEffect, useMemo, useRef } from "react";
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
@@ -64,7 +65,6 @@ import jsPDF from 'jspdf';
 import * as XLSX from 'xlsx';
 import ExcelJS from 'exceljs';
 import ModalUpsellSuscripcion from "@/components/ModalUpsellSuscripcion";
-import BannerDatosLocales from '@/components/BannerDatosLocales';
 
 type ColumnaOrden = 'categoria' | 'nombre' | 'sku' | 'stock' | 'precioVenta';
 type DireccionOrden = 'asc' | 'desc';

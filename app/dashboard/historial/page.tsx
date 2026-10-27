@@ -1,4 +1,5 @@
 "use client";
+import BannerDatosLocales from "@/components/BannerDatosLocales";
 import { obtenerNombreCercano } from "@/utils/whatsapp";
 import { useState, useEffect, useRef, useMemo } from "react";
 import { createPortal } from "react-dom";
@@ -7,7 +8,6 @@ import { collection, getDocs, query, where, onSnapshot, orderBy, limit } from "f
 import { db, auth } from "../../../firebase";
 import { Search, X, Clock, MessageCircle, Star, Users, Store, Printer, Edit3, Trash2, Bookmark, ChevronRight, Package, ArrowRight, User, RotateCcw, Smartphone, Calendar, ChevronDown, Calculator } from 'lucide-react';
 import toast from "react-hot-toast";
-import BannerDatosLocales from '@/components/BannerDatosLocales';
 
 import { useAuth } from "../../../hooks/AuthContext";
 import { API_DB } from "../../../servicios/db";
