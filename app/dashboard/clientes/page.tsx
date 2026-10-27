@@ -25,10 +25,12 @@ import TicketFacturaModal, { DatosFacturaProps } from "@/components/TicketFactur
 import ModalExportarClientes from "@/components/clientes/ModalExportarClientes";
 import ModalImportarClientes from "@/components/clientes/ModalImportarClientes";
 import ModalAnularAbono from "@/components/modals/ModalAnularAbono";
+import ModalAnularVenta from "@/components/modals/ModalAnularVenta";
 import ModalSuscripcion from "@/components/ModalSuscripcion";
 import toast from "react-hot-toast";
 import { 
   RotateCcw,
+  Ban,
   Users, 
   Search, 
   UserPlus, 
@@ -154,6 +156,7 @@ function ClientesContenido() {
   });
 
   const [modalDevolucion, setModalDevolucion] = useState<{ isOpen: boolean, venta: Movimiento | null }>({ isOpen: false, venta: null });
+  const [modalAnularVenta, setModalAnularVenta] = useState<{ isOpen: boolean; venta: Movimiento | null }>({ isOpen: false, venta: null });
   const [modalAnularAbono, setModalAnularAbono] = useState<{
     isOpen: boolean;
     movimiento: any | null;
@@ -1135,6 +1138,16 @@ Gracias por seguir con nosotros.
                           className="text-[10px] font-bold px-2 py-1 bg-rose-50 hover:bg-rose-100 text-rose-600 dark:bg-rose-950/40 dark:hover:bg-rose-900/60 dark:text-rose-400 rounded-lg transition-colors cursor-pointer border border-rose-200 dark:border-rose-800 flex items-center gap-1"
                         >
                           <RotateCcw size={12} /> Anular Abono
+                        </button>
+                      )}
+                      {esVentaOFiado && !mov.anulado && (!esCajero || datosSesion?.permisos?.hacerDevoluciones || datosSesion?.esAdmin !== false) && (
+                        <button
+                          type="button"
+                          onClick={() => setModalAnularVenta({ isOpen: true, venta: mov })}
+                          className="text-[10px] font-bold px-2 py-1 bg-rose-50 hover:bg-rose-100 text-rose-600 dark:bg-rose-950/40 dark:hover:bg-rose-900/60 dark:text-rose-400 rounded-lg transition-colors cursor-pointer border border-rose-200 dark:border-rose-800 flex items-center gap-1"
+                          title={mov.tipo === 'fiado' ? "Anular fiado por error" : "Anular venta por error"}
+                        >
+                          <Ban size={12} /> {mov.tipo === 'fiado' ? 'Anular Fiado' : 'Anular Venta'}
                         </button>
                       )}
                       {esVentaOFiado && mov.detalles && mov.detalles.length > 0 && (!esCajero || datosSesion?.permisos?.hacerDevoluciones) && (
@@ -3013,6 +3026,12 @@ Gracias por seguir con nosotros.
           planInicial="comercio"
         />
       )}
+
+      <ModalAnularVenta
+        isOpen={modalAnularVenta.isOpen}
+        onClose={() => setModalAnularVenta({ isOpen: false, venta: null })}
+        venta={modalAnularVenta.venta}
+      />
 
       <ModalAnularAbono
         isOpen={modalAnularAbono.isOpen}
