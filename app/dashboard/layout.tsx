@@ -10,6 +10,7 @@ import ScrollIndicator from "../../components/ScrollIndicator";
 import GlobalExpirationWarning from "@/components/GlobalExpirationWarning";
 import GlobalAnnouncements from "@/components/GlobalAnnouncements";
 import IndicadorConexion from "@/components/IndicadorConexion";
+import SincronizadorOffline from "@/components/SincronizadorOffline";
 import ModalConfirmarCerrarSesion from "@/components/modals/ModalConfirmarCerrarSesion";
 import LogoFiabono, { IsotipoFiabono } from "@/components/LogoFiabono";
 
@@ -438,6 +439,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             <GlobalExpirationWarning />
             <GlobalAnnouncements />
             <IndicadorConexion />
+            <SincronizadorOffline />
             {/* Desplazamiento fluido sin solapamiento con BottomNav */}
             <div id="dashboard-scroll-container" className={`flex-1 h-full w-full ${esRutaPOS ? 'overflow-hidden' : 'overflow-y-auto'} flex flex-col min-h-0`}>
               {children}

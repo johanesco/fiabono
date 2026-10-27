@@ -4,6 +4,7 @@ import { useState, useEffect, Suspense, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { collection, addDoc, getDocs, getDoc, query, doc, updateDoc, where, increment, writeBatch } from "firebase/firestore";
 import { auth, db } from "../../../firebase";
+import { guardarEnColaVentasOffline } from "@/lib/colaOffline";
 import { Search, ShoppingCart, CheckCircle2, ChevronRight, X, AlertCircle, UserCog, Plus, Minus, ArrowLeft, MessageCircle, Banknote, Package, QrCode, Volume2, Printer, Smartphone, CreditCard, Zap, Receipt, ChevronDown, ChevronUp, Tag, Percent, Pause, FolderOpen, User, Trash2, Store, Wallet, LayoutGrid, List, FileText, ArrowRightLeft, Edit3 } from 'lucide-react';
 import { useAuth } from "@/hooks/AuthContext";
 import toast from "react-hot-toast";
@@ -1241,40 +1242,60 @@ function VenderContenido() {
       }));
 
       const token = await auth.currentUser?.getIdToken();
-      if (!token) throw new Error('Sesión inválida.');
-      const respuestaVenta = await fetch('/api/ventas/registrar', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({
-          clienteId: clienteTransaccion ? clienteTransaccion.id : 'mostrador',
-          montoVentaReal,
-          descripcionVenta: (fiarFaltante && (totalNetoACobrar - efectivoRealRecibido) > 0 ? 'Abono inicial por: ' : '') + descripcionUnificada + (montoSaldoFavorAplicado > 0 ? ` [Saldo a favor: -$${montoSaldoFavorAplicado.toLocaleString('es-CO')}]` : '') + (fiarFaltante && (totalNetoACobrar - efectivoRealRecibido) > 0 ? ` (Fiado restante: $${(totalNetoACobrar - efectivoRealRecibido).toLocaleString('es-CO')})` : '') + (montoDescuentoTotal > 0 ? ` [Dto: -$${montoDescuentoTotal.toLocaleString('es-CO')}]` : ''),
-          detalles: detallesParaComprobante,
-          metodoPago,
-          referenciaPago: refPagoCompleta,
-          subtotal: subtotalCalculado,
-          valorIva: ivaCalculado,
-          porcentajeIva: tasaIvaPorcentaje,
-          descuentoTipo: mostrarDescuento && montoDescuentoTotal > 0 ? tipoDescuento : null,
-          descuentoValor: mostrarDescuento && montoDescuentoTotal > 0 ? (tipoDescuento === 'porcentaje' ? Number(valorDescuento) : montoDescuentoTotal) : undefined,
-          montoDescuento: montoDescuentoTotal > 0 ? montoDescuentoTotal : undefined,
-          itemsInventario,
-          fiarFaltante,
-          montoFiado: montoTotalNoCubierto,
-          descripcionFiado: `Saldo pendiente de venta: ${descripcionUnificada}`
-        })
-      });
-      const resAtomo = await respuestaVenta.json();
-      if (!respuestaVenta.ok) {
-        toast.error(resAtomo.error || 'No se pudo registrar la venta.');
-        return;
-      }
+      const payloadVenta = {
+        clienteId: clienteTransaccion ? clienteTransaccion.id : 'mostrador',
+        montoVentaReal,
+        descripcionVenta: (fiarFaltante && (totalNetoACobrar - efectivoRealRecibido) > 0 ? 'Abono inicial por: ' : '') + descripcionUnificada + (montoSaldoFavorAplicado > 0 ? ` [Saldo a favor: -${montoSaldoFavorAplicado.toLocaleString('es-CO')}]` : '') + (fiarFaltante && (totalNetoACobrar - efectivoRealRecibido) > 0 ? ` (Fiado restante: ${(totalNetoACobrar - efectivoRealRecibido).toLocaleString('es-CO')})` : '') + (montoDescuentoTotal > 0 ? ` [Dto: -${montoDescuentoTotal.toLocaleString('es-CO')}]` : ''),
+        detalles: detallesParaComprobante,
+        metodoPago,
+        referenciaPago: refPagoCompleta,
+        subtotal: subtotalCalculado,
+        valorIva: ivaCalculado,
+        porcentajeIva: tasaIvaPorcentaje,
+        descuentoTipo: mostrarDescuento && montoDescuentoTotal > 0 ? tipoDescuento : null,
+        descuentoValor: mostrarDescuento && montoDescuentoTotal > 0 ? (tipoDescuento === 'porcentaje' ? Number(valorDescuento) : montoDescuentoTotal) : undefined,
+        montoDescuento: montoDescuentoTotal > 0 ? montoDescuentoTotal : undefined,
+        itemsInventario,
+        fiarFaltante,
+        montoFiado: montoTotalNoCubierto,
+        descripcionFiado: `Saldo pendiente de venta: ${descripcionUnificada}`
+      };
 
-      idTransaccionVenta = resAtomo.movimientoVentaId || resAtomo.movimientoFiadoId || "";
       let saldoFinalCliente = clienteTransaccion?.deudaTotal || 0;
-      if (resAtomo.nuevoSaldoCliente !== undefined && clienteTransaccion) {
-        saldoFinalCliente = resAtomo.nuevoSaldoCliente;
-        clienteFinalActualizado = { ...clienteTransaccion, deudaTotal: saldoFinalCliente };
+
+      // COMPORTAMIENTO MODO OFFLINE (FASE 2)
+      if (typeof window !== 'undefined' && !navigator.onLine) {
+        const ventaGuardada = guardarEnColaVentasOffline({
+          payload: payloadVenta,
+          ticketDatosPreview: null
+        });
+        idTransaccionVenta = ventaGuardada.idLocal;
+        if (montoTotalNoCubierto > 0 && clienteTransaccion) {
+          saldoFinalCliente = (clienteTransaccion.deudaTotal || 0) + montoTotalNoCubierto;
+          clienteFinalActualizado = { ...clienteTransaccion, deudaTotal: saldoFinalCliente };
+        }
+        toast.success('¡Venta guardada localmente! Se sincronizará al volver la red.', {
+          icon: '💾',
+          duration: 5000
+        });
+      } else {
+        if (!token) throw new Error('Sesión inválida.');
+        const respuestaVenta = await fetch('/api/ventas/registrar', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+          body: JSON.stringify(payloadVenta)
+        });
+        const resAtomo = await respuestaVenta.json();
+        if (!respuestaVenta.ok) {
+          toast.error(resAtomo.error || 'No se pudo registrar la venta.');
+          return;
+        }
+
+        idTransaccionVenta = resAtomo.movimientoVentaId || resAtomo.movimientoFiadoId || "";
+        if (resAtomo.nuevoSaldoCliente !== undefined && clienteTransaccion) {
+          saldoFinalCliente = resAtomo.nuevoSaldoCliente;
+          clienteFinalActualizado = { ...clienteTransaccion, deudaTotal: saldoFinalCliente };
+        }
       }
 
       // Guardar o actualizar datos fiscales del cliente en Firestore para futuras compras
