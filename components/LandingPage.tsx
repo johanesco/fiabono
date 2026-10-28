@@ -1,5 +1,6 @@
 "use client";
 import React, { useState, useRef, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { signInWithEmailAndPassword, createUserWithEmailAndPassword, signInWithPopup, signInWithRedirect, getRedirectResult, onAuthStateChanged, browserLocalPersistence, setPersistence, GoogleAuthProvider, signOut, sendPasswordResetEmail } from "firebase/auth";
 import { doc, getDoc, getDocFromServer, setDoc, updateDoc, collection, query, where, getDocs, limit } from "firebase/firestore";
 import { auth, db } from "../firebase";
@@ -18,6 +19,7 @@ import {
 import LogoFiabono, { IsotipoFiabono } from "@/components/LogoFiabono";
 
 export default function LandingPage() {
+  const router = useRouter();
   const [modalLandingInfo, setModalLandingInfo] = useState<{ visible: boolean, tipo: 'login' | 'registro' | 'recuperar' | null }>({ visible: false, tipo: null });
   const [correoRecuperacion, setCorreoRecuperacion] = useState("");
   const [enviandoRecuperacion, setEnviandoRecuperacion] = useState(false);
@@ -25,6 +27,7 @@ export default function LandingPage() {
   const [errorRecuperacion, setErrorRecuperacion] = useState("");
   const [authForm, setAuthForm] = useState({ email: "", password: "", confirmPassword: "", nombreUsuario: "", negocio: "" });
   const authFormRef = useRef(authForm);
+  const procesandoGoogleRef = useRef(false);
   useEffect(() => {
     authFormRef.current = authForm;
   }, [authForm]);
@@ -304,6 +307,10 @@ export default function LandingPage() {
   };
 
   const procesarUsuarioGoogle = async (user: { uid: string; email: string | null; displayName: string | null; photoURL: string | null }) => {
+    if (procesandoGoogleRef.current) return;
+    procesandoGoogleRef.current = true;
+    setProcesandoRetornoGoogle(true);
+
     const userDocRef = doc(db, "usuarios", user.uid);
     let userDocSnap;
     try {
@@ -314,15 +321,18 @@ export default function LandingPage() {
           break;
         } catch (error) {
           ultimoError = error;
-          if (intento < 2) await new Promise(resolve => setTimeout(resolve, 500));
+          if (intento < 2) await new Promise(resolve => setTimeout(resolve, 400));
         }
       }
       if (!userDocSnap) throw ultimoError;
     } catch (error: any) {
       console.error("Google autenticó al usuario, pero Firestore no respondió:", error);
+      procesandoGoogleRef.current = false;
+      setProcesandoRetornoGoogle(false);
+      setCargandoGoogle(false);
       setAuthErrores(p => ({
         ...p,
-        general: `Google autenticó tu cuenta, pero no se pudo consultar tu perfil en Fiabono (${error.message || error.code || 'Error de base de datos'}). Intenta de nuevo en unos minutos.`
+        general: `Google autenticó tu cuenta, pero no se pudo consultar tu perfil (${error.message || error.code || 'Error de base de datos'}). Intenta de nuevo o ingresa con correo.`
       }));
       return;
     }
@@ -367,11 +377,21 @@ export default function LandingPage() {
       setPasoGoogleOnboarding(1);
       setErrorGoogleOnboarding("");
       setModalLandingInfo({ visible: false, tipo: null });
+      // APAGAR overlay de carga para que el modal de onboarding sea visible y accionable
+      setProcesandoRetornoGoogle(false);
+      setCargandoGoogle(false);
       setModalGoogleOnboarding(true);
+      procesandoGoogleRef.current = false;
     } else {
       cerrarModal();
       setProcesandoRetornoGoogle(true);
-      window.location.href = "/dashboard/inicio";
+      // Navegación inmediata a través de Next Router y fallback de ventana
+      router.replace("/dashboard/inicio");
+      setTimeout(() => {
+        if (typeof window !== 'undefined' && !window.location.pathname.startsWith('/dashboard')) {
+          window.location.replace("/dashboard/inicio");
+        }
+      }, 600);
     }
   };
 
@@ -2631,17 +2651,39 @@ export default function LandingPage() {
       )}
 
       {/* OVERLAY DE CARGA ELEGANTE AL RETORNAR DE GOOGLE O NAVEGAR */}
-      {procesandoRetornoGoogle && (
-        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-md z-[999999] flex flex-col items-center justify-center p-6 text-center animate-in fade-in duration-200">
-          <div className="w-16 h-16 rounded-3xl bg-blue-600/20 border border-blue-500/30 flex items-center justify-center mb-5 text-blue-400 shadow-2xl">
-            <div className="w-8 h-8 border-3 border-blue-400 border-t-transparent rounded-full animate-spin" />
+      {procesandoRetornoGoogle && !modalGoogleOnboarding && (
+        <div className="fixed inset-0 bg-slate-950/85 backdrop-blur-md z-[9990] flex flex-col items-center justify-center p-6 text-center animate-in fade-in duration-200 select-none">
+          <div className="w-16 h-16 rounded-3xl bg-emerald-500/20 border border-emerald-500/30 flex items-center justify-center mb-5 text-emerald-400 shadow-2xl">
+            <div className="w-8 h-8 border-3 border-emerald-400 border-t-transparent rounded-full animate-spin" />
           </div>
           <h3 className="text-xl font-black text-white tracking-tight mb-2">
             Iniciando tu sesión en Fiabono...
           </h3>
-          <p className="text-xs sm:text-sm text-slate-400 max-w-xs leading-relaxed">
+          <p className="text-xs sm:text-sm text-slate-400 max-w-xs leading-relaxed mb-6">
             Sincronizando tus datos y entrando a tu panel de control. Un momento por favor...
           </p>
+          <div className="flex flex-col gap-3">
+            <button
+              type="button"
+              onClick={() => {
+                window.location.replace("/dashboard/inicio");
+              }}
+              className="text-xs font-bold text-emerald-400 hover:text-emerald-300 underline cursor-pointer py-1"
+            >
+              ¿Tarda en responder? Entrar directamente aquí
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                procesandoGoogleRef.current = false;
+                setProcesandoRetornoGoogle(false);
+                setCargandoGoogle(false);
+              }}
+              className="text-[11px] text-slate-500 hover:text-slate-300 transition-colors cursor-pointer"
+            >
+              Cancelar y volver
+            </button>
+          </div>
         </div>
       )}
 
