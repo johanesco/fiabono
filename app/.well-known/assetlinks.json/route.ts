@@ -8,6 +8,7 @@ export async function GET() {
         namespace: "android_app",
         package_name: "com.fiabono.app",
         sha256_cert_fingerprints: [
+          "A2:A7:23:23:98:46:53:0F:85:43:F9:12:B0:72:9C:48:1F:32:D3:F3:E1:42:01:83:23:B1:2B:D7:99:31:F4:13",
           "74:B4:03:2F:18:E7:53:79:4E:02:81:84:57:3A:76:0E:5D:86:A1:EF:AF:30:D8:06:62:53:00:0B:BE:3D:C5:E5"
         ]
       }
