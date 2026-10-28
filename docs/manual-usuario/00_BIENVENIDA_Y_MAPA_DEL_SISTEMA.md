@@ -2,42 +2,116 @@
 
 > **Manual de Operaciones para el Usuario Final**  
 > **Aplica para:** Propietarios de Negocio, Administradores, Cajeros y Vendedores de Mostrador.  
-> **Lectura estimada:** 7 minutos.
+> **Lectura estimada:** 9 minutos.
 
 ---
 
 ## 1. ¡Bienvenido a Fiabono! La Nueva Era de tu Negocio 🎉
 
-Si estás leyendo esta guía, acabas de dar el paso más importante para transformar tu comercio: **despedirte para siempre de los cuadernos de hojas arrancadas, las cuentas con tachones a lápiz y la incertidumbre de no saber cuánto dinero ganaste en el día**.
+Si estás leyendo esta guía, acabas de dar el paso más importante para modernizar y hacer crecer tu comercio: **despedirte para siempre de los cuadernos de hojas arrancadas, las cuentas con tachones a lápiz y la incertidumbre de no saber cuánto dinero ganaste en el día**.
 
 ### ¿Qué hace Fiabono por ti todos los días?
-* **Cobras en 3 segundos:** Escaneas con la cámara de tu celular o buscas por nombre, y el cobro queda listo.
-* **Tus cuentas claras:** Sabes exactamente cuánto dinero tienes en efectivo, cuánto en Nequi/Daviplata y cuánto te deben los clientes.
-* **Cero discusiones con tus clientes:** Cuando un cliente te compra a crédito (fiado) o aparta una prenda (separe), le envías un recibo digital formal directamente a su WhatsApp.
+* **Cobras en 3 segundos:** Escaneas con la cámara de tu celular o buscas por nombre, y el cobro queda registrado al instante.
+* **Cuentas 100% claras:** Sabes exactamente cuánto dinero entró en efectivo, cuánto por transferencias (Nequi/Daviplata) y cuánto te deben los clientes de fiado.
+* **Cero discusiones con tus clientes:** Cada venta, crédito o abono genera un recibo digital formal que se envía directo a su WhatsApp con un solo toque.
 * **Control total desde donde estés:** Si estás fuera de tu local o viajando, abres Fiabono en tu celular y ves en tiempo real cada venta que tus empleados registran en el mostrador.
 
 ---
 
-## 2. Cómo tener Fiabono como una App en tu Celular (Sin descargas pesadas)
+## 2. Cómo Acceder e Instalar Fiabono en tus Dispositivos (Paso a Paso)
 
-Fiabono no ocupa espacio en la memoria de tu teléfono ni se desactualiza. Puedes convertirlo en una aplicación de pantalla completa con un solo toque:
+Fiabono está diseñado como una **Plataforma Multidispositivo en la Nube**. Esto significa que puedes utilizarlo en tu computador de caja, en tu teléfono personal y en los celulares de tus vendedores simultáneamente, manteniendo la información sincronizada al instante.
+
+A continuación tienes el paso a paso exacto para cada uno de tus dispositivos:
+
+---
+
+### 2.1. En Computadores de Escritorio y Portátiles (Windows y Mac)
+
+Puedes utilizar Fiabono como una página web tradicional o instalarlo como un **programa de escritorio** con su propio icono en la barra de tareas de Windows.
 
 ```
-[ PASO A PASO PARA CELULAR ]
- ├─ En Teléfonos Android (Google Chrome):
- │   1. Abre fiabono.com e inicia sesión.
- │   2. Toca los tres puntos (⋮) arriba a la derecha.
- │   3. Selecciona "Agregar a la pantalla principal" o "Instalar App".
- │   4. ¡Listo! Se creará el icono de Fiabono junto a WhatsApp e Instagram.
- └─ En Teléfonos iPhone (Safari):
-     1. Abre fiabono.com en Safari.
-     2. Toca el botón Compartir (el cuadro con una flecha hacia arriba ↑).
-     3. Desliza hacia abajo y toca "Agregar al inicio".
-     4. ¡Listo! Tendrás tu punto de venta en pantalla completa.
+┌────────────────────────────────────────────────────────────────────────┐
+│  PASO A PASO: INSTALACIÓN EN PC CON GOOGLE CHROME O MICROSOFT EDGE     │
+├────────────────────────────────────────────────────────────────────────┤
+│  Paso 1: Abre tu navegador web favorito (Google Chrome o Edge).        │
+│  Paso 2: En la barra de direcciones escribe: fiabono.com               │
+│  Paso 3: Inicia sesión con tu correo y contraseña.                    │
+│  Paso 4: Mira el extremo derecho de la barra de direcciones (donde     │
+│          está la estrella de favoritos). Verás un icono con un cuadro   │
+│          y una flechita hacia abajo o un signo más: [ ⊕ Instalar ].    │
+│  Paso 5: Haz clic en [ Instalar Fiabono ].                             │
+│  Paso 6: Se abrirá una ventana limpia independiente (sin pestañas      │
+│          ni barras de navegador).                                      │
+│  Paso 7: Haz clic derecho sobre el icono de Fiabono en tu barra de     │
+│          tareas de Windows y selecciona: "Anclar a la barra de tareas". │
+└────────────────────────────────────────────────────────────────────────┘
 ```
 
-> 💡 **Consejo de Mostrador:**  
-> Al instalar el acceso directo en el celular de tus vendedores, ellos sentirán que es una aplicación nativa. No verán la barra de direcciones del navegador y atenderán mucho más rápido.
+> 💡 **Consejo de Pantalla Completa (Modo Kiosco):**  
+> Cuando atiendas en tu computador, presiona la tecla **F11** en tu teclado. Fiabono ocupará toda la pantalla de tu monitor, luciendo idéntico a una caja registradora profesional de supermercado. Presiona **F11** nuevamente cuando quieras salir.
+
+---
+
+### 2.2. En Teléfonos iPhone y Tablets iPad (Apple iOS / iPadOS)
+
+En los dispositivos de Apple, la instalación se realiza a través de la tecnología oficial de aplicaciones web de Safari. No necesitas pagar nada ni buscar en la App Store.
+
+```
+┌────────────────────────────────────────────────────────────────────────┐
+│  PASO A PASO: INSTALACIÓN EN IPHONE O IPAD                             │
+├────────────────────────────────────────────────────────────────────────┤
+│  ⚠️ IMPORTANTE: Este proceso DEBE realizarse desde el navegador         │
+│     SAFARI (el icono azul de la brújula). No uses Google Chrome en iOS │
+│     para la instalación inicial porque Apple solo permite agregar a    │
+│     la pantalla de inicio desde Safari.                                │
+│                                                                        │
+│  Paso 1: Abre SAFARI en tu iPhone o iPad.                              │
+│  Paso 2: Escribe en la barra de búsqueda: fiabono.com e ingresa.      │
+│  Paso 3: Inicia sesión con tus datos de comercio.                      │
+│  Paso 4: En la parte inferior de la pantalla de tu iPhone, busca el    │
+│          botón COMPARTIR (es un cuadro con una flecha hacia arriba ↑).  │
+│  Paso 5: Al tocarlo, se abrirá un menú blanco con varias opciones.     │
+│          Desliza el dedo hacia abajo hasta encontrar la opción:        │
+│          [ ➕ Agregar al inicio ] (o "Add to Home Screen").             │
+│  Paso 6: Te aparecerá una confirmación con el logo de Fiabono y el     │
+│          nombre. Toca en la esquina superior derecha: [ Agregar ].     │
+│  Paso 7: ¡Listo! Vuelve a tu pantalla de inicio y verás el icono de   │
+│          Fiabono junto a tus demás aplicaciones.                       │
+└────────────────────────────────────────────────────────────────────────┘
+```
+
+> 💡 **La ventaja en iPhone:**  
+> Al abrir Fiabono desde el icono que acabas de crear, la aplicación se abre en **pantalla completa**, sin la barra superior ni inferior de Safari, brindándote la experiencia fluida de una app nativa.
+
+---
+
+### 2.3. En Teléfonos y Tablets Android (Samsung, Xiaomi, Motorola, etc.)
+
+En celulares Android tienes dos formas muy sencillas de tener la aplicación lista:
+
+#### Método A: Con el Mensaje Automático
+1. Abre **Google Chrome** en tu teléfono Android y entra a `fiabono.com`.
+2. Al iniciar sesión, verás un mensaje flotante en la parte inferior que dice:  
+   *¿Deseas agregar Fiabono a tu pantalla principal?*
+3. Toca el botón verde **[ Instalar ]** o **[ Agregar ]**.
+4. En 2 segundos el icono aparecerá en tu menú de aplicaciones.
+
+#### Método B: Desde el Menú de Chrome (Si no viste el mensaje)
+1. En Google Chrome, entra a `fiabono.com`.
+2. Toca los **tres puntos verticales (`⋮`)** ubicados en la esquina superior derecha.
+3. En el menú desplegable, toca la opción **"Instalar aplicación"** o **"Agregar a la pantalla principal"**.
+4. Confirma tocando **[ Instalar ]**.
+
+---
+
+### 2.4. ¿Por qué esta tecnología es mejor que una descarga tradicional?
+
+Muchos comerciantes nos preguntan: *¿Por qué no tengo que descargarla obligatoriamente desde la Google Play Store o App Store?*
+
+1. **Cero Espacio en Memoria:** Las aplicaciones de tienda suelen pesar 80 o 150 Megabytes y llenan la memoria de los teléfonos de tus empleados. Fiabono es ultra liviano y no satura el celular.
+2. **Actualizaciones Instantáneas:** Cada vez que lanzamos una mejora en el sistema, no tienes que entrar a la tienda a actualizar nada. Solo abres la app y ya tienes la última versión funcionando.
+3. **Funciona en cualquier marca y gama:** Desde un teléfono económico de entrada hasta el último modelo de gama alta.
 
 ---
 
@@ -46,28 +120,21 @@ Fiabono no ocupa espacio en la memoria de tu teléfono ni se desactualiza. Puede
 Para que nunca te sientas perdido, la pantalla de Fiabono está organizada de forma limpia, pensada para que manejes todo con una sola mano desde tu teléfono o cómodamente desde tu computador.
 
 ![Vista de la Interfaz Móvil de Fiabono](imagenes/figura_01_interfaz_movil.png)
-*Figura 0.1: Distribución ergonómica de Fiabono en un teléfono celular.*
+*Figura 0.1: Distribución ergonómica de Fiabono en un teléfono celular con dock inferior flotante.*
 
 ---
 
 ### 3.1. La Barra Superior (Encabezado)
 Ubicada en la parte más alta de la pantalla, te muestra la información vital de tu negocio en todo momento:
 1. **Logo y Nombre de tu Local:** Te recuerda en qué tienda estás ubicado.
-2. **Estado de Caja en Vivo:** Te muestra con un punto de color si la caja del día está abierta o cerrada.
-3. **Campana de Notificaciones:** Te avisa cuando entra un pedido nuevo o cuando un cliente tiene una cuota próxima a vencer.
+2. **Estado de Caja en Vivo:** Te muestra con un punto de color si la caja del día está abierta (verde) o cerrada (gris/rojo).
+3. **Campana de Notificaciones:** Te avisa cuando entra una orden nueva de preventa o cuando hay un recordatorio pendiente.
 4. **Foto de Perfil:** Te permite entrar a tus ajustes, cambiar de tema (claro u oscuro) o cerrar sesión de forma segura.
 
 ---
 
 ### 3.2. El Menú Inferior Flotante (Tu Barra de Acceso Rápido en Celulares)
-En la parte baja de tu teléfono encontrarás un dock flotante tipo cápsula con los botones más importantes:
-
-```
-┌────────────────────────────────────────────────────────┐
-│  [ 🏠 Inicio ]   [ 📦 Inventario ]   [ 🔖 Separes ]   │
-│         [ 🛒 Vender ]        [ 🕒 Historial ]          │
-└────────────────────────────────────────────────────────┘
-```
+En la parte baja de tu teléfono encontrarás un dock flotante tipo cápsula con los botones principales:
 
 * 🏠 **Inicio:** Tu pantalla principal. Aquí ves el total vendido en el día, los cobros pendientes y el buscador de clientes.
 * 📦 **Inventario:** Tu catálogo de productos. Aquí agregas ropa, calzado, comida o tecnología, cambias precios, imprimes etiquetas y controlas cuántas unidades te quedan.
