@@ -1,15 +1,13 @@
 "use client";
 import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
+import { detectarModoApp } from "@/lib/modoApp";
 import { X, Download, ArrowUpFromLine, MoreHorizontal, Smartphone } from "lucide-react";
 
 // Detecta si la app ya está en modo standalone (instalada y abierta desde icono)
 function estaInstalada(): boolean {
-  if (typeof window === "undefined") return false;
-  return (
-    window.matchMedia("(display-mode: standalone)").matches ||
-    (window.navigator as Navigator & { standalone?: boolean }).standalone === true
-  );
+  // Incluye TWA de Google Play (referrer android-app://, ?source=pwa) y se recuerda en la sesión
+  return detectarModoApp();
 }
 
 // Detecta iOS (iPhone, iPad, iPod)

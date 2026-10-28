@@ -5,6 +5,7 @@ import { signInWithEmailAndPassword, createUserWithEmailAndPassword, signInWithP
 import { doc, getDoc, getDocFromServer, setDoc, updateDoc, collection, query, where, getDocs, limit } from "firebase/firestore";
 import { auth, db } from "../firebase";
 import { generarSlugNegocio } from "@/utils/slug";
+import { detectarModoApp } from "@/lib/modoApp";
 import { 
   CheckCircle2, ChevronRight, Star, BookX, PenTool, 
   MessageCircle, ShieldAlert, Store, Wallet, Shirt, Lock, 
@@ -47,22 +48,10 @@ export default function LandingPage() {
   const [menuMovilAbierto, setMenuMovilAbierto] = useState(false);
 
   // Detección de Modo App (PWA instalada, TWA en Google Play o standalone)
-  const [esModoApp, setEsModoApp] = useState(false);
+  // Se calcula de forma síncrona (este componente solo se monta en el cliente, ver app/page.tsx)
+  // para que la landing de marketing no parpadee antes de mostrar la pantalla de acceso de la app.
+  const [esModoApp] = useState(() => detectarModoApp());
   const [mostrarWebEnApp, setMostrarWebEnApp] = useState(false);
-
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const isStandalone = 
-        window.matchMedia('(display-mode: standalone)').matches || 
-        (window.navigator as any).standalone === true || 
-        document.referrer.includes('android-app://') || 
-        window.location.search.includes('source=pwa') || 
-        window.location.search.includes('source=twa');
-      if (isStandalone) {
-        setEsModoApp(true);
-      }
-    }
-  }, []);
 
   // Estados para Onboarding Elegante de Google / Correo
   const [googleUserPendiente, setGoogleUserPendiente] = useState<{ uid: string; email: string; nombre: string; foto?: string } | null>(null);
@@ -295,7 +284,7 @@ export default function LandingPage() {
       try {
         await signInWithEmailAndPassword(auth, loginEmail, authForm.password);
         cerrarModal();
-        window.location.href = "/dashboard/inicio";
+        window.location.replace("/dashboard/inicio");
       } catch (error: any) {
         if (error.code === 'auth/invalid-credential' || error.code === 'auth/wrong-password' || error.code === 'auth/user-not-found') {
           setAuthErrores(p => ({...p, general: "El correo o la contraseña son incorrectos."}));
@@ -624,7 +613,7 @@ export default function LandingPage() {
         localStorage.setItem('fiabono_mostrar_tour', 'true');
       }
       // Redirigir de inmediato al dashboard
-      window.location.href = "/dashboard/inicio";
+      window.location.replace("/dashboard/inicio");
     } catch (err: any) {
       clearTimeout(timer1);
       clearTimeout(timer2);
