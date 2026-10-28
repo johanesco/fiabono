@@ -12,6 +12,7 @@
     "deploy:rules": "firebase deploy --only firestore:rules"
   },
   "dependencies": {
+    "docx": "^9.15.0",
     "exceljs": "^4.4.0",
     "firebase": "^12.17.0",
     "firebase-admin": "^12.0.0",
