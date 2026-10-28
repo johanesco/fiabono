@@ -2465,10 +2465,10 @@ ${itemsTexto || '• Artículos apartados'}
                                         </div>
                                         <div className="min-w-0 flex-1">
                                           <p className="text-xs font-black text-slate-900 dark:text-white group-hover:text-rose-600 dark:group-hover:text-rose-400 leading-tight">
-                                            Entregar pasando a Fiado
+                                            Entregar a Fiado
                                           </p>
                                           <p className="text-[10px] text-slate-400 dark:text-slate-500 leading-snug mt-0.5">
-                                            Se lleva la mercancía y el saldo (${saldo.toLocaleString('es-CO')}) pasa a cartera fiada
+                                            El cliente retira los productos y el saldo (${saldo.toLocaleString('es-CO')}) se suma a su cuenta
                                           </p>
                                         </div>
                                       </button>
@@ -2883,7 +2883,7 @@ ${itemsTexto || '• Artículos apartados'}
                   className="text-[11px] font-bold text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 transition-colors inline-flex items-center gap-1 cursor-pointer"
                 >
                   <Receipt size={12} />
-                  <span>¿El cliente se lleva los artículos hoy? Pasar a Fiado</span>
+                  <span>¿El cliente se lleva los artículos hoy? Entregar a Fiado</span>
                   <ChevronRight size={12} />
                 </button>
               </div>
@@ -3346,7 +3346,7 @@ ${itemsTexto || '• Artículos apartados'}
                   </div>
                   <div className="min-w-0">
                     <h3 className="font-black text-slate-900 dark:text-white text-base leading-tight truncate">
-                      Entregar y Pasar a Fiado
+                      Entregar a Fiado
                     </h3>
                     <p className="text-xs text-slate-500 dark:text-slate-400 truncate">
                       Cliente: <strong className="text-slate-800 dark:text-slate-200">{separeSeleccionado.clienteNombre}</strong>
@@ -3433,7 +3433,7 @@ ${itemsTexto || '• Artículos apartados'}
                   ) : (
                     <>
                       <Receipt size={15} />
-                      <span>Confirmar y Fiar</span>
+                      <span>Confirmar Entrega a Fiado</span>
                     </>
                   )}
                 </button>
