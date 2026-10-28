@@ -1137,26 +1137,26 @@ Gracias por seguir con nosotros.
                           title="Anular abono registrado por error o duplicado"
                           className="text-[10px] font-bold px-2 py-1 bg-rose-50 hover:bg-rose-100 text-rose-600 dark:bg-rose-950/40 dark:hover:bg-rose-900/60 dark:text-rose-400 rounded-lg transition-colors cursor-pointer border border-rose-200 dark:border-rose-800 flex items-center gap-1"
                         >
-                          <RotateCcw size={12} /> Anular Abono
+                          <RotateCcw size={11} /> Anular
                         </button>
                       )}
-                      {esVentaOFiado && !mov.anulado && (!esCajero || datosSesion?.permisos?.hacerDevoluciones || datosSesion?.esAdmin !== false) && (
+                      {esVentaOFiado && !mov.anulado && !(mov as any).tieneDevolucion && (!esCajero || datosSesion?.permisos?.hacerDevoluciones || datosSesion?.esAdmin !== false) && (
                         <button
                           type="button"
                           onClick={() => setModalAnularVenta({ isOpen: true, venta: mov })}
                           className="text-[10px] font-bold px-2 py-1 bg-rose-50 hover:bg-rose-100 text-rose-600 dark:bg-rose-950/40 dark:hover:bg-rose-900/60 dark:text-rose-400 rounded-lg transition-colors cursor-pointer border border-rose-200 dark:border-rose-800 flex items-center gap-1"
                           title={mov.tipo === 'fiado' ? "Anular fiado por error" : "Anular venta por error"}
                         >
-                          <Ban size={12} /> {mov.tipo === 'fiado' ? 'Anular Fiado' : 'Anular Venta'}
+                          <Ban size={11} /> Anular
                         </button>
                       )}
-                      {esVentaOFiado && mov.detalles && mov.detalles.length > 0 && (!esCajero || datosSesion?.permisos?.hacerDevoluciones) && (
+                      {esVentaOFiado && mov.detalles && mov.detalles.length > 0 && !mov.anulado && !(mov as any).tieneDevolucionTotal && (!esCajero || datosSesion?.permisos?.hacerDevoluciones) && (
                         <button
                           type="button"
                           onClick={() => setModalDevolucion({ isOpen: true, venta: mov })}
                           className="text-[10px] font-bold px-2 py-1 bg-amber-50 hover:bg-amber-100 text-amber-600 dark:bg-amber-900/30 dark:hover:bg-amber-900/50 dark:text-amber-400 rounded-lg transition-colors cursor-pointer border border-amber-200 dark:border-amber-800 flex items-center gap-1"
                         >
-                          <RotateCcw size={12} /> Hacer Devolución
+                          <RotateCcw size={11} /> Devolver
                         </button>
                       )}
                       <button

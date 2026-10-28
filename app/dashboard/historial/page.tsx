@@ -43,7 +43,7 @@ export default function HistorialPage() {
   const [todosMovimientos, setTodosMovimientos] = useState<Movimiento[]>([]);
   const [busquedaHistorial, setBusquedaHistorial] = useState("");
   const [filtroTiempoHistorial, setFiltroTiempoHistorial] = useState<'hoy' | 'ayer' | 'semana' | 'mes' | 'todos'>('hoy');
-  const [filtroTipoHistorial, setFiltroTipoHistorial] = useState<'todos' | 'venta' | 'abono' | 'separe' | 'fiado' | 'devolucion' | 'ingreso_inventario' | 'cierres_caja'>('todos');
+  const [filtroTipoHistorial, setFiltroTipoHistorial] = useState<'todos' | 'venta' | 'abono' | 'separe' | 'fiado' | 'devolucion' | 'anulaciones' | 'ingreso_inventario' | 'cierres_caja'>('todos');
   const puedeVerCierres = esAdmin || Boolean(datosSesion?.puedeHacerCierreCaja) || Boolean(datosSesion?.permisos?.cierreCaja) || Boolean(datosSesion?.puedeVerReportes);
   const [filtroVendedorHistorial, setFiltroVendedorHistorial] = useState<string>('todos');
   const [modalPlanesOpen, setModalPlanesOpen] = useState(false);
@@ -703,7 +703,9 @@ Gracias por seguir con nosotros.
                         mov.subtipo?.includes('separe') || 
                         Boolean(mov.descripcion && mov.descripcion.toLowerCase().includes('separe'));
 
-    if (filtroTipoHistorial === 'separe') {
+    if (filtroTipoHistorial === 'anulaciones') {
+      if (!(mov as any).anulado) return false;
+    } else if (filtroTipoHistorial === 'separe') {
       if (!esSepareMov) return false;
     } else if (filtroTipoHistorial === 'abono') {
       const esAbonoMov = mov.tipo === 'abono' || (mov.tipo === 'venta' && ((mov as any).subtipo === 'venta_parcial' || (mov as any).montoFiadoAsociado || (mov as any).fiarFaltante));
@@ -863,8 +865,8 @@ Gracias por seguir con nosotros.
         <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 w-full">
           {(() => {
             const listaTipos = puedeGestionarInventario 
-              ? ['todos', 'venta', 'abono', 'separe', 'fiado', 'devolucion', 'ingreso_inventario'] 
-              : ['todos', 'venta', 'abono', 'separe', 'fiado', 'devolucion'];
+              ? ['todos', 'venta', 'abono', 'separe', 'fiado', 'devolucion', 'anulaciones', 'ingreso_inventario'] 
+              : ['todos', 'venta', 'abono', 'separe', 'fiado', 'devolucion', 'anulaciones'];
             if (puedeVerCierres) {
               listaTipos.push('cierres_caja');
             }
@@ -880,7 +882,9 @@ Gracias por seguir con nosotros.
                             ? 'bg-sky-600 text-white shadow-xs' 
                             : (tipo === 'devolucion'
                                 ? 'bg-amber-500 text-white shadow-xs'
-                                : 'bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900 shadow-xs'))) 
+                                : (tipo === 'anulaciones'
+                                    ? 'bg-rose-600 text-white shadow-xs'
+                                    : 'bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900 shadow-xs')))) 
                     : 'bg-white dark:bg-[#020617] text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-800/80'
                 }`}
               >
@@ -890,6 +894,8 @@ Gracias por seguir con nosotros.
                   <span className="inline-flex items-center gap-1"><Package size={11} /> INVENTARIO</span>
                 ) : tipo === 'devolucion' ? (
                   <span className="inline-flex items-center gap-1"><RotateCcw size={11} /> DEVOLUCIÓN</span>
+                ) : tipo === 'anulaciones' ? (
+                  <span className="inline-flex items-center gap-1"><Ban size={11} /> ANULADOS</span>
                 ) : (
                   tipo.toUpperCase()
                 )}
@@ -1016,6 +1022,14 @@ Gracias por seguir con nosotros.
                           )}
                         </div>
                         <p className="text-sm text-slate-500 dark:text-slate-400 truncate mt-0.5">{mov.descripcion}</p>
+                        {(mov as any).anulado && (
+                          <div className="text-[10px] text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900/40 rounded-lg px-2 py-1 mt-1">
+                            <span className="font-bold">Motivo:</span> {(mov as any).motivoAnulacion || 'Cancelado por error'}
+                            {((mov as any).anuladoPor || (mov as any).anuladoPorNombre) && (
+                              <span className="block text-[9.5px] text-rose-500 font-medium mt-0.5">Por: {(mov as any).anuladoPor || (mov as any).anuladoPorNombre}</span>
+                            )}
+                          </div>
+                        )}
                         {(mov as any).montoFiadoAsociado ? (
                           <span className="inline-block mt-1 text-[10.5px] font-bold text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/40 px-1.5 py-0.5 rounded border border-amber-200 dark:border-amber-800">
                             Cobrado: $${Math.round(mov.monto || 0).toLocaleString('es-CO')} • Fiado restante: $${Math.round((mov as any).montoFiadoAsociado).toLocaleString('es-CO')}
@@ -1788,26 +1802,26 @@ Gracias por seguir con nosotros.
                               className="text-[10px] font-bold px-2 py-1 bg-rose-50 hover:bg-rose-100 text-rose-600 dark:bg-rose-950/40 dark:hover:bg-rose-900/60 dark:text-rose-400 rounded-lg transition-colors cursor-pointer border border-rose-200 dark:border-rose-800 flex items-center gap-1"
                               title="Anular abono por error o duplicado"
                             >
-                              <RotateCcw size={12} /> Anular Abono
+                              <RotateCcw size={11} /> Anular
                             </button>
                           )}
-                          {(mov.tipo === 'venta' || mov.tipo === 'fiado') && !(mov as any).anulado && (datosSesion?.rol !== 'cajero' || datosSesion?.permisos?.hacerDevoluciones) && (
+                          {(mov.tipo === 'venta' || mov.tipo === 'fiado') && !(mov as any).anulado && !(mov as any).tieneDevolucion && (datosSesion?.rol !== 'cajero' || datosSesion?.permisos?.hacerDevoluciones) && (
                             <button
                               type="button"
                               onClick={() => setModalAnularVenta({ isOpen: true, venta: mov })}
                               className="text-[10px] font-bold px-2 py-1 bg-rose-50 hover:bg-rose-100 text-rose-600 dark:bg-rose-950/40 dark:hover:bg-rose-900/60 dark:text-rose-400 rounded-lg transition-colors cursor-pointer border border-rose-200 dark:border-rose-800 flex items-center gap-1"
                               title={mov.tipo === 'fiado' ? "Anular fiado por error" : "Anular venta por error"}
                             >
-                              <Ban size={12} /> {mov.tipo === 'fiado' ? 'Anular Fiado' : 'Anular Venta'}
+                              <Ban size={11} /> Anular
                             </button>
                           )}
-                          {(mov.tipo === 'venta' || mov.tipo === 'fiado') && mov.detalles && mov.detalles.length > 0 && (datosSesion?.rol !== 'cajero' || datosSesion?.permisos?.hacerDevoluciones) && (
+                          {(mov.tipo === 'venta' || mov.tipo === 'fiado') && mov.detalles && mov.detalles.length > 0 && !(mov as any).anulado && !(mov as any).tieneDevolucionTotal && (datosSesion?.rol !== 'cajero' || datosSesion?.permisos?.hacerDevoluciones) && (
                             <button
                               type="button"
                               onClick={() => setModalDevolucion({ isOpen: true, venta: mov })}
                               className="text-[10px] font-bold px-2 py-1 bg-amber-50 hover:bg-amber-100 text-amber-600 dark:bg-amber-900/30 dark:hover:bg-amber-900/50 dark:text-amber-400 rounded-lg transition-colors cursor-pointer border border-amber-200 dark:border-amber-800 flex items-center gap-1"
                             >
-                              <RotateCcw size={12} /> Hacer Devolución
+                              <RotateCcw size={11} /> Devolver
                             </button>
                           )}
                           <button
@@ -1857,7 +1871,7 @@ Gracias por seguir con nosotros.
             </p>
 
             <div className="flex flex-col gap-2.5">
-              {movimientoMostrador && (movimientoMostrador.tipo === 'venta' || movimientoMostrador.tipo === 'fiado') && movimientoMostrador.detalles && movimientoMostrador.detalles.length > 0 && puedeHacerDevolucion && (
+              {movimientoMostrador && (movimientoMostrador.tipo === 'venta' || movimientoMostrador.tipo === 'fiado') && movimientoMostrador.detalles && movimientoMostrador.detalles.length > 0 && !(movimientoMostrador as any).anulado && !(movimientoMostrador as any).tieneDevolucionTotal && puedeHacerDevolucion && (
                 <button 
                   type="button"
                   onClick={() => {
@@ -1867,7 +1881,7 @@ Gracias por seguir con nosotros.
                   }} 
                   className="w-full bg-amber-500 hover:bg-amber-600 text-white font-black py-3 px-4 rounded-xl transition-colors text-sm flex items-center justify-center gap-2 shadow-sm cursor-pointer"
                 >
-                  <RotateCcw size={16} /> Hacer Devolución
+                  <RotateCcw size={15} /> Devolver mercancía
                 </button>
               )}
 
@@ -1881,7 +1895,7 @@ Gracias por seguir con nosotros.
                   }} 
                   className="w-full bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/40 dark:hover:bg-rose-900/50 text-rose-600 dark:text-rose-400 font-black py-3 px-4 rounded-xl transition-colors text-sm flex items-center justify-center gap-2 border border-rose-200 dark:border-rose-800/60 shadow-xs cursor-pointer"
                 >
-                  <Ban size={16} /> Anular Venta por Error
+                  <Ban size={15} /> Anular por error
                 </button>
               )}
 

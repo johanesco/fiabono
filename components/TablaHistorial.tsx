@@ -233,21 +233,21 @@ export default function TablaHistorial({ movimientos, getNombreCliente, getApodo
                         <RotateCcw size={13} />
                       </button>
                     )}
-                    {(mov.tipo === 'venta' || mov.tipo === 'fiado') && !(mov as any).anulado && onAnularVenta && (puedeHacerDevolucion !== false) && (
+                    {(mov.tipo === 'venta' || mov.tipo === 'fiado') && !(mov as any).anulado && !(mov as any).tieneDevolucion && onAnularVenta && (puedeHacerDevolucion !== false) && (
                       <button
                         type="button"
                         onClick={() => onAnularVenta(mov)}
-                        title={mov.tipo === 'fiado' ? "Anular fiado por error (reversar saldo y stock)" : "Anular venta por error (reversar stock)"}
+                        title="Anular transacción por error"
                         className="p-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/40 dark:hover:bg-rose-900/50 text-rose-600 dark:text-rose-400 border border-rose-200 dark:border-rose-800/60 transition-colors inline-flex items-center justify-center cursor-pointer"
                       >
                         <Ban size={13} />
                       </button>
                     )}
-                    {(mov.tipo === 'venta' || mov.tipo === 'fiado') && mov.detalles && mov.detalles.length > 0 && onDevolucion && (puedeHacerDevolucion !== false) && (
+                    {(mov.tipo === 'venta' || mov.tipo === 'fiado') && mov.detalles && mov.detalles.length > 0 && !(mov as any).anulado && !(mov as any).tieneDevolucionTotal && onDevolucion && (puedeHacerDevolucion !== false) && (
                       <button
                         type="button"
                         onClick={() => onDevolucion(mov)}
-                        title="Hacer Devolución"
+                        title="Devolver mercancía"
                         className="p-1.5 rounded-lg bg-amber-50 hover:bg-amber-100 dark:bg-amber-900/30 dark:hover:bg-amber-900/50 text-amber-600 dark:text-amber-400 border border-amber-200 dark:border-amber-800/60 transition-colors inline-flex items-center justify-center cursor-pointer"
                       >
                         <RotateCcw size={13} />

@@ -72,6 +72,10 @@ export async function POST(request: Request) {
         throw new Error('YA_ANULADO');
       }
 
+      if (mov.tieneDevolucion === true || (Array.isArray(mov.articulosDevueltos) && mov.articulosDevueltos.length > 0)) {
+        throw new Error('TIENE_DEVOLUCION');
+      }
+
       // 1. Revertir inventario si la venta tenía productos vinculados
       const detalles = Array.isArray(mov.detalles) ? mov.detalles : [];
       const productosAfectados: Array<{ id: string; cantidad: number; nombre: string }> = [];
@@ -186,7 +190,8 @@ export async function POST(request: Request) {
       MOVIMIENTO_NO_EXISTE: { status: 404, msg: 'La venta o fiado que intentas anular no existe.' },
       NO_AUTORIZADO: { status: 403, msg: 'No tienes autorización sobre esta transacción.' },
       TIPO_INVALIDO: { status: 400, msg: 'Solo se pueden anular movimientos de tipo venta o fiado.' },
-      YA_ANULADO: { status: 400, msg: 'Esta venta ya se encuentra anulada.' }
+      YA_ANULADO: { status: 400, msg: 'Esta venta ya se encuentra anulada.' },
+      TIENE_DEVOLUCION: { status: 400, msg: 'Esta venta ya tiene devoluciones procesadas. No puede anularse para evitar duplicar el reingreso de mercancía.' }
     };
 
     const coincidencia = codigosError[error.message];

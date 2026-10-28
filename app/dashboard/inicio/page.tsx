@@ -1440,23 +1440,23 @@ Gracias por seguir con nosotros.
                               {esDevolucion || esDevolucionSepare || esEgreso ? 'Devuelto:' : 'Total:'}
                             </span>
                             <div className="flex items-center gap-2">
-                              {esVentaOFiado && !mov.anulado && (datosSesion?.rol !== 'cajero' || datosSesion?.permisos?.hacerDevoluciones) && (
+                              {esVentaOFiado && !mov.anulado && !(mov as any).tieneDevolucion && (datosSesion?.rol !== 'cajero' || datosSesion?.permisos?.hacerDevoluciones) && (
                                 <button
                                   type="button"
                                   onClick={() => setModalAnularVenta({ isOpen: true, venta: mov })}
                                   className="text-[10px] md:text-[11px] font-bold px-2 py-1 md:px-2.5 md:py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-600 dark:bg-rose-950/40 dark:hover:bg-rose-900/50 dark:text-rose-400 rounded-lg transition-colors cursor-pointer border border-rose-200 dark:border-rose-800 flex items-center gap-1 mr-1"
                                   title={mov.tipo === 'fiado' ? "Anular fiado por error" : "Anular venta por error"}
                                 >
-                                  <Ban size={12} /> <span className="hidden md:inline">{mov.tipo === 'fiado' ? 'Anular Fiado' : 'Anular Venta'}</span><span className="md:hidden">Anular</span>
+                                  <Ban size={11} /> <span>Anular</span>
                                 </button>
                               )}
-                              {esVentaOFiado && mov.detalles && mov.detalles.length > 0 && (datosSesion?.rol !== 'cajero' || datosSesion?.permisos?.hacerDevoluciones) && (
+                              {esVentaOFiado && mov.detalles && mov.detalles.length > 0 && !mov.anulado && !(mov as any).tieneDevolucionTotal && (datosSesion?.rol !== 'cajero' || datosSesion?.permisos?.hacerDevoluciones) && (
                                 <button
                                   type="button"
                                   onClick={() => setModalDevolucion({ isOpen: true, venta: mov })}
                                   className="text-[10px] md:text-[11px] font-bold px-2 py-1 md:px-2.5 md:py-1.5 bg-amber-50 hover:bg-amber-100 text-amber-600 dark:bg-amber-900/30 dark:hover:bg-amber-900/50 dark:text-amber-400 rounded-lg transition-colors cursor-pointer border border-amber-200 dark:border-amber-800 flex items-center gap-1 mr-1"
                                 >
-                                  <RotateCcw size={12} /> <span className="hidden md:inline">Hacer Devolución</span><span className="md:hidden">Devolver</span>
+                                  <RotateCcw size={11} /> <span>Devolver</span>
                                 </button>
                               )}
                               {mov.tipo === 'abono' && Number(mov.monto) > 0 && !mov.anulado && !mov.id.startsWith('sep-apertura-') && (datosSesion?.rol !== 'cajero' || datosSesion?.permisos?.hacerDevoluciones) && (
@@ -1466,7 +1466,7 @@ Gracias por seguir con nosotros.
                                   className="text-[10px] md:text-[11px] font-bold px-2 py-1 md:px-2.5 md:py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-600 dark:bg-rose-950/40 dark:hover:bg-rose-900/50 dark:text-rose-400 rounded-lg transition-colors cursor-pointer border border-rose-200 dark:border-rose-800 flex items-center gap-1 mr-1"
                                   title="Anular abono ingresado por error o duplicado"
                                 >
-                                  <RotateCcw size={12} /> <span className="hidden md:inline">Anular Abono</span><span className="md:hidden">Anular</span>
+                                  <RotateCcw size={11} /> <span>Anular</span>
                                 </button>
                               )}
                               {mov.tipo !== 'egreso' && (
