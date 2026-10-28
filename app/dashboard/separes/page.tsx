@@ -2321,13 +2321,13 @@ ${itemsTexto || '• Artículos apartados'}
                     return (
                       <div className="pt-2.5 border-t border-slate-100 dark:border-slate-800 space-y-2">
                         {/* FILA 1: ACCIONES OPERATIVAS Y TRANSACCIONALES */}
-                        <div className="flex flex-wrap sm:flex-nowrap items-center gap-2">
+                        <div className="flex items-center gap-2">
                           {/* Botón Abonar */}
                           {!esCompletado && !esCancelado && saldo > 0 && (
                             puedeAbonar ? (
                               <button
                                 onClick={() => abrirModalAbono(sep)}
-                                className="flex-1 bg-violet-600 hover:bg-violet-700 text-white font-bold text-xs py-2.5 px-3 rounded-xl shadow-sm transition-all flex items-center justify-center gap-1.5 active:scale-95 cursor-pointer whitespace-nowrap min-w-[100px]"
+                                className="flex-1 bg-violet-600 hover:bg-violet-700 text-white font-bold text-xs py-2.5 px-3 rounded-xl shadow-sm transition-all flex items-center justify-center gap-1.5 active:scale-95 cursor-pointer whitespace-nowrap"
                               >
                                 <Banknote size={14} className="shrink-0" />
                                 <span>Abonar</span>
@@ -2344,24 +2344,11 @@ ${itemsTexto || '• Artículos apartados'}
                             <button
                               type="button"
                               onClick={() => abrirModalEntregaParcial(sep)}
-                              className="flex-1 bg-amber-500 hover:bg-amber-600 text-white font-bold text-xs py-2.5 px-3 rounded-xl shadow-sm transition-all flex items-center justify-center gap-1.5 active:scale-95 cursor-pointer animate-in fade-in whitespace-nowrap min-w-[110px]"
+                              className="flex-1 bg-amber-500 hover:bg-amber-600 text-white font-bold text-xs py-2.5 px-3 rounded-xl shadow-sm transition-all flex items-center justify-center gap-1.5 active:scale-95 cursor-pointer animate-in fade-in whitespace-nowrap"
                               title={`Alcanza para entregar productos con los $${abonoDisponible.toLocaleString('es-CO')} libres abonados`}
                             >
                               <Package size={14} className="shrink-0" />
                               <span>Retiro Parcial</span>
-                            </button>
-                          )}
-
-                          {/* Botón Entregar a Fiado (Cuando tiene saldo > 0 y se lleva la mercancía) */}
-                          {!esCompletado && !esCancelado && saldo > 0 && puedeEntregar && (
-                            <button
-                              type="button"
-                              onClick={() => abrirModalEntregarFiado(sep)}
-                              className="flex-1 bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/40 dark:hover:bg-rose-900/50 text-rose-700 dark:text-rose-300 border border-rose-300/80 dark:border-rose-800/60 font-bold text-xs py-2.5 px-3 rounded-xl shadow-xs transition-all flex items-center justify-center gap-1.5 active:scale-95 cursor-pointer whitespace-nowrap min-w-[120px]"
-                              title="El cliente se lleva los artículos hoy y el saldo pendiente pasa a su cuenta fiada"
-                            >
-                              <Receipt size={14} className="shrink-0 text-rose-500" />
-                              <span>Entregar a Fiado</span>
                             </button>
                           )}
 
@@ -2434,6 +2421,18 @@ ${itemsTexto || '• Artículos apartados'}
                           >
                             <Printer size={14} />
                           </button>
+
+                          {/* Entregar a Fiado (Opción secundaria en utilidades) */}
+                          {!esCompletado && !esCancelado && saldo > 0 && puedeEntregar && (
+                            <button
+                              type="button"
+                              onClick={() => abrirModalEntregarFiado(sep)}
+                              className="p-1.5 px-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/30 rounded-xl transition-colors cursor-pointer shrink-0"
+                              title="Entregar mercancía y trasladar saldo restante a Fiado"
+                            >
+                              <Receipt size={14} />
+                            </button>
+                          )}
 
                           {/* Cancelar (Si activo) */}
                           {!esCompletado && !esCancelado && (
@@ -2814,6 +2813,24 @@ ${itemsTexto || '• Artículos apartados'}
                 {procesandoAbono ? "Guardando..." : "Confirmar Abono"}
               </button>
             </div>
+
+            {/* Opción secundaria: trasladar a fiado si el cliente retira todo hoy */}
+            {puedeEntregar && (separeSeleccionado.saldoPendiente || 0) > 0 && (
+              <div className="pt-0.5 text-center">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setModalAbono(false);
+                    setModalEntregarFiado(true);
+                  }}
+                  className="text-[11px] font-bold text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 transition-colors inline-flex items-center gap-1 cursor-pointer"
+                >
+                  <Receipt size={12} />
+                  <span>¿El cliente se lleva los artículos hoy? Pasar a Fiado</span>
+                  <ChevronRight size={12} />
+                </button>
+              </div>
+            )}
           </div>
         </div>
       )}
