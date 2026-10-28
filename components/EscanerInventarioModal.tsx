@@ -1,10 +1,11 @@
 "use client";
 import { useState, useEffect, useRef } from "react";
 import { Html5Qrcode, Html5QrcodeSupportedFormats } from "html5-qrcode";
+import { obtenerConfiguracionCamaraScanner, toggleLinternaCamara, cambiarZoomCamara, soportaLinternaCamara, soportaZoomCamara, notificarScan } from "@/lib/camaraScanner";
 import { collection, getDocs, query, where, addDoc } from "firebase/firestore";
 import { auth, db } from "../firebase";
 import { 
-  X, CheckCircle2, Zap, Package, Plus, RefreshCw, Sparkles, 
+  X, CheckCircle2, Zap, ZoomIn, Package, Plus, RefreshCw, Sparkles, 
   ChevronDown, ListCheck, Keyboard, QrCode, Trash2, Minus, 
   Edit2, ArrowLeft 
 } from "lucide-react";
@@ -78,10 +79,26 @@ export default function EscanerInventarioModal({
   
   const html5QrCodeRef = useRef<Html5Qrcode | null>(null);
   const procesandoRef = useRef(false);
+  const [linternaActiva, setLinternaActiva] = useState(false);
+  const [zoomActual, setZoomActual] = useState(1);
+  const [soportaLinterna, setSoportaLinterna] = useState(false);
+  const [soportaZoom, setSoportaZoom] = useState(false);
   const ultimoCodigoEscaneadoRef = useRef<{codigo: string, tiempo: number} | null>(null);
 
   const totalProductos = productosEnCarga.length;
   const totalUnidades = productosEnCarga.reduce((acc, it) => acc + (Number(it.stock) || 0), 0);
+
+  const alternarLinterna = async () => {
+    const nuevo = !linternaActiva;
+    const ok = await toggleLinternaCamara("qr-reader-inbound", nuevo);
+    if (ok) setLinternaActiva(nuevo);
+  };
+
+  const alternarZoom = async () => {
+    const nuevoZoom = zoomActual === 1 ? 2 : 1;
+    const ok = await cambiarZoomCamara("qr-reader-inbound", nuevoZoom);
+    if (ok) setZoomActual(nuevoZoom);
+  };
 
   // Liberar físicamente la cámara
   const detenerCamaraCompleta = async () => {
@@ -142,24 +159,11 @@ export default function EscanerInventarioModal({
       });
       html5QrCodeRef.current = html5Qr;
 
-      const qrConfig = {
-        fps: 15,
-        qrbox: (viewfinderWidth: number, viewfinderHeight: number) => {
-          // Caja amplia y rectangular que permite leer tanto códigos de barras 1D horizontales como QR cuadrados
-          const width = Math.floor(viewfinderWidth * 0.88);
-          const height = Math.floor(Math.min(viewfinderHeight * 0.72, width * 0.65));
-          return { width: Math.max(width, 220), height: Math.max(height, 140) };
-        },
-        aspectRatio: 1.0,
-        videoConstraints: {
-          facingMode: "environment",
-          width: { min: 640, ideal: 1280, max: 1920 },
-          height: { min: 480, ideal: 720, max: 1080 }
-        }
-      };
+      const qrConfig = obtenerConfiguracionCamaraScanner(20);
 
       const onScanSuccess = (decodedText: string) => {
         if (mounted && !procesandoRef.current) {
+          notificarScan();
           manejarCodigoEscaneado(decodedText);
         }
       };
@@ -183,6 +187,12 @@ export default function EscanerInventarioModal({
 
       if (mounted) {
         setCamaraIniciada(true);
+        setTimeout(() => {
+          if (mounted) {
+            setSoportaLinterna(soportaLinternaCamara(scannerId));
+            setSoportaZoom(soportaZoomCamara(scannerId));
+          }
+        }, 600);
       }
     } catch (err: any) {
       console.error("Error al iniciar cámara:", err);
@@ -571,6 +581,37 @@ export default function EscanerInventarioModal({
 
             {flashExito && (
               <div className="absolute inset-0 bg-emerald-500/40 pointer-events-none z-30 animate-in fade-in duration-100"></div>
+            )}
+
+            {/* Controles de Linterna y Zoom sobre la cámara */}
+            {camaraIniciada && !errorCamara && (
+              <div className="absolute top-3 right-3 z-30 flex items-center gap-2">
+                {soportaLinterna && (
+                  <button
+                    type="button"
+                    onClick={alternarLinterna}
+                    className={`p-2 rounded-full transition-all shadow-lg active:scale-95 ${
+                      linternaActiva 
+                        ? 'bg-amber-400 text-slate-950 ring-2 ring-amber-300' 
+                        : 'bg-slate-900/80 backdrop-blur-md text-white border border-slate-700 hover:bg-slate-800'
+                    }`}
+                    title={linternaActiva ? "Apagar linterna" : "Encender linterna"}
+                  >
+                    <Zap size={15} className={linternaActiva ? "fill-current" : ""} />
+                  </button>
+                )}
+                {soportaZoom && (
+                  <button
+                    type="button"
+                    onClick={alternarZoom}
+                    className="px-2.5 py-1 rounded-full bg-slate-900/80 backdrop-blur-md text-white border border-slate-700 hover:bg-slate-800 text-xs font-black transition-all shadow-lg active:scale-95 flex items-center gap-1"
+                    title="Cambiar nivel de zoom"
+                  >
+                    <ZoomIn size={13} />
+                    <span>{zoomActual}x</span>
+                  </button>
+                )}
+              </div>
             )}
 
             {!errorCamara && (

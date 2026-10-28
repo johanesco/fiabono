@@ -16,7 +16,7 @@ import {
   FileText, 
   CheckCircle2, 
   LayoutList, 
-  QrCode, 
+  QrCode, Barcode, 
   ScanLine,
   Sliders,
   ArrowUpDown,
@@ -61,6 +61,7 @@ import toast from "react-hot-toast";
 import EscanerInventarioModal from "@/components/EscanerInventarioModal";
 import { ItemTandaIngreso } from "@/types";
 import { QRCodeSVG } from 'qrcode.react';
+import { generarSvgCodigoBarras, generarDataUrlCodigoBarras } from '@/lib/codigoBarras';
 import jsPDF from 'jspdf';
 import * as XLSX from 'xlsx';
 import ExcelJS from 'exceljs';
@@ -140,6 +141,7 @@ export default function InventarioPage() {
   // Estados para el modal de configuración de exportación QR inteligente y Térmica
   const [modalExportarQR, setModalExportarQR] = useState(false);
   const [modalEscanerInventario, setModalEscanerInventario] = useState(false);
+  const [formatoCodigoEtiqueta, setFormatoCodigoEtiqueta] = useState<'barras' | 'qr'>('barras');
   const [tipoImpresoraQR, setTipoImpresoraQR] = useState<TipoImpresoraQR>('termica');
   const [tamanoTermicoQR, setTamanoTermicoQR] = useState<TamanoTermicoQR>('40x30');
   const [anchoPersonalizadoMM, setAnchoPersonalizadoMM] = useState<number>(50);
@@ -1324,8 +1326,14 @@ export default function InventarioPage() {
 
             if (cantidadImprimir <= 0) continue;
 
-            const svgElement = document.getElementById(`qr-svg-${prod.id}`);
-            let qrSvgHtml = svgElement ? svgElement.outerHTML : '';
+            const codigoValor = prod.sku || prod.codigoBarras || prod.id;
+            let codigoSvgElement = '';
+            if (formatoCodigoEtiqueta === 'barras') {
+              codigoSvgElement = generarSvgCodigoBarras(codigoValor, { width: 1.6, height: 35, displayValue: false });
+            } else {
+              const svgElement = document.getElementById(`qr-svg-${prod.id}`);
+              codigoSvgElement = svgElement ? svgElement.outerHTML : '';
+            }
 
             for (let i = 0; i < cantidadImprimir; i++) {
               const esHorizontal = anchoMM >= 50 && altoMM <= 28;
@@ -1334,13 +1342,13 @@ export default function InventarioPage() {
               if (esHorizontal) {
                 htmlEtiquetas += `
                   <div class="sticker sticker-horizontal">
-                    <div class="qr-col">${qrSvgHtml}</div>
+                    <div class="${formatoCodigoEtiqueta === 'barras' ? 'barcode-col' : 'qr-col'}">${codigoSvgElement}</div>
                     <div class="text-col">
                       ${opcionNegocio && datosSesion?.nombreNegocio ? `<div class="negocio">${String(datosSesion.nombreNegocio).toUpperCase()}</div>` : ''}
                       ${opcionCategoria ? `<div class="negocio">${catLabel}</div>` : ''}
                       ${opcionNombre ? `<div class="nombre">${prod.nombre}</div>` : ''}
                       ${opcionSku ? `<div class="sku">${formatearTextoSKU(prod.sku)}</div>` : ''}
-                      ${opcionPrecio ? `<div class="precio">$${(prod.precioVenta || 0).toLocaleString('es-CO')}</div>` : ''}
+                      ${opcionPrecio ? `<div class="precio">${(prod.precioVenta || 0).toLocaleString('es-CO')}</div>` : ''}
                     </div>
                   </div>
                 `;
@@ -1353,9 +1361,9 @@ export default function InventarioPage() {
                       ${opcionNombre ? `<div class="nombre">${prod.nombre}</div>` : ''}
                       ${opcionSku ? `<div class="sku">${formatearTextoSKU(prod.sku)}</div>` : ''}
                     </div>
-                    <div class="qr-container">${qrSvgHtml}</div>
+                    <div class="${formatoCodigoEtiqueta === 'barras' ? 'barcode-container' : 'qr-container'}">${codigoSvgElement}</div>
                     <div class="info-bottom">
-                      ${opcionPrecio ? `<div class="precio">$${(prod.precioVenta || 0).toLocaleString('es-CO')}</div>` : ''}
+                      ${opcionPrecio ? `<div class="precio">${(prod.precioVenta || 0).toLocaleString('es-CO')}</div>` : ''}
                     </div>
                   </div>
                 `;
@@ -1494,6 +1502,35 @@ export default function InventarioPage() {
                   width: 100%;
                   height: auto;
                   max-height: ${altoMM - 2}mm;
+                }
+                .barcode-container {
+                  display: flex;
+                  align-items: center;
+                  justify-content: center;
+                  flex: 1;
+                  width: 100%;
+                  min-height: 0;
+                  padding: 0.5mm 0;
+                  overflow: hidden;
+                }
+                .barcode-container svg {
+                  width: 95%;
+                  height: auto;
+                  max-height: ${altoMM <= 25 ? '8mm' : '14mm'};
+                  display: block;
+                  margin: 0 auto;
+                }
+                .barcode-col {
+                  width: 44%;
+                  display: flex;
+                  align-items: center;
+                  justify-content: center;
+                  overflow: hidden;
+                }
+                .barcode-col svg {
+                  width: 100%;
+                  height: auto;
+                  max-height: ${altoMM - 4}mm;
                 }
                 .text-col {
                   width: 62%;
@@ -1693,12 +1730,22 @@ export default function InventarioPage() {
               }
 
               const espacioRestanteY = altoMM - curY - (opcionPrecio ? (altoMM <= 25 ? 3.5 : 4.5) : 1);
-              const qrTamano = Math.min(espacioRestanteY, anchoMM - 4, altoMM <= 25 ? 12 : 18);
-              const qrX = (anchoMM - qrTamano) / 2;
-
-              if (qrDataUrl && qrTamano > 8) {
-                docPdf.addImage(qrDataUrl, 'PNG', qrX, curY + 0.5, qrTamano, qrTamano);
-                curY += qrTamano + (altoMM <= 25 ? 1 : 1.5);
+              if (formatoCodigoEtiqueta === 'barras') {
+                const barcodeDataUrl = generarDataUrlCodigoBarras(prod.sku || prod.codigoBarras || prod.id, { width: 2, height: 40 });
+                const barcodeAlto = Math.min(espacioRestanteY, altoMM <= 25 ? 9 : 14);
+                const barcodeAncho = anchoMM - 6;
+                const barcodeX = 3;
+                if (barcodeDataUrl && barcodeAlto > 4) {
+                  docPdf.addImage(barcodeDataUrl, 'PNG', barcodeX, curY + 0.5, barcodeAncho, barcodeAlto);
+                  curY += barcodeAlto + (altoMM <= 25 ? 1 : 1.5);
+                }
+              } else {
+                const qrTamano = Math.min(espacioRestanteY, anchoMM - 4, altoMM <= 25 ? 12 : 18);
+                const qrX = (anchoMM - qrTamano) / 2;
+                if (qrDataUrl && qrTamano > 8) {
+                  docPdf.addImage(qrDataUrl, 'PNG', qrX, curY + 0.5, qrTamano, qrTamano);
+                  curY += qrTamano + (altoMM <= 25 ? 1 : 1.5);
+                }
               }
 
               if (opcionPrecio) {
@@ -1862,7 +1909,15 @@ export default function InventarioPage() {
               cursorY += (tamanoEtiqueta === 'compacto' ? 1.5 : 2);
             }
 
-            if (qrDataUrl) {
+            if (formatoCodigoEtiqueta === 'barras') {
+              const barcodeDataUrl = generarDataUrlCodigoBarras(prod.sku || prod.codigoBarras || prod.id, { width: 2, height: 40 });
+              if (barcodeDataUrl) {
+                const barWidth = Math.min(anchoEtiqueta - 8, 48);
+                const barHeight = Math.min(qrSize * 0.65, 14);
+                const barX = x + (anchoEtiqueta - barWidth) / 2;
+                docPdf.addImage(barcodeDataUrl, 'PNG', barX, cursorY + 1, barWidth, barHeight);
+              }
+            } else if (qrDataUrl) {
               const qrX = x + (anchoEtiqueta - qrSize) / 2;
               docPdf.addImage(qrDataUrl, 'PNG', qrX, cursorY + 1, qrSize, qrSize);
             }
@@ -4397,10 +4452,10 @@ export default function InventarioPage() {
                 </div>
                 <div>
                   <h3 className="text-lg sm:text-2xl font-black text-slate-900 dark:text-white flex items-center gap-2">
-                    Exportar Etiquetas QR
+                    Exportar Etiquetas de Inventario
                   </h3>
                   <p className="text-[11px] sm:text-xs text-slate-500 dark:text-slate-400 font-medium">
-                    Compatible con impresoras térmicas de rollo (Jaltech, Digital POS, Zebra) y hojas de oficina
+                    Imprime en Códigos de Barras (1D) o QR (2D) para impresoras térmicas y de oficina
                   </p>
                 </div>
               </div>
@@ -4415,10 +4470,63 @@ export default function InventarioPage() {
             {/* Cuerpo del Modal con Scroll */}
             <div className="p-5 sm:p-6 overflow-y-auto space-y-6 flex-1">
               
+              {/* PASO 0: Formato de Código (Barras 1D vs QR 2D) */}
+              <div className="space-y-3">
+                <label className="text-xs font-black uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
+                  <Barcode size={15} className="text-emerald-500" /> 1. ¿Qué tipo de código deseas generar?
+                </label>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  
+                  {/* Código de Barras 1D (Recomendado) */}
+                  <div
+                    onClick={() => setFormatoCodigoEtiqueta('barras')}
+                    className={`p-4 rounded-2xl border transition-all cursor-pointer relative ${
+                      formatoCodigoEtiqueta === 'barras'
+                        ? 'border-emerald-500 bg-emerald-50/50 dark:bg-emerald-950/20 ring-2 ring-emerald-500/20 shadow-sm'
+                        : 'border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700'
+                    }`}
+                  >
+                    <span className="absolute -top-2.5 right-3 bg-emerald-600 text-white text-[9px] font-black uppercase px-2 py-0.5 rounded-full shadow-sm">
+                      Recomendado Comercial
+                    </span>
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="font-black text-sm text-slate-900 dark:text-white flex items-center gap-1.5">
+                        <Barcode size={18} className="text-emerald-600" /> Código de Barras (1D)
+                      </span>
+                      <CheckCircle2 size={16} className={formatoCodigoEtiqueta === 'barras' ? "text-emerald-600" : "text-slate-300"} />
+                    </div>
+                    <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                      Formato Code 128 universal. El estándar para pistolas lectoras, ropa, calzado y paquetes.
+                    </p>
+                  </div>
+
+                  {/* Código QR 2D */}
+                  <div
+                    onClick={() => setFormatoCodigoEtiqueta('qr')}
+                    className={`p-4 rounded-2xl border transition-all cursor-pointer ${
+                      formatoCodigoEtiqueta === 'qr'
+                        ? 'border-emerald-500 bg-emerald-50/50 dark:bg-emerald-950/20 ring-2 ring-emerald-500/20 shadow-sm'
+                        : 'border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="font-black text-sm text-slate-900 dark:text-white flex items-center gap-1.5">
+                        <QrCode size={18} className="text-blue-600" /> Código QR (2D)
+                      </span>
+                      <CheckCircle2 size={16} className={formatoCodigoEtiqueta === 'qr' ? "text-emerald-600" : "text-slate-300"} />
+                    </div>
+                    <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                      Matriz cuadrada de alta densidad. Ideal para escanear directamente con la cámara del celular.
+                    </p>
+                  </div>
+
+                </div>
+              </div>
+
               {/* PASO 1: Tipo de Impresora */}
               <div className="space-y-3">
                 <label className="text-xs font-black uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
-                  <Printer size={14} className="text-emerald-500" /> 1. ¿En qué tipo de impresora vas a imprimir?
+                  <Printer size={14} className="text-emerald-500" /> 2. ¿En qué tipo de impresora vas a imprimir?
                 </label>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   
@@ -4471,7 +4579,7 @@ export default function InventarioPage() {
               {/* PASO 2: Medidas y Tamaño */}
               <div className="space-y-3">
                 <label className="text-xs font-black uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
-                  <Maximize2 size={14} className="text-emerald-500" /> 2. Tamaño del rollo / etiqueta
+                  <Maximize2 size={14} className="text-emerald-500" /> 3. Tamaño del rollo / etiqueta
                 </label>
 
                 {tipoImpresoraQR === 'termica' ? (
@@ -4671,7 +4779,7 @@ export default function InventarioPage() {
               {/* PASO 3: ¿Qué productos etiquetar? */}
               <div className="space-y-3">
                 <label className="text-xs font-black uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
-                  <Package size={14} className="text-emerald-500" /> 3. ¿Qué productos deseas etiquetar?
+                  <Package size={14} className="text-emerald-500" /> 4. ¿Qué productos deseas etiquetar?
                 </label>
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   
@@ -4797,7 +4905,7 @@ export default function InventarioPage() {
               {/* PASO 4: Cantidad de etiquetas inteligente */}
               <div className="space-y-3">
                 <label className="text-xs font-black uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
-                  <Layers size={14} className="text-emerald-500" /> 4. Cantidad de etiquetas por producto
+                  <Layers size={14} className="text-emerald-500" /> 5. Cantidad de etiquetas por producto
                 </label>
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
                   
@@ -5002,7 +5110,7 @@ export default function InventarioPage() {
               {/* PASO 5: Información a incluir en cada etiqueta */}
               <div className="space-y-3">
                 <label className="text-xs font-black uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
-                  <Tag size={14} className="text-emerald-500" /> 5. Datos impresos en el sticker
+                  <Tag size={14} className="text-emerald-500" /> 6. Datos impresos en el sticker
                 </label>
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
                   
@@ -5062,9 +5170,18 @@ export default function InventarioPage() {
                       {productosParaExportarQR[0]?.categoria || "General"}
                     </span>
                   )}
-                  <div className="my-1.5 p-1 bg-white border border-slate-200 rounded-lg">
-                    <QrCode size={46} className="text-slate-900" />
-                  </div>
+                  {formatoCodigoEtiqueta === 'barras' ? (
+                    <div 
+                      className="my-1.5 w-full flex items-center justify-center overflow-hidden py-1" 
+                      dangerouslySetInnerHTML={{ 
+                        __html: generarSvgCodigoBarras(productosParaExportarQR[0]?.sku || "CAM-001", { width: 1.5, height: 32, displayValue: false }) 
+                      }} 
+                    />
+                  ) : (
+                    <div className="my-1.5 p-1 bg-white border border-slate-200 rounded-lg">
+                      <QrCode size={46} className="text-slate-900" />
+                    </div>
+                  )}
                   {opcionPrecio && (
                     <span className="text-xs font-black text-slate-900 leading-none">
                       ${(productosParaExportarQR[0]?.precioVenta || 45000).toLocaleString('es-CO')}

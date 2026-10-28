@@ -12,7 +12,7 @@ import {
   Smartphone, CreditCard, Zap, Trash2, UserCog, RotateCcw, 
   Upload, Package, Store, Check, FileText, Percent, Eye,
   QrCode, Receipt, Crown, LayoutGrid, List, ShoppingCart, ChevronDown, ArrowRightLeft,
-  Coins, Handshake
+  Coins, Handshake, ZoomIn
 } from 'lucide-react';
 import toast from "react-hot-toast";
 import { useAuth } from "@/hooks/AuthContext";
@@ -20,6 +20,7 @@ import TicketFacturaModal, { DatosFacturaProps } from "@/components/TicketFactur
 import ModalSuscripcion from "@/components/ModalSuscripcion";
 import ModalNuevoCliente from "@/components/ModalNuevoCliente";
 import { Html5Qrcode } from "html5-qrcode";
+import { FORMATOS_CODIGO_SOPORTADOS, obtenerConfiguracionCamaraScanner, toggleLinternaCamara, cambiarZoomCamara, soportaLinternaCamara, soportaZoomCamara, notificarScan } from "@/lib/camaraScanner";
 import { abrirEnlaceWhatsApp } from "@/utils/whatsapp";
 import { API_DB } from "../../../servicios/db";
 
@@ -193,6 +194,10 @@ function SepareContenido() {
   // Escáner de Código de Barras / QR
   const [modalEscanner, setModalEscanner] = useState(false);
   const html5QrCodeRef = useRef<any>(null);
+  const [linternaActiva, setLinternaActiva] = useState(false);
+  const [zoomActual, setZoomActual] = useState(1);
+  const [soportaLinterna, setSoportaLinterna] = useState(false);
+  const [soportaZoom, setSoportaZoom] = useState(false);
   const [camaraIniciada, setCamaraIniciada] = useState(false);
   const [errorCamara, setErrorCamara] = useState<string | null>(null);
   const [flashExito, setFlashExito] = useState(false);
@@ -1618,9 +1623,23 @@ function SepareContenido() {
   // -------------------------------------------------------------
   // ESCÁNER DE CÓDIGO DE BARRAS / QR CON HTML5-QRCODE
   // -------------------------------------------------------------
+  const alternarLinterna = async () => {
+    const nuevo = !linternaActiva;
+    const ok = await toggleLinternaCamara("qr-reader-separe", nuevo);
+    if (ok) setLinternaActiva(nuevo);
+  };
+
+  const alternarZoom = async () => {
+    const nuevoZoom = zoomActual === 1 ? 2 : 1;
+    const ok = await cambiarZoomCamara("qr-reader-separe", nuevoZoom);
+    if (ok) setZoomActual(nuevoZoom);
+  };
+
   const abrirEscanner = () => {
     setErrorCamara(null);
     setCamaraIniciada(false);
+    setLinternaActiva(false);
+    setZoomActual(1);
     setModalEscanner(true);
   };
 
@@ -3733,6 +3752,37 @@ Estamos atentos para cualquier consulta.
               {/* Destello verde al escanear */}
               {flashExito && (
                 <div className="absolute inset-0 bg-violet-500/40 pointer-events-none z-30 animate-in fade-in duration-100"></div>
+              )}
+
+              {/* Controles de Linterna y Zoom sobre la cámara */}
+              {camaraIniciada && !errorCamara && (
+                <div className="absolute top-3 right-3 z-30 flex items-center gap-2">
+                  {soportaLinterna && (
+                    <button
+                      type="button"
+                      onClick={alternarLinterna}
+                      className={`p-2.5 rounded-full transition-all shadow-lg active:scale-95 ${
+                        linternaActiva 
+                          ? 'bg-amber-400 text-slate-950 ring-2 ring-amber-300' 
+                          : 'bg-slate-900/80 backdrop-blur-md text-white border border-slate-700 hover:bg-slate-800'
+                      }`}
+                      title={linternaActiva ? "Apagar linterna" : "Encender linterna"}
+                    >
+                      <Zap size={16} className={linternaActiva ? "fill-current" : ""} />
+                    </button>
+                  )}
+                  {soportaZoom && (
+                    <button
+                      type="button"
+                      onClick={alternarZoom}
+                      className="px-2.5 py-1.5 rounded-full bg-slate-900/80 backdrop-blur-md text-white border border-slate-700 hover:bg-slate-800 text-xs font-black transition-all shadow-lg active:scale-95 flex items-center gap-1"
+                      title="Cambiar nivel de zoom"
+                    >
+                      <ZoomIn size={14} />
+                      <span>{zoomActual}x</span>
+                    </button>
+                  )}
+                </div>
               )}
 
               {/* Guías de encuadre */}

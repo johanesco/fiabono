@@ -5,12 +5,13 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { collection, addDoc, getDocs, getDoc, query, doc, updateDoc, where, increment, writeBatch } from "firebase/firestore";
 import { auth, db } from "../../../firebase";
 import { guardarEnColaVentasOffline } from "@/lib/colaOffline";
-import { Search, ShoppingCart, CheckCircle2, ChevronRight, X, AlertCircle, UserCog, Plus, Minus, ArrowLeft, MessageCircle, Banknote, Package, QrCode, Volume2, Printer, Smartphone, CreditCard, Zap, Receipt, ChevronDown, ChevronUp, Tag, Percent, Pause, FolderOpen, User, Trash2, Store, Wallet, LayoutGrid, List, FileText, ArrowRightLeft, Edit3 } from 'lucide-react';
+import { Search, ShoppingCart, CheckCircle2, ChevronRight, X, AlertCircle, UserCog, Plus, Minus, ArrowLeft, MessageCircle, Banknote, Package, QrCode, Volume2, Printer, Smartphone, CreditCard, Zap, ZoomIn, Receipt, ChevronDown, ChevronUp, Tag, Percent, Pause, FolderOpen, User, Trash2, Store, Wallet, LayoutGrid, List, FileText, ArrowRightLeft, Edit3 } from 'lucide-react';
 import { useAuth } from "@/hooks/AuthContext";
 import toast from "react-hot-toast";
 import { notificar } from "@/utils/notificaciones";
 import { customConfirm } from "@/utils/customConfirm";
 import { Html5Qrcode } from "html5-qrcode";
+import { FORMATOS_CODIGO_SOPORTADOS, obtenerConfiguracionCamaraScanner, toggleLinternaCamara, cambiarZoomCamara, soportaLinternaCamara, soportaZoomCamara, notificarScan } from "@/lib/camaraScanner";
 import { notificarExitoPOS, vibrarToque, vibrarAlerta } from "@/lib/feedbackNativo";
 import { API_DB } from "../../../servicios/db";
 import TicketFacturaModal, { DatosFacturaProps } from "@/components/TicketFacturaModal";
@@ -591,6 +592,10 @@ function VenderContenido() {
   const [errorCamara, setErrorCamara] = useState<string | null>(null);
   const [flashExito, setFlashExito] = useState(false);
   const [ultimoProductoEscaneado, setUltimoProductoEscaneado] = useState<{ nombre: string; precio: number; cantidad: number } | null>(null);
+  const [linternaActiva, setLinternaActiva] = useState(false);
+  const [zoomActual, setZoomActual] = useState(1);
+  const [soportaLinterna, setSoportaLinterna] = useState(false);
+  const [soportaZoom, setSoportaZoom] = useState(false);
   const html5QrCodeRef = useRef<Html5Qrcode | null>(null);
   const ultimoScanRef = useRef<{ sku: string; timestamp: number } | null>(null);
 
@@ -717,6 +722,18 @@ function VenderContenido() {
     } catch (error) { console.error(error); }
   };
 
+  const alternarLinterna = async () => {
+    const nuevo = !linternaActiva;
+    const ok = await toggleLinternaCamara("qr-reader-vender", nuevo);
+    if (ok) setLinternaActiva(nuevo);
+  };
+
+  const alternarZoom = async () => {
+    const nuevoZoom = zoomActual === 1 ? 2 : 1;
+    const ok = await cambiarZoomCamara("qr-reader-vender", nuevoZoom);
+    if (ok) setZoomActual(nuevoZoom);
+  };
+
   const abrirEscanner = () => {
     try {
       const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
@@ -725,6 +742,8 @@ function VenderContenido() {
     setMensajeScaneo(null);
     setErrorCamara(null);
     setCamaraIniciada(false);
+    setLinternaActiva(false);
+    setZoomActual(1);
     setModalEscanner(true);
   };
 
@@ -3292,7 +3311,7 @@ Estamos atentos para cualquier consulta.
                     Escáner Rápido POS
                   </h3>
                   <p className="text-[11px] text-slate-400 font-medium">
-                    Apunta a los códigos QR de tus productos
+                    Apunta al código de barras o QR del producto
                   </p>
                 </div>
               </div>
@@ -3314,6 +3333,37 @@ Estamos atentos para cualquier consulta.
               {/* Destello verde al escanear */}
               {flashExito && (
                 <div className="absolute inset-0 bg-emerald-500/40 pointer-events-none z-30 animate-in fade-in duration-100"></div>
+              )}
+
+              {/* Controles de Linterna y Zoom sobre la cámara */}
+              {camaraIniciada && !errorCamara && (
+                <div className="absolute top-3 right-3 z-30 flex items-center gap-2">
+                  {soportaLinterna && (
+                    <button
+                      type="button"
+                      onClick={alternarLinterna}
+                      className={`p-2.5 rounded-full transition-all shadow-lg active:scale-95 ${
+                        linternaActiva 
+                          ? 'bg-amber-400 text-slate-950 ring-2 ring-amber-300' 
+                          : 'bg-slate-900/80 backdrop-blur-md text-white border border-slate-700 hover:bg-slate-800'
+                      }`}
+                      title={linternaActiva ? "Apagar linterna" : "Encender linterna"}
+                    >
+                      <Zap size={16} className={linternaActiva ? "fill-current" : ""} />
+                    </button>
+                  )}
+                  {soportaZoom && (
+                    <button
+                      type="button"
+                      onClick={alternarZoom}
+                      className="px-2.5 py-1.5 rounded-full bg-slate-900/80 backdrop-blur-md text-white border border-slate-700 hover:bg-slate-800 text-xs font-black transition-all shadow-lg active:scale-95 flex items-center gap-1"
+                      title="Cambiar nivel de zoom"
+                    >
+                      <ZoomIn size={14} />
+                      <span>{zoomActual}x</span>
+                    </button>
+                  )}
+                </div>
               )}
 
               {/* Guías de encuadre */}
