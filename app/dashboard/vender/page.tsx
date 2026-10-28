@@ -1112,6 +1112,25 @@ function VenderContenido() {
         aprobadoPor: null,
         motivoRechazo: null,
       });
+      // Notificar al dueño por Push en segundo plano
+      if (cuentaPrincipalId && !esAdmin) {
+        auth.currentUser?.getIdToken().then(tok => {
+          if (tok) {
+            fetch('/api/notificaciones/alerta-orden', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${tok}` },
+              body: JSON.stringify({
+                adminId: cuentaPrincipalId,
+                colaboradorNombre: vendedorActivo || nombreUsuario || 'Colaborador',
+                total: totalFilasRegistro,
+                clienteNombre: clienteTransaccion?.nombre || 'Consumidor Final',
+                tipo: esFiadoCompleto ? 'fiado' : 'venta'
+              })
+            }).catch(() => {});
+          }
+        }).catch(() => {});
+      }
+
       toast.success("¡Orden enviada! El administrador la revisará para confirmarla.", { duration: 4000, icon: '📋' });
       // Resetear formulario
       setFilasRegistro([{ descripcion: "", valor: "", cantidad: 1 }]);

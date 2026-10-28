@@ -12,6 +12,7 @@ import { useAuth } from "../../../hooks/AuthContext";
 import ModalSuscripcion from "@/components/ModalSuscripcion";
 import ModalAjustarImagen from "@/components/ModalAjustarImagen";
 import ModalConfirmarCerrarSesion from "@/components/modals/ModalConfirmarCerrarSesion";
+import ToggleNotificacionesPush from "@/components/ToggleNotificacionesPush";
 import { MediosPagoNegocio, PermisosColaborador } from "@/types";
 import { generarSlugNegocio, limpiarUsuarioColaborador } from "@/utils/slug";
 import { RUBROS_NEGOCIOS } from "@/constants/rubrosCategorias";
@@ -3775,6 +3776,11 @@ export default function PerfilPage() {
               </button>
             </div>
           )}
+
+          {/* CONTROL DE NOTIFICACIONES PUSH NATIVAS EN ANDROID / PWA */}
+          <div className="mt-6">
+            <ToggleNotificacionesPush />
+          </div>
 
           <button onClick={handleCerrarSesion} className="w-full bg-rose-50 dark:bg-rose-500/10 text-rose-600 dark:text-rose-400 font-bold py-5 sm:py-6 rounded-[2rem] border border-rose-200 dark:border-rose-500/20 hover:bg-rose-100 dark:hover:bg-rose-500/30 transition-colors mb-4 sm:mb-6 flex justify-center items-center gap-2 text-lg mt-6 cursor-pointer">
             <LogOut size={24} className="shrink-0" /> Cerrar Sesión

@@ -5,11 +5,13 @@ import { initializeApp, getApps, cert, App } from 'firebase-admin/app';
 import { getFirestore, Firestore } from 'firebase-admin/firestore';
 import { getAuth, Auth } from 'firebase-admin/auth';
 import { getStorage, Storage } from 'firebase-admin/storage';
+import { getMessaging, Messaging } from 'firebase-admin/messaging';
 
 let adminApp: App | undefined;
 let adminDb: Firestore | undefined;
 let adminAuth: Auth | undefined;
 let adminStorage: Storage | undefined;
+let adminMessaging: Messaging | undefined;
 
 export function getAdminApp(): App {
   if (!adminApp) {
@@ -61,4 +63,11 @@ export function getAdminStorage(): Storage {
     adminStorage = getStorage(getAdminApp());
   }
   return adminStorage;
+}
+
+export function getAdminMessaging(): Messaging {
+  if (!adminMessaging) {
+    adminMessaging = getMessaging(getAdminApp());
+  }
+  return adminMessaging;
 }

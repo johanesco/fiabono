@@ -1,4 +1,4 @@
-const CACHE_NAME = 'fiabono-pwa-v4';
+const CACHE_NAME = 'fiabono-pwa-v5';
 
 const STATIC_ASSETS = [
   '/',
@@ -108,5 +108,66 @@ self.addEventListener('fetch', (event) => {
           headers: new Headers({ 'Content-Type': 'text/plain; charset=utf-8' }),
         });
       })
+  );
+});
+
+// -------------------------------------------------------------
+// NOTIFICACIONES PUSH NATIVAS EN ANDROID (PWA / TWA / Google Play)
+// -------------------------------------------------------------
+self.addEventListener('push', (event) => {
+  if (!event.data) return;
+
+  let payload = {};
+  try {
+    payload = event.data.json();
+  } catch (e) {
+    payload = {
+      notification: {
+        title: 'Fiabono',
+        body: event.data.text()
+      }
+    };
+  }
+
+  const notif = payload.notification || payload;
+  const data = payload.data || {};
+  const titulo = notif.title || 'Fiabono';
+  const opciones = {
+    body: notif.body || 'Tienes una nueva actualización en tu negocio.',
+    icon: notif.icon || '/icon-192.png',
+    badge: '/icon-192.png',
+    vibrate: [80, 40, 80],
+    tag: data.tag || 'fiabono-alerta',
+    renotify: true,
+    data: {
+      url: data.url || '/dashboard/inicio',
+      ...data
+    }
+  };
+
+  event.waitUntil(self.registration.showNotification(titulo, opciones));
+});
+
+// Al tocar la notificación en la barra de Android
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  const destinoUrl = event.notification.data?.url || '/dashboard/inicio';
+
+  event.waitUntil(
+    clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
+      // Si la app ya está abierta, enfocamos la ventana y navegamos al destino
+      for (const client of clientList) {
+        if (client.url && client.url.includes(self.location.origin) && 'focus' in client) {
+          if ('navigate' in client) {
+            client.navigate(destinoUrl);
+          }
+          return client.focus();
+        }
+      }
+      // Si la app está cerrada, abrimos la ventana en la URL de destino
+      if (clients.openWindow) {
+        return clients.openWindow(destinoUrl);
+      }
+    })
   );
 });
