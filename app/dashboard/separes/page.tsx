@@ -44,6 +44,8 @@ function SeparesContenido() {
   const puedeEnviarWhatsApp = datosSesion?.puedeEnviarWhatsApp ?? true;
   const tienePermisoSepare = esAdmin || (datosSesion?.permisos?.planSepare === true);
   const puedeEntregar = esAdmin || puedeVentaDirecta || tienePermisoSepare || puedeAbonar;
+  // Entregar a Fiado genera deuda en cartera: solo admin o colaboradores con permiso de fiar (ventaDirecta)
+  const puedeEntregarAFiado = esAdmin || puedeVentaDirecta;
   const moduloSepareActivo = datosSesion?.moduloSepareActivo !== false;
 
   // Protección de acceso
@@ -877,6 +879,10 @@ Gracias por tu compra y preferencia.
 
   // Abrir Modal de Entrega a Fiado
   const abrirModalEntregarFiado = (sep: any) => {
+    if (!puedeEntregarAFiado) {
+      toast.error("No tienes permisos para fiar. Consulta con el administrador del negocio.");
+      return;
+    }
     setSepareSeleccionado(sep);
     setModalEntregarFiado(true);
   };
@@ -885,6 +891,10 @@ Gracias por tu compra y preferencia.
   const confirmarEntregarFiado = async () => {
     if (!separeSeleccionado) return;
     if (procesandoEntregarFiado) return;
+    if (!puedeEntregarAFiado) {
+      toast.error("No tienes permisos para otorgar fiados.");
+      return;
+    }
 
     setProcesandoEntregarFiado(true);
     try {
@@ -2451,7 +2461,7 @@ ${itemsTexto || '• Artículos apartados'}
                                     onClick={() => setMenuOpcionesAbiertoId(null)}
                                   />
                                   <div className="absolute right-0 bottom-full mb-1.5 w-64 bg-white dark:bg-[#0f172a] rounded-2xl shadow-xl border border-slate-200 dark:border-slate-800 p-1.5 z-40 animate-in fade-in zoom-in-95 duration-150">
-                                    {saldo > 0 && puedeEntregar && (
+                                    {saldo > 0 && puedeEntregarAFiado && (
                                       <button
                                         type="button"
                                         onClick={() => {
@@ -2474,7 +2484,7 @@ ${itemsTexto || '• Artículos apartados'}
                                       </button>
                                     )}
 
-                                    {saldo > 0 && puedeEntregar && (
+                                    {saldo > 0 && puedeEntregarAFiado && (
                                       <div className="h-px bg-slate-100 dark:bg-slate-800 my-1" />
                                     )}
 
@@ -2872,7 +2882,7 @@ ${itemsTexto || '• Artículos apartados'}
             </div>
 
             {/* Opción secundaria: trasladar a fiado si el cliente retira todo hoy */}
-            {puedeEntregar && (separeSeleccionado.saldoPendiente || 0) > 0 && (
+            {puedeEntregarAFiado && (separeSeleccionado.saldoPendiente || 0) > 0 && (
               <div className="pt-0.5 text-center">
                 <button
                   type="button"

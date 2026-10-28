@@ -14,9 +14,10 @@ export async function POST(request: Request) {
     const usuario = usuarioSnap.data() as any;
     const esAdmin = usuario.rol !== 'cajero';
     const cuentaPrincipalId = esAdmin ? decodedToken.uid : usuario.adminId;
-    const tienePermiso = esAdmin || usuario.permisos?.planSepare === true || usuario.permisos?.ventaDirecta === true || usuario.permisos?.abonar === true;
+    // Entregar a Fiado genera deuda en cartera: solo permitido a admin o colaboradores con permiso de fiar (ventaDirecta)
+    const tienePermiso = esAdmin || (usuario.activo !== false && usuario.permisos?.ventaDirecta === true);
     if (!cuentaPrincipalId || !tienePermiso) {
-      return NextResponse.json({ error: 'No tienes permiso para entregar Separes a Fiado.' }, { status: 403 });
+      return NextResponse.json({ error: 'No tienes permiso para fiar. Pídele al administrador que active el permiso de venta y fiado directo en tu usuario.' }, { status: 403 });
     }
 
     const body = await request.json();
