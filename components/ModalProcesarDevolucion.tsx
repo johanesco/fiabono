@@ -40,6 +40,11 @@ export default function ModalProcesarDevolucion({
   // Reset al abrir
   useEffect(() => {
     if (isOpen && ventaOrigen?.id) {
+      if ((ventaOrigen as any).anulado) {
+        toast.error('Esta transacción fue anulada previamente. No es posible procesar devoluciones sobre ella.');
+        onClose();
+        return;
+      }
       setCantidadesDevueltas({});
       setYaDevueltos({});
       setMetodoDevolucion((esClienteRegistrado || fuePagadoConSaldo) ? 'saldo_a_favor' : 'efectivo');

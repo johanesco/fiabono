@@ -29,6 +29,7 @@ export async function POST(request: Request) {
       if (!origenSnap.exists) throw new Error('ORIGEN_NO_EXISTE');
       const origen = origenSnap.data() as any;
       if (origen.usuarioId !== cuentaPrincipalId || !['venta', 'fiado'].includes(origen.tipo)) throw new Error('ORIGEN_NO_AUTORIZADO');
+      if (origen.anulado === true) throw new Error('VENTA_YA_ANULADA');
 
       const detallesOrigen = Array.isArray(origen.detalles) ? origen.detalles : [];
       if (!detallesOrigen.length) throw new Error('SIN_DETALLES');
@@ -197,6 +198,7 @@ export async function POST(request: Request) {
   } catch (error: any) {
     const mensajes: Record<string, { status: number; text: string }> = {
       ORIGEN_NO_EXISTE: { status: 404, text: 'La venta original no existe.' },
+      VENTA_YA_ANULADA: { status: 400, text: 'No es posible hacer devoluciones sobre una transacción que ya ha sido anulada.' },
       ORIGEN_NO_AUTORIZADO: { status: 403, text: 'La venta no pertenece a tu negocio.' },
       SIN_DETALLES: { status: 409, text: 'La venta no tiene artículos devolvibles.' },
       ARTICULO_INVALIDO: { status: 400, text: 'Artículo inválido.' },

@@ -1009,15 +1009,17 @@ Gracias por seguir con nosotros.
               >
                 <div className={`absolute left-0 top-0 bottom-0 w-1.5 ${
                   esIngresoInv ? 'bg-sky-500' :
-                  mov.tipo === 'anulacion' ? 'bg-rose-600' :
+                  (mov as any).anulado || mov.tipo === 'anulacion' ? 'bg-rose-600' :
                   mov.tipo === 'devolucion' ? 'bg-amber-500' :
                   esEntregaSepare ? 'bg-purple-600' :
                   esSepare ? 'bg-violet-600' :
                   mov.tipo === 'fiado' ? 'bg-rose-500' : 
                   (mov.tipo === 'venta' ? 'bg-emerald-500' : 'bg-blue-500')
                 }`}></div>
-                <div className="flex justify-between items-start gap-3 pl-2">
-                  <div className="flex flex-col min-w-0 flex-1">
+
+                {/* FILA SUPERIOR: Cliente a la izquierda, Monto y Badge a la derecha */}
+                <div className="flex justify-between items-start gap-2 pl-2">
+                  <div className="flex items-center gap-1.5 flex-wrap min-w-0 flex-1">
                     {esIngresoInv ? (
                       <div className="flex items-center gap-1.5 min-w-0">
                         <span className="px-1.5 py-0.5 rounded-md bg-sky-100 text-sky-700 dark:bg-sky-950/50 dark:text-sky-300 text-[10px] font-black shrink-0 inline-flex items-center gap-1">
@@ -1029,141 +1031,40 @@ Gracias por seguir con nosotros.
                       </div>
                     ) : (
                       <>
-                        <div className="flex items-center gap-1.5 flex-wrap min-w-0">
-                          <p className="font-bold text-lg text-slate-900 dark:text-slate-200 truncate">{getNombreCliente(mov.clienteId, mov.tipo, mov.clienteNombre)}</p>
-                          {getApodoCliente(mov.clienteId) && (
-                            <span className="text-xs font-bold text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/50 px-1.5 py-0.5 rounded border border-amber-200 dark:border-amber-800 shrink-0">
-                              "{getApodoCliente(mov.clienteId)}"
-                            </span>
-                          )}
-                        </div>
-                        <p className="text-sm text-slate-500 dark:text-slate-400 truncate mt-0.5">{mov.descripcion}</p>
-                        {(mov as any).anulado && (
-                          <div className="text-[10px] text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900/40 rounded-lg px-2 py-1 mt-1">
-                            <span className="font-bold">Motivo:</span> {(mov as any).motivoAnulacion || 'Cancelado por error'}
-                            {((mov as any).anuladoPor || (mov as any).anuladoPorNombre) && (
-                              <span className="block text-[9.5px] text-rose-500 font-medium mt-0.5">Por: {(mov as any).anuladoPor || (mov as any).anuladoPorNombre}</span>
-                            )}
-                          </div>
+                        <p className="font-bold text-base sm:text-lg text-slate-900 dark:text-slate-200 truncate">
+                          {getNombreCliente(mov.clienteId, mov.tipo, mov.clienteNombre)}
+                        </p>
+                        {getApodoCliente(mov.clienteId) && (
+                          <span className="text-[10px] font-bold text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/50 px-1.5 py-0.5 rounded border border-amber-200 dark:border-amber-800 shrink-0">
+                            "{getApodoCliente(mov.clienteId)}"
+                          </span>
                         )}
-                        {(mov as any).montoFiadoAsociado ? (
-                          <span className="inline-block mt-1 text-[10.5px] font-bold text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/40 px-1.5 py-0.5 rounded border border-amber-200 dark:border-amber-800">
-                            Cobrado: $${Math.round(mov.monto || 0).toLocaleString('es-CO')} • Fiado restante: $${Math.round((mov as any).montoFiadoAsociado).toLocaleString('es-CO')}
-                          </span>
-                        ) : null}
-                        {(mov as any).abonoInicialAsociado ? (
-                          <span className="inline-block mt-1 text-[10.5px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40 px-1.5 py-0.5 rounded border border-emerald-200 dark:border-emerald-800">
-                            Deuda: $${Math.round(mov.monto || 0).toLocaleString('es-CO')} • Abono inicial recibido: $${Math.round((mov as any).abonoInicialAsociado).toLocaleString('es-CO')}
-                          </span>
-                        ) : null}
                       </>
                     )}
-                    
-                    <div className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5 mt-2 text-[10px] font-bold uppercase">
-                      {mov.registradoPor && (
-                        <span className="text-slate-500 dark:text-slate-400 whitespace-nowrap inline-flex items-center gap-1">
-                          <User size={10} className="text-slate-400" />
-                          <span>{esIngresoInv ? `Inventariado: ${mov.registradoPor}` : mov.registradoPor}</span>
-                        </span>
-                      )}
-                      {mov.registradoPor && <span className="text-slate-300 dark:text-slate-600 whitespace-nowrap">•</span>}
-                      <span className="text-slate-400 whitespace-nowrap">
-                        {mov.fecha?.toDate ? mov.fecha.toDate().toLocaleDateString('es-CO', { day:'2-digit', month:'short', hour:'2-digit', minute:'2-digit' }) : (mov.fecha instanceof Date ? mov.fecha.toLocaleDateString('es-CO', { day:'2-digit', month:'short', hour:'2-digit', minute:'2-digit' }) : '')}
-                      </span>
-                    </div>
                   </div>
-                  <div className="flex flex-col items-end gap-1.5 shrink-0">
-                    <div className="flex items-center gap-1.5">
-                      {!esIngresoInv && (
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            abrirTicketDeMovimiento(mov);
-                          }}
-                          title="Imprimir Factura"
-                          className="p-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-blue-50 dark:hover:bg-blue-500/20 hover:text-blue-600 dark:hover:text-blue-400 transition-colors cursor-pointer"
-                        >
-                          <Printer size={15} />
-                        </button>
-                      )}
-                      {mov.tipo === 'abono' && !(mov as any).anulado && (
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setModalAnularAbono({
-                              isOpen: true,
-                              movimiento: mov,
-                              cliente: clientes.find(c => c.id === mov.clienteId) || null
-                            });
-                          }}
-                          title="Anular Abono por error o duplicado"
-                          className="p-2 rounded-xl bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/40 dark:hover:bg-rose-900/50 text-rose-600 dark:text-rose-400 border border-rose-200 dark:border-rose-800 transition-colors cursor-pointer"
-                        >
-                          <RotateCcw size={15} />
-                        </button>
-                      )}
-                      {(mov.tipo === 'venta' || mov.tipo === 'fiado') && !(mov as any).anulado && puedeHacerDevolucion && (
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setModalAnularVenta({ isOpen: true, venta: mov });
-                          }}
-                          title={mov.tipo === 'fiado' ? 'Anular Fiado por error' : 'Anular Venta por error'}
-                          className="p-2 rounded-xl bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/40 dark:hover:bg-rose-900/50 text-rose-600 dark:text-rose-400 border border-rose-200 dark:border-rose-800 transition-colors cursor-pointer"
-                        >
-                          <Ban size={15} />
-                        </button>
-                      )}
-                      {(mov.tipo === 'venta' || mov.tipo === 'fiado') && mov.detalles && mov.detalles.length > 0 && puedeHacerDevolucion && (
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setModalDevolucion({ isOpen: true, venta: mov });
-                          }}
-                          title="Hacer Devolución"
-                          className="p-2 rounded-xl bg-amber-50 hover:bg-amber-100 dark:bg-amber-900/30 dark:hover:bg-amber-900/50 text-amber-600 dark:text-amber-400 border border-amber-200 dark:border-amber-800 transition-colors cursor-pointer"
-                        >
-                          <RotateCcw size={15} />
-                        </button>
-                      )}
-                      {mov.tipo === 'devolucion' && mov.errorNotaCredito && !mov.notaCreditoElectronica && puedeHacerDevolucion && (
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            reintentarNotaCredito(mov);
-                          }}
-                          title={`Nota Crédito DIAN pendiente: ${mov.errorNotaCredito}`}
-                          className="px-2.5 py-2 rounded-xl bg-rose-50 hover:bg-rose-100 dark:bg-rose-900/30 text-rose-600 dark:text-rose-400 border border-rose-200 dark:border-rose-800 text-[10px] font-black transition-colors cursor-pointer"
-                        >
-                          Reintentar NC
-                        </button>
-                      )}
-                      {esIngresoInv ? (
-                        <span className="font-black text-sm text-sky-600 dark:text-sky-400 px-2 py-1 bg-sky-50 dark:bg-sky-950/40 rounded-xl">
-                          +{mov.cantidadAgregada || 1} un.
-                        </span>
-                      ) : (
-                        <p className={`font-black text-xl text-right ${
-                          (mov as any).anulado ? 'line-through text-slate-400 dark:text-slate-500 opacity-60' :
-                          mov.tipo === 'anulacion' ? 'text-rose-600 dark:text-rose-400' :
-                            mov.tipo === 'devolucion' || mov.tipo === 'egreso' ? 'text-amber-600 dark:text-amber-400' :
-                          mov.subtipo === 'retiro_item_separe' ? 'text-rose-600 dark:text-rose-400' :
-                          esEntregaSepare ? 'text-purple-600 dark:text-purple-400' :
-                          esSepare ? 'text-violet-600 dark:text-violet-400' :
-                          mov.tipo === 'fiado' ? 'text-rose-500' : (mov.tipo === 'venta' ? 'text-emerald-500' : 'text-blue-500')
-                        }`}>
-                          {(mov as any).anulado ? `(Anulado) $${Math.round(mov.monto || 0).toLocaleString('es-CO')}` :
-                           mov.subtipo === 'retiro_item_separe' ? `-${Math.round(mov.monto || 0).toLocaleString('es-CO')}` : (esEntregaSepare ? 'Entregado' : (mov.subtipo === 'apertura_separe_sin_abono' || (mov.monto === 0 && esSepare) ? 'Reservado ($0)' : `${mov.tipo === 'fiado' || mov.tipo === 'egreso' || mov.tipo === 'devolucion' || mov.tipo === 'anulacion' ? '-' : '+'}${Math.round(mov.monto || 0).toLocaleString('es-CO')}`))}
-                        </p>
-                      )}
-                    </div>
-                    <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded-md ${
-                      (mov as any).anulado ? 'bg-slate-200 text-slate-500 dark:bg-slate-800 dark:text-slate-400 line-through' :
+
+                  {/* Lado derecho: Monto y Badge */}
+                  <div className="flex flex-col items-end shrink-0 pl-1">
+                    {esIngresoInv ? (
+                      <span className="font-black text-sm text-sky-600 dark:text-sky-400 px-2 py-1 bg-sky-50 dark:bg-sky-950/40 rounded-xl">
+                        +{mov.cantidadAgregada || 1} un.
+                      </span>
+                    ) : (
+                      <p className={`font-black text-base sm:text-lg text-right ${
+                        (mov as any).anulado ? 'line-through text-slate-400 dark:text-slate-500 opacity-60' :
+                        mov.tipo === 'anulacion' ? 'text-rose-600 dark:text-rose-400' :
+                        mov.tipo === 'devolucion' || mov.tipo === 'egreso' ? 'text-amber-600 dark:text-amber-400' :
+                        mov.subtipo === 'retiro_item_separe' ? 'text-rose-600 dark:text-rose-400' :
+                        esEntregaSepare ? 'text-purple-600 dark:text-purple-400' :
+                        esSepare ? 'text-violet-600 dark:text-violet-400' :
+                        mov.tipo === 'fiado' ? 'text-rose-500' : (mov.tipo === 'venta' ? 'text-emerald-500' : 'text-blue-500')
+                      }`}>
+                        {(mov as any).anulado ? `(Anulado) $${Math.round(mov.monto || 0).toLocaleString('es-CO')}` :
+                         mov.subtipo === 'retiro_item_separe' ? `-${Math.round(mov.monto || 0).toLocaleString('es-CO')}` : (esEntregaSepare ? 'Entregado' : (mov.subtipo === 'apertura_separe_sin_abono' || (mov.monto === 0 && esSepare) ? 'Reservado ($0)' : `${mov.tipo === 'fiado' || mov.tipo === 'egreso' || mov.tipo === 'devolucion' || mov.tipo === 'anulacion' ? '-' : '+'}${Math.round(mov.monto || 0).toLocaleString('es-CO')}`))}
+                      </p>
+                    )}
+                    <span className={`text-[9.5px] font-black uppercase px-2 py-0.5 rounded-md mt-0.5 ${
+                      (mov as any).anulado ? 'bg-slate-200 text-slate-500 dark:bg-slate-800 dark:text-slate-400' :
                       esIngresoInv ? 'bg-sky-100 text-sky-700 dark:bg-sky-950/40 dark:text-sky-300' :
                       mov.tipo === 'devolucion' ? 'bg-amber-100 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300' :
                       mov.tipo === 'egreso' ? 'bg-amber-100 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300' :
@@ -1174,6 +1075,127 @@ Gracias por seguir con nosotros.
                     }`}>
                       {textoBadge}
                     </span>
+                  </div>
+                </div>
+
+                {/* FILA MEDIA: Descripción y saldos de fiado/abono */}
+                <div className="pl-2 space-y-1">
+                  <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 line-clamp-2">{mov.descripcion}</p>
+                  {(mov as any).montoFiadoAsociado ? (
+                    <span className="inline-block text-[10px] font-bold text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/40 px-1.5 py-0.5 rounded border border-amber-200 dark:border-amber-800">
+                      Cobrado: ${Math.round(mov.monto || 0).toLocaleString('es-CO')} • Fiado restante: ${Math.round((mov as any).montoFiadoAsociado).toLocaleString('es-CO')}
+                    </span>
+                  ) : null}
+                  {(mov as any).abonoInicialAsociado ? (
+                    <span className="inline-block text-[10px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40 px-1.5 py-0.5 rounded border border-emerald-200 dark:border-emerald-800">
+                      Deuda: ${Math.round(mov.monto || 0).toLocaleString('es-CO')} • Abono inicial recibido: ${Math.round((mov as any).abonoInicialAsociado).toLocaleString('es-CO')}
+                    </span>
+                  ) : null}
+                </div>
+
+                {/* RECUADRO DE ANULACIÓN (Ancho completo, cómodo y legible) */}
+                {(mov as any).anulado && (
+                  <div className="mx-2 text-xs text-rose-700 dark:text-rose-300 bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900/50 rounded-xl p-2.5 space-y-1">
+                    <div className="flex items-start gap-1.5">
+                      <Ban size={14} className="text-rose-500 mt-0.5 shrink-0" />
+                      <div className="min-w-0 flex-1">
+                        <span className="font-bold">Motivo de Anulación: </span>
+                        <span>{(mov as any).motivoAnulacion || 'Cancelado por error'}</span>
+                      </div>
+                    </div>
+                    {((mov as any).anuladoPor || (mov as any).anuladoPorNombre) && (
+                      <div className="text-[10.5px] text-rose-500 font-medium pl-5 truncate">
+                        Por: {(mov as any).anuladoPor || (mov as any).anuladoPorNombre}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* FILA INFERIOR: Metadata a la izquierda y Botones de acción a la derecha */}
+                <div className="flex justify-between items-center pt-2 mt-0.5 border-t border-slate-100 dark:border-slate-800/80 pl-2">
+                  <div className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[10px] font-bold uppercase text-slate-400">
+                    {mov.registradoPor && (
+                      <span className="text-slate-500 dark:text-slate-400 inline-flex items-center gap-1">
+                        <User size={10} className="text-slate-400" />
+                        <span>{esIngresoInv ? `Inv: ${mov.registradoPor}` : mov.registradoPor}</span>
+                      </span>
+                    )}
+                    {mov.registradoPor && <span>•</span>}
+                    <span>
+                      {mov.fecha?.toDate ? mov.fecha.toDate().toLocaleDateString('es-CO', { day:'2-digit', month:'short', hour:'2-digit', minute:'2-digit' }) : (mov.fecha instanceof Date ? mov.fecha.toLocaleDateString('es-CO', { day:'2-digit', month:'short', hour:'2-digit', minute:'2-digit' }) : '')}
+                    </span>
+                  </div>
+
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    {!esIngresoInv && (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          abrirTicketDeMovimiento(mov);
+                        }}
+                        title="Imprimir Factura"
+                        className="p-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-blue-50 dark:hover:bg-blue-500/20 hover:text-blue-600 dark:hover:text-blue-400 transition-colors cursor-pointer"
+                      >
+                        <Printer size={15} />
+                      </button>
+                    )}
+                    {mov.tipo === 'abono' && !(mov as any).anulado && (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setModalAnularAbono({
+                            isOpen: true,
+                            movimiento: mov,
+                            cliente: clientes.find(c => c.id === mov.clienteId) || null
+                          });
+                        }}
+                        title="Anular Abono"
+                        className="p-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/40 dark:hover:bg-rose-900/50 text-rose-600 dark:text-rose-400 border border-rose-200 dark:border-rose-800 transition-colors cursor-pointer"
+                      >
+                        <RotateCcw size={15} />
+                      </button>
+                    )}
+                    {(mov.tipo === 'venta' || mov.tipo === 'fiado') && !(mov as any).anulado && !(mov as any).tieneDevolucion && puedeHacerDevolucion && (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setModalAnularVenta({ isOpen: true, venta: mov });
+                        }}
+                        title={mov.tipo === 'fiado' ? 'Anular Fiado' : 'Anular Venta'}
+                        className="p-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/40 dark:hover:bg-rose-900/50 text-rose-600 dark:text-rose-400 border border-rose-200 dark:border-rose-800 transition-colors cursor-pointer"
+                      >
+                        <Ban size={15} />
+                      </button>
+                    )}
+                    {(mov.tipo === 'venta' || mov.tipo === 'fiado') && mov.detalles && mov.detalles.length > 0 && !(mov as any).anulado && !(mov as any).tieneDevolucionTotal && puedeHacerDevolucion && (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setModalDevolucion({ isOpen: true, venta: mov });
+                        }}
+                        title="Hacer Devolución"
+                        className="p-1.5 rounded-lg bg-amber-50 hover:bg-amber-100 dark:bg-amber-900/30 dark:hover:bg-amber-900/50 text-amber-600 dark:text-amber-400 border border-amber-200 dark:border-amber-800 transition-colors cursor-pointer"
+                      >
+                        <RotateCcw size={15} />
+                      </button>
+                    )}
+                    {mov.tipo === 'devolucion' && mov.errorNotaCredito && !mov.notaCreditoElectronica && puedeHacerDevolucion && (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          reintentarNotaCredito(mov);
+                        }}
+                        title={`Nota Crédito DIAN pendiente: ${mov.errorNotaCredito}`}
+                        className="px-2 py-1 rounded-lg bg-rose-50 hover:bg-rose-100 dark:bg-rose-900/30 text-rose-600 dark:text-rose-400 border border-rose-200 dark:border-rose-800 text-[10px] font-black transition-colors cursor-pointer"
+                      >
+                        Reintentar NC
+                      </button>
+                    )}
                   </div>
                 </div>
               </div>
