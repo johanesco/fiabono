@@ -43,6 +43,24 @@ export default function LandingPage() {
   // Menú móvil abierto/cerrado
   const [menuMovilAbierto, setMenuMovilAbierto] = useState(false);
 
+  // Detección de Modo App (PWA instalada, TWA en Google Play o standalone)
+  const [esModoApp, setEsModoApp] = useState(false);
+  const [mostrarWebEnApp, setMostrarWebEnApp] = useState(false);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const isStandalone = 
+        window.matchMedia('(display-mode: standalone)').matches || 
+        (window.navigator as any).standalone === true || 
+        document.referrer.includes('android-app://') || 
+        window.location.search.includes('source=pwa') || 
+        window.location.search.includes('source=twa');
+      if (isStandalone) {
+        setEsModoApp(true);
+      }
+    }
+  }, []);
+
   // Estados para Onboarding Elegante de Google / Correo
   const [googleUserPendiente, setGoogleUserPendiente] = useState<{ uid: string; email: string; nombre: string; foto?: string } | null>(null);
   const [modalGoogleOnboarding, setModalGoogleOnboarding] = useState(false);
@@ -261,7 +279,7 @@ export default function LandingPage() {
               return;
             } else {
               setModalLandingInfo({ visible: false, tipo: null });
-              window.location.href = "/dashboard/inicio";
+              window.location.replace("/dashboard/inicio");
               return;
             }
           } catch (recovErr) {}
@@ -292,7 +310,7 @@ export default function LandingPage() {
       let ultimoError: unknown;
       for (let intento = 0; intento < 3; intento += 1) {
         try {
-          userDocSnap = await getDocFromServer(userDocRef);
+          userDocSnap = await getDoc(userDocRef);
           break;
         } catch (error) {
           ultimoError = error;
@@ -417,19 +435,15 @@ export default function LandingPage() {
       const esMovilOTablet = typeof navigator !== 'undefined' && (/Android|iPhone|iPad|iPod/i.test(navigator.userAgent) || esIPadOS);
       const esIOS = typeof navigator !== 'undefined' && (/iPhone|iPad|iPod/i.test(navigator.userAgent) || esIPadOS);
 
-      // En Android y PWA preferimos redirect para evitar bloqueos del navegador; en iOS/iPad y desktop intentamos popup
-      if (esMovilOTablet && !esIOS) {
-        setProcesandoRetornoGoogle(true);
-        await signInWithRedirect(auth, provider);
-        return;
-      }
-
+      // Intentamos SIEMPRE signInWithPopup primero en todos los entornos (desktop, Android, iOS, PWA y TWA).
+      // En Chrome Android y TWA de Google Play, signInWithPopup abre una Custom Tab superpuesta nativa que
+      // no recarga la app y mantiene la sesión en memoria, resolviendo el bucle de regreso a la landing.
       let user = null;
       try {
         const resultado = await signInWithPopup(auth, provider);
         user = resultado.user;
       } catch (popupErr: any) {
-        // Fallback transparente: si el navegador en iOS/iPad/tablet bloquea el popup, usamos redirect
+        // Fallback: si el entorno bloquea estrictamente la ventana emergente, recurrimos a redirect
         if (popupErr.code === 'auth/popup-blocked' || popupErr.code === 'auth/cancelled-popup-request') {
           console.warn("Popup bloqueado o cancelado, reintentando vía redirect...", popupErr);
           setProcesandoRetornoGoogle(true);
@@ -713,6 +727,138 @@ export default function LandingPage() {
 
   return (
     <div className="min-h-screen w-full pb-24 md:pb-0 bg-slate-50 dark:bg-[#020617] text-slate-900 dark:text-slate-100 font-sans transition-colors duration-500 overflow-x-clip selection:bg-blue-600 selection:text-white">
+      {/* VISTA DE BIENVENIDA LIMPIA CUANDO SE ABRE DESDE LA APP INSTALADA DE PLAY STORE / PWA */}
+      {esModoApp && !mostrarWebEnApp ? (
+        <div className="min-h-screen w-full bg-[#020617] text-white flex flex-col justify-between p-6 sm:p-10 relative overflow-hidden select-none">
+          {/* Fondos luminosos sutiles */}
+          <div className="absolute -top-32 -left-32 w-80 h-80 bg-emerald-500/10 rounded-full blur-[100px] pointer-events-none" />
+          <div className="absolute top-1/2 -right-32 w-80 h-80 bg-blue-600/10 rounded-full blur-[100px] pointer-events-none" />
+          <div className="absolute -bottom-32 left-1/3 w-96 h-96 bg-emerald-600/10 rounded-full blur-[120px] pointer-events-none" />
+
+          {/* Barra superior nativa */}
+          <div className="relative z-10 flex items-center justify-between w-full max-w-md mx-auto pt-2">
+            <div className="flex items-center gap-2.5">
+              <IsotipoFiabono size={32} />
+              <span className="text-lg font-black tracking-tight text-white">Fiabono</span>
+            </div>
+            <div className="flex items-center gap-1.5 bg-slate-900/90 border border-slate-800/80 px-3 py-1 rounded-full text-[11px] font-bold text-slate-300">
+              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+              <span>App Oficial</span>
+            </div>
+          </div>
+
+          {/* Bloque central de bienvenida */}
+          <div className="relative z-10 flex flex-col items-center text-center max-w-md mx-auto my-auto py-8 w-full">
+            <div className="relative mb-6">
+              <div className="w-24 h-24 rounded-3xl bg-gradient-to-tr from-emerald-500 to-teal-400 p-0.5 shadow-2xl shadow-emerald-500/25">
+                <div className="w-full h-full bg-[#0b1329] rounded-[22px] flex items-center justify-center">
+                  <IsotipoFiabono size={52} />
+                </div>
+              </div>
+              <div className="absolute -bottom-2 -right-2 bg-emerald-500 text-slate-950 p-1.5 rounded-xl shadow-lg font-black">
+                <Sparkles size={16} />
+              </div>
+            </div>
+
+            <h1 className="text-2xl sm:text-3xl font-black text-white tracking-tight leading-snug mb-3">
+              Tu negocio en orden,<br />
+              <span className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 via-teal-300 to-cyan-400">
+                tus cuentas al día.
+              </span>
+            </h1>
+            
+            <p className="text-xs sm:text-sm text-slate-400 max-w-xs leading-relaxed mb-8">
+              El sistema ágil para controlar tus ventas, fiados, abonos y catálogo de productos.
+            </p>
+
+            {/* Botones de acción vertical de fácil alcance para el pulgar */}
+            <div className="w-full flex flex-col gap-3">
+              {/* 1. Botón Google */}
+              <button
+                type="button"
+                onClick={iniciarConGoogle}
+                disabled={cargandoGoogle || procesandoRetornoGoogle}
+                className="w-full flex items-center justify-center gap-3 bg-white hover:bg-slate-100 text-slate-900 font-black py-4 px-5 rounded-2xl shadow-xl shadow-white/5 active:scale-[0.98] transition-all disabled:opacity-60 cursor-pointer text-sm"
+              >
+                {cargandoGoogle ? (
+                  <div className="w-5 h-5 border-2 border-slate-400 border-t-emerald-600 rounded-full animate-spin" />
+                ) : (
+                  <>
+                    <svg className="w-5 h-5 shrink-0" viewBox="0 0 24 24">
+                      <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
+                      <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
+                      <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z" />
+                      <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z" />
+                    </svg>
+                    <span>Continuar con Google</span>
+                  </>
+                )}
+              </button>
+
+              {/* 2. Botón Correo */}
+              <button
+                type="button"
+                onClick={() => {
+                  setAuthErrores({ email: "", password: "", confirmPassword: "", general: "" });
+                  setModalLandingInfo({ visible: true, tipo: 'login' });
+                }}
+                className="w-full flex items-center justify-center gap-2.5 bg-slate-900/90 hover:bg-slate-800/90 border border-slate-800 text-slate-200 font-bold py-3.5 px-5 rounded-2xl active:scale-[0.98] transition-all cursor-pointer text-xs sm:text-sm"
+              >
+                <Mail size={17} className="text-slate-400" />
+                <span>Ingresar con correo y contraseña</span>
+              </button>
+
+              {/* 3. Botón Registrarse */}
+              <button
+                type="button"
+                onClick={() => abrirRegistroConPlan('comercio')}
+                className="w-full flex items-center justify-center gap-2 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/30 text-emerald-400 font-bold py-3 px-5 rounded-2xl active:scale-[0.98] transition-all cursor-pointer text-xs"
+              >
+                <Store size={15} />
+                <span>¿Negocio nuevo? Regístrate gratis (14 días)</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Pie inferior */}
+          <div className="relative z-10 flex flex-col items-center gap-3 w-full max-w-md mx-auto pb-4 text-center">
+            <button
+              type="button"
+              onClick={() => {
+                setMostrarWebEnApp(true);
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+              }}
+              className="text-[11px] font-medium text-slate-400 hover:text-white transition-colors underline cursor-pointer"
+            >
+              ¿Quieres conocer más sobre Fiabono? Ver web informativa
+            </button>
+
+            <p className="text-[10px] text-slate-500">
+              Al continuar aceptas los Términos del Servicio y la Política de Privacidad de Fiabono.
+            </p>
+          </div>
+        </div>
+      ) : (
+        <>
+          {/* BARRA SUPERIOR RETORNO A LA APP SI SE ESTÁ EN MODO APP */}
+          {esModoApp && mostrarWebEnApp && (
+            <div className="bg-slate-900 text-white px-4 py-2.5 flex items-center justify-between text-xs border-b border-slate-800 sticky top-0 z-[600]">
+              <div className="flex items-center gap-2">
+                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                <span className="font-bold text-slate-200">Modo App Fiabono</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setMostrarWebEnApp(false);
+                  window.scrollTo({ top: 0, behavior: 'smooth' });
+                }}
+                className="bg-emerald-600 hover:bg-emerald-500 text-white font-black px-3 py-1 rounded-lg text-xs cursor-pointer active:scale-95 transition-all"
+              >
+                ← Volver al Acceso
+              </button>
+            </div>
+          )}
       
       {/* 1. TOP ANNOUNCEMENT BANNER */}
       <div className="bg-gradient-to-r from-emerald-600 via-teal-600 to-slate-900 text-white text-[11px] sm:text-xs font-black py-2 px-4 text-center flex items-center justify-center gap-2">
@@ -2480,6 +2626,9 @@ export default function LandingPage() {
           </div>
         </div>
       </div>
+
+              </>
+      )}
 
       {/* OVERLAY DE CARGA ELEGANTE AL RETORNAR DE GOOGLE O NAVEGAR */}
       {procesandoRetornoGoogle && (
