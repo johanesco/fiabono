@@ -105,7 +105,7 @@ function ClientesContenido() {
   // Estados de interfaz
   const [busqueda, setBusqueda] = useState("");
   const [mostrarIndicadores, setMostrarIndicadores] = useState(false);
-  const [filtroActivo, setFiltroActivo] = useState<'todos' | 'con_deuda' | 'en_riesgo' | 'mayor_deuda' | 'vip' | 'al_dia'>('todos');
+  const [filtroActivo, setFiltroActivo] = useState<'todos' | 'con_deuda' | 'con_separe' | 'en_riesgo' | 'mayor_deuda' | 'vip' | 'al_dia'>('todos');
   const [etiquetaFiltro, setEtiquetaFiltro] = useState<string | null>(null);
 
   // Modales
@@ -421,17 +421,31 @@ function ClientesContenido() {
   // 4. Métricas Consolidadas Macro
   const metricasMacro = useMemo(() => {
     const totalClientes = clientesConAnalisis.length;
+
+    // Fiados reales en la calle (mercancía entregada a crédito)
+    const conFiado = clientesConAnalisis.filter((c) => (c.deuda || 0) > 0);
+    const carteraFiadosTotal = conFiado.reduce((acc, c) => acc + (c.deuda || 0), 0);
+
+    // Separes activos en bodega (mercancía apartada con saldo por cobrar)
+    const conSepare = clientesConAnalisis.filter((c) => (c.saldoSeparesActivos || 0) > 0);
+    const saldoSeparesTotal = conSepare.reduce((acc, c) => acc + (c.saldoSeparesActivos || 0), 0);
+
+    // Compromiso total combinado (Fiados + Separes)
     const conDeuda = clientesConAnalisis.filter((c) => (c.totalCompromiso || 0) > 0);
     const carteraTotal = conDeuda.reduce((acc, c) => acc + (c.totalCompromiso || 0), 0);
 
     const enRiesgo = clientesConAnalisis.filter((c) => c.semaforo === 'riesgo');
-    const dineroEnRiesgo = enRiesgo.reduce((acc, c) => acc + (c.totalCompromiso || 0), 0);
+    const dineroEnRiesgo = enRiesgo.reduce((acc, c) => acc + (c.deuda > 0 ? c.deuda : (c.totalCompromiso || 0)), 0);
 
     const vips = clientesConAnalisis.filter((c) => c.esVip);
     const alDia = clientesConAnalisis.filter((c) => (c.totalCompromiso || 0) <= 0);
 
     return {
       totalClientes,
+      conFiadoCount: conFiado.length,
+      carteraFiadosTotal,
+      conSepareCount: conSepare.length,
+      saldoSeparesTotal,
       conDeudaCount: conDeuda.length,
       carteraTotal,
       enRiesgoCount: enRiesgo.length,
@@ -487,7 +501,8 @@ function ClientesContenido() {
       }
 
       // Filtro de pestaña
-      if (filtroActivo === 'con_deuda') return (c.totalCompromiso || 0) > 0;
+      if (filtroActivo === 'con_deuda') return (c.deuda || 0) > 0;
+      if (filtroActivo === 'con_separe') return (c.saldoSeparesActivos || 0) > 0;
       if (filtroActivo === 'en_riesgo') return c.semaforo === 'riesgo';
       if (filtroActivo === 'mayor_deuda') return (c.totalCompromiso || 0) > 0;
       if (filtroActivo === 'vip') return c.esVip;
@@ -496,7 +511,13 @@ function ClientesContenido() {
       return true;
     }).sort((a, b) => {
       // Ordenar por prioridad: primero los de mayor riesgo/deuda
-      if (filtroActivo === 'en_riesgo' || filtroActivo === 'con_deuda' || filtroActivo === 'mayor_deuda') {
+      if (filtroActivo === 'con_separe') {
+        return (b.saldoSeparesActivos || 0) - (a.saldoSeparesActivos || 0);
+      }
+      if (filtroActivo === 'con_deuda') {
+        return (b.deuda || 0) - (a.deuda || 0);
+      }
+      if (filtroActivo === 'en_riesgo' || filtroActivo === 'mayor_deuda') {
         return (b.totalCompromiso || 0) - (a.totalCompromiso || 0);
       }
       if (filtroActivo === 'vip') {
@@ -519,7 +540,8 @@ function ClientesContenido() {
 
   const filtroActivoNombre = useMemo(() => {
     let base = "Todos los clientes";
-    if (filtroActivo === 'con_deuda') base = "Con Deuda Activa";
+    if (filtroActivo === 'con_deuda') base = "Con Fiados en Calle";
+    else if (filtroActivo === 'con_separe') base = "Con Separes en Bodega";
     else if (filtroActivo === 'en_riesgo') base = "En Riesgo (+30 días)";
     else if (filtroActivo === 'mayor_deuda') base = "Mayor Deuda";
     else if (filtroActivo === 'vip') base = "Clientes VIP";
@@ -1971,9 +1993,16 @@ Gracias por seguir con nosotros.
               </span>
             </h1>
             <p className="text-[11px] sm:text-xs text-slate-500 dark:text-slate-400 truncate">
-              {metricasMacro.conDeudaCount > 0 
-                ? `${metricasMacro.conDeudaCount} con saldo pendiente (${metricasMacro.enRiesgoCount} en riesgo)` 
-                : 'Todas las cuentas están al día'}
+              {metricasMacro.conFiadoCount > 0 || metricasMacro.conSepareCount > 0 ? (
+                <>
+                  {metricasMacro.conFiadoCount > 0 && `${metricasMacro.conFiadoCount} con fiado`}
+                  {metricasMacro.conFiadoCount > 0 && metricasMacro.conSepareCount > 0 && " • "}
+                  {metricasMacro.conSepareCount > 0 && `${metricasMacro.conSepareCount} con separe`}
+                  {metricasMacro.enRiesgoCount > 0 && ` (${metricasMacro.enRiesgoCount} en riesgo)`}
+                </>
+              ) : (
+                'Todas las cuentas están al día'
+              )}
             </p>
           </div>
         </div>
@@ -2032,7 +2061,7 @@ Gracias por seguir con nosotros.
       </button>
 
       {mostrarIndicadores && <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3 animate-in fade-in slide-in-from-top-1 duration-150">
-        {/* Cartera Total */}
+        {/* Cartera Total (Fiados) */}
         <button
           type="button"
           onClick={() => setFiltroActivo('con_deuda')}
@@ -2047,11 +2076,16 @@ Gracias por seguir con nosotros.
             <DollarSign size={13} className="text-amber-500" />
           </div>
           <p className="text-sm sm:text-lg font-black text-amber-600 dark:text-amber-400 truncate">
-            ${Math.round(metricasMacro.carteraTotal).toLocaleString('es-CO')}
+            ${Math.round(metricasMacro.carteraFiadosTotal).toLocaleString('es-CO')}
           </p>
-          <span className="text-[10px] text-slate-400 mt-0.5">
-            {metricasMacro.conDeudaCount} fiados activos
-          </span>
+          <div className="text-[10px] text-slate-400 mt-0.5 space-y-0.5 leading-tight">
+            <span>{metricasMacro.conFiadoCount} {metricasMacro.conFiadoCount === 1 ? 'fiado activo' : 'fiados activos'}</span>
+            {metricasMacro.saldoSeparesTotal > 0 && (
+              <span className="text-violet-600 dark:text-violet-400 font-bold block truncate">
+                • {metricasMacro.conSepareCount} separe (${Math.round(metricasMacro.saldoSeparesTotal).toLocaleString('es-CO')})
+              </span>
+            )}
+          </div>
         </button>
 
         {/* Cartera en Riesgo */}
@@ -2193,11 +2227,28 @@ Gracias por seguir con nosotros.
                 : 'bg-white dark:bg-[#0f172a] text-amber-600 dark:text-amber-400 border border-slate-200 dark:border-slate-800 hover:border-amber-300'
             }`}
           >
-            <span>Con Deuda</span>
+            <span>Con Fiado</span>
             <span className="text-[10px] font-black px-1.5 rounded-full bg-amber-100 dark:bg-amber-500/20 text-amber-700 dark:text-amber-300">
-              {metricasMacro.conDeudaCount}
+              {metricasMacro.conFiadoCount}
             </span>
           </button>
+
+          {metricasMacro.conSepareCount > 0 && (
+            <button
+              type="button"
+              onClick={() => setFiltroActivo('con_separe')}
+              className={`px-3 py-1.5 rounded-xl font-bold shrink-0 transition cursor-pointer flex items-center gap-1 ${
+                filtroActivo === 'con_separe'
+                  ? 'bg-violet-600 text-white shadow-xs'
+                  : 'bg-white dark:bg-[#0f172a] text-violet-600 dark:text-violet-400 border border-slate-200 dark:border-slate-800 hover:border-violet-300'
+              }`}
+            >
+              <span>🔖 Con Separe</span>
+              <span className="text-[10px] font-black px-1.5 rounded-full bg-violet-100 dark:bg-violet-500/20 text-violet-700 dark:text-violet-300">
+                {metricasMacro.conSepareCount}
+              </span>
+            </button>
+          )}
 
           <button
             type="button"
