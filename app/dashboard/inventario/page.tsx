@@ -2887,9 +2887,9 @@ export default function InventarioPage() {
                     setModalExportarQR(true);
                   }} 
                   className="bg-white/20 hover:bg-white/30 px-2.5 2xl:px-3 py-2 rounded-xl font-bold text-xs flex items-center gap-1.5 transition-colors backdrop-blur-sm shadow-sm cursor-pointer whitespace-nowrap"
-                  title="Imprimir o exportar etiquetas con códigos QR"
+                  title="Imprimir o exportar etiquetas de productos (Código de Barras o QR)"
                 >
-                  <Printer size={15}/> <span>Etiquetas QR</span>
+                  <Printer size={15}/> <span>Etiquetas</span>
                   {!datosSesion?.esPro && <Crown size={12} className="text-amber-300 ml-0.5" />}
                 </button>
               </div>
@@ -2992,7 +2992,7 @@ export default function InventarioPage() {
                       >
                         <div className="flex items-center gap-2">
                           <Printer size={16} className="text-indigo-600"/>
-                          <span>Etiquetas QR Adhesivas</span>
+                          <span>Imprimir Etiquetas</span>
                         </div>
                         {!datosSesion?.esPro && <Crown size={12} className="text-amber-500" />}
                       </button>
@@ -3454,8 +3454,8 @@ export default function InventarioPage() {
           {vistaActual === 'lista' && (
             <div className="space-y-3">
               
-              {/* --- A. VISTA TARJETAS MÓVILES (< sm) : COMPACTAS DE ALTA DENSIDAD (2 FILAS) --- */}
-              <div className="block sm:hidden space-y-2">
+              {/* --- A. VISTA TARJETAS MÓVILES (< sm) : REDISEÑADAS EN 3 FILAS SIN COLISIONES --- */}
+              <div className="block sm:hidden space-y-2.5">
                 {inventarioProcesado.slice(0, limiteRender).map(prod => {
                   const estaSeleccionado = productosSeleccionados.includes(prod.id);
                   const disponible = tieneStockDisponible(prod);
@@ -3468,9 +3468,9 @@ export default function InventarioPage() {
                           : 'border-slate-200 dark:border-slate-800 hover:border-slate-300'
                       }`}
                     >
-                      {/* Fila 1: Checkbox + Foto + Nombre + SKU + Precio */}
+                      {/* Fila 1: Checkbox + Foto + Nombre y SKU a la izquierda | Precio destacado a la derecha */}
                       <div className="flex items-center justify-between gap-2">
-                        <div className="flex items-center gap-2 min-w-0 flex-1">
+                        <div className="flex items-center gap-2.5 min-w-0 flex-1">
                           <button 
                             type="button" 
                             onClick={() => toggleSeleccionProducto(prod)}
@@ -3487,96 +3487,97 @@ export default function InventarioPage() {
                               src={prod.imagen}
                               alt={prod.nombre}
                               onClick={() => setFotoLightbox(prod.imagen)}
-                              className="w-9 h-9 rounded-xl object-cover border border-slate-200 dark:border-slate-700 cursor-pointer hover:scale-105 transition-transform shrink-0 shadow-xs"
+                              className="w-10 h-10 rounded-xl object-cover border border-slate-200 dark:border-slate-700 cursor-pointer hover:scale-105 transition-transform shrink-0 shadow-xs"
                               title={`Ver foto de "${prod.nombre}"`}
                             />
                           )}
-                          <div className="min-w-0 flex-1 flex items-baseline gap-1.5 truncate">
+                          <div className="min-w-0 flex-1">
                             <h4 className="font-black text-slate-900 dark:text-white text-sm truncate leading-tight">
                               {prod.nombre}
                             </h4>
                             {prod.sku && (
-                              <span className="text-[10px] text-slate-400 font-mono shrink-0 hidden xs:inline">
-                                {prod.sku}
+                              <span className="text-[10px] text-slate-400 font-mono block truncate mt-0.5">
+                                SKU: {prod.sku}
                               </span>
                             )}
                           </div>
                         </div>
 
-                        <span className="font-black text-sm text-emerald-600 dark:text-emerald-400 shrink-0">
-                          ${(prod.precioVenta || 0).toLocaleString('es-CO')}
-                        </span>
+                        <div className="text-right shrink-0">
+                          <span className="font-black text-sm text-emerald-600 dark:text-emerald-400">
+                            $${(prod.precioVenta || 0).toLocaleString('es-CO')}
+                          </span>
+                        </div>
                       </div>
 
-                      {/* Fila 2: Zona de Etiquetas (Unidades + Categoría) a la izquierda | Acciones a la derecha */}
-                      <div className="flex items-center justify-between gap-1.5 mt-2 pt-2 border-t border-slate-100 dark:border-slate-800/70">
-                        {/* Zona de Etiquetas: Unidades y Categoría juntas al lado */}
-                        <div className="flex items-center gap-1 min-w-0 flex-1">
+                      {/* Fila 2: Stock + Categoría a la izquierda | Acciones de Gestión (Editar / Eliminar) a la derecha */}
+                      <div className="flex items-center justify-between gap-2 mt-2 pt-2 border-t border-slate-100 dark:border-slate-800/70">
+                        <div className="flex items-center gap-1.5 min-w-0 flex-1 flex-wrap">
                           {renderStockBadge(prod, 'movil')}
-                          <span className="inline-flex rounded-md bg-blue-50 text-blue-700 dark:bg-blue-500/10 dark:text-blue-300 px-1.5 py-0.5 text-[10px] font-bold border border-blue-100 dark:border-blue-900/40 truncate max-w-[85px] shrink-0">
+                          <span className="inline-flex rounded-md bg-blue-50 text-blue-700 dark:bg-blue-500/10 dark:text-blue-300 px-2 py-0.5 text-[10px] font-bold border border-blue-100 dark:border-blue-900/40 truncate max-w-[130px] shrink-0">
                             {normalizarCategoria(prod.categoria)}
                           </span>
                         </div>
 
-                        {/* Botones de Acción Compactos */}
-                        <div className="flex items-center gap-1 shrink-0">
-                          <button 
-                            onClick={() => despacharAVenta([prod])} 
-                            disabled={!disponible}
-                            className={`inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-black transition-all ${
-                              !disponible 
-                                ? 'bg-slate-100 text-slate-400 cursor-not-allowed opacity-50' 
-                                : 'bg-emerald-50 hover:bg-emerald-600 text-emerald-700 hover:text-white active:scale-95 shadow-sm'
-                            }`}
-                          >
-                            <ShoppingCart size={12} /> <span>Vender</span>
-                          </button>
-                          <button 
-                            onClick={() => despacharAFiar([prod])} 
-                            disabled={!disponible}
-                            className={`inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-black transition-all ${
-                              !disponible 
-                                ? 'bg-slate-100 text-slate-400 cursor-not-allowed opacity-50' 
-                                : 'bg-rose-50 hover:bg-rose-600 text-rose-700 hover:text-white active:scale-95 shadow-sm'
-                            }`}
-                          >
-                            <Receipt size={12} /> <span>Fiar</span>
-                          </button>
-                          {moduloSepareActivo && (
+                        {(esAdmin || puedeEditarInventario) && (
+                          <div className="flex items-center gap-1 shrink-0">
                             <button 
-                              onClick={() => despacharASepare([prod])} 
-                              disabled={!disponible}
-                              className={`inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-black transition-all ${
-                                !disponible 
-                                  ? 'bg-slate-100 text-slate-400 cursor-not-allowed opacity-50' 
-                                  : 'bg-violet-50 hover:bg-violet-600 text-violet-700 hover:text-white active:scale-95 shadow-sm'
-                              }`}
+                              onClick={() => abrirEdicion(prod)} 
+                              className="p-1.5 hover:bg-blue-50 text-slate-400 hover:text-blue-600 rounded-lg transition-colors border border-transparent hover:border-blue-200"
+                              title="Editar producto"
                             >
-                              <Bookmark size={12} /> <span>Separe</span>
+                              <Edit3 size={14}/>
                             </button>
-                          )}
-
-                          {(esAdmin || puedeEditarInventario) && (
-                            <div className="flex items-center ml-0.5">
+                            {esAdmin && (
                               <button 
-                                onClick={() => abrirEdicion(prod)} 
-                                className="p-1 hover:bg-blue-50 text-slate-400 hover:text-blue-600 rounded-md transition-colors"
-                                title="Editar"
+                                onClick={() => setProductoAEliminar(prod)} 
+                                className="p-1.5 hover:bg-rose-50 text-slate-400 hover:text-rose-500 rounded-lg transition-colors border border-transparent hover:border-rose-200"
+                                title="Eliminar producto"
                               >
-                                <Edit3 size={13}/>
+                                <Trash2 size={14}/>
                               </button>
-                              {esAdmin && (
-                                <button 
-                                  onClick={() => setProductoAEliminar(prod)} 
-                                  className="p-1 hover:bg-rose-50 text-slate-400 hover:text-rose-500 rounded-md transition-colors"
-                                  title="Eliminar"
-                                >
-                                  <Trash2 size={13}/>
-                                </button>
-                              )}
-                            </div>
-                          )}
-                        </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Fila 3: Botones táctiles de pulgar (Vender / Fiar / Separe) */}
+                      <div className={`grid ${moduloSepareActivo ? 'grid-cols-3' : 'grid-cols-2'} gap-1.5 mt-2.5`}>
+                        <button 
+                          onClick={() => despacharAVenta([prod])} 
+                          disabled={!disponible}
+                          className={`inline-flex items-center justify-center gap-1 py-1.5 px-2 rounded-xl text-xs font-black transition-all ${
+                            !disponible 
+                              ? 'bg-slate-100 text-slate-400 cursor-not-allowed opacity-50 dark:bg-slate-800 dark:text-slate-600' 
+                              : 'bg-emerald-50 hover:bg-emerald-600 text-emerald-700 hover:text-white dark:bg-emerald-950/40 dark:text-emerald-400 dark:hover:bg-emerald-600 dark:hover:text-white active:scale-95 shadow-xs border border-emerald-200 dark:border-emerald-800/60'
+                          }`}
+                        >
+                          <ShoppingCart size={13} /> <span>Vender</span>
+                        </button>
+                        <button 
+                          onClick={() => despacharAFiar([prod])} 
+                          disabled={!disponible}
+                          className={`inline-flex items-center justify-center gap-1 py-1.5 px-2 rounded-xl text-xs font-black transition-all ${
+                            !disponible 
+                              ? 'bg-slate-100 text-slate-400 cursor-not-allowed opacity-50 dark:bg-slate-800 dark:text-slate-600' 
+                              : 'bg-rose-50 hover:bg-rose-600 text-rose-700 hover:text-white dark:bg-rose-950/40 dark:text-rose-400 dark:hover:bg-rose-600 dark:hover:text-white active:scale-95 shadow-xs border border-rose-200 dark:border-rose-800/60'
+                          }`}
+                        >
+                          <Receipt size={13} /> <span>Fiar</span>
+                        </button>
+                        {moduloSepareActivo && (
+                          <button 
+                            onClick={() => despacharASepare([prod])} 
+                            disabled={!disponible}
+                            className={`inline-flex items-center justify-center gap-1 py-1.5 px-2 rounded-xl text-xs font-black transition-all ${
+                              !disponible 
+                                ? 'bg-slate-100 text-slate-400 cursor-not-allowed opacity-50 dark:bg-slate-800 dark:text-slate-600' 
+                              : 'bg-violet-50 hover:bg-violet-600 text-violet-700 hover:text-white dark:bg-violet-950/40 dark:text-violet-400 dark:hover:bg-violet-600 dark:hover:text-white active:scale-95 shadow-xs border border-violet-200 dark:border-violet-800/60'
+                            }`}
+                          >
+                            <Bookmark size={13} /> <span>Separe</span>
+                          </button>
+                        )}
                       </div>
                     </div>
                   );
@@ -3869,42 +3870,47 @@ export default function InventarioPage() {
             </div>
           )}
 
-          {/* BARRA FLOTANTE DE DESPACHO MASIVO Y ETIQUETAS QR (FLOTA SOBRE EL BOTTOMNAV EN MÓVIL) */}
+          {/* BARRA FLOTANTE DE DESPACHO MASIVO Y ETIQUETAS (FLOTA SOBRE EL BOTTOMNAV EN MÓVIL) */}
           {productosSeleccionados.length > 0 && (
-            <div className="fixed bottom-20 md:bottom-6 left-1/2 -translate-x-1/2 z-[110] max-w-3xl w-[94%] sm:w-auto bg-slate-900/95 dark:bg-[#020617]/95 backdrop-blur-md text-white p-2.5 sm:p-4 rounded-2xl sm:rounded-3xl shadow-2xl border border-slate-700/60 flex flex-col sm:flex-row items-center justify-between gap-2 sm:gap-4 animate-in slide-in-from-bottom-5 duration-300">
-              <div className="flex items-center justify-between w-full sm:w-auto gap-2 text-xs sm:text-sm">
-                <span className="bg-emerald-500 text-slate-950 font-black px-2.5 py-1 rounded-full text-[11px] sm:text-xs shrink-0">
-                  {productosSeleccionados.length} seleccionados
-                </span>
-                <span className="font-bold text-slate-200 truncate">
-                  Total: <strong className="text-emerald-400 font-black">${montoTotalSeleccionado.toLocaleString('es-CO')}</strong>
-                </span>
+            <div className="fixed bottom-20 md:bottom-6 left-1/2 -translate-x-1/2 z-[110] w-[95%] sm:w-auto max-w-4xl bg-slate-900/95 dark:bg-[#020617]/95 backdrop-blur-md text-white p-3 sm:px-5 sm:py-3 rounded-2xl md:rounded-full shadow-2xl border border-slate-700/60 flex flex-col sm:flex-row items-center justify-between gap-2.5 sm:gap-4 animate-in slide-in-from-bottom-5 duration-300">
+              
+              {/* Información de selección y total */}
+              <div className="flex items-center justify-between w-full sm:w-auto gap-3 text-xs sm:text-sm">
+                <div className="flex items-center gap-2">
+                  <span className="bg-emerald-500 text-slate-950 font-black px-2.5 py-1 rounded-full text-[11px] sm:text-xs shrink-0 shadow-sm">
+                    {productosSeleccionados.length} {productosSeleccionados.length === 1 ? 'sel.' : 'sel.'}
+                  </span>
+                  <span className="font-bold text-slate-200 whitespace-nowrap text-xs sm:text-sm">
+                    Total: <strong className="text-emerald-400 font-black">$${montoTotalSeleccionado.toLocaleString('es-CO')}</strong>
+                  </span>
+                </div>
                 <button
                   onClick={() => setProductosSeleccionados([])}
-                  className="sm:hidden p-1 hover:bg-slate-800 text-slate-400 hover:text-white rounded-lg transition-colors shrink-0"
+                  className="sm:hidden p-1.5 hover:bg-slate-800 text-slate-400 hover:text-white rounded-lg transition-colors shrink-0"
                   title="Cancelar selección"
                 >
                   <X size={16} />
                 </button>
               </div>
 
-              <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 w-full sm:w-auto justify-end">
+              {/* Botones de acción: Grid en móvil (2x2), fila continua en desktop */}
+              <div className="grid grid-cols-2 sm:flex sm:items-center gap-1.5 sm:gap-2 w-full sm:w-auto">
                 <button
                   onClick={() => despacharAVenta(productosSeleccionadosObj)}
-                  className="flex-1 sm:flex-none inline-flex items-center justify-center gap-1 bg-emerald-600 hover:bg-emerald-500 text-white font-black px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl text-xs uppercase tracking-wider transition-all shadow-md active:scale-95 cursor-pointer"
+                  className="inline-flex items-center justify-center gap-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-black px-3 sm:px-3.5 py-2 sm:py-2 rounded-xl sm:rounded-full text-xs uppercase tracking-wider transition-all shadow-md active:scale-95 cursor-pointer whitespace-nowrap"
                 >
                   <ShoppingCart size={14} /> <span>Vender ({productosSeleccionadosObj.filter(tieneStockDisponible).length})</span>
                 </button>
                 <button
                   onClick={() => despacharAFiar(productosSeleccionadosObj)}
-                  className="flex-1 sm:flex-none inline-flex items-center justify-center gap-1 bg-rose-600 hover:bg-rose-500 text-white font-black px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl text-xs uppercase tracking-wider transition-all shadow-md active:scale-95 cursor-pointer"
+                  className="inline-flex items-center justify-center gap-1.5 bg-rose-600 hover:bg-rose-500 text-white font-black px-3 sm:px-3.5 py-2 sm:py-2 rounded-xl sm:rounded-full text-xs uppercase tracking-wider transition-all shadow-md active:scale-95 cursor-pointer whitespace-nowrap"
                 >
                   <Receipt size={14} /> <span>Fiar ({productosSeleccionadosObj.filter(tieneStockDisponible).length})</span>
                 </button>
                 {moduloSepareActivo && (
                   <button
                     onClick={() => despacharASepare(productosSeleccionadosObj)}
-                    className="flex-1 sm:flex-none inline-flex items-center justify-center gap-1 bg-violet-600 hover:bg-violet-500 text-white font-black px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl text-xs uppercase tracking-wider transition-all shadow-md active:scale-95 cursor-pointer"
+                    className="inline-flex items-center justify-center gap-1.5 bg-violet-600 hover:bg-violet-500 text-white font-black px-3 sm:px-3.5 py-2 sm:py-2 rounded-xl sm:rounded-full text-xs uppercase tracking-wider transition-all shadow-md active:scale-95 cursor-pointer whitespace-nowrap"
                   >
                     <Bookmark size={14} /> <span>Separar ({productosSeleccionadosObj.filter(tieneStockDisponible).length})</span>
                     {!datosSesion?.esPro && <Crown size={12} className="text-amber-300 ml-0.5" />}
@@ -3916,8 +3922,8 @@ export default function InventarioPage() {
                       if (!datosSesion?.esPro) {
                         setModalUpsell({
                           visible: true,
-                          titulo: "Etiquetas Adhesivas QR para Productos",
-                          mensaje: "Genera e imprime planchas térmicas con Código QR, Nombre y Precio para pegar en tus prendas o estanterías y cobrar en 1 segundo.",
+                          titulo: "Etiquetas Adhesivas para Productos",
+                          mensaje: "Genera e imprime etiquetas con Código de Barras o QR, Nombre y Precio para pegar en tus prendas o estanterías y cobrar en 1 segundo.",
                           plan: 'pro'
                         });
                         return;
@@ -3925,14 +3931,14 @@ export default function InventarioPage() {
                       setOrigenExportacion('seleccionados');
                       setModalExportarQR(true);
                     }}
-                    className="flex-1 sm:flex-none inline-flex items-center justify-center gap-1 bg-indigo-600 hover:bg-indigo-500 text-white font-black px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl text-xs uppercase tracking-wider transition-all shadow-md active:scale-95 cursor-pointer"
+                    className="inline-flex items-center justify-center gap-1.5 bg-indigo-600 hover:bg-indigo-500 text-white font-black px-3 sm:px-3.5 py-2 sm:py-2 rounded-xl sm:rounded-full text-xs uppercase tracking-wider transition-all shadow-md active:scale-95 cursor-pointer whitespace-nowrap"
                   >
-                    <QrCode size={14} /> <span>QR ({productosSeleccionados.length})</span>
+                    <Tag size={14} /> <span>Etiquetas ({productosSeleccionados.length})</span>
                   </button>
                 )}
                 <button
                   onClick={() => setProductosSeleccionados([])}
-                  className="hidden sm:inline-flex p-2 hover:bg-slate-800 text-slate-400 hover:text-white rounded-xl transition-colors shrink-0 cursor-pointer"
+                  className="hidden sm:inline-flex p-2 hover:bg-slate-800 text-slate-400 hover:text-white rounded-full transition-colors shrink-0 cursor-pointer ml-1"
                   title="Cancelar selección"
                 >
                   <X size={16} />
