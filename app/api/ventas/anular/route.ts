@@ -76,31 +76,54 @@ export async function POST(request: Request) {
         throw new Error('TIENE_DEVOLUCION');
       }
 
-      // 1. Revertir inventario si la venta tenía productos vinculados
+      // 1. Revertir inventario si la venta tenía productos vinculados (o reactivar separe si provino de un traslado)
       const detalles = Array.isArray(mov.detalles) ? mov.detalles : [];
       const productosAfectados: Array<{ id: string; cantidad: number; nombre: string }> = [];
 
-      for (const d of detalles) {
-        const prodId = d.productoId || d.id;
-        const cant = Number(d.cantidad) || 0;
-        if (prodId && cant > 0) {
-          const prodRef = adminDb.collection('productos').doc(prodId);
-          const prodSnap = await transaction.get(prodRef);
-          if (prodSnap.exists) {
-            const prodData = prodSnap.data() as any;
-            if (prodData.usuarioId === cuentaPrincipalId) {
-              const stockActual = Number(prodData.stock) || 0;
-              transaction.update(prodRef, {
-                stock: stockActual + cant,
-                actualizadoEl: new Date()
-              });
-              productosAfectados.push({
-                id: prodId,
-                cantidad: cant,
-                nombre: prodData.nombre || d.descripcion || 'Producto'
-              });
+      if (!mov.idSepareOrigen) {
+        for (const d of detalles) {
+          const prodId = d.productoId || d.id;
+          const cant = Number(d.cantidad) || 0;
+          if (prodId && cant > 0) {
+            const prodRef = adminDb.collection('productos').doc(prodId);
+            const prodSnap = await transaction.get(prodRef);
+            if (prodSnap.exists) {
+              const prodData = prodSnap.data() as any;
+              if (prodData.usuarioId === cuentaPrincipalId) {
+                const stockActual = Number(prodData.stock) || 0;
+                transaction.update(prodRef, {
+                  stock: stockActual + cant,
+                  actualizadoEl: new Date()
+                });
+                productosAfectados.push({
+                  id: prodId,
+                  cantidad: cant,
+                  nombre: prodData.nombre || d.descripcion || 'Producto'
+                });
+              }
             }
           }
+        }
+      } else {
+        // Si el fiado provino de una entrega de Plan Separe, reactivar el Plan Separe
+        const sepRef = adminDb.collection('separes').doc(mov.idSepareOrigen);
+        const sepSnap = await transaction.get(sepRef);
+        if (sepSnap.exists && sepSnap.data()?.usuarioId === cuentaPrincipalId) {
+          const sepData = sepSnap.data() as any;
+          const itemsRestaurados = (sepData.items || []).map((it: any) => ({
+            ...it,
+            cantidadEntregada: 0,
+            entregadoCompleto: false
+          }));
+          transaction.update(sepRef, {
+            estado: 'activo',
+            saldoPendiente: Number(mov.monto || 0),
+            entregadoComoFiado: false,
+            subtipoEntrega: null,
+            idTransaccionCierre: null,
+            fechaCompletado: null,
+            items: itemsRestaurados
+          });
         }
       }
 

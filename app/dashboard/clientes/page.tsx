@@ -1063,6 +1063,7 @@ Gracias por seguir con nosotros.
                            (mov.subtipo === 'apertura_separe_sin_abono' || mov.monto === 0 ? '🔖 NUEVO SEPARE' : '🔖 ABONO SEPARE')
                          ) :
                          mov.tipo === 'abono' ? 'ABONO CUENTA' :
+                         mov.subtipo === 'traslado_separe_a_fiado' ? '📦 FIADO (DE SEPARE)' :
                          mov.tipo}
                       </span>
                       

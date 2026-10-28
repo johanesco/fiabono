@@ -12,7 +12,7 @@ import {
   MessageCircle, Printer, MoreVertical, Camera, AlertCircle, Banknote, 
   CreditCard, Smartphone, Zap, Clock, Calendar, ChevronDown, ChevronUp, 
   Trash2, User, Eye, Check, AlertTriangle, HelpCircle, FileText, RotateCcw, Package, Wallet, MapPin, Upload,
-  Sparkles
+  Sparkles, Receipt
 } from 'lucide-react';
 import toast from "react-hot-toast";
 import { useAuth } from "@/hooks/AuthContext";
@@ -43,6 +43,7 @@ function SeparesContenido() {
   const puedeAbonar = esAdmin || (datosSesion?.permisos?.abonar === true);
   const puedeEnviarWhatsApp = datosSesion?.puedeEnviarWhatsApp ?? true;
   const tienePermisoSepare = esAdmin || (datosSesion?.permisos?.planSepare === true);
+  const puedeEntregar = esAdmin || puedeVentaDirecta || tienePermisoSepare || puedeAbonar;
   const moduloSepareActivo = datosSesion?.moduloSepareActivo !== false;
 
   // Protección de acceso
@@ -230,6 +231,17 @@ function SeparesContenido() {
     abonoAdicional: number;
     nuevoTotal: number;
     nuevoSaldo: number;
+    ticketDatos: DatosFacturaProps;
+  } | null>(null);
+
+  // Estados para Modal Entregar Separe a Fiado
+  const [modalEntregarFiado, setModalEntregarFiado] = useState<boolean>(false);
+  const [procesandoEntregarFiado, setProcesandoEntregarFiado] = useState<boolean>(false);
+  const [modalExitoEntregaFiado, setModalExitoEntregaFiado] = useState<{
+    visible: boolean;
+    separe: any;
+    saldoTrasladado: number;
+    nuevaDeuda: number;
     ticketDatos: DatosFacturaProps;
   } | null>(null);
 
@@ -857,6 +869,106 @@ Estamos atentos para cualquier consulta.
 Gracias por tu compra y preferencia.
 
 *¡Te esperamos pronto!*`;
+
+    const celular = sep.clienteCelular?.replace(/\D/g, '') || "";
+    abrirEnlaceWhatsApp(celular, texto);
+  };
+
+  // Abrir Modal de Entrega a Fiado
+  const abrirModalEntregarFiado = (sep: any) => {
+    setSepareSeleccionado(sep);
+    setModalEntregarFiado(true);
+  };
+
+  // Confirmar Entrega de Separe Trasladando Saldo a Fiado
+  const confirmarEntregarFiado = async () => {
+    if (!separeSeleccionado) return;
+    if (procesandoEntregarFiado) return;
+
+    setProcesandoEntregarFiado(true);
+    try {
+      const token = await auth.currentUser?.getIdToken();
+      if (!token) throw new Error("Sesión inválida.");
+
+      const res = await fetch('/api/separes/entregar-fiado', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ separeId: separeSeleccionado.id })
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'No se pudo entregar el separe a fiado.');
+
+      reproducirSonidoCelebracion();
+      toast.success("¡Plan Separe entregado y saldo trasladado a fiado! 🛍️");
+      setModalEntregarFiado(false);
+
+      const ticketFiadoDatos: DatosFacturaProps = {
+        nombreNegocio,
+        telefonoNegocio: datosSesion?.telefonoNegocio || "",
+        correoNegocio: datosSesion?.correoNegocio || "",
+        logoNegocio: datosSesion?.logoNegocio || null,
+        nitNegocio: datosSesion?.nitNegocio || "",
+        direccionNegocio: datosSesion?.direccionNegocio || "",
+        mensajePieTicket: datosSesion?.mensajePieTicket || "Gracias por su compra y preferencia.",
+        nombreCliente: separeSeleccionado.clienteNombre,
+        celularCliente: separeSeleccionado.clienteCelular || "",
+        registradoPor: nombreUsuario,
+        fecha: new Date(),
+        tipo: 'fiado',
+        detalles: (separeSeleccionado.items || []).map((it: any) => ({
+          descripcion: it.descripcion,
+          cantidad: it.cantidad || 1,
+          valor: (Number(it.valor) || 0) * (it.cantidad || 1),
+          valorUnitario: Number(it.valor) || 0
+        })),
+        descripcionGeneral: `ENTREGA PLAN SEPARE A FIADO: Saldo pendiente trasladado $${Number(data.saldoTrasladado || 0).toLocaleString('es-CO')}`,
+        montoTotal: Number(data.saldoTrasladado || 0),
+        pagoRecibido: 0,
+        saldoNuevo: Number(data.nuevaDeuda || 0),
+        idTransaccion: data.movimientoId,
+        metodoPago: 'fiado'
+      };
+
+      setModalExitoEntregaFiado({
+        visible: true,
+        separe: separeSeleccionado,
+        saldoTrasladado: Number(data.saldoTrasladado || 0),
+        nuevaDeuda: Number(data.nuevaDeuda || 0),
+        ticketDatos: ticketFiadoDatos
+      });
+    } catch (e: any) {
+      console.error("Error entregando separe a fiado:", e);
+      toast.error(e?.message || "Error al entregar el separe a fiado");
+    } finally {
+      setProcesandoEntregarFiado(false);
+    }
+  };
+
+  // Enviar mensaje de entrega a fiado por WhatsApp
+  const enviarWhatsAppEntregaFiado = (sep: any, saldoTrasladado: number, nuevaDeuda: number) => {
+    let texto = `¡Hola, *${obtenerNombreCercano(sep.clienteNombre)}*! En *${nombreNegocio || 'nuestra tienda'}* te hemos entregado tu Plan Separe trasladando el saldo pendiente a tu cuenta fiada.
+
+===================
+*ENTREGA DE SEPARE A FIADO*
+===================
+
+*Artículos entregados:*
+`;
+    (sep.items || []).forEach((it: any) => {
+      texto += `- ${it.cantidad > 1 ? `${it.cantidad}x ` : ''}${it.descripcion}\n`;
+    });
+
+    texto += `\n*VALOR TOTAL SEPARE:* *$${(sep.total || 0).toLocaleString('es-CO')}*
+*TOTAL ABONADO:* *$${(sep.montoPagado || 0).toLocaleString('es-CO')}*
+*SALDO TRASLADADO A FIADO:* *$${saldoTrasladado.toLocaleString('es-CO')}*
+*NUEVA DEUDA EN CARTERA:* *$${nuevaDeuda.toLocaleString('es-CO')}*`;
+
+    if (sep.id && typeof window !== 'undefined') {
+      texto += `\n\n*Ver o descargar comprobante digital:*\n${window.location.origin}/t/${sep.id}`;
+    }
+
+    texto += `\n\n¡Gracias por tu compra y preferencia!`;
 
     const celular = sep.clienteCelular?.replace(/\D/g, '') || "";
     abrirEnlaceWhatsApp(celular, texto);
@@ -2016,12 +2128,12 @@ ${itemsTexto || '• Artículos apartados'}
                       <div className="shrink-0">
                         <span className={`text-[10px] font-black uppercase px-2.5 py-1 rounded-full ${
                           esCompletado
-                            ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300'
+                            ? (sep.entregadoComoFiado ? 'bg-amber-100 text-amber-800 dark:bg-amber-500/20 dark:text-amber-300 border border-amber-300/40' : 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300')
                             : esCancelado
                               ? 'bg-slate-200 text-slate-700 dark:bg-slate-800 dark:text-slate-300'
                               : 'bg-violet-100 text-violet-700 dark:bg-violet-500/20 dark:text-violet-300'
                         }`}>
-                          {sep.estado}
+                          {sep.entregadoComoFiado ? 'Entregado a Fiado' : sep.estado}
                         </span>
                       </div>
                     </div>
@@ -2209,13 +2321,13 @@ ${itemsTexto || '• Artículos apartados'}
                     return (
                       <div className="pt-2.5 border-t border-slate-100 dark:border-slate-800 space-y-2">
                         {/* FILA 1: ACCIONES OPERATIVAS Y TRANSACCIONALES */}
-                        <div className="flex items-center gap-2">
+                        <div className="flex flex-wrap sm:flex-nowrap items-center gap-2">
                           {/* Botón Abonar */}
                           {!esCompletado && !esCancelado && saldo > 0 && (
                             puedeAbonar ? (
                               <button
                                 onClick={() => abrirModalAbono(sep)}
-                                className="flex-1 bg-violet-600 hover:bg-violet-700 text-white font-bold text-xs py-2.5 px-3 rounded-xl shadow-sm transition-all flex items-center justify-center gap-1.5 active:scale-95 cursor-pointer whitespace-nowrap"
+                                className="flex-1 bg-violet-600 hover:bg-violet-700 text-white font-bold text-xs py-2.5 px-3 rounded-xl shadow-sm transition-all flex items-center justify-center gap-1.5 active:scale-95 cursor-pointer whitespace-nowrap min-w-[100px]"
                               >
                                 <Banknote size={14} className="shrink-0" />
                                 <span>Abonar</span>
@@ -2232,11 +2344,24 @@ ${itemsTexto || '• Artículos apartados'}
                             <button
                               type="button"
                               onClick={() => abrirModalEntregaParcial(sep)}
-                              className="flex-1 bg-amber-500 hover:bg-amber-600 text-white font-bold text-xs py-2.5 px-3 rounded-xl shadow-sm transition-all flex items-center justify-center gap-1.5 active:scale-95 cursor-pointer animate-in fade-in whitespace-nowrap"
+                              className="flex-1 bg-amber-500 hover:bg-amber-600 text-white font-bold text-xs py-2.5 px-3 rounded-xl shadow-sm transition-all flex items-center justify-center gap-1.5 active:scale-95 cursor-pointer animate-in fade-in whitespace-nowrap min-w-[110px]"
                               title={`Alcanza para entregar productos con los $${abonoDisponible.toLocaleString('es-CO')} libres abonados`}
                             >
                               <Package size={14} className="shrink-0" />
                               <span>Retiro Parcial</span>
+                            </button>
+                          )}
+
+                          {/* Botón Entregar a Fiado (Cuando tiene saldo > 0 y se lleva la mercancía) */}
+                          {!esCompletado && !esCancelado && saldo > 0 && puedeEntregar && (
+                            <button
+                              type="button"
+                              onClick={() => abrirModalEntregarFiado(sep)}
+                              className="flex-1 bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/40 dark:hover:bg-rose-900/50 text-rose-700 dark:text-rose-300 border border-rose-300/80 dark:border-rose-800/60 font-bold text-xs py-2.5 px-3 rounded-xl shadow-xs transition-all flex items-center justify-center gap-1.5 active:scale-95 cursor-pointer whitespace-nowrap min-w-[120px]"
+                              title="El cliente se lleva los artículos hoy y el saldo pendiente pasa a su cuenta fiada"
+                            >
+                              <Receipt size={14} className="shrink-0 text-rose-500" />
+                              <span>Entregar a Fiado</span>
                             </button>
                           )}
 
@@ -3119,6 +3244,183 @@ ${itemsTexto || '• Artículos apartados'}
                 type="button"
                 onClick={() => setModalExitoEntrega(null)}
                 className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3 rounded-xl transition-all text-xs cursor-pointer"
+              >
+                Cerrar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: ENTREGAR Y PASAR A FIADO */}
+      {modalEntregarFiado && separeSeleccionado && (() => {
+        const clienteInfo = mapaClientes[separeSeleccionado.clienteId];
+        const deudaActual = Number(clienteInfo?.deudaTotal || 0);
+        const saldoPendiente = Number(separeSeleccionado.saldoPendiente || 0);
+        const nuevaDeuda = deudaActual + saldoPendiente;
+        const totalSepare = Number(separeSeleccionado.total || 0);
+        const abonado = Number(separeSeleccionado.montoPagado || 0);
+
+        return (
+          <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center p-3 sm:p-4 z-[220] animate-in zoom-in-95 duration-200 overflow-y-auto">
+            <div className="bg-white dark:bg-[#0f172a] p-4 sm:p-6 rounded-3xl w-full max-w-md shadow-2xl border border-slate-100 dark:border-slate-800 space-y-3.5 my-auto max-h-[96vh] flex flex-col justify-between">
+              {/* Cabecera */}
+              <div className="flex justify-between items-center pb-2.5 border-b border-slate-100 dark:border-slate-800">
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <div className="p-2 bg-rose-100 dark:bg-rose-500/20 text-rose-600 dark:text-rose-400 rounded-xl shrink-0">
+                    <Receipt size={20} />
+                  </div>
+                  <div className="min-w-0">
+                    <h3 className="font-black text-slate-900 dark:text-white text-base leading-tight truncate">
+                      Entregar y Pasar a Fiado
+                    </h3>
+                    <p className="text-xs text-slate-500 dark:text-slate-400 truncate">
+                      Cliente: <strong className="text-slate-800 dark:text-slate-200">{separeSeleccionado.clienteNombre}</strong>
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setModalEntregarFiado(false)}
+                  className="p-1.5 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 transition cursor-pointer"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+
+              {/* Lista compacta de artículos a retirar */}
+              <div className="space-y-1.5">
+                <p className="text-[11px] font-black uppercase text-slate-500 dark:text-slate-400 flex items-center gap-1">
+                  <Package size={13} className="text-rose-500" />
+                  <span>Artículos a retirar físicamente:</span>
+                </p>
+                <div className="max-h-32 overflow-y-auto bg-slate-50 dark:bg-slate-900/60 p-2.5 rounded-2xl border border-slate-100 dark:border-slate-800/80 space-y-1.5">
+                  {(separeSeleccionado.items || []).map((it: any, idx: number) => (
+                    <div key={idx} className="flex items-center justify-between text-xs">
+                      <span className="font-bold text-slate-800 dark:text-slate-200 truncate pr-2">
+                        {it.cantidad > 1 ? `${it.cantidad}x ` : ''}{it.descripcion}
+                      </span>
+                      <span className="font-black text-slate-900 dark:text-white shrink-0">
+                        ${((Number(it.valor) || 0) * (it.cantidad || 1)).toLocaleString('es-CO')}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Resumen Contable y Financiero Impecable */}
+              <div className="bg-gradient-to-br from-rose-50/80 via-white to-amber-50/40 dark:from-rose-950/30 dark:via-slate-900 dark:to-slate-900 p-3.5 rounded-2xl border border-rose-200/80 dark:border-rose-900/40 space-y-2 text-xs">
+                <div className="flex justify-between items-center text-slate-600 dark:text-slate-400">
+                  <span>Valor total del Separe:</span>
+                  <span className="font-bold text-slate-900 dark:text-white">${totalSepare.toLocaleString('es-CO')}</span>
+                </div>
+                <div className="flex justify-between items-center text-slate-600 dark:text-slate-400">
+                  <span>Total ya abonado / pagado:</span>
+                  <span className="font-bold text-emerald-600 dark:text-emerald-400">-${abonado.toLocaleString('es-CO')}</span>
+                </div>
+                <div className="h-px bg-rose-200/60 dark:bg-rose-900/50 my-1" />
+                <div className="flex justify-between items-center text-rose-900 dark:text-rose-200 font-bold">
+                  <span>Saldo a trasladar a Fiado:</span>
+                  <span className="text-base font-black text-rose-600 dark:text-rose-400">${saldoPendiente.toLocaleString('es-CO')}</span>
+                </div>
+                <div className="flex justify-between items-center text-slate-500 dark:text-slate-400 text-[11px]">
+                  <span>Deuda actual en cartera:</span>
+                  <span>${Math.max(0, deudaActual).toLocaleString('es-CO')}</span>
+                </div>
+                <div className="flex justify-between items-center text-slate-700 dark:text-slate-300 font-bold pt-1 border-t border-slate-200/60 dark:border-slate-800">
+                  <span>Nueva deuda total del cliente:</span>
+                  <span className="font-black text-rose-600 dark:text-rose-400">${Math.max(0, nuevaDeuda).toLocaleString('es-CO')}</span>
+                </div>
+              </div>
+
+              {/* Aviso explicativo */}
+              <p className="text-[11px] text-slate-500 dark:text-slate-400 bg-slate-100/80 dark:bg-slate-800/60 p-2.5 rounded-xl leading-relaxed">
+                El cliente retira toda la mercancía. Este Separe quedará marcado como <strong>entregado</strong> y el saldo restante pasará automáticamente a su cuenta de <strong>fiados</strong>.
+              </p>
+
+              {/* Botones de acción */}
+              <div className="grid grid-cols-2 gap-2 pt-1">
+                <button
+                  type="button"
+                  onClick={() => setModalEntregarFiado(false)}
+                  disabled={procesandoEntregarFiado}
+                  className="py-3 px-4 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 font-bold text-xs hover:bg-slate-50 dark:hover:bg-slate-800 transition cursor-pointer"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  onClick={confirmarEntregarFiado}
+                  disabled={procesandoEntregarFiado}
+                  className="py-3 px-4 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-black text-xs shadow-md transition-all active:scale-95 cursor-pointer flex items-center justify-center gap-1.5 disabled:opacity-50"
+                >
+                  {procesandoEntregarFiado ? (
+                    <span>Procesando...</span>
+                  ) : (
+                    <>
+                      <Receipt size={15} />
+                      <span>Confirmar y Fiar</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* MODAL ÉXITO DE ENTREGA A FIADO */}
+      {modalExitoEntregaFiado?.visible && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 z-[230] animate-in zoom-in-95 duration-200">
+          <div className="bg-white dark:bg-[#0f172a] p-6 sm:p-8 rounded-3xl w-full max-w-md shadow-2xl border border-slate-100 dark:border-slate-800 text-center space-y-4">
+            <div className="w-16 h-16 bg-rose-100 dark:bg-rose-500/20 text-rose-600 dark:text-rose-400 rounded-full flex items-center justify-center mx-auto shadow-inner">
+              <Receipt size={36} />
+            </div>
+
+            <div className="space-y-1">
+              <h3 className="text-xl font-black text-slate-900 dark:text-white">¡Mercancía Entregada a Fiado!</h3>
+              <p className="text-xs text-slate-500 dark:text-slate-400">
+                Cliente: <strong className="text-slate-800 dark:text-slate-200">{modalExitoEntregaFiado.separe.clienteNombre}</strong>
+              </p>
+            </div>
+
+            <div className="p-4 bg-rose-50 dark:bg-rose-950/30 rounded-2xl space-y-1.5 text-xs text-left font-bold border border-rose-200 dark:border-rose-800/40">
+              <div className="flex justify-between text-rose-900 dark:text-rose-200">
+                <span>Saldo trasladado a Fiado:</span>
+                <span className="text-rose-600 dark:text-rose-400 font-black text-sm">${modalExitoEntregaFiado.saldoTrasladado.toLocaleString('es-CO')}</span>
+              </div>
+              <div className="flex justify-between text-slate-700 dark:text-slate-300">
+                <span>Nueva deuda en Cartera:</span>
+                <span className="text-slate-900 dark:text-white font-black">${modalExitoEntregaFiado.nuevaDeuda.toLocaleString('es-CO')}</span>
+              </div>
+              <p className="text-[11px] text-rose-700 dark:text-rose-400 font-medium pt-1 border-t border-rose-200/60 dark:border-rose-900/40">
+                Movimiento de fiado registrado en el historial y Plan Separe completado.
+              </p>
+            </div>
+
+            <div className="space-y-2 pt-2">
+              {puedeEnviarWhatsApp && (
+                <button
+                  type="button"
+                  onClick={() => enviarWhatsAppEntregaFiado(modalExitoEntregaFiado.separe, modalExitoEntregaFiado.saldoTrasladado, modalExitoEntregaFiado.nuevaDeuda)}
+                  className="w-full bg-[#25D366] hover:bg-[#1ebd5a] text-white font-bold py-3.5 rounded-xl transition-all flex items-center justify-center gap-2 text-sm shadow-md cursor-pointer"
+                >
+                  <MessageCircle size={18} /> Enviar Notificación por WhatsApp
+                </button>
+              )}
+
+              <button
+                type="button"
+                onClick={() => setModalTicketFactura({ visible: true, datos: modalExitoEntregaFiado.ticketDatos })}
+                className="w-full bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 font-bold py-3 rounded-xl transition-all flex items-center justify-center gap-2 text-xs cursor-pointer"
+              >
+                <Printer size={16} /> Ver / Imprimir Comprobante de Fiado
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setModalExitoEntregaFiado(null)}
+                className="w-full bg-rose-600 hover:bg-rose-700 text-white font-bold py-3 rounded-xl transition-all text-xs cursor-pointer"
               >
                 Cerrar
               </button>

@@ -980,6 +980,21 @@ Gracias por seguir con nosotros.
             const esAbonoSepare = (mov.tipo === 'abono' && esSepare) || mov.subtipo === 'abono_inicial_separe';
             const esEntregaSepare = mov.tipo === 'entrega_separe';
 
+            const textoBadge = (mov as any).anulado ? '🚫 ANULADO' :
+              mov.tipo === 'anulacion' ? '🚫 ANULACIÓN' :
+              esIngresoInv ? '+STOCK' :
+              mov.tipo === 'devolucion' ? '↩ DEVOLUCIÓN' :
+              esEntregaSepare ? '📦 SEPARE ENTREGADO' :
+              esSepare ? (
+                mov.subtipo === 'abono_inicial_separe' ? '🔖 SEPARE INICIAL' :
+                (mov.subtipo === 'apertura_separe_sin_abono' || mov.monto === 0 ? '🔖 NUEVO SEPARE' : '🔖 ABONO SEPARE')
+              ) :
+              mov.tipo === 'abono' ? 'ABONO CUENTA' :
+              mov.tipo === 'venta' && ((mov as any).subtipo === 'venta_parcial' || (mov as any).montoFiadoAsociado || (mov as any).fiarFaltante) ? 'ABONO INICIAL' :
+              mov.tipo === 'fiado' && (mov.subtipo === 'traslado_separe_a_fiado') ? '📦 FIADO (DE SEPARE)' :
+              mov.tipo === 'fiado' && ((mov as any).subtipo === 'fiado_con_abono' || (mov as any).abonoInicialAsociado) ? 'FIADO CON ABONO' :
+              mov.tipo;
+
             return (
               <div 
                 key={mov.id} 
@@ -1157,7 +1172,7 @@ Gracias por seguir con nosotros.
                       mov.tipo === 'fiado' ? 'bg-rose-100 text-rose-700 dark:bg-rose-500/20 dark:text-rose-300' : 
                       (mov.tipo === 'venta' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300' : 'bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-300')
                     }`}>
-                      {(mov as any).anulado ? '🚫 ANULADO' : (esIngresoInv ? '+STOCK' : (mov.tipo === 'anulacion' ? '🚫 ANULACIÓN' : (mov.tipo === 'devolucion' ? '↩ DEVOLUCIÓN' : (esEntregaSepare ? '📦 SEPARE ENTREGADO' : (esSepare ? (mov.subtipo === 'abono_inicial_separe' ? '🔖 SEPARE INICIAL' : (mov.subtipo === 'apertura_separe_sin_abono' || mov.monto === 0 ? '🔖 NUEVO SEPARE' : '🔖 ABONO SEPARE')) : (mov.tipo === 'abono' ? 'ABONO CUENTA' : (mov.tipo === 'venta' && ((mov as any).subtipo === 'venta_parcial' || (mov as any).montoFiadoAsociado || (mov as any).fiarFaltante) ? 'ABONO INICIAL' : (mov.tipo === 'fiado' && ((mov as any).subtipo === 'fiado_con_abono' || (mov as any).abonoInicialAsociado) ? 'FIADO CON ABONO' : mov.tipo))))))))}
+                      {textoBadge}
                     </span>
                   </div>
                 </div>
@@ -1746,7 +1761,7 @@ Gracias por seguir con nosotros.
                           ) : esSepare ? (
                             mov.subtipo === 'retiro_item_separe' ? '⚠️ AJUSTE SEPARE' :
                             (mov.subtipo === 'abono_inicial_separe' ? '🔖 SEPARE INICIAL' :
-                            (mov.subtipo === 'apertura_separe_sin_abono' || mov.monto === 0 ? '🔖 NUEVO SEPARE' : '🔖 ABONO SEPARE'))) : (mov.tipo === 'abono' ? 'ABONO CUENTA' : (mov.tipo === 'venta' && ((mov as any).subtipo === 'venta_parcial' || (mov as any).montoFiadoAsociado || (mov as any).fiarFaltante) ? 'ABONO INICIAL' : (mov.tipo === 'fiado' && ((mov as any).subtipo === 'fiado_con_abono' || (mov as any).abonoInicialAsociado) ? 'FIADO CON ABONO' : mov.tipo)))}
+                            (mov.subtipo === 'apertura_separe_sin_abono' || mov.monto === 0 ? '🔖 NUEVO SEPARE' : '🔖 ABONO SEPARE'))) : (mov.tipo === 'abono' ? 'ABONO CUENTA' : (mov.tipo === 'venta' && ((mov as any).subtipo === 'venta_parcial' || (mov as any).montoFiadoAsociado || (mov as any).fiarFaltante) ? 'ABONO INICIAL' : (mov.tipo === 'fiado' && ((mov as any).subtipo === 'fiado_con_abono' || (mov as any).abonoInicialAsociado) ? 'FIADO CON ABONO' : (mov.subtipo === 'traslado_separe_a_fiado' ? '📦 FIADO (DE SEPARE)' : mov.tipo))))}
                         </span>
                         
                         <div className="flex items-center gap-x-1.5 text-[10px] md:text-[11px] font-bold uppercase text-slate-400 shrink-0 ml-auto">
