@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import toast from "react-hot-toast";
 import { useAuth } from "@/hooks/AuthContext";
+import { notificarExitoPOS, vibrarExito } from "@/lib/feedbackNativo";
 import TicketFacturaModal, { DatosFacturaProps } from "@/components/TicketFacturaModal";
 import { Separe, AbonoSepare } from "@/types";
 import { abrirEnlaceWhatsApp } from "@/utils/whatsapp";
@@ -800,7 +801,7 @@ Estamos atentos para cualquier consulta.
       const resEntrega = await respuestaEntrega.json();
       if (!respuestaEntrega.ok) throw new Error(resEntrega.error || 'No se pudo entregar el separe.');
 
-      reproducirSonidoCelebracion();
+      reproducirSonidoCelebracion(); vibrarExito();
       toast.success("¡Plan Separe entregado con éxito! 🛍️");
       setModalCompletar(false);
 
@@ -910,7 +911,7 @@ Gracias por tu compra y preferencia.
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'No se pudo entregar el separe a fiado.');
 
-      reproducirSonidoCelebracion();
+      reproducirSonidoCelebracion(); vibrarExito();
       toast.success("¡Plan Separe entregado y saldo trasladado a fiado! 🛍️");
       setModalEntregarFiado(false);
 
@@ -1027,7 +1028,7 @@ Gracias por tu compra y preferencia.
       const res = await respuesta.json();
       if (!respuesta.ok) throw new Error(res.error || 'No se pudo registrar la entrega parcial.');
 
-      reproducirSonidoCelebracion();
+      reproducirSonidoCelebracion(); vibrarExito();
       toast.success(res.esCierreTotal ? "¡Entrega total completada! 🛍️" : "¡Entrega parcial registrada con éxito! 📦");
       setModalEntregaParcial(false);
 

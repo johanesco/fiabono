@@ -11,6 +11,7 @@ import toast from "react-hot-toast";
 import { notificar } from "@/utils/notificaciones";
 import { customConfirm } from "@/utils/customConfirm";
 import { Html5Qrcode } from "html5-qrcode";
+import { notificarExitoPOS, vibrarToque, vibrarAlerta } from "@/lib/feedbackNativo";
 import { API_DB } from "../../../servicios/db";
 import TicketFacturaModal, { DatosFacturaProps } from "@/components/TicketFacturaModal";
 import ModalNuevoCliente from "@/components/ModalNuevoCliente";
@@ -728,6 +729,7 @@ function VenderContenido() {
   };
 
   const reproducirSonidoExito = () => {
+    vibrarToque(14);
     try {
       const AudioContext = window.AudioContext || (window as any).webkitAudioContext;
       if (!AudioContext) return;
@@ -746,6 +748,7 @@ function VenderContenido() {
   };
 
   const reproducirSonidoNoEncontrado = () => {
+    vibrarAlerta();
     try {
       const AudioContext = window.AudioContext || (window as any).webkitAudioContext;
       if (!AudioContext) return;
@@ -1380,6 +1383,7 @@ function VenderContenido() {
       }
 
       const faltanteReal = Math.max(totalNetoACobrar - pagadoNum, 0);
+      notificarExitoPOS();
       setPasoMovil('articulos');
       setModalExito({ 
         visible: true, 

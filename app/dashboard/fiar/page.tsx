@@ -11,6 +11,7 @@ import { useAuth } from "@/hooks/AuthContext";
 import toast from "react-hot-toast";
 import { notificar } from "@/utils/notificaciones";
 import { Html5Qrcode } from "html5-qrcode";
+import { notificarExitoPOS, vibrarToque, vibrarAlerta } from "@/lib/feedbackNativo";
 import { API_DB } from "../../../servicios/db";
 import TicketFacturaModal from "@/components/TicketFacturaModal";
 import ModalNuevoCliente from "@/components/ModalNuevoCliente";
@@ -655,6 +656,7 @@ function FiarContenido() {
     };
 
     const reproducirSonidoExito = () => {
+        vibrarToque(14);
         try {
             const AudioContext = window.AudioContext || (window as any).webkitAudioContext;
             if (!AudioContext) return;
@@ -673,6 +675,7 @@ function FiarContenido() {
     };
 
     const reproducirSonidoNoEncontrado = () => {
+        vibrarAlerta();
         try {
             const AudioContext = window.AudioContext || (window as any).webkitAudioContext;
             if (!AudioContext) return;
@@ -1595,7 +1598,7 @@ function FiarContenido() {
 
             (ticketDatos as any).abonoRecibido = abonoInicialNum;
             (ticketDatos as any).metodoPagoAbono = abonoInicialNum > 0 ? metodoPagoAbonoFiar : null;
-
+            notificarExitoPOS();
             setModalExito({
                 visible: true,
                 cliente: clienteFinalActualizado,

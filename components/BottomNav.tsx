@@ -23,6 +23,7 @@ import {
   ExternalLink
 } from 'lucide-react';
 import { useAuth } from "@/hooks/AuthContext";
+import { vibrarToque } from "@/lib/feedbackNativo";
 import ModalConfirmarCerrarSesion from "@/components/modals/ModalConfirmarCerrarSesion";
 
 interface BottomNavProps {
@@ -120,6 +121,7 @@ export default function BottomNav({
           {/* 1. INICIO */}
           <Link 
             href="/dashboard/inicio" 
+            onClick={() => vibrarToque(8)}
             className={`flex-1 py-1 flex flex-col items-center gap-0.5 transition-all active:scale-90 relative ${
               pathname?.includes('/inicio') 
                 ? 'text-blue-600 dark:text-blue-400 font-black' 
@@ -139,6 +141,7 @@ export default function BottomNav({
           {mostrarPestanaOrdenes && (
             <Link 
               href="/dashboard/ordenes" 
+              onClick={() => vibrarToque(8)}
               className={`flex-1 py-1 flex flex-col items-center gap-0.5 transition-all active:scale-90 relative ${
                 pathname?.includes('/ordenes') 
                   ? 'text-amber-600 dark:text-amber-400 font-black' 
@@ -164,6 +167,7 @@ export default function BottomNav({
           {puedeGestionarSepares && (
             <Link 
               href="/dashboard/separes" 
+              onClick={() => vibrarToque(8)}
               className={`flex-1 py-1 flex flex-col items-center gap-0.5 transition-all active:scale-90 relative ${
                 pathname?.includes('/separe') 
                   ? 'text-violet-600 dark:text-violet-400 font-black' 
@@ -188,6 +192,7 @@ export default function BottomNav({
           {/* 4. HISTORIAL */}
           <Link 
             href="/dashboard/historial" 
+            onClick={() => vibrarToque(8)}
             className={`flex-1 py-1 flex flex-col items-center gap-0.5 transition-all active:scale-90 relative ${
               pathname?.includes('/historial') 
                 ? 'text-emerald-600 dark:text-emerald-400 font-black' 
@@ -206,7 +211,7 @@ export default function BottomNav({
           {/* 5. MENÚ MÓVIL (DRAWER) */}
           <button
             type="button"
-            onClick={() => setDrawerAbierto(true)}
+            onClick={() => { vibrarToque(8); setDrawerAbierto(true); }}
             className={`flex-1 py-1 flex flex-col items-center gap-0.5 transition-all active:scale-90 cursor-pointer relative ${
               esRutaMenuActiva || drawerAbierto
                 ? 'text-slate-900 dark:text-white font-black' 

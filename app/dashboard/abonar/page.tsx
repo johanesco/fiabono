@@ -13,6 +13,7 @@ import ModalNuevoCliente from "@/components/ModalNuevoCliente";
 import toast from 'react-hot-toast';
 import { abrirEnlaceWhatsApp } from "@/utils/whatsapp";
 import { agregarMediosPagoAlEstado } from "@/utils/mediosPago";
+import { notificarExitoPOS } from "@/lib/feedbackNativo";
 
 export default function AbonarPage() {
   return (
@@ -505,6 +506,7 @@ function AbonarContenido() {
         referenciaPago: refPagoCompleta
       };
 
+      notificarExitoPOS();
       setModalExito({ 
         visible: true, 
         cliente: clienteFinalActualizado,
