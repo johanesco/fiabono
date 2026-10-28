@@ -141,7 +141,7 @@ export default function InventarioPage() {
   // Estados para el modal de configuración de exportación QR inteligente y Térmica
   const [modalExportarQR, setModalExportarQR] = useState(false);
   const [modalEscanerInventario, setModalEscanerInventario] = useState(false);
-  const [formatoCodigoEtiqueta, setFormatoCodigoEtiqueta] = useState<'barras' | 'qr'>('barras');
+  const [formatoCodigoEtiqueta, setFormatoCodigoEtiqueta] = useState<'barras' | 'qr'>('qr');
   const [tipoImpresoraQR, setTipoImpresoraQR] = useState<TipoImpresoraQR>('termica');
   const [tamanoTermicoQR, setTamanoTermicoQR] = useState<TamanoTermicoQR>('40x30');
   const [anchoPersonalizadoMM, setAnchoPersonalizadoMM] = useState<number>(50);
@@ -4476,14 +4476,37 @@ export default function InventarioPage() {
             {/* Cuerpo del Modal con Scroll */}
             <div className="p-5 sm:p-6 overflow-y-auto space-y-6 flex-1">
               
-              {/* PASO 0: Formato de Código (Barras 1D vs QR 2D) */}
+              {/* PASO 0: Formato de Código (QR 2D Prioritario vs Barras 1D) */}
               <div className="space-y-3">
                 <label className="text-xs font-black uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
-                  <Barcode size={15} className="text-emerald-500" /> 1. ¿Qué tipo de código deseas generar?
+                  <QrCode size={15} className="text-emerald-500" /> 1. ¿Qué tipo de código deseas generar?
                 </label>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   
-                  {/* Código de Barras 1D (Recomendado) */}
+                  {/* Código QR 2D (Prioridad por defecto / Recomendado) */}
+                  <div
+                    onClick={() => setFormatoCodigoEtiqueta('qr')}
+                    className={`p-4 rounded-2xl border transition-all cursor-pointer relative ${
+                      formatoCodigoEtiqueta === 'qr'
+                        ? 'border-emerald-500 bg-emerald-50/50 dark:bg-emerald-950/20 ring-2 ring-emerald-500/20 shadow-sm'
+                        : 'border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700'
+                    }`}
+                  >
+                    <span className="absolute -top-2.5 right-3 bg-emerald-600 text-white text-[9px] font-black uppercase px-2 py-0.5 rounded-full shadow-sm">
+                      Recomendado
+                    </span>
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="font-black text-sm text-slate-900 dark:text-white flex items-center gap-1.5">
+                        <QrCode size={18} className="text-emerald-600" /> Código QR (2D)
+                      </span>
+                      <CheckCircle2 size={16} className={formatoCodigoEtiqueta === 'qr' ? "text-emerald-600" : "text-slate-300"} />
+                    </div>
+                    <p className="text-[11px] text-slate-500 dark:text-slate-400 font-medium">
+                      Lectura instantánea con la cámara de cualquier celular y pistolas 2D.
+                    </p>
+                  </div>
+
+                  {/* Código de Barras 1D */}
                   <div
                     onClick={() => setFormatoCodigoEtiqueta('barras')}
                     className={`p-4 rounded-2xl border transition-all cursor-pointer relative ${
@@ -4492,37 +4515,17 @@ export default function InventarioPage() {
                         : 'border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700'
                     }`}
                   >
-                    <span className="absolute -top-2.5 right-3 bg-emerald-600 text-white text-[9px] font-black uppercase px-2 py-0.5 rounded-full shadow-sm">
-                      Recomendado Comercial
+                    <span className="absolute -top-2.5 right-3 bg-slate-700 text-white text-[9px] font-black uppercase px-2 py-0.5 rounded-full shadow-sm">
+                      Pistolas Láser
                     </span>
                     <div className="flex items-center justify-between mb-1">
                       <span className="font-black text-sm text-slate-900 dark:text-white flex items-center gap-1.5">
-                        <Barcode size={18} className="text-emerald-600" /> Código de Barras (1D)
+                        <Barcode size={18} className="text-blue-600" /> Código de Barras (1D)
                       </span>
                       <CheckCircle2 size={16} className={formatoCodigoEtiqueta === 'barras' ? "text-emerald-600" : "text-slate-300"} />
                     </div>
-                    <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                      Formato Code 128 universal. El estándar para pistolas lectoras, ropa, calzado y paquetes.
-                    </p>
-                  </div>
-
-                  {/* Código QR 2D */}
-                  <div
-                    onClick={() => setFormatoCodigoEtiqueta('qr')}
-                    className={`p-4 rounded-2xl border transition-all cursor-pointer ${
-                      formatoCodigoEtiqueta === 'qr'
-                        ? 'border-emerald-500 bg-emerald-50/50 dark:bg-emerald-950/20 ring-2 ring-emerald-500/20 shadow-sm'
-                        : 'border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700'
-                    }`}
-                  >
-                    <div className="flex items-center justify-between mb-1">
-                      <span className="font-black text-sm text-slate-900 dark:text-white flex items-center gap-1.5">
-                        <QrCode size={18} className="text-blue-600" /> Código QR (2D)
-                      </span>
-                      <CheckCircle2 size={16} className={formatoCodigoEtiqueta === 'qr' ? "text-emerald-600" : "text-slate-300"} />
-                    </div>
-                    <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                      Matriz cuadrada de alta densidad. Ideal para escanear directamente con la cámara del celular.
+                    <p className="text-[11px] text-slate-500 dark:text-slate-400 font-medium">
+                      Para pistolas lectoras tradicionales de mostrador (raya roja).
                     </p>
                   </div>
 

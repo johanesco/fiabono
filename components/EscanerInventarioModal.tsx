@@ -697,6 +697,11 @@ export default function EscanerInventarioModal({
             )}
           </div>
 
+          {/* TIP COMPACTO DE ENFOQUE */}
+          <p className="text-[11px] text-slate-400 text-center font-medium px-2">
+            💡 <strong className="text-slate-300">Tip:</strong> En códigos de barras mantén 20 cm de distancia o usa el Zoom 2x.
+          </p>
+
           {/* ENTRADA MANUAL O PISTOLA LECTORA USB */}
           <div className="w-full shrink-0">
             <div className="flex items-center justify-between mb-1 px-1">

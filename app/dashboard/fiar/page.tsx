@@ -2728,7 +2728,7 @@ Estamos atentos para cualquier consulta.
                                 </div>
                             ) : (
                                 <div className="p-3 bg-slate-900/60 border border-slate-800 rounded-2xl text-center">
-                                    <span className="text-[11px] text-slate-400 font-medium">Pasa los códigos frente al recuadro</span>
+                                    <span className="text-[11px] text-slate-400 font-medium">💡 En códigos de barras mantén 20 cm de distancia o usa el Zoom 2x</span>
                                 </div>
                             )}
 
