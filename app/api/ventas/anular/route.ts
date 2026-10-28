@@ -143,6 +143,27 @@ export async function POST(request: Request) {
 
       transaction.update(movRef, datosAnulacion);
 
+      // 3.1 Registrar movimiento cronológico de Anulación en la colección principal para evidencia en el Historial General
+      const movAnulacionRef = adminDb.collection('movimientos').doc();
+      const nombreUsuarioOperador = usuario.nombre || usuario.displayName || usuario.email || 'Administrador';
+      transaction.set(movAnulacionRef, {
+        usuarioId: cuentaPrincipalId,
+        clienteId: mov.clienteId || 'mostrador',
+        clienteNombre: mov.clienteNombre || (mov.clienteId === 'mostrador' ? 'Consumidor Final' : 'Cliente'),
+        tipo: 'anulacion',
+        subtipo: mov.tipo === 'fiado' ? 'anulacion_fiado' : 'anulacion_venta',
+        monto: mov.monto || 0,
+        descripcion: `Anulación de ${mov.tipo === 'fiado' ? 'fiado' : 'venta'}: ${motivo}`,
+        motivoAnulacion: motivo,
+        movimientoOrigenId: movimientoId,
+        registradoPor: nombreUsuarioOperador,
+        anuladoPor: nombreUsuarioOperador,
+        anuladoPorUid: decodedToken.uid,
+        fecha: new Date(),
+        metodoPago: 'ajuste_contable',
+        detalles: mov.detalles || []
+      });
+
       // 4. Si el movimiento generó un fiado paralelo (ej. venta mixta contado + fiado), buscar y anular la contraparte
       if (mov.movimientoFiadoId) {
         const contraparteRef = adminDb.collection('movimientos').doc(mov.movimientoFiadoId);

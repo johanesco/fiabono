@@ -1026,7 +1026,8 @@ Gracias por seguir con nosotros.
               >
                 {/* Barra lateral de color según el tipo */}
                 <div className={`absolute left-0 top-0 bottom-0 w-1.5 ${
-                  mov.tipo === 'devolucion' ? 'bg-amber-500' :
+                  mov.tipo === 'anulacion' ? 'bg-rose-600' :
+                    mov.tipo === 'devolucion' ? 'bg-amber-500' :
                   esSepare ? 'bg-violet-600' :
                   mov.tipo === 'fiado' ? 'bg-rose-500' : (mov.tipo === 'venta' ? 'bg-emerald-500' : 'bg-blue-500')
                 }`} />
@@ -1049,7 +1050,7 @@ Gracias por seguir con nosotros.
                             ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300' 
                             : 'bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-300')
                       }`}>
-                        {mov.anulado ? '🚫 ABONO ANULADO' :
+                        {mov.anulado ? '🚫 ANULADO' : mov.tipo === 'anulacion' ? '🚫 ANULACIÓN' :
                          mov.tipo === 'devolucion' ? '↩ DEVOLUCIÓN' :
                          esEntregaSepare ? '📦 SEPARE ENTREGADO' :
                          esSepare ? (
@@ -1093,7 +1094,8 @@ Gracias por seguir con nosotros.
                           <span className="text-slate-600 dark:text-slate-300 font-medium truncate flex-1 min-w-0">
                             {d.cantidad > 1 && (
                               <strong className={`${
-                                mov.tipo === 'devolucion' ? 'text-amber-500' :
+                                mov.tipo === 'anulacion' ? 'text-rose-600 dark:text-rose-400' :
+                        mov.tipo === 'devolucion' ? 'text-amber-500' :
                                 mov.tipo === 'venta' ? 'text-emerald-500' : (mov.tipo === 'abono' ? 'text-blue-500' : 'text-rose-500')
                               } font-black mr-1`}>
                                 {d.cantidad}x

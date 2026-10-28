@@ -704,7 +704,7 @@ Gracias por seguir con nosotros.
                         Boolean(mov.descripcion && mov.descripcion.toLowerCase().includes('separe'));
 
     if (filtroTipoHistorial === 'anulaciones') {
-      if (!(mov as any).anulado) return false;
+      if (mov.tipo !== 'anulacion' && !(mov as any).anulado) return false;
     } else if (filtroTipoHistorial === 'separe') {
       if (!esSepareMov) return false;
     } else if (filtroTipoHistorial === 'abono') {
@@ -994,6 +994,7 @@ Gracias por seguir con nosotros.
               >
                 <div className={`absolute left-0 top-0 bottom-0 w-1.5 ${
                   esIngresoInv ? 'bg-sky-500' :
+                  mov.tipo === 'anulacion' ? 'bg-rose-600' :
                   mov.tipo === 'devolucion' ? 'bg-amber-500' :
                   esEntregaSepare ? 'bg-purple-600' :
                   esSepare ? 'bg-violet-600' :
@@ -1134,14 +1135,15 @@ Gracias por seguir con nosotros.
                       ) : (
                         <p className={`font-black text-xl text-right ${
                           (mov as any).anulado ? 'line-through text-slate-400 dark:text-slate-500 opacity-60' :
-                          mov.tipo === 'devolucion' || mov.tipo === 'egreso' ? 'text-amber-600 dark:text-amber-400' :
+                          mov.tipo === 'anulacion' ? 'text-rose-600 dark:text-rose-400' :
+                            mov.tipo === 'devolucion' || mov.tipo === 'egreso' ? 'text-amber-600 dark:text-amber-400' :
                           mov.subtipo === 'retiro_item_separe' ? 'text-rose-600 dark:text-rose-400' :
                           esEntregaSepare ? 'text-purple-600 dark:text-purple-400' :
                           esSepare ? 'text-violet-600 dark:text-violet-400' :
                           mov.tipo === 'fiado' ? 'text-rose-500' : (mov.tipo === 'venta' ? 'text-emerald-500' : 'text-blue-500')
                         }`}>
                           {(mov as any).anulado ? `(Anulado) $${Math.round(mov.monto || 0).toLocaleString('es-CO')}` :
-                           mov.subtipo === 'retiro_item_separe' ? `-${Math.round(mov.monto || 0).toLocaleString('es-CO')}` : (esEntregaSepare ? 'Entregado' : (mov.subtipo === 'apertura_separe_sin_abono' || (mov.monto === 0 && esSepare) ? 'Reservado ($0)' : `${mov.tipo === 'fiado' || mov.tipo === 'egreso' || mov.tipo === 'devolucion' ? '-' : '+'}${Math.round(mov.monto || 0).toLocaleString('es-CO')}`))}
+                           mov.subtipo === 'retiro_item_separe' ? `-${Math.round(mov.monto || 0).toLocaleString('es-CO')}` : (esEntregaSepare ? 'Entregado' : (mov.subtipo === 'apertura_separe_sin_abono' || (mov.monto === 0 && esSepare) ? 'Reservado ($0)' : `${mov.tipo === 'fiado' || mov.tipo === 'egreso' || mov.tipo === 'devolucion' || mov.tipo === 'anulacion' ? '-' : '+'}${Math.round(mov.monto || 0).toLocaleString('es-CO')}`))}
                         </p>
                       )}
                     </div>
@@ -1155,7 +1157,7 @@ Gracias por seguir con nosotros.
                       mov.tipo === 'fiado' ? 'bg-rose-100 text-rose-700 dark:bg-rose-500/20 dark:text-rose-300' : 
                       (mov.tipo === 'venta' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300' : 'bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-300')
                     }`}>
-                      {(mov as any).anulado ? '🚫 ANULADO' : (esIngresoInv ? '+STOCK' : (mov.tipo === 'devolucion' ? '↩ DEVOLUCIÓN' : (esEntregaSepare ? '📦 SEPARE ENTREGADO' : (esSepare ? (mov.subtipo === 'abono_inicial_separe' ? '🔖 SEPARE INICIAL' : (mov.subtipo === 'apertura_separe_sin_abono' || mov.monto === 0 ? '🔖 NUEVO SEPARE' : '🔖 ABONO SEPARE')) : (mov.tipo === 'abono' ? 'ABONO CUENTA' : (mov.tipo === 'venta' && ((mov as any).subtipo === 'venta_parcial' || (mov as any).montoFiadoAsociado || (mov as any).fiarFaltante) ? 'ABONO INICIAL' : (mov.tipo === 'fiado' && ((mov as any).subtipo === 'fiado_con_abono' || (mov as any).abonoInicialAsociado) ? 'FIADO CON ABONO' : mov.tipo)))))))}
+                      {(mov as any).anulado ? '🚫 ANULADO' : (esIngresoInv ? '+STOCK' : (mov.tipo === 'anulacion' ? '🚫 ANULACIÓN' : (mov.tipo === 'devolucion' ? '↩ DEVOLUCIÓN' : (esEntregaSepare ? '📦 SEPARE ENTREGADO' : (esSepare ? (mov.subtipo === 'abono_inicial_separe' ? '🔖 SEPARE INICIAL' : (mov.subtipo === 'apertura_separe_sin_abono' || mov.monto === 0 ? '🔖 NUEVO SEPARE' : '🔖 ABONO SEPARE')) : (mov.tipo === 'abono' ? 'ABONO CUENTA' : (mov.tipo === 'venta' && ((mov as any).subtipo === 'venta_parcial' || (mov as any).montoFiadoAsociado || (mov as any).fiarFaltante) ? 'ABONO INICIAL' : (mov.tipo === 'fiado' && ((mov as any).subtipo === 'fiado_con_abono' || (mov as any).abonoInicialAsociado) ? 'FIADO CON ABONO' : mov.tipo))))))))}
                     </span>
                   </div>
                 </div>
@@ -1731,6 +1733,7 @@ Gracias por seguir con nosotros.
                   return (
                   <div key={mov.id} className="p-4 md:p-5 bg-slate-50 dark:bg-[#020617] rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm relative overflow-hidden space-y-2 md:space-y-3">
                     <div className={`absolute left-0 top-0 bottom-0 w-1.5 ${
+                      mov.tipo === 'anulacion' ? 'bg-rose-600' :
                       mov.tipo === 'devolucion' ? 'bg-amber-500' :
                       esEntregaSepare ? 'bg-purple-600' :
                       esSepare ? 'bg-violet-600' :
@@ -1748,7 +1751,9 @@ Gracias por seguir con nosotros.
                           (mov.tipo === 'venta' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300' : 'bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-300')
                         }`}>
                           {(mov as any).anulado ? (
-                            '🚫 ABONO ANULADO'
+                            '🚫 ANULADO'
+                          ) : mov.tipo === 'anulacion' ? (
+                            '🚫 ANULACIÓN'
                           ) : mov.tipo === 'devolucion' ? (
                             <>
                               <RotateCcw size={11} className="shrink-0" />

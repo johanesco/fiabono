@@ -106,6 +106,27 @@ export async function POST(request: Request) {
         anuladoPorNombre: usuario.nombre || usuario.nombreUsuario || 'Usuario'
       });
 
+      // Crear movimiento cronológico de Anulación de Abono para evidencia en el Historial General
+      const movAnulacionRef = adminDb.collection('movimientos').doc();
+      const nombreUsuarioOperador = usuario.nombre || usuario.nombreUsuario || 'Usuario';
+      transaction.set(movAnulacionRef, {
+        usuarioId: cuentaPrincipalId,
+        clienteId: mov.clienteId || 'mostrador',
+        clienteNombre: mov.clienteNombre || 'Cliente',
+        tipo: 'anulacion',
+        subtipo: 'anulacion_abono',
+        monto: monto,
+        descripcion: `Anulación de abono: ${motivo}`,
+        motivoAnulacion: motivo,
+        movimientoOrigenId: movimientoId,
+        registradoPor: nombreUsuarioOperador,
+        anuladoPor: nombreUsuarioOperador,
+        anuladoPorUid: decodedToken.uid,
+        fecha: new Date(),
+        metodoPago: 'ajuste_contable',
+        separeId: separeId || null
+      });
+
       return {
         monto,
         clienteNombre: mov.clienteNombre || 'Cliente',

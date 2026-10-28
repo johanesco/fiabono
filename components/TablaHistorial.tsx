@@ -130,6 +130,7 @@ export default function TablaHistorial({ movimientos, getNombreCliente, getApodo
                     (mov as any).anulado ? 'bg-slate-200 text-slate-500 dark:bg-slate-800 dark:text-slate-400 line-through' :
                     esCierreCaja ? (mov.subtipo === 'arqueo_parcial' ? 'bg-amber-100 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300' : 'bg-indigo-100 text-indigo-700 dark:bg-indigo-950/40 dark:text-indigo-300') :
                     esIngresoInv ? 'bg-sky-100 text-sky-700 dark:bg-sky-950/40 dark:text-sky-300' :
+                    mov.tipo === 'anulacion' ? 'bg-rose-100 text-rose-700 dark:bg-rose-950/40 dark:text-rose-300' :
                     mov.tipo === 'devolucion' ? 'bg-amber-100 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300' :
                     mov.tipo === 'egreso' ? 'bg-amber-100 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300' :
                     mov.tipo === 'entrega_separe' ? 'bg-purple-100 text-purple-700 dark:bg-purple-950/40 dark:text-purple-300' :
@@ -146,6 +147,11 @@ export default function TablaHistorial({ movimientos, getNombreCliente, getApodo
                       <>
                         <Package size={11} className="shrink-0" />
                         <span>INV</span>
+                      </>
+                    ) : mov.tipo === 'anulacion' ? (
+                      <>
+                        <Ban size={11} className="shrink-0" />
+                        <span>ANULACIÓN</span>
                       </>
                     ) : mov.tipo === 'devolucion' ? (
                       <>
@@ -177,6 +183,7 @@ export default function TablaHistorial({ movimientos, getNombreCliente, getApodo
                   (mov as any).anulado ? 'line-through text-slate-400 dark:text-slate-500 opacity-60' :
                   esCierreCaja ? 'text-slate-900 dark:text-white' :
                   esIngresoInv ? 'text-sky-600 dark:text-sky-400' :
+                  mov.tipo === 'anulacion' ? 'text-rose-600 dark:text-rose-400' :
                   mov.tipo === 'devolucion' ? 'text-amber-600 dark:text-amber-400' :
                   mov.tipo === 'egreso' ? 'text-amber-600 dark:text-amber-400' :
                   mov.tipo === 'fiado' ? 'text-rose-500' : 
@@ -195,7 +202,7 @@ export default function TablaHistorial({ movimientos, getNombreCliente, getApodo
                     `+${(mov as any).cantidadAgregada || 1} un.`
                   ) : (
                     (mov as any).anulado ? `(Anulado) $${Math.round(mov.monto || 0).toLocaleString('es-CO')}` :
-                    mov.subtipo === 'retiro_item_separe' ? `-${Math.round(mov.monto || 0).toLocaleString('es-CO')}` : (esEntregaSepare ? 'Entregado' : (mov.subtipo === 'apertura_separe_sin_abono' || (mov.monto === 0 && esSepare) ? 'Reservado ($0)' : `${mov.tipo === 'fiado' || mov.tipo === 'egreso' || mov.tipo === 'devolucion' ? '-' : '+'}${Math.round(mov.monto || 0).toLocaleString('es-CO')}`))
+                    mov.subtipo === 'retiro_item_separe' ? `-${Math.round(mov.monto || 0).toLocaleString('es-CO')}` : (esEntregaSepare ? 'Entregado' : (mov.subtipo === 'apertura_separe_sin_abono' || (mov.monto === 0 && esSepare) ? 'Reservado ($0)' : `${mov.tipo === 'fiado' || mov.tipo === 'egreso' || mov.tipo === 'devolucion' || mov.tipo === 'anulacion' ? '-' : '+'}${Math.round(mov.monto || 0).toLocaleString('es-CO')}`))
                   )}
                 </td>
                 <td className="py-2.5 px-2.5 sm:px-3 lg:px-4 text-center whitespace-nowrap min-w-[70px]" onClick={(e) => e.stopPropagation()}>

@@ -1358,7 +1358,7 @@ Gracias por seguir con nosotros.
                     return (
                       <div key={mov.id} className={`p-4 md:p-5 bg-slate-50 dark:bg-[#020617] rounded-2xl border ${esDevolucion ? 'border-amber-200 dark:border-amber-800/50' : 'border-slate-100 dark:border-slate-800'} shadow-sm relative overflow-hidden space-y-2 md:space-y-3`}>
                         <div className={`absolute left-0 top-0 bottom-0 w-1.5 ${
-                          esDevolucion ? 'bg-amber-500' : (esDevolucionSepare ? 'bg-amber-500' : (esEgreso ? 'bg-orange-500' : (esEntregaSepare ? 'bg-purple-600' : (esSepare ? 'bg-violet-600' : (mov.tipo === 'fiado' ? 'bg-rose-500' : (mov.tipo === 'venta' ? 'bg-emerald-500' : 'bg-blue-500'))))))
+                          mov.tipo === 'anulacion' ? 'bg-rose-600' : esDevolucion ? 'bg-amber-500' : (esDevolucionSepare ? 'bg-amber-500' : (esEgreso ? 'bg-orange-500' : (esEntregaSepare ? 'bg-purple-600' : (esSepare ? 'bg-violet-600' : (mov.tipo === 'fiado' ? 'bg-rose-500' : (mov.tipo === 'venta' ? 'bg-emerald-500' : 'bg-blue-500'))))))
                         }`}></div>
                         
                         <div className="pl-1 md:pl-2">

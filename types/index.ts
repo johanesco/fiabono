@@ -216,7 +216,7 @@ export interface Movimiento {
   clienteId?: string;
   clienteNombre?: string;
   usuarioId: string;
-  tipo: 'fiado' | 'abono' | 'venta' | 'egreso' | 'entrega_separe' | 'ingreso_inventario' | 'devolucion' | 'cierre_caja';
+  tipo: 'fiado' | 'abono' | 'venta' | 'egreso' | 'entrega_separe' | 'ingreso_inventario' | 'devolucion' | 'cierre_caja' | 'anulacion';
   subtipo?: string;
   origen?: string;
   monto: number;
