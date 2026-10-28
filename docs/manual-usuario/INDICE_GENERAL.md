@@ -22,6 +22,7 @@
 | [**Capítulo 10**](10_REPORTES_Y_METRICAS_FINANCIERAS.md) | **Reportes Financieros, Utilidades y Métricas de Negocio**<br>Ventas brutas vs Costo de Mercancía = Utilidad Neta Real, margen de ganancia %, ranking de productos estrella, rendimiento de vendedores y exportación contable a Excel y PDF. | Propietario de Negocio |
 | [**Capítulo 11**](11_COLABORADORES_Y_SEGURIDAD.md) | **Gestión de Colaboradores, Cajeros y Seguridad del Negocio**<br>Creación de usuarios sin correos personales, asignación de los 16 permisos clave, ocultamiento de costos y ganancias, y enmascaramiento antifraude de celulares de clientes. | Propietario de Negocio |
 | [**Capítulo 12**](12_SUSCRIPCIONES_PLANES_Y_DIAN.md) | **Planes de Suscripción, Renovaciones y Facturación DIAN**<br>Plan Comercio vs Plan PRO Almacén, prueba gratis de 14 días, métodos de pago en Colombia (Nequi, Daviplata, Wompi, PSE) y Facturación Electrónica DIAN estándar UBL 2.1 con CUFE y QR. | Propietario y Contador |
+| [**Capítulo 13**](13_PREGUNTAS_FRECUENTES_Y_SOLUCION_PROBLEMAS.md) | **Preguntas Frecuentes, Dudas de Mostrador y Solución de Problemas**<br>Guía rápida con las 40 dudas cotidianas más comunes de la tienda física: fallas de internet, descuadres de caja, prendas en stock cero, pagos mixtos, clientes morosos, cancelaciones de separe y seguridad de empleados. | Todos (Cajeros y Dueño) |
 
 ---
 

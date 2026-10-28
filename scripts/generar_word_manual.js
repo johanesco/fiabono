@@ -566,6 +566,7 @@ const MAPA_ARCHIVOS = [
   { md: "10_REPORTES_Y_METRICAS_FINANCIERAS.md", docx: "10_Capitulo_Reportes_y_Metricas_Financieras.docx" },
   { md: "11_COLABORADORES_Y_SEGURIDAD.md", docx: "11_Capitulo_Colaboradores_y_Seguridad.docx" },
   { md: "12_SUSCRIPCIONES_PLANES_Y_DIAN.md", docx: "12_Capitulo_Suscripciones_Planes_y_DIAN.docx" },
+  { md: "13_PREGUNTAS_FRECUENTES_Y_SOLUCION_PROBLEMAS.md", docx: "13_Capitulo_Preguntas_Frecuentes_y_Solucion_Problemas.docx" },
   { md: "INDICE_GENERAL.md", docx: "00_Indice_General_Manual_Usuario.docx" }
 ];
 
