@@ -376,14 +376,17 @@ export default function PerfilPage() {
   }, [adminId, usuarioAuth?.uid, setDatosSesion]);
 
   useEffect(() => {
-    // Sincronización robusta de tema
+    // Sincronización robusta de tema (Por defecto siempre modo claro)
     const temaGuardado = (localStorage.getItem('temaFiabono') || localStorage.getItem('tema')) as any;
     if (temaGuardado) {
       setTemaApariencia(temaGuardado);
       if (temaGuardado === 'oscura') document.documentElement.classList.add('dark');
       else if (temaGuardado === 'clara') document.documentElement.classList.remove('dark');
-    } else if (typeof document !== 'undefined' && document.documentElement.classList.contains('dark')) {
-      setTemaApariencia('oscura');
+    } else {
+      setTemaApariencia('clara');
+      document.documentElement.classList.remove('dark');
+      localStorage.setItem('temaFiabono', 'clara');
+      localStorage.setItem('tema', 'clara');
     }
     setTemaCargado(true); 
     
@@ -878,7 +881,7 @@ export default function PerfilPage() {
       const idParaActualizar = adminId || usuarioAuth?.uid;
       if (!idParaActualizar) throw new Error("No hay sesión válida.");
 
-      const estadoFinal = datosSesion?.facturacionDianHabilitada ? 'aprobada' : 'pendiente';
+      const estadoFinal = datosSesion?.facturacionDianHabilitada ? 'aprobada' : 'interesado_proxima_version';
       const solicitud = {
         estado: estadoFinal as any,
         fechaSolicitud: new Date().toISOString(),
@@ -890,7 +893,9 @@ export default function PerfilPage() {
         regimenIva: dianRegimen,
         direccion: dianDireccion.trim(),
         municipio: dianMunicipio.trim(),
-        telefono: dianTelefono.trim()
+        telefono: dianTelefono.trim(),
+        demo: true,
+        mensaje: 'Registrado en lista de espera para próxima actualización DIAN'
       };
 
       const nitFormateado = dianNit.trim() + (dianDv.trim() ? `-${dianDv.trim()}` : '');
@@ -908,7 +913,8 @@ export default function PerfilPage() {
       setModalSolicitudDian(false);
       toast.success(datosSesion?.facturacionDianHabilitada 
         ? "Datos fiscales actualizados con éxito." 
-        : "Solicitud de Facturación DIAN enviada con éxito."
+        : "¡Solicitud registrada! Tendremos en cuenta tu comercio prioritariamente para la próxima actualización de Facturación Electrónica DIAN.",
+        { duration: 6000 }
       );
     } catch (err: any) {
       console.error(err);
@@ -3161,24 +3167,24 @@ export default function PerfilPage() {
                         </div>
                       )}
                     </div>
-                  ) : datosSesion?.solicitudDian?.estado === 'pendiente' ? (
-                    <div className="p-5 rounded-2xl bg-amber-50/70 dark:bg-amber-950/25 border border-amber-200 dark:border-amber-800/50 space-y-3 shadow-xs">
-                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  ) : (datosSesion?.solicitudDian?.estado === 'interesado_proxima_version' || datosSesion?.solicitudDian?.estado === 'pendiente') ? (
+                    <div className="p-5 rounded-2xl bg-indigo-50/70 dark:bg-indigo-950/25 border border-indigo-200 dark:border-indigo-800/50 space-y-4 shadow-xs">
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-indigo-200/60 dark:border-indigo-800/40">
                         <div className="flex items-start gap-2.5">
-                          <div className="p-2.5 rounded-xl bg-amber-500/20 text-amber-700 dark:text-amber-400">
+                          <div className="p-2.5 rounded-xl bg-indigo-500/20 text-indigo-700 dark:text-indigo-400">
                             <Clock size={20} />
                           </div>
                           <div>
                             <div className="flex items-center gap-2 flex-wrap">
-                              <h4 className="font-black text-sm sm:text-base text-amber-900 dark:text-amber-200">
-                                Solicitud de Facturación DIAN en Revisión
+                              <h4 className="font-black text-sm sm:text-base text-slate-900 dark:text-white">
+                                Facturación Electrónica DIAN
                               </h4>
-                              <span className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-800 dark:text-amber-300 border border-amber-500/30">
-                                En Proceso
+                              <span className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full bg-indigo-500/20 text-indigo-800 dark:text-indigo-300 border border-indigo-500/30">
+                                Demo Registrado · Próxima Actualización
                               </span>
                             </div>
-                            <p className="text-xs text-amber-700 dark:text-amber-300/80 mt-0.5">
-                              Datos recibidos (NIT: <strong>{datosSesion.solicitudDian.nit}</strong>). El equipo Master está procesando la vinculación técnica.
+                            <p className="text-xs text-indigo-900/80 dark:text-indigo-300/80 mt-1 leading-relaxed">
+                              ¡Interés recibido con éxito! Hemos anotado tus datos fiscales. Tu negocio está en la <strong>lista prioritaria</strong> y te habilitaremos este servicio en una próxima actualización de Fiabono.
                             </p>
                           </div>
                         </div>
@@ -3186,35 +3192,70 @@ export default function PerfilPage() {
                         <button
                           type="button"
                           onClick={abrirModalSolicitudDian}
-                          className="px-3.5 py-2 rounded-xl text-xs font-black text-amber-800 dark:text-amber-300 bg-white dark:bg-slate-900 border border-amber-300 dark:border-amber-700/60 hover:bg-amber-100 dark:hover:bg-slate-800 transition active:scale-95 cursor-pointer flex items-center gap-1.5 self-start sm:self-auto shadow-2xs shrink-0"
+                          className="px-3.5 py-2 rounded-xl text-xs font-black text-indigo-800 dark:text-indigo-300 bg-white dark:bg-slate-900 border border-indigo-300 dark:border-indigo-700/60 hover:bg-indigo-100 dark:hover:bg-slate-800 transition active:scale-95 cursor-pointer flex items-center gap-1.5 self-start sm:self-auto shadow-2xs shrink-0"
                         >
                           <Edit2 size={13} />
-                          <span>Modificar Datos Enviados</span>
+                          <span>Modificar Datos Registrados</span>
                         </button>
                       </div>
+
+                      {/* Ficha Fiscal Resumen del Comercio */}
+                      {datosSesion.solicitudDian && (
+                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-xs bg-white/70 dark:bg-slate-900/50 p-3.5 rounded-xl border border-indigo-100 dark:border-indigo-900/30">
+                          <div>
+                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">NIT / Cédula</span>
+                            <span className="font-mono font-black text-slate-800 dark:text-slate-200 text-xs sm:text-sm">
+                              {datosSesion.solicitudDian.nit} - {datosSesion.solicitudDian.dv || '0'}
+                            </span>
+                          </div>
+                          <div>
+                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Razón Social</span>
+                            <span className="font-bold text-slate-800 dark:text-slate-200 text-xs sm:text-sm truncate block">
+                              {datosSesion.solicitudDian.razonSocial || nombreNegocio}
+                            </span>
+                          </div>
+                          <div>
+                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Régimen IVA</span>
+                            <span className="font-bold text-slate-800 dark:text-slate-200 text-xs sm:text-sm">
+                              {datosSesion.solicitudDian.regimenIva === 'responsable' ? 'Responsable IVA' : 'No Responsable'}
+                            </span>
+                          </div>
+                          <div className="col-span-2 sm:col-span-3 pt-2 border-t border-slate-100 dark:border-slate-800/40">
+                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Ubicación y Contacto</span>
+                            <span className="text-slate-700 dark:text-slate-300 font-medium">
+                              {datosSesion.solicitudDian.direccion}, {datosSesion.solicitudDian.municipio} {datosSesion.solicitudDian.telefono ? `· Tel: ${datosSesion.solicitudDian.telefono}` : ''}
+                            </span>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   ) : (
                     <div className="p-5 rounded-2xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-xs">
                       <div className="flex items-start gap-3">
-                        <div className="p-2.5 rounded-xl bg-slate-200 dark:bg-slate-800 text-slate-500 dark:text-slate-400">
+                        <div className="p-2.5 rounded-xl bg-indigo-500/10 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400">
                           <FileText size={20} />
                         </div>
                         <div>
-                          <h4 className="font-black text-sm sm:text-base text-slate-900 dark:text-white">
-                            Facturación Electrónica DIAN
-                          </h4>
-                          <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 leading-relaxed">
-                            Emite facturas electrónicas oficiales con CUFE y código QR ante la DIAN para tus clientes directamente desde el punto de venta.
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <h4 className="font-black text-sm sm:text-base text-slate-900 dark:text-white">
+                              Facturación Electrónica DIAN
+                            </h4>
+                            <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-indigo-500/10 text-indigo-700 dark:text-indigo-300 border border-indigo-500/20">
+                              Demo / Próximamente
+                            </span>
+                          </div>
+                          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 leading-relaxed max-w-xl">
+                            Módulo en fase de demostración y prelanzamiento. Si tu negocio requiere Facturación Electrónica oficial ante la DIAN, habilita tu solicitud aquí para tenerte en cuenta prioritariamente en la próxima actualización.
                           </p>
                         </div>
                       </div>
                       <button
                         type="button"
                         onClick={abrirModalSolicitudDian}
-                        className="px-4 py-2.5 rounded-xl text-xs font-black text-white bg-emerald-600 hover:bg-emerald-700 shadow-md shadow-emerald-600/20 transition active:scale-95 cursor-pointer self-start sm:self-auto shrink-0 flex items-center gap-1.5"
+                        className="px-4 py-2.5 rounded-xl text-xs font-black text-white bg-indigo-600 hover:bg-indigo-700 shadow-md shadow-indigo-600/20 transition active:scale-95 cursor-pointer self-start sm:self-auto shrink-0 flex items-center gap-1.5"
                       >
-                        <ShieldCheck size={15} />
-                        <span>Solicitar Habilitación DIAN</span>
+                        <Sparkles size={15} />
+                        <span>Habilitar para Próxima Versión</span>
                       </button>
                     </div>
                   )}
@@ -5008,13 +5049,18 @@ export default function PerfilPage() {
                   <FileText size={20} />
                 </div>
                 <div>
-                  <h3 className="text-base font-black text-slate-900 dark:text-white">
-                    {datosSesion?.facturacionDianHabilitada ? "Actualizar Datos Fiscales" : "Solicitud Facturación DIAN"}
+                  <h3 className="text-base font-black text-slate-900 dark:text-white flex items-center gap-2">
+                    <span>{datosSesion?.facturacionDianHabilitada ? "Actualizar Datos Fiscales" : "Facturación Electrónica DIAN"}</span>
+                    {!datosSesion?.facturacionDianHabilitada && (
+                      <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-indigo-500/10 text-indigo-700 dark:text-indigo-300 border border-indigo-500/20">
+                        Demo
+                      </span>
+                    )}
                   </h3>
                   <p className="text-xs text-slate-500 dark:text-slate-400">
                     {datosSesion?.facturacionDianHabilitada
                       ? "Datos del emisor que aparecerán en tus facturas electrónicas"
-                      : "Datos fiscales exigidos por la normativa colombiana"}
+                      : "Registra el interés de tu negocio para ser incluido en la próxima actualización"}
                   </p>
                 </div>
               </div>
@@ -5029,14 +5075,24 @@ export default function PerfilPage() {
 
             {/* Form */}
             <form onSubmit={enviarSolicitudDian} className="p-5 space-y-4">
-              <div className={`p-3 rounded-2xl text-[11px] border ${
+              <div className={`p-3.5 rounded-2xl text-xs border ${
                 datosSesion?.facturacionDianHabilitada
                   ? "bg-emerald-50/60 dark:bg-emerald-950/20 border-emerald-100 dark:border-emerald-900/40 text-emerald-800 dark:text-emerald-300"
-                  : "bg-blue-50/60 dark:bg-blue-950/20 border-blue-100 dark:border-blue-900/40 text-blue-800 dark:text-blue-300"
+                  : "bg-indigo-50/80 dark:bg-indigo-950/30 border-indigo-200 dark:border-indigo-800/50 text-indigo-900 dark:text-indigo-300"
               }`}>
-                {datosSesion?.facturacionDianHabilitada
-                  ? "Tu comercio ya está habilitado ante la DIAN. Cualquier modificación en estos campos se actualizará de inmediato en tus próximas facturas electrónicas emitidas."
-                  : "Al enviar estos datos, el equipo de Fiabono gestionará la vinculación técnica de tu comercio para que puedas emitir facturas legales con CUFE y QR desde tu punto de venta."}
+                {datosSesion?.facturacionDianHabilitada ? (
+                  "Tu comercio ya está habilitado ante la DIAN. Cualquier modificación en estos campos se actualizará de inmediato en tus próximas facturas electrónicas emitidas."
+                ) : (
+                  <div className="space-y-1">
+                    <p className="font-bold flex items-center gap-1.5 text-indigo-900 dark:text-indigo-200">
+                      <Sparkles size={14} className="shrink-0 text-indigo-600 dark:text-indigo-400" />
+                      <span>Fase de demostración y lista de espera</span>
+                    </p>
+                    <p className="text-[11px] leading-relaxed text-indigo-800 dark:text-indigo-300/90">
+                      La emisión oficial ante la DIAN se encuentra en desarrollo. Al registrar los datos de tu comercio, <strong>quedarás inscrito en la lista de espera prioritaria</strong> y se tendrá en cuenta para activarlo en una próxima actualización de Fiabono.
+                    </p>
+                  </div>
+                )}
               </div>
 
               <div className="grid grid-cols-3 gap-2.5">
@@ -5191,7 +5247,7 @@ export default function PerfilPage() {
                       <span>Guardando...</span>
                     </>
                   ) : (
-                    <span>{datosSesion?.facturacionDianHabilitada ? "Guardar Datos Fiscales" : "Enviar Solicitud DIAN"}</span>
+                    <span>{datosSesion?.facturacionDianHabilitada ? "Guardar Datos Fiscales" : "Registrar para Próxima Actualización"}</span>
                   )}
                 </button>
               </div>

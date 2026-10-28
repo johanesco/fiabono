@@ -484,7 +484,7 @@ export default function MasterPage() {
         conDian++;
       }
 
-      if (u.solicitudDian && u.solicitudDian.estado === 'pendiente' && !u.facturacionDianHabilitada) {
+      if (u.solicitudDian && (u.solicitudDian.estado === 'pendiente' || u.solicitudDian.estado === 'interesado_proxima_version') && !u.facturacionDianHabilitada) {
         solicitudesDian++;
       }
 
@@ -588,7 +588,7 @@ export default function MasterPage() {
       if (filtroEstado === 'prueba') return enPruebaGratis;
       if (filtroEstado === 'vencidos') return !esActivo && !esGratis;
       if (filtroEstado === 'conDian') return u.facturacionDianHabilitada === true;
-      if (filtroEstado === 'solicitudDian') return Boolean(u.solicitudDian && u.solicitudDian.estado === 'pendiente');
+      if (filtroEstado === 'solicitudDian') return Boolean(u.solicitudDian && (u.solicitudDian.estado === 'pendiente' || u.solicitudDian.estado === 'interesado_proxima_version'));
       if (filtroEstado === 'inactivos') {
         const info = calcularInactividad(u);
         return info.esInactivo30d;

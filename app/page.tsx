@@ -17,12 +17,12 @@ export default function Home() {
   // mostramos un splash limpio. Así la landing NUNCA aparece de reojo a un usuario con sesión activa.
   if (cargando || datosSesion) {
     return (
-      <div className="min-h-screen w-full bg-[#020617] flex flex-col items-center justify-center gap-5 text-white">
+      <div className="min-h-screen w-full bg-slate-50 dark:bg-[#020617] flex flex-col items-center justify-center gap-5 text-slate-800 dark:text-white transition-colors duration-200">
         <div className="animate-pulse">
           <IsotipoFiabono size={64} />
         </div>
         <div className="w-6 h-6 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" />
-        <p className="text-xs font-bold text-slate-400 tracking-wide">
+        <p className="text-xs font-bold text-slate-500 dark:text-slate-400 tracking-wide">
           {datosSesion ? 'Entrando a tu negocio...' : 'Abriendo Fiabono...'}
         </p>
       </div>
