@@ -533,7 +533,7 @@ function ClientesContenido() {
   useEffect(() => {
     if (clienteIdParam && clientesConAnalisis.length > 0) {
       const match = clientesConAnalisis.find(c => c.id === clienteIdParam);
-      if (match) {
+      if (match && clienteFicha?.id !== match.id) {
         setClienteFicha(match);
       }
     }
@@ -544,13 +544,20 @@ function ClientesContenido() {
     if (!clienteIdParam && !clienteFicha && clientesFiltrados.length > 0 && typeof window !== 'undefined' && window.innerWidth >= 1024) {
       setClienteFicha(clientesFiltrados[0]);
     }
-  }, [clientesFiltrados, clienteFicha, clienteIdParam]);
+  }, [clientesFiltrados.length, !clienteFicha, clienteIdParam]);
 
   // Si el cliente seleccionado cambia en datos reales, mantenerlo actualizado
   useEffect(() => {
     if (clienteFicha) {
       const actualizado = clientesConAnalisis.find(c => c.id === clienteFicha.id);
-      if (actualizado && JSON.stringify(actualizado) !== JSON.stringify(clienteFicha)) {
+      if (actualizado && (
+        actualizado.deuda !== clienteFicha.deuda ||
+        actualizado.totalCompromiso !== clienteFicha.totalCompromiso ||
+        actualizado.nombre !== clienteFicha.nombre ||
+        actualizado.apodo !== clienteFicha.apodo ||
+        actualizado.notas !== clienteFicha.notas ||
+        actualizado.movimientosCount !== clienteFicha.movimientosCount
+      )) {
         setClienteFicha(actualizado);
       }
     }
@@ -951,27 +958,25 @@ Gracias por seguir con nosotros.
 
     // Banner inteligente cuando el cliente tiene saldo a favor y al mismo tiempo un Separe activo (Teal)
     const bannerSaldoAFavorSepare = tieneSaldoAFavorFiado && saldoSeparesActivos > 0 && (
-      <div className="p-3 sm:p-3.5 rounded-2xl bg-gradient-to-r from-teal-50 to-emerald-50/50 dark:from-teal-950/40 dark:to-emerald-950/30 border border-teal-200 dark:border-teal-800/60 shadow-xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-        <div className="flex items-start gap-2.5 min-w-0">
-          <div className="w-8 h-8 rounded-xl bg-teal-600/10 dark:bg-teal-400/20 text-teal-600 dark:text-teal-300 flex items-center justify-center shrink-0 mt-0.5">
-            <Wallet size={16} />
+      <div className="p-3.5 rounded-2xl bg-teal-50/80 dark:bg-teal-950/30 border border-teal-200/80 dark:border-teal-800/60 shadow-xs flex flex-col gap-2.5">
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2 min-w-0">
+            <div className="w-7 h-7 rounded-lg bg-teal-600/10 dark:bg-teal-400/20 text-teal-600 dark:text-teal-300 flex items-center justify-center shrink-0">
+              <Wallet size={15} />
+            </div>
+            <span className="text-xs font-bold text-teal-950 dark:text-teal-100 truncate">Saldo a favor</span>
           </div>
-          <div className="text-xs min-w-0">
-            <p className="font-bold text-teal-950 dark:text-teal-100 flex items-center gap-1.5 flex-wrap">
-              <span>Saldo a favor disponible:</span>
-              <span className="text-teal-700 dark:text-teal-300 font-black">
-                ${Math.round(Math.abs(deudaFiado)).toLocaleString('es-CO')}
-              </span>
-            </p>
-            <p className="text-[11px] text-teal-800/85 dark:text-teal-300/80 mt-0.5 leading-snug">
-              Tiene Separes activos por <strong>${Math.round(saldoSeparesActivos).toLocaleString('es-CO')}</strong>. Puedes abonar a sus Separes usando este saldo a favor.
-            </p>
-          </div>
+          <span className="text-sm font-black text-teal-700 dark:text-teal-300 shrink-0">
+            ${Math.round(Math.abs(deudaFiado)).toLocaleString('es-CO')}
+          </span>
         </div>
+        <p className="text-[11px] text-teal-900/80 dark:text-teal-300/80 leading-snug">
+          Tiene <strong>${Math.round(saldoSeparesActivos).toLocaleString('es-CO')}</strong> pendientes en Separes. Puedes usar este saldo a favor para cubrir cuotas.
+        </p>
         <button
           type="button"
           onClick={() => router.push(`/dashboard/separes?tab=activos&busqueda=${encodeURIComponent(cliente.nombre || '')}`)}
-          className="shrink-0 w-full sm:w-auto px-3 py-1.5 bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold rounded-xl transition-all shadow-xs flex items-center justify-center gap-1.5 cursor-pointer active:scale-95"
+          className="w-full py-2 px-3 bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold rounded-xl transition-all shadow-xs flex items-center justify-center gap-1.5 cursor-pointer active:scale-95"
         >
           <span>Abonar a Separe</span>
           <ChevronRight size={14} />

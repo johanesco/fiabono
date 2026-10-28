@@ -719,7 +719,7 @@ Gracias por seguir con nosotros.
           {/* 1. DIRECTORIO DE CLIENTES (PRIMERO: CUBRE TODA LA FILA SI CIERRE NO ESTÁ HABILITADO) */}
           {puedeVerDirectorio && (
             <button 
-              onClick={() => router.push("/dashboard/clientes")}
+              onClick={() => setVerTodosClientes(true)}
               className="w-full bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-800 hover:border-blue-400/50 py-3 sm:py-3.5 px-4 sm:px-5 rounded-2xl shadow-sm flex items-center justify-between transition-all group cursor-pointer active:scale-[0.99]"
             >
               <div className="flex items-center gap-3 min-w-0 flex-1 mr-2">
@@ -1020,14 +1020,7 @@ Gracias por seguir con nosotros.
                 {/* BARRA DE ACCIONES RÁPIDAS Y WHATSAPP (SOLO ESCRITORIO / TABLET) */}
                 <div className="hidden md:flex flex-col xl:flex-row xl:items-center xl:justify-between gap-2.5 px-6 py-3 bg-slate-50 dark:bg-[#020617] border-b border-slate-200 dark:border-slate-800 shrink-0">
                   <div className="grid grid-cols-4 gap-2 w-full xl:w-auto xl:flex xl:items-center">
-                    <button 
-                      type="button"
-                      onClick={() => router.push(`/dashboard/clientes?clienteId=${clienteActivo.id}`)} 
-                      className="px-3 sm:px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-black rounded-xl text-xs uppercase shadow-xs transition active:scale-95 cursor-pointer text-center flex items-center justify-center gap-1"
-                      title="Ver ficha en Cartera y Directorio"
-                    >
-                      <span>Cartera ↗</span>
-                    </button>
+
                     <button 
                       type="button"
                       onClick={() => router.push(`/dashboard/vender?clienteId=${clienteActivo.id}`)} 

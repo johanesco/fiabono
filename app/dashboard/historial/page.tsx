@@ -1334,17 +1334,6 @@ Gracias por seguir con nosotros.
                           📍 {clienteActivo.direccion}
                         </span>
                       )}
-                      {clienteActivo.celular && puedeEnviarWhatsApp && (
-                        <button
-                          type="button"
-                          onClick={() => abrirWhatsApp(generarTextoComprobante('estado', clienteActivo), clienteActivo.celular)}
-                          title="Enviar WhatsApp al cliente"
-                          className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-400 font-bold text-[11px] transition cursor-pointer border border-emerald-500/30 active:scale-95"
-                        >
-                          <MessageCircle size={12} className="text-[#25D366] fill-[#25D366]/30" />
-                          <span>WhatsApp</span>
-                        </button>
-                      )}
                     </div>
                   </div>
                   {datosSesion?.rol !== 'cajero' && (
@@ -1403,14 +1392,7 @@ Gracias por seguir con nosotros.
               {/* BARRA DE ACCIONES RÁPIDAS Y WHATSAPP (SOLO ESCRITORIO / TABLET) */}
               <div className="hidden md:flex flex-col xl:flex-row xl:items-center xl:justify-between gap-2.5 px-6 py-3 bg-slate-50 dark:bg-[#020617] border-b border-slate-200 dark:border-slate-800 shrink-0">
                 <div className="grid grid-cols-4 gap-2 w-full xl:w-auto xl:flex xl:items-center">
-                  <button 
-                    type="button"
-                    onClick={() => router.push(`/dashboard/clientes?clienteId=${clienteActivo.id}`)} 
-                    className="px-3 sm:px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-black rounded-xl text-xs uppercase shadow-xs transition active:scale-95 cursor-pointer text-center flex items-center justify-center gap-1"
-                    title="Ver ficha completa en Directorio y Cartera"
-                  >
-                    <span>Cartera ↗</span>
-                  </button>
+
                   <button 
                     type="button"
                     onClick={() => router.push(`/dashboard/vender?clienteId=${clienteActivo.id}`)} 
