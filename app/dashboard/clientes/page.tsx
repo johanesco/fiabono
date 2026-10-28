@@ -1987,7 +1987,8 @@ Gracias por seguir con nosotros.
           </button>
           <div className="min-w-0">
             <h1 className="text-base sm:text-xl font-black text-slate-900 dark:text-white tracking-tight truncate flex items-center gap-2">
-              <span>Directorio de Clientes</span>
+              <span className="sm:hidden">Clientes</span>
+              <span className="hidden sm:inline">Directorio de Clientes</span>
               <span className="hidden sm:inline-flex px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-200/50">
                 {metricasMacro.totalClientes} registrados
               </span>
@@ -1995,9 +1996,9 @@ Gracias por seguir con nosotros.
             <p className="text-[11px] sm:text-xs text-slate-500 dark:text-slate-400 truncate">
               {metricasMacro.conFiadoCount > 0 || metricasMacro.conSepareCount > 0 ? (
                 <>
-                  {metricasMacro.conFiadoCount > 0 && `${metricasMacro.conFiadoCount} con fiado`}
+                  {metricasMacro.conFiadoCount > 0 && `${metricasMacro.conFiadoCount} fiado${metricasMacro.conFiadoCount > 1 ? 's' : ''}`}
                   {metricasMacro.conFiadoCount > 0 && metricasMacro.conSepareCount > 0 && " • "}
-                  {metricasMacro.conSepareCount > 0 && `${metricasMacro.conSepareCount} con separe`}
+                  {metricasMacro.conSepareCount > 0 && `${metricasMacro.conSepareCount} separe${metricasMacro.conSepareCount > 1 ? 's' : ''}`}
                   {metricasMacro.enRiesgoCount > 0 && ` (${metricasMacro.enRiesgoCount} en riesgo)`}
                 </>
               ) : (
