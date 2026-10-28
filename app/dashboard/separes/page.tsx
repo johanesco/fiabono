@@ -244,6 +244,7 @@ function SeparesContenido() {
     nuevaDeuda: number;
     ticketDatos: DatosFacturaProps;
   } | null>(null);
+  const [menuOpcionesAbiertoId, setMenuOpcionesAbiertoId] = useState<string | null>(null);
 
   // Generadores de Sonidos Web Audio API
   const reproducirSonidoExito = () => {
@@ -2422,30 +2423,86 @@ ${itemsTexto || '• Artículos apartados'}
                             <Printer size={14} />
                           </button>
 
-                          {/* Entregar a Fiado (Opción secundaria en utilidades) */}
-                          {!esCompletado && !esCancelado && saldo > 0 && puedeEntregar && (
-                            <button
-                              type="button"
-                              onClick={() => abrirModalEntregarFiado(sep)}
-                              className="p-1.5 px-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/30 rounded-xl transition-colors cursor-pointer shrink-0"
-                              title="Entregar mercancía y trasladar saldo restante a Fiado"
-                            >
-                              <Receipt size={14} />
-                            </button>
-                          )}
-
-                          {/* Cancelar (Si activo) */}
+                          {/* Menú de Más Opciones (•••) */}
                           {!esCompletado && !esCancelado && (
-                            <button
-                              onClick={() => {
-                                setSepareSeleccionado(sep);
-                                setModalCancelar(true);
-                              }}
-                              className="p-1.5 px-2 text-slate-400 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/30 rounded-xl transition-colors cursor-pointer shrink-0"
-                              title="Cancelar Separe"
-                            >
-                              <X size={15} />
-                            </button>
+                            <div className="relative shrink-0">
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setMenuOpcionesAbiertoId(prev => prev === sep.id ? null : sep.id);
+                                }}
+                                className={`p-1.5 px-2 rounded-xl transition-colors cursor-pointer ${
+                                  menuOpcionesAbiertoId === sep.id
+                                    ? 'bg-slate-200 dark:bg-slate-700 text-slate-900 dark:text-white'
+                                    : 'text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800'
+                                }`}
+                                title="Más opciones del Plan Separe"
+                                aria-label="Más opciones"
+                              >
+                                <MoreVertical size={14} />
+                              </button>
+
+                              {/* Dropdown flotante elegante */}
+                              {menuOpcionesAbiertoId === sep.id && (
+                                <>
+                                  <div
+                                    className="fixed inset-0 z-30"
+                                    onClick={() => setMenuOpcionesAbiertoId(null)}
+                                  />
+                                  <div className="absolute right-0 bottom-full mb-1.5 w-64 bg-white dark:bg-[#0f172a] rounded-2xl shadow-xl border border-slate-200 dark:border-slate-800 p-1.5 z-40 animate-in fade-in zoom-in-95 duration-150">
+                                    {saldo > 0 && puedeEntregar && (
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          setMenuOpcionesAbiertoId(null);
+                                          abrirModalEntregarFiado(sep);
+                                        }}
+                                        className="w-full text-left p-2 rounded-xl hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors flex items-start gap-2.5 group cursor-pointer"
+                                      >
+                                        <div className="p-1.5 bg-rose-100 dark:bg-rose-500/20 text-rose-600 dark:text-rose-400 rounded-lg shrink-0 mt-0.5">
+                                          <Receipt size={14} />
+                                        </div>
+                                        <div className="min-w-0 flex-1">
+                                          <p className="text-xs font-black text-slate-900 dark:text-white group-hover:text-rose-600 dark:group-hover:text-rose-400 leading-tight">
+                                            Entregar pasando a Fiado
+                                          </p>
+                                          <p className="text-[10px] text-slate-400 dark:text-slate-500 leading-snug mt-0.5">
+                                            Se lleva la mercancía y el saldo (${saldo.toLocaleString('es-CO')}) pasa a cartera fiada
+                                          </p>
+                                        </div>
+                                      </button>
+                                    )}
+
+                                    {saldo > 0 && puedeEntregar && (
+                                      <div className="h-px bg-slate-100 dark:bg-slate-800 my-1" />
+                                    )}
+
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setMenuOpcionesAbiertoId(null);
+                                        setSepareSeleccionado(sep);
+                                        setModalCancelar(true);
+                                      }}
+                                      className="w-full text-left p-2 rounded-xl hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors flex items-start gap-2.5 group cursor-pointer"
+                                    >
+                                      <div className="p-1.5 bg-slate-100 dark:bg-slate-800 text-slate-500 group-hover:text-rose-600 rounded-lg shrink-0 mt-0.5">
+                                        <X size={14} />
+                                      </div>
+                                      <div className="min-w-0 flex-1">
+                                        <p className="text-xs font-black text-slate-900 dark:text-white group-hover:text-rose-600 dark:group-hover:text-rose-400 leading-tight">
+                                          Cancelar Plan Separe
+                                        </p>
+                                        <p className="text-[10px] text-slate-400 dark:text-slate-500 leading-snug mt-0.5">
+                                          Anular apartado y gestionar devolución
+                                        </p>
+                                      </div>
+                                    </button>
+                                  </div>
+                                </>
+                              )}
+                            </div>
                           )}
                         </div>
                       </div>
