@@ -929,50 +929,62 @@ Gracias por seguir con nosotros.
                   const totalCompromiso = tieneSaldoAFavor ? Math.abs(deudaFiado) : (deudaFiado + saldoSeparesActivos);
 
                   return (
-                    <div className="hidden md:flex p-6 bg-slate-900 text-white justify-between items-center shrink-0 gap-4">
-                      <div className="flex items-center gap-3 min-w-0">
-                        <div className="min-w-0">
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <h3 className="text-2xl font-black">{clienteActivo.nombre}</h3>
-                            {clienteActivo.apodo && (
-                              <span className="text-xs font-bold text-amber-300 bg-amber-500/20 px-2 py-0.5 rounded-lg border border-amber-500/30">
-                                "{clienteActivo.apodo}"
-                              </span>
-                            )}
-                          </div>
-                          <div className="flex items-center gap-2 mt-0.5">
-                            <p className="text-slate-400 text-sm flex items-center gap-1.5">
-                              {clienteActivo.celular ? (
-                                <>
-                                  <Phone size={13} className="text-slate-400 shrink-0" />
-                                  <span>{clienteActivo.celular}</span>
-                                </>
-                              ) : (
-                                "Sin celular registrado"
-                              )}
-                            </p>
-                          </div>
+                    <div className="hidden md:flex p-4 sm:p-5 lg:p-6 bg-slate-900 text-white justify-between items-start shrink-0 gap-4">
+                      <div className="min-w-0 flex-1 space-y-1.5">
+                        <div className="flex items-center gap-2 flex-wrap min-w-0">
+                          <h3 className="text-lg sm:text-xl lg:text-2xl font-black text-white leading-tight break-words">
+                            {clienteActivo.nombre}
+                          </h3>
+                          {clienteActivo.apodo && (
+                            <span className="text-xs font-bold text-amber-300 bg-amber-500/20 px-2 py-0.5 rounded-lg border border-amber-500/30 shrink-0">
+                              "{clienteActivo.apodo}"
+                            </span>
+                          )}
                         </div>
-                        {datosSesion?.rol !== 'cajero' && (
-                          <div className="flex items-center gap-1.5 ml-2 shrink-0">
-                            <button
-                              type="button"
-                              onClick={() => setModalGestionCliente({ visible: true, modo: 'editar', cliente: clienteActivo })}
-                              className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-blue-600 text-slate-200 hover:text-white transition-colors cursor-pointer flex items-center gap-1.5 text-xs font-bold border border-slate-700 shadow-xs"
-                            >
-                              <Edit3 size={14} />
-                              <span>Editar</span>
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => setModalGestionCliente({ visible: true, modo: 'eliminar', cliente: clienteActivo })}
-                              title="Eliminar Cliente"
-                              className="p-1.5 rounded-xl bg-slate-800 hover:bg-rose-600/80 text-slate-400 hover:text-white transition-colors cursor-pointer"
-                            >
-                              <Trash2 size={15} />
-                            </button>
-                          </div>
-                        )}
+                        <div className="flex items-center gap-2.5 flex-wrap text-xs text-slate-400">
+                          <p className="flex items-center gap-1.5 text-slate-300">
+                            {clienteActivo.celular ? (
+                              <>
+                                <Phone size={13} className="text-slate-400 shrink-0" />
+                                <span>{clienteActivo.celular}</span>
+                              </>
+                            ) : (
+                              <span className="italic text-slate-500">Sin celular registrado</span>
+                            )}
+                          </p>
+                          {clienteActivo.numeroDocumento && (
+                            <span className="text-[11px] text-slate-400 bg-slate-800 px-2 py-0.5 rounded-md border border-slate-700/60">
+                              Doc: {clienteActivo.numeroDocumento}
+                            </span>
+                          )}
+                          {clienteActivo.direccion && (
+                            <span className="text-[11px] text-slate-400">
+                              📍 {clienteActivo.direccion}
+                            </span>
+                          )}
+                          {datosSesion?.rol !== 'cajero' && (
+                            <div className="inline-flex items-center gap-1.5 shrink-0 ml-1">
+                              <button
+                                type="button"
+                                onClick={() => setModalGestionCliente({ visible: true, modo: 'editar', cliente: clienteActivo })}
+                                className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-blue-600 text-slate-200 hover:text-white transition-colors cursor-pointer flex items-center gap-1.5 text-xs font-bold border border-slate-700 shadow-xs"
+                              >
+                                <Edit3 size={13} />
+                                <span>Editar</span>
+                              </button>
+                              {datosSesion?.esAdmin !== false && (
+                                <button
+                                  type="button"
+                                  onClick={() => setModalGestionCliente({ visible: true, modo: 'eliminar', cliente: clienteActivo })}
+                                  title="Eliminar Cliente"
+                                  className="p-1 rounded-lg bg-slate-800 hover:bg-rose-600/80 text-slate-400 hover:text-white transition-colors cursor-pointer border border-slate-700"
+                                >
+                                  <Trash2 size={13} />
+                                </button>
+                              )}
+                            </div>
+                          )}
+                        </div>
                       </div>
 
                       <div className="flex items-center gap-4 shrink-0">

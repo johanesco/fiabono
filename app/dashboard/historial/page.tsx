@@ -6,7 +6,7 @@ import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import { collection, getDocs, query, where, onSnapshot, orderBy, limit } from "firebase/firestore";
 import { db, auth } from "../../../firebase";
-import { Search, X, Clock, MessageCircle, Star, Users, Store, Printer, Edit3, Trash2, Bookmark, ChevronRight, Package, ArrowRight, User, RotateCcw, Smartphone, Calendar, ChevronDown, Calculator, Ban } from 'lucide-react';
+import { Search, X, Clock, MessageCircle, Star, Users, Store, Printer, Edit3, Trash2, Bookmark, ChevronRight, Package, ArrowRight, User, RotateCcw, Smartphone, Calendar, ChevronDown, Calculator, Ban, Phone } from 'lucide-react';
 import toast from "react-hot-toast";
 
 import { useAuth } from "../../../hooks/AuthContext";
@@ -1343,56 +1343,67 @@ Gracias por seguir con nosotros.
             <div className="flex-1 flex flex-col h-full bg-white dark:bg-[#0f172a] overflow-hidden">
               
               {/* HEADER ESCRITORIO */}
-              <div className="hidden md:flex p-6 bg-slate-900 text-white justify-between items-center shrink-0 gap-4">
-                <div className="flex items-center gap-3 min-w-0">
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <h3 className="text-2xl font-black">{clienteActivo.nombre}</h3>
-                      {clienteActivo.apodo && (
-                        <span className="text-xs font-bold text-amber-300 bg-amber-500/20 px-2.5 py-0.5 rounded-lg border border-amber-500/30">
-                          "{clienteActivo.apodo}"
-                        </span>
-                      )}
-                      {clienteActivo.notas && (
-                        <span className="text-xs font-medium bg-amber-500/20 text-amber-300 border border-amber-500/30 px-2 py-0.5 rounded-lg">
-                          📝 {clienteActivo.notas}
-                        </span>
-                      )}
-                    </div>
-                    <div className="flex items-center gap-2 mt-0.5 flex-wrap">
-                      <p className="text-slate-400 text-sm">{clienteActivo.celular ? `📱 ${clienteActivo.celular}` : "Sin celular registrado"}</p>
-                      {clienteActivo.numeroDocumento && (
-                        <span className="text-xs text-slate-400 bg-slate-800 px-2 py-0.5 rounded-md">
-                          Doc: {clienteActivo.numeroDocumento}
-                        </span>
-                      )}
-                      {clienteActivo.direccion && (
-                        <span className="text-xs text-slate-400">
-                          📍 {clienteActivo.direccion}
-                        </span>
-                      )}
-                    </div>
+              <div className="hidden md:flex p-4 sm:p-5 lg:p-6 bg-slate-900 text-white justify-between items-start shrink-0 gap-4">
+                <div className="min-w-0 flex-1 space-y-1.5">
+                  <div className="flex items-center gap-2 flex-wrap min-w-0">
+                    <h3 className="text-lg sm:text-xl lg:text-2xl font-black text-white leading-tight break-words">
+                      {clienteActivo.nombre}
+                    </h3>
+                    {clienteActivo.apodo && (
+                      <span className="text-xs font-bold text-amber-300 bg-amber-500/20 px-2.5 py-0.5 rounded-lg border border-amber-500/30 shrink-0">
+                        "{clienteActivo.apodo}"
+                      </span>
+                    )}
+                    {clienteActivo.notas && (
+                      <span className="text-xs font-medium bg-amber-500/20 text-amber-300 border border-amber-500/30 px-2 py-0.5 rounded-lg shrink-0">
+                        📝 {clienteActivo.notas}
+                      </span>
+                    )}
                   </div>
-                  {datosSesion?.rol !== 'cajero' && (
-                    <div className="flex items-center gap-2 ml-2 shrink-0">
-                      <button
-                        type="button"
-                        onClick={() => setModalGestionCliente({ visible: true, modo: 'editar', cliente: clienteActivo })}
-                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs transition shadow-xs cursor-pointer"
-                      >
-                        <Edit3 size={14} className="shrink-0" />
-                        <span>Editar</span>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setModalGestionCliente({ visible: true, modo: 'eliminar', cliente: clienteActivo })}
-                        title="Eliminar Cliente"
-                        className="p-2 rounded-xl bg-slate-800 hover:bg-rose-600/80 text-slate-300 hover:text-white transition-colors cursor-pointer"
-                      >
-                        <Trash2 size={16} />
-                      </button>
-                    </div>
-                  )}
+                  <div className="flex items-center gap-2.5 flex-wrap text-xs text-slate-400">
+                    <p className="flex items-center gap-1.5 text-slate-300">
+                      {clienteActivo.celular ? (
+                        <>
+                          <Phone size={13} className="text-slate-400 shrink-0" />
+                          <span>{clienteActivo.celular}</span>
+                        </>
+                      ) : (
+                        <span className="italic text-slate-500">Sin celular registrado</span>
+                      )}
+                    </p>
+                    {clienteActivo.numeroDocumento && (
+                      <span className="text-[11px] text-slate-400 bg-slate-800 px-2 py-0.5 rounded-md border border-slate-700/60">
+                        Doc: {clienteActivo.numeroDocumento}
+                      </span>
+                    )}
+                    {clienteActivo.direccion && (
+                      <span className="text-[11px] text-slate-400">
+                        📍 {clienteActivo.direccion}
+                      </span>
+                    )}
+                    {datosSesion?.rol !== 'cajero' && (
+                      <div className="inline-flex items-center gap-1.5 shrink-0 ml-1">
+                        <button
+                          type="button"
+                          onClick={() => setModalGestionCliente({ visible: true, modo: 'editar', cliente: clienteActivo })}
+                          className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-blue-600 text-slate-200 hover:text-white transition-colors cursor-pointer flex items-center gap-1.5 text-xs font-bold border border-slate-700 shadow-xs"
+                        >
+                          <Edit3 size={13} />
+                          <span>Editar</span>
+                        </button>
+                        {datosSesion?.esAdmin !== false && (
+                          <button
+                            type="button"
+                            onClick={() => setModalGestionCliente({ visible: true, modo: 'eliminar', cliente: clienteActivo })}
+                            title="Eliminar Cliente"
+                            className="p-1 rounded-lg bg-slate-800 hover:bg-rose-600/80 text-slate-400 hover:text-white transition-colors cursor-pointer border border-slate-700"
+                          >
+                            <Trash2 size={13} />
+                          </button>
+                        )}
+                      </div>
+                    )}
+                  </div>
                 </div>
 
                 <div className="flex items-center gap-4 shrink-0">
