@@ -4709,7 +4709,7 @@ ${itemsTexto || '• Artículos apartados'}
         const nuevaCant = Math.max(1, Math.round(Number(editCantidadItem || 1)));
         const nuevaDesc = esDeInv ? descAnterior : (editDescripcionItem.trim() || descAnterior);
         const deltaCant = nuevaCant - cantAnterior;
-        const excedeStockBodega = esDeInv && stockBodega !== null && deltaCant > stockBodega;
+        const excedeStockBodega = esDeInv && stockBodega !== null && deltaCant > 0 && deltaCant > stockBodega;
 
         const subtotalBrutoAnterior = valorUnitAnterior * cantAnterior;
         const nuevoSubtotalBruto = nuevoValorUnit * nuevaCant;
