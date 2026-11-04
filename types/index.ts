@@ -360,6 +360,8 @@ export interface DatosSesionContext {
 
   // Helpers derivados
   esAdmin: boolean;
+  esMaster?: boolean;
+  esFounderPrincipal?: boolean;
   puedeVentaDirecta: boolean;
   puedeAbonar: boolean;
   puedeEditarInventario: boolean;

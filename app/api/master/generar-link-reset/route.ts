@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getAdminAuth } from '@/lib/firebase-admin';
+import { getAdminAuth, getAdminDb } from '@/lib/firebase-admin';
 
 export async function POST(request: Request) {
   try {
@@ -18,7 +18,18 @@ export async function POST(request: Request) {
     }
 
     // Verificación de seguridad: solo el SuperAdmin Master (Johan) puede generar estos enlaces
-    if (decodedToken.email?.toLowerCase().trim() !== 'johanescobar1@gmail.com') {
+    const emailSolicitante = decodedToken.email?.toLowerCase().trim() || '';
+    let esMasterAutorizado = emailSolicitante === 'johanescobar1@gmail.com';
+    if (!esMasterAutorizado && emailSolicitante) {
+      try {
+        const snapMaster = await getAdminDb().collection('configuracion_sistema').doc('master').get();
+        const lista = snapMaster.data()?.emailsAutorizados;
+        if (Array.isArray(lista)) {
+          esMasterAutorizado = lista.some((em: any) => String(em || '').toLowerCase().trim() === emailSolicitante);
+        }
+      } catch {}
+    }
+    if (!esMasterAutorizado) {
       return NextResponse.json({ error: 'Acceso restringido únicamente al SuperAdmin Master.' }, { status: 403 });
     }
 
@@ -30,6 +41,9 @@ export async function POST(request: Request) {
     }
 
     // Generar enlace seguro oficial de restablecimiento a través de Firebase Admin SDK
+    if (email.trim().toLowerCase() === 'johanescobar1@gmail.com' && emailSolicitante !== 'johanescobar1@gmail.com') {
+      return NextResponse.json({ error: 'Acción bloqueada: Solo el Founder principal puede restablecer su propia cuenta.' }, { status: 403 });
+    }
     const rawLink = await adminAuth.generatePasswordResetLink(email.trim().toLowerCase());
 
     // Extraer el código seguro oobCode para construir la URL oficial de Fiabono

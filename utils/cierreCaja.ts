@@ -43,6 +43,8 @@ export interface EstadoTurnoCaja {
   aperturaActual: CierreCaja | null;
   ultimoCierre: CierreCaja | null;
   arqueosParciales: CierreCaja[];
+  esTurnoDiaAnterior?: boolean;
+  diasSinCerrar?: number;
 }
 
 /**
@@ -122,6 +124,10 @@ export async function obtenerEstadoCaja(db: any, usuarioId: string): Promise<Est
       baseInicial,
       fechaInicioTurno,
       aperturaActual: estaAbierta ? ultimaApertura : null,
+      esTurnoDiaAnterior: Boolean(estaAbierta && fechaInicioTurno.getTime() < hoyCero.getTime()),
+      diasSinCerrar: (estaAbierta && fechaInicioTurno.getTime() < hoyCero.getTime())
+        ? Math.max(1, Math.ceil((hoyCero.getTime() - fechaInicioTurno.getTime()) / (1000 * 3600 * 24)))
+        : 0,
       ultimoCierre,
       arqueosParciales
     };

@@ -160,7 +160,23 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         setBloqueoColaborador(null);
 
         // VALIDACIÓN MASTER: Si el negocio fue suspendido o desactivado por el Master
-        const esMasterSuperAdmin = user.email?.toLowerCase().trim() === 'johanescobar1@gmail.com';
+        const emailAutenticado = (user.email || data.email || "").toLowerCase().trim();
+        const esFounderPrincipal = emailAutenticado === 'johanescobar1@gmail.com' && data.rol !== 'cajero';
+        let esMasterAutorizado = false;
+        if (!esFounderPrincipal && data.rol !== 'cajero' && emailAutenticado) {
+          try {
+            const snapConfigMaster = await getDoc(doc(db, "configuracion_sistema", "master"));
+            if (snapConfigMaster.exists()) {
+              const listaEmails = snapConfigMaster.data()?.emailsAutorizados;
+              if (Array.isArray(listaEmails)) {
+                esMasterAutorizado = listaEmails.some((em: any) => String(em || "").toLowerCase().trim() === emailAutenticado);
+              }
+            }
+          } catch {
+            // Si no existe el doc o no hay permisos aún, continúa normalmente
+          }
+        }
+        const esMasterSuperAdmin = esFounderPrincipal || esMasterAutorizado;
         if ((adminData.activo === false || adminData.suspendido === true) && !esMasterSuperAdmin) {
           throw new Error("NegocioSuspendido");
         }
@@ -267,6 +283,8 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
           permisos,
           // Helpers derivados de permisos y planes
           esAdmin,
+          esMaster: esMasterSuperAdmin,
+          esFounderPrincipal,
           puedeVentaDirecta: esAdmin || permisos?.ventaDirecta === true,
           puedeAbonar: esAdmin || permisos?.abonar === true,
           puedeVentaLibre: esAdmin || permisos?.ventaLibre === true,

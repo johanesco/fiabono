@@ -743,6 +743,30 @@ Gracias por seguir con nosotros.
           )}
 
           {/* 2. CIERRE DE CAJA (SEGUNDO: SOLO SI TIENE PERMISO) */}
+          {puedeHacerCierreCaja && estadoCaja?.estaAbierta && estadoCaja?.esTurnoDiaAnterior && (
+            <div className="w-full bg-amber-50/90 dark:bg-amber-950/35 border border-amber-300 dark:border-amber-700/70 rounded-2xl p-3 sm:p-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 shadow-xs">
+              <div className="flex items-start gap-2.5 min-w-0">
+                <div className="p-2 rounded-xl bg-amber-500/15 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5">
+                  <AlertTriangle size={17} />
+                </div>
+                <div className="min-w-0">
+                  <p className="text-xs sm:text-sm font-black text-amber-900 dark:text-amber-200 leading-tight">
+                    Tienes una caja abierta desde {estadoCaja.diasSinCerrar === 1 ? 'ayer' : `hace ${estadoCaja.diasSinCerrar} días`} ({estadoCaja.fechaInicioTurno.toLocaleDateString('es-CO', { day: '2-digit', month: 'short' })})
+                  </p>
+                  <p className="text-[11px] text-amber-800/80 dark:text-amber-300/80 mt-0.5 leading-snug">
+                    Te recomendamos cerrar esa jornada antes de registrar las ventas de hoy para no mezclar tus cuadres diarios.
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setModalCierreCajaOpen(true)}
+                className="px-3.5 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black rounded-xl text-xs whitespace-nowrap transition active:scale-95 cursor-pointer shrink-0 shadow-xs"
+              >
+                Cerrar jornada anterior →
+              </button>
+            </div>
+          )}
           {puedeHacerCierreCaja && (
             <button
               type="button"

@@ -11,9 +11,22 @@ service cloud.firestore {
       return request.auth != null;
     }
 
-    // Comprueba si el usuario es el Super-Admin Master de Fiabono
-    function esMaster() {
+    // Comprueba si el usuario es el Founder principal de Fiabono
+    function esFounderPrincipal() {
       return estaAutenticado() && request.auth.token.email == 'johanescobar1@gmail.com';
+    }
+
+    // Comprueba si el usuario es el Super-Admin Master de Fiabono o un co-admin autorizado
+    function esMaster() {
+      return estaAutenticado() && (
+        request.auth.token.email == 'johanescobar1@gmail.com' ||
+        (
+          request.auth.token.email != null &&
+          exists(/databases/$(database)/documents/configuracion_sistema/master) &&
+          get(/databases/$(database)/documents/configuracion_sistema/master).data.emailsAutorizados is list &&
+          request.auth.token.email in get(/databases/$(database)/documents/configuracion_sistema/master).data.emailsAutorizados
+        )
+      );
     }
 
     // Obtiene los datos del usuario actual desde la colección usuarios de forma segura
@@ -116,11 +129,14 @@ service cloud.firestore {
       );
 
       // Eliminar: Un admin puede eliminar a sus colaboradores, o el Master
-      allow delete: if estaAutenticado() && (
-        resource.data.adminId == request.auth.uid ||
-        request.auth.uid == userId ||
-        esMaster()
-      );
+      // Nunca se permite eliminar la cuenta del Founder principal (johanescobar1@gmail.com)
+      allow delete: if estaAutenticado()
+        && (!('email' in resource.data) || resource.data.email != 'johanescobar1@gmail.com')
+        && (
+          resource.data.adminId == request.auth.uid ||
+          request.auth.uid == userId ||
+          esMaster()
+        );
     }
 
     // =========================================================================
@@ -257,6 +273,18 @@ service cloud.firestore {
 
       // Solo el Master puede crear, modificar o borrar anuncios
       allow write: if esMaster();
+    }
+
+    // =========================================================================
+    // 5. CONFIGURACIÓN DEL SISTEMA (Co-Administradores Master)
+    // =========================================================================
+    match /configuracion_sistema/master {
+      allow get: if estaAutenticado();
+      allow list: if esMaster();
+      allow create, update: if esFounderPrincipal()
+        && request.resource.data.emailsAutorizados is list
+        && request.resource.data.emailsAutorizados.size() <= 20;
+      allow delete: if esFounderPrincipal();
     }
 
   }

@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { 
-  collection, getDocs, query, where, updateDoc, doc, setDoc, deleteDoc, Timestamp, getCountFromServer, arrayUnion 
+  collection, getDocs, getDoc, query, where, orderBy, limit, updateDoc, doc, setDoc, deleteDoc, Timestamp, getCountFromServer, arrayUnion 
 } from "firebase/firestore";
 import { db, auth } from "../../../firebase";
 import { sendPasswordResetEmail } from "firebase/auth";
@@ -21,6 +21,14 @@ interface TelemetriaNegocio {
   productos: number;
   clientes: number;
   movimientos: number;
+  movimientos30d?: number;
+  ultimoMovimientoTexto?: string;
+  ventas?: number;
+  fiados?: number;
+  abonos?: number;
+  separes?: number;
+  cierresCaja?: number;
+  egresos?: number;
   auditado: boolean;
   cargando?: boolean;
 }
@@ -76,6 +84,12 @@ export default function MasterPage() {
   });
   const [modalConfigPagos, setModalConfigPagos] = useState(false);
   const [guardandoMediosPago, setGuardandoMediosPago] = useState(false);
+
+  // GESTIÓN DE CORREOS CO-ADMINISTRADORES AUTORIZADOS AL PANEL MASTER (Exclusivo Founder)
+  const [emailsAutorizadosMaster, setEmailsAutorizadosMaster] = useState<string[]>([]);
+  const [modalAccesosMaster, setModalAccesosMaster] = useState(false);
+  const [nuevoEmailMaster, setNuevoEmailMaster] = useState("");
+  const [guardandoAccesosMaster, setGuardandoAccesosMaster] = useState(false);
 
   // Telemetría en demanda para optimizar cuota de Firestore
   const [telemetriaMap, setTelemetriaMap] = useState<Record<string, TelemetriaNegocio>>({});
@@ -218,7 +232,7 @@ export default function MasterPage() {
     const exportarTiendasCSV = () => {
     try {
       const filas = [
-        ['ID', 'Negocio', 'Titular', 'Correo', 'Telefono', 'Plan', 'Estado Plan', 'Dias Restantes', 'Ultimo Acceso', 'DIAN Habilitada', 'Notas Master']
+        ['ID', 'Negocio', 'Titular', 'Correo', 'Telefono', 'Plan', 'Estado Plan', 'Fecha Vencimiento', 'Dias Restantes', 'Ultimo Acceso', 'DIAN Habilitada', 'Notas Master']
       ];
       usuariosFiltrados.forEach(u => {
         const est = calcularEstadoPlan(u);
@@ -233,6 +247,7 @@ export default function MasterPage() {
           limpiar(u.telefonoNegocio || u.celular || ''),
           limpiar((u.plan || 'gratis').toUpperCase()),
           limpiar(est.label),
+          limpiar(u.plan === 'gratis' ? 'N/A' : (formatearFechaCortaMaster(u.planVence) || 'N/A')),
           limpiar(u.plan === 'gratis' ? 'N/A' : dias),
           limpiar(inac.texto),
           limpiar(u.facturacionDianHabilitada ? 'SI' : 'NO'),
@@ -256,7 +271,7 @@ export default function MasterPage() {
   };
 
   const emailLogin = auth.currentUser?.email?.toLowerCase().trim();
-    const esMasterValido = (emailLogin === 'johanescobar1@gmail.com' || datosSesion?.datosUsuarioOriginales?.email?.toLowerCase().trim() === 'johanescobar1@gmail.com') && 
+    const esMasterValido = (datosSesion?.esMaster === true || emailLogin === 'johanescobar1@gmail.com' || datosSesion?.datosUsuarioOriginales?.email?.toLowerCase().trim() === 'johanescobar1@gmail.com') && 
       datosSesion?.rol !== 'cajero' && 
       (datosSesion?.tipoUsuario === 'principal' || datosSesion?.tipoUsuario === undefined);
 
@@ -300,6 +315,17 @@ export default function MasterPage() {
       const snapAnuncios = await getDocs(collection(db, "anuncios"));
       const listaAnuncios = snapAnuncios.docs.map(d => ({ id: d.id, ...d.data() }));
       setAnuncios(listaAnuncios);
+
+      // 4. Cargar correos autorizados para Panel Master
+      try {
+        const snapMasterCfg = await getDoc(doc(db, "configuracion_sistema", "master"));
+        if (snapMasterCfg.exists()) {
+          const listaEmails = snapMasterCfg.data()?.emailsAutorizados;
+          if (Array.isArray(listaEmails)) {
+            setEmailsAutorizadosMaster(listaEmails.map((em: any) => String(em || "").toLowerCase().trim()).filter(Boolean));
+          }
+        }
+      } catch {}
 
     } catch (e) {
       console.error(e);
@@ -367,6 +393,80 @@ export default function MasterPage() {
   const tieneMediosDePagoValidos = useMemo(() => {
     return Boolean(mediosPago.nequi.trim() || mediosPago.llave.trim() || mediosPago.bancolombia.trim());
   }, [mediosPago]);
+
+  const formatearFechaCortaMaster = (fechaRaw: any): string => {
+    if (!fechaRaw) return "";
+    const d = fechaRaw?.toDate ? fechaRaw.toDate() : (fechaRaw?.seconds ? new Date(fechaRaw.seconds * 1000) : new Date(fechaRaw));
+    if (isNaN(d.getTime())) return "";
+    return d.toLocaleDateString('es-CO', { day: '2-digit', month: 'short', year: 'numeric' });
+  };
+
+  const agregarEmailMasterAutorizado = async () => {
+    const emailLimpio = nuevoEmailMaster.toLowerCase().trim();
+    if (!emailLimpio || !emailLimpio.includes('@') || !emailLimpio.includes('.')) {
+      toast.error("Ingresa un correo electrónico válido.");
+      return;
+    }
+    if (emailLimpio === 'johanescobar1@gmail.com') {
+      toast.error("Tu cuenta principal ya tiene acceso permanente como Founder.");
+      return;
+    }
+    if (emailsAutorizadosMaster.includes(emailLimpio)) {
+      toast.error("Este correo ya tiene acceso autorizado al Panel Master.");
+      return;
+    }
+    if (emailsAutorizadosMaster.length >= 20) {
+      toast.error("Has alcanzado el límite máximo de 20 cuentas autorizadas.");
+      return;
+    }
+
+    setGuardandoAccesosMaster(true);
+    try {
+      const nuevaLista = [...emailsAutorizadosMaster, emailLimpio];
+      await setDoc(doc(db, "configuracion_sistema", "master"), {
+        emailsAutorizados: nuevaLista,
+        actualizadoEn: Timestamp.now(),
+        actualizadoPor: auth.currentUser?.email || 'johanescobar1@gmail.com'
+      }, { merge: true });
+      setEmailsAutorizadosMaster(nuevaLista);
+      setNuevoEmailMaster("");
+      toast.success(`Acceso al Panel Master habilitado para ${emailLimpio}`);
+    } catch (err) {
+      console.error("Error autorizando correo en Master:", err);
+      toast.error("No se pudo guardar el correo autorizado.");
+    } finally {
+      setGuardandoAccesosMaster(false);
+    }
+  };
+
+  const revocarEmailMasterAutorizado = async (emailARevocar: string) => {
+    const ok = await customConfirm(
+      `¿Deseas revocar el acceso al Panel Master para ${emailARevocar}?`,
+      {
+        titulo: "Revocar acceso Master",
+        textoConfirmar: "Sí, revocar acceso",
+        tipo: "advertencia"
+      }
+    );
+    if (!ok) return;
+
+    setGuardandoAccesosMaster(true);
+    try {
+      const nuevaLista = emailsAutorizadosMaster.filter(em => em !== emailARevocar);
+      await setDoc(doc(db, "configuracion_sistema", "master"), {
+        emailsAutorizados: nuevaLista,
+        actualizadoEn: Timestamp.now(),
+        actualizadoPor: auth.currentUser?.email || 'johanescobar1@gmail.com'
+      }, { merge: true });
+      setEmailsAutorizadosMaster(nuevaLista);
+      toast.success(`Acceso revocado para ${emailARevocar}`);
+    } catch (err) {
+      console.error("Error revocando correo en Master:", err);
+      toast.error("No se pudo revocar el correo.");
+    } finally {
+      setGuardandoAccesosMaster(false);
+    }
+  };
 
   const calcularDiasRestantes = (u: any): number => {
     if (u.plan === 'gratis' || !u.planVence) return -999;
@@ -606,7 +706,7 @@ export default function MasterPage() {
     const exportarTiendasCSV = () => {
     try {
       const filas = [
-        ['ID', 'Negocio', 'Titular', 'Correo', 'Telefono', 'Plan', 'Estado Plan', 'Dias Restantes', 'Ultimo Acceso', 'DIAN Habilitada', 'Notas Master']
+        ['ID', 'Negocio', 'Titular', 'Correo', 'Telefono', 'Plan', 'Estado Plan', 'Fecha Vencimiento', 'Dias Restantes', 'Ultimo Acceso', 'DIAN Habilitada', 'Notas Master']
       ];
       usuariosFiltrados.forEach(u => {
         const est = calcularEstadoPlan(u);
@@ -621,6 +721,7 @@ export default function MasterPage() {
           limpiar(u.telefonoNegocio || u.celular || ''),
           limpiar((u.plan || 'gratis').toUpperCase()),
           limpiar(est.label),
+          limpiar(u.plan === 'gratis' ? 'N/A' : (formatearFechaCortaMaster(u.planVence) || 'N/A')),
           limpiar(u.plan === 'gratis' ? 'N/A' : dias),
           limpiar(inac.texto),
           limpiar(u.facturacionDianHabilitada ? 'SI' : 'NO'),
@@ -652,7 +753,73 @@ export default function MasterPage() {
     }));
 
     try {
-      const [snapInv, snapCli, snapMov] = await Promise.all([
+      const contarSeguro = async (qRef: any): Promise<number> => {
+        try {
+          const s = await getCountFromServer(qRef);
+          return s.data().count;
+        } catch {
+          return 0;
+        }
+      };
+
+      const fechaHace30d = Timestamp.fromDate(new Date(Date.now() - 30 * 24 * 3600 * 1000));
+
+      const [
+        productos,
+        clientes,
+        movimientos,
+        separes,
+        cierresCaja,
+        ventas,
+        fiados,
+        abonos,
+        egresos,
+        movimientos30d,
+        snapUltimoMov
+      ] = await Promise.all([
+        contarSeguro(query(collection(db, "inventario"), where("usuarioId", "==", usuarioId))),
+        contarSeguro(query(collection(db, "clientes"), where("usuarioId", "==", usuarioId))),
+        contarSeguro(query(collection(db, "movimientos"), where("usuarioId", "==", usuarioId))),
+        contarSeguro(query(collection(db, "separes"), where("usuarioId", "==", usuarioId))),
+        contarSeguro(query(collection(db, "cierres_caja"), where("usuarioId", "==", usuarioId))),
+        contarSeguro(query(collection(db, "movimientos"), where("usuarioId", "==", usuarioId), where("tipo", "==", "venta"))),
+        contarSeguro(query(collection(db, "movimientos"), where("usuarioId", "==", usuarioId), where("tipo", "==", "fiado"))),
+        contarSeguro(query(collection(db, "movimientos"), where("usuarioId", "==", usuarioId), where("tipo", "==", "abono"))),
+        contarSeguro(query(collection(db, "movimientos"), where("usuarioId", "==", usuarioId), where("tipo", "==", "egreso"))),
+        contarSeguro(query(collection(db, "movimientos"), where("usuarioId", "==", usuarioId), where("fecha", ">=", fechaHace30d))),
+        getDocs(query(collection(db, "movimientos"), where("usuarioId", "==", usuarioId), orderBy("fecha", "desc"), limit(1))).catch(() => null)
+      ]);
+
+      let ultimoMovimientoTexto = movimientos > 0 ? "Registrado" : "Sin movimientos";
+      if (snapUltimoMov && !snapUltimoMov.empty) {
+        const fMov = snapUltimoMov.docs[0].data()?.fecha;
+        const tMov = fMov?.toDate ? fMov.toDate().getTime() : (fMov?.seconds ? fMov.seconds * 1000 : (fMov ? new Date(fMov).getTime() : 0));
+        if (tMov > 0) {
+          const diasMov = Math.floor((Date.now() - tMov) / (1000 * 3600 * 24));
+          ultimoMovimientoTexto = diasMov <= 0 ? "Hoy" : (diasMov === 1 ? "Ayer" : `Hace ${diasMov}d`);
+        }
+      }
+
+      setTelemetriaMap(prev => ({
+        ...prev,
+        [usuarioId]: {
+          productos,
+          clientes,
+          movimientos,
+          movimientos30d,
+          ultimoMovimientoTexto,
+          ventas,
+          fiados,
+          abonos,
+          separes,
+          cierresCaja,
+          egresos,
+          auditado: true,
+          cargando: false
+        }
+      }));
+      if (false) {
+        const [snapInv, snapCli, snapMov] = await Promise.all([
         getCountFromServer(query(collection(db, "inventario"), where("usuarioId", "==", usuarioId))),
         getCountFromServer(query(collection(db, "clientes"), where("usuarioId", "==", usuarioId))),
         getCountFromServer(query(collection(db, "movimientos"), where("usuarioId", "==", usuarioId)))
@@ -672,6 +839,7 @@ export default function MasterPage() {
           cargando: false
         }
       }));
+      }
       toast.success("Actividad auditada en tiempo real.");
     } catch (err) {
       console.error("Error al auditar tienda:", err);
@@ -1327,7 +1495,12 @@ export default function MasterPage() {
   };
 
   const emailLogin = auth.currentUser?.email?.toLowerCase().trim();
-  const esMasterValido = (emailLogin === 'johanescobar1@gmail.com' || 
+  const esFounderPrincipal = Boolean(
+    emailLogin === 'johanescobar1@gmail.com' ||
+    datosSesion?.esFounderPrincipal === true ||
+    datosSesion?.datosUsuarioOriginales?.email?.toLowerCase().trim() === 'johanescobar1@gmail.com'
+  );
+  const esMasterValido = (datosSesion?.esMaster === true || emailLogin === 'johanescobar1@gmail.com' || 
     datosSesion?.correoNegocio?.toLowerCase().trim() === 'johanescobar1@gmail.com' || 
     datosSesion?.datosUsuarioOriginales?.email?.toLowerCase().trim() === 'johanescobar1@gmail.com');
 
@@ -1407,6 +1580,27 @@ export default function MasterPage() {
               <span>Opciones de Pago</span>
               {!tieneMediosDePagoValidos && <span className="w-2 h-2 rounded-full bg-rose-500"></span>}
             </button>
+
+            {/* BOTÓN ACCESOS MASTER (Exclusivo para Founder Principal johanescobar1@gmail.com) */}
+            {esFounderPrincipal && (
+              <button
+                onClick={() => setModalAccesosMaster(true)}
+                className={`px-3 py-2.5 rounded-2xl border text-xs font-black flex items-center gap-1.5 transition active:scale-95 cursor-pointer ${
+                  modoOscuro
+                    ? 'bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 border-amber-500/30'
+                    : 'bg-amber-50 hover:bg-amber-100 text-amber-800 border-amber-200 shadow-xs'
+                }`}
+                title="Autorizar otros correos para ver el Panel Master"
+              >
+                <ShieldCheck size={15} className="text-amber-500" />
+                <span>Accesos Master</span>
+                {emailsAutorizadosMaster.length > 0 && (
+                  <span className="px-1.5 py-0.5 rounded-full text-[10px] font-black bg-amber-500 text-slate-950">
+                    +{emailsAutorizadosMaster.length}
+                  </span>
+                )}
+              </button>
+            )}
 
             {/* BOTÓN EXPORTAR CSV */}
             <button 
@@ -1822,6 +2016,22 @@ export default function MasterPage() {
                             <span className="flex items-center gap-1 font-medium whitespace-nowrap">
                               <Clock size={11} className="shrink-0" /> Ultimo acceso: <strong className={infoInac.esInactivo30d ? "text-rose-600 dark:text-rose-400 font-bold" : theme.textMain}>{infoInac.texto}</strong>
                             </span>
+                            {u.plan !== 'gratis' && u.planVence && formatearFechaCortaMaster(u.planVence) && (
+                              <span className="flex items-center gap-1 font-medium whitespace-nowrap">
+                                <Calendar size={11} className="shrink-0 text-amber-500" />
+                                {calcularDiasRestantes(u) < 0 ? 'Venció:' : 'Vence:'}{' '}
+                                <strong className={calcularDiasRestantes(u) <= 3 ? "text-amber-600 dark:text-amber-400 font-bold" : theme.textMain}>
+                                  {formatearFechaCortaMaster(u.planVence)}
+                                </strong>
+                              </span>
+                            )}
+                            {(u.fechaRegistro || u.createdAt) && formatearFechaCortaMaster(u.fechaRegistro || u.createdAt) && (
+                              <span className="flex items-center gap-1 font-medium whitespace-nowrap">
+                                <Sparkles size={11} className="shrink-0 opacity-70" /> Creado: <strong className={theme.textMain}>{formatearFechaCortaMaster(u.fechaRegistro || u.createdAt)}</strong>
+                              </span>
+                            )}
+                            <span className="hidden">
+                            </span>
                             <span className="text-[10px] opacity-70 font-mono whitespace-nowrap">
                               ID: {u.id.slice(0, 8)}...
                             </span>
@@ -1962,7 +2172,45 @@ export default function MasterPage() {
                             <span className="opacity-40">|</span>
                             <span><strong>{tele.productos}</strong> productos</span>
                             <span><strong>{tele.clientes}</strong> clientes</span>
-                            <span><strong>{tele.movimientos}</strong> movimientos</span>
+                            <span><strong>{tele.movimientos.toLocaleString('es-CO')}</strong> movs totales</span>
+                            <span className="opacity-40">|</span>
+                            <span className="text-emerald-600 dark:text-emerald-400 font-bold">
+                              Últimos 30d: <strong>{(tele.movimientos30d ?? 0).toLocaleString('es-CO')}</strong>
+                            </span>
+                            <span>
+                              Último mov: <strong className={theme.textMain}>{tele.ultimoMovimientoTexto || 'N/A'}</strong>
+                            </span>
+                            <span className="opacity-40">|</span>
+                            <span className="inline-flex flex-wrap items-center gap-1.5">
+                              <span className="px-1.5 py-0.5 rounded-md bg-emerald-500/10 text-emerald-600 dark:text-emerald-300 border border-emerald-500/20 font-semibold">
+                                Ventas: <strong>{(tele.ventas ?? 0).toLocaleString('es-CO')}</strong>
+                              </span>
+                              <span className="px-1.5 py-0.5 rounded-md bg-amber-500/10 text-amber-600 dark:text-amber-300 border border-amber-500/20 font-semibold">
+                                Fiados: <strong>{(tele.fiados ?? 0).toLocaleString('es-CO')}</strong>
+                              </span>
+                              <span className="px-1.5 py-0.5 rounded-md bg-blue-500/10 text-blue-600 dark:text-blue-300 border border-blue-500/20 font-semibold">
+                                Abonos: <strong>{(tele.abonos ?? 0).toLocaleString('es-CO')}</strong>
+                              </span>
+                              <span className="px-1.5 py-0.5 rounded-md bg-pink-500/10 text-pink-600 dark:text-pink-300 border border-pink-500/20 font-semibold">
+                                Separes: <strong>{(tele.separes ?? 0).toLocaleString('es-CO')}</strong>
+                              </span>
+                              <span className="px-1.5 py-0.5 rounded-md bg-purple-500/10 text-purple-600 dark:text-purple-300 border border-purple-500/20 font-semibold">
+                                Cajas: <strong>{(tele.cierresCaja ?? 0).toLocaleString('es-CO')}</strong>
+                              </span>
+                              {(tele.egresos ?? 0) > 0 && (
+                                <span className="px-1.5 py-0.5 rounded-md bg-rose-500/10 text-rose-600 dark:text-rose-300 border border-rose-500/20 font-semibold">
+                                  Gastos: <strong>{(tele.egresos ?? 0).toLocaleString('es-CO')}</strong>
+                                </span>
+                              )}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => auditarActividadTienda(u.id)}
+                              title="Refrescar auditoría de actividad"
+                              className="ml-1 p-1 rounded-lg hover:bg-slate-500/15 transition cursor-pointer"
+                            >
+                              <RefreshCw size={11} className={tele?.cargando ? 'animate-spin text-amber-500' : ''} />
+                            </button>
                           </div>
                         ) : (
                           <button
@@ -3149,6 +3397,129 @@ export default function MasterPage() {
               <div className="pt-2 text-right">
                 <button
                   onClick={() => setModalResetPass(prev => ({ ...prev, visible: false, usuario: null, linkGenerado: "" }))}
+                  className={`px-5 py-2.5 rounded-xl text-xs font-bold transition cursor-pointer ${
+                    modoOscuro ? 'bg-slate-800 hover:bg-slate-700 text-slate-300' : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
+                  }`}
+                >
+                  Cerrar
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* MODAL DE GESTIÓN DE ACCESOS AL PANEL MASTER (EXCLUSIVO FOUNDER PRINCIPAL) */}
+        {modalAccesosMaster && esFounderPrincipal && (
+          <div
+            onClick={(e) => { if (e.target === e.currentTarget && !guardandoAccesosMaster) setModalAccesosMaster(false); }}
+            className="fixed inset-0 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4 z-[9999] animate-in fade-in cursor-pointer"
+          >
+            <div
+              onClick={(e) => e.stopPropagation()}
+              className={`${theme.modalBg} rounded-[2rem] p-5 sm:p-7 w-full max-w-md border ${theme.border} space-y-4 max-h-[90dvh] overflow-y-auto shadow-2xl cursor-default`}
+            >
+              <div className={`flex justify-between items-center pb-3 border-b ${theme.border}`}>
+                <div className="flex items-center gap-2.5">
+                  <div className="p-2 rounded-xl bg-amber-500/15 text-amber-500 border border-amber-500/30">
+                    <ShieldCheck size={20} />
+                  </div>
+                  <div>
+                    <h3 className={`font-black text-base ${theme.textMain}`}>Accesos al Panel Master</h3>
+                    <p className={`text-[11px] ${theme.textMuted}`}>Autoriza otras cuentas tuyas o de confianza</p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setModalAccesosMaster(false)}
+                  className={`p-2 rounded-xl ${modoOscuro ? 'hover:bg-slate-800 text-slate-400' : 'hover:bg-slate-100 text-slate-500'} cursor-pointer`}
+                >
+                  <X size={18} />
+                </button>
+              </div>
+
+              {/* Cuenta Founder Principal Inamovible */}
+              <div className={`p-3 rounded-2xl border ${theme.cardSubtle} flex items-center justify-between gap-2`}>
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <Crown size={16} className="text-amber-500 shrink-0" />
+                  <div className="min-w-0">
+                    <p className={`text-xs font-black ${theme.textMain} truncate`}>johanescobar1@gmail.com</p>
+                    <p className="text-[10px] text-emerald-500 font-bold">Founder Principal (Acceso Permanente)</p>
+                  </div>
+                </div>
+                <span className="px-2 py-0.5 rounded-full text-[9px] font-black uppercase bg-amber-500/20 text-amber-500 border border-amber-500/30 shrink-0">
+                  Propietario
+                </span>
+              </div>
+
+              {/* Formulario para agregar nuevo correo */}
+              <div className="space-y-1.5">
+                <label className={`block text-[10px] font-black uppercase tracking-wider ${theme.textMuted}`}>
+                  Agregar correo autorizado al Master
+                </label>
+                <div className="flex gap-2">
+                  <input
+                    type="email"
+                    value={nuevoEmailMaster}
+                    onChange={(e) => setNuevoEmailMaster(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); agregarEmailMasterAutorizado(); } }}
+                    placeholder="ejemplo@gmail.com"
+                    disabled={guardandoAccesosMaster}
+                    className={`flex-1 px-3.5 py-2.5 rounded-xl border text-xs font-medium outline-none ${theme.input} focus:border-amber-500`}
+                  />
+                  <button
+                    type="button"
+                    onClick={agregarEmailMasterAutorizado}
+                    disabled={guardandoAccesosMaster || !nuevoEmailMaster.trim()}
+                    className="px-4 py-2.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black rounded-xl text-xs flex items-center gap-1.5 transition active:scale-95 cursor-pointer disabled:opacity-50 shrink-0"
+                  >
+                    <Plus size={14} />
+                    <span>Autorizar</span>
+                  </button>
+                </div>
+                <p className={`text-[10px] ${theme.textMuted}`}>
+                  La cuenta que agregues verá el botón <strong>Panel Master</strong> en su menú al iniciar sesión. Solo tú (`johanescobar1@gmail.com`) puedes agregar o quitar correos aquí.
+                </p>
+              </div>
+
+              {/* Lista de correos autorizados */}
+              <div className="space-y-2">
+                <p className={`text-[10px] font-black uppercase tracking-wider ${theme.textMuted}`}>
+                  Correos adicionales con acceso ({emailsAutorizadosMaster.length})
+                </p>
+                {emailsAutorizadosMaster.length === 0 ? (
+                  <div className={`p-4 rounded-2xl border ${theme.cardSubtle} text-center text-xs ${theme.textMuted}`}>
+                    Ningún correo adicional autorizado por ahora.
+                  </div>
+                ) : (
+                  <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
+                    {emailsAutorizadosMaster.map((em) => (
+                      <div
+                        key={em}
+                        className={`p-2.5 rounded-xl border ${theme.cardSubtle} flex items-center justify-between gap-2 text-xs`}
+                      >
+                        <div className="flex items-center gap-2 min-w-0">
+                          <Mail size={13} className="text-amber-500 shrink-0" />
+                          <span className={`font-bold ${theme.textMain} truncate`}>{em}</span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => revocarEmailMasterAutorizado(em)}
+                          disabled={guardandoAccesosMaster}
+                          className="px-2.5 py-1 rounded-lg bg-rose-500/15 hover:bg-rose-500/25 text-rose-500 font-bold text-[10px] flex items-center gap-1 transition cursor-pointer shrink-0 disabled:opacity-50"
+                        >
+                          <Trash2 size={11} />
+                          <span>Quitar</span>
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <div className="pt-2 text-right">
+                <button
+                  type="button"
+                  onClick={() => setModalAccesosMaster(false)}
                   className={`px-5 py-2.5 rounded-xl text-xs font-bold transition cursor-pointer ${
                     modoOscuro ? 'bg-slate-800 hover:bg-slate-700 text-slate-300' : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
                   }`}

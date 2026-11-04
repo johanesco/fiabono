@@ -40,7 +40,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const puedeVerCartera = esAdmin || (datosSesion?.puedeVerCartera === true) || (datosSesion?.permisos?.verCartera === true);
   const puedeVerReportes = esAdmin || (datosSesion?.puedeVerReportes === true) || (datosSesion?.permisos?.verReportes === true);
   const esMaster = Boolean(
-    (firebaseAuth.currentUser?.email?.toLowerCase().trim() === 'johanescobar1@gmail.com' || datosSesion?.datosUsuarioOriginales?.email?.toLowerCase().trim() === 'johanescobar1@gmail.com') && 
+    (datosSesion?.esMaster === true || firebaseAuth.currentUser?.email?.toLowerCase().trim() === 'johanescobar1@gmail.com' || datosSesion?.datosUsuarioOriginales?.email?.toLowerCase().trim() === 'johanescobar1@gmail.com') && 
     datosSesion?.rol !== 'cajero' && 
     (datosSesion?.tipoUsuario === 'principal' || datosSesion?.tipoUsuario === undefined)
   );

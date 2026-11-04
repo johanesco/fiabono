@@ -763,6 +763,19 @@ export default function ModalCierreCaja({ isOpen, onClose, onCierreExitoso }: Mo
               {/* COLUMNA IZQUIERDA: FLUJO Y MATEMÁTICA DEL TURNO */}
               <div className="space-y-3 flex flex-col justify-between">
                 
+                {cajaAbierta && new Date(fechaInicioPeriodo).setHours(0, 0, 0, 0) < new Date().setHours(0, 0, 0, 0) && (
+                  <div className="bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-700/70 rounded-xl p-2.5 flex items-start gap-2 text-xs">
+                    <AlertTriangle size={15} className="text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+                    <div className="min-w-0">
+                      <p className="font-black text-amber-900 dark:text-amber-200 leading-tight">
+                        Turno abierto desde jornada anterior ({fechaInicioPeriodo.toLocaleDateString('es-CO', { day: '2-digit', month: 'short' })})
+                      </p>
+                      <p className="text-[11px] text-amber-800/85 dark:text-amber-300/85 mt-0.5 leading-snug">
+                        Cuenta el efectivo físico y cierra esta jornada antes de registrar las ventas de hoy.
+                      </p>
+                    </div>
+                  </div>
+                )}
                 {/* Rango del Turno */}
                 <div className="bg-slate-50 dark:bg-[#1e293b]/40 p-2.5 rounded-xl border border-slate-200/80 dark:border-slate-800 flex justify-between items-center text-xs">
                   <div>

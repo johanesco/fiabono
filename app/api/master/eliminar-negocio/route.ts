@@ -43,7 +43,18 @@ export async function POST(request: Request) {
     }
 
     // Verificación de seguridad estricta: solo el SuperAdmin Master (Johan)
-    if (decodedToken.email?.toLowerCase().trim() !== 'johanescobar1@gmail.com') {
+    const emailSolicitante = decodedToken.email?.toLowerCase().trim() || '';
+    let esMasterAutorizado = emailSolicitante === 'johanescobar1@gmail.com';
+    if (!esMasterAutorizado && emailSolicitante) {
+      try {
+        const snapMaster = await getAdminDb().collection('configuracion_sistema').doc('master').get();
+        const lista = snapMaster.data()?.emailsAutorizados;
+        if (Array.isArray(lista)) {
+          esMasterAutorizado = lista.some((em: any) => String(em || '').toLowerCase().trim() === emailSolicitante);
+        }
+      } catch {}
+    }
+    if (!esMasterAutorizado) {
       return NextResponse.json({ error: 'Acceso denegado. Solo el SuperAdmin Master puede ejecutar purgas.' }, { status: 403 });
     }
 
