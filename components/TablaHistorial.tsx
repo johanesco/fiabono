@@ -165,7 +165,8 @@ export default function TablaHistorial({ movimientos, getNombreCliente, getApodo
                     ) : esEntregaSepare ? (
                       'ENTREGA SEPARE'
                     ) : esSepare ? (
-                      mov.subtipo === 'retiro_item_separe' ? 'AJUSTE SEPARE' :
+                      mov.subtipo === 'retiro_item_separe' || mov.subtipo === 'edicion_item_separe' ? 'AJUSTE SEPARE' :
+                      mov.subtipo === 'anexo_item_separe' ? 'ANEXO SEPARE' :
                       mov.subtipo === 'abono_inicial_separe' ? 'SEPARE INICIAL' :
                       (mov.subtipo === 'apertura_separe_sin_abono' || mov.monto === 0 ? 'NUEVO SEPARE' : 'ABONO SEPARE')
                     ) : mov.tipo === 'abono' ? (
@@ -188,7 +189,7 @@ export default function TablaHistorial({ movimientos, getNombreCliente, getApodo
                   mov.tipo === 'egreso' ? 'text-amber-600 dark:text-amber-400' :
                   mov.tipo === 'fiado' ? 'text-rose-500' : 
                   mov.tipo === 'entrega_separe' ? 'text-purple-600 dark:text-purple-400' :
-                  mov.subtipo === 'retiro_item_separe' ? 'text-rose-600 dark:text-rose-400' :
+                  mov.subtipo === 'retiro_item_separe' || (mov.subtipo === 'edicion_item_separe' && Number((mov as any).diferenciaNeto) < 0) ? 'text-rose-600 dark:text-rose-400' :
                   esEntregaSepare ? 'text-purple-600 dark:text-purple-400' :
                   esSepare ? 'text-violet-600 dark:text-violet-400' :
                   mov.tipo === 'venta' ? 'text-emerald-500' : 'text-blue-500'
@@ -202,7 +203,9 @@ export default function TablaHistorial({ movimientos, getNombreCliente, getApodo
                     `+${(mov as any).cantidadAgregada || 1} un.`
                   ) : (
                     (mov as any).anulado ? `(Anulado) $${Math.round(mov.monto || 0).toLocaleString('es-CO')}` :
-                    mov.subtipo === 'retiro_item_separe' ? `-${Math.round(mov.monto || 0).toLocaleString('es-CO')}` : (esEntregaSepare ? 'Entregado' : (mov.subtipo === 'apertura_separe_sin_abono' || (mov.monto === 0 && esSepare) ? 'Reservado ($0)' : `${mov.tipo === 'fiado' || mov.tipo === 'egreso' || mov.tipo === 'devolucion' || mov.tipo === 'anulacion' ? '-' : '+'}${Math.round(mov.monto || 0).toLocaleString('es-CO')}`))
+                    mov.subtipo === 'retiro_item_separe' || (mov.subtipo === 'edicion_item_separe' && Number((mov as any).diferenciaNeto) < 0) ? `-$${Math.round(mov.monto || 0).toLocaleString('es-CO')}` :
+                    (mov.subtipo === 'edicion_item_separe' && Number((mov as any).diferenciaNeto) === 0) ? 'Ajuste ($0)' :
+                    (esEntregaSepare ? 'Entregado' : (mov.subtipo === 'apertura_separe_sin_abono' || (mov.monto === 0 && esSepare) ? 'Reservado ($0)' : `${mov.tipo === 'fiado' || mov.tipo === 'egreso' || mov.tipo === 'devolucion' || mov.tipo === 'anulacion' ? '-' : '+'}${Math.round(mov.monto || 0).toLocaleString('es-CO')}`))
                   )}
                 </td>
                 <td className="py-2.5 px-2.5 sm:px-3 lg:px-4 text-center whitespace-nowrap min-w-[70px]" onClick={(e) => e.stopPropagation()}>

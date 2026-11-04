@@ -12,7 +12,7 @@ import {
   MessageCircle, Printer, MoreVertical, Camera, AlertCircle, Banknote, 
   CreditCard, Smartphone, Zap, Clock, Calendar, ChevronDown, ChevronUp, 
   Trash2, User, Eye, Check, AlertTriangle, HelpCircle, FileText, RotateCcw, Package, Wallet, MapPin, Upload,
-  Sparkles, Receipt
+  Sparkles, Receipt, Edit3, Lock
 } from 'lucide-react';
 import toast from "react-hot-toast";
 import { useAuth } from "@/hooks/AuthContext";
@@ -44,6 +44,7 @@ function SeparesContenido() {
   const puedeAbonar = esAdmin || (datosSesion?.permisos?.abonar === true);
   const puedeEnviarWhatsApp = datosSesion?.puedeEnviarWhatsApp ?? true;
   const tienePermisoSepare = esAdmin || (datosSesion?.permisos?.planSepare === true);
+  const puedeEditarItemSepare = esAdmin || (datosSesion?.permisos?.planSepare === true && datosSesion?.permisos?.modificarPrecios === true);
   const puedeEntregar = esAdmin || puedeVentaDirecta || tienePermisoSepare || puedeAbonar;
   // Entregar a Fiado genera deuda en cartera: solo admin o colaboradores con permiso de fiar (ventaDirecta)
   const puedeEntregarAFiado = esAdmin || puedeVentaDirecta;
@@ -143,6 +144,23 @@ function SeparesContenido() {
   const [motivoPersonalizado, setMotivoPersonalizado] = useState<string>("");
   const [destinoExcedenteItem, setDestinoExcedenteItem] = useState<'saldo_favor' | 'efectivo'>('saldo_favor');
   const [procesandoEliminarItem, setProcesandoEliminarItem] = useState<boolean>(false);
+
+  // Estados para Editar Precio / Cantidad / Nombre de Artículo en Separe Activo
+  const [modalEditarItem, setModalEditarItem] = useState<{
+    visible: boolean;
+    separe: any;
+    itemIndex: number;
+    item: any;
+    esDeInventario: boolean;
+    stockDisponibleBodega: number | null;
+  } | null>(null);
+  const [editDescripcionItem, setEditDescripcionItem] = useState<string>("");
+  const [editValorUnitarioItem, setEditValorUnitarioItem] = useState<string>("");
+  const [editCantidadItem, setEditCantidadItem] = useState<number>(1);
+  const [motivoEditarItem, setMotivoEditarItem] = useState<string>("Error al digitar precio libre / valor");
+  const [motivoEditarPersonalizado, setMotivoEditarPersonalizado] = useState<string>("");
+  const [destinoExcedenteEditar, setDestinoExcedenteEditar] = useState<'saldo_favor' | 'efectivo'>('saldo_favor');
+  const [procesandoEditarItem, setProcesandoEditarItem] = useState<boolean>(false);
 
   // Estados para Anexar Nuevo(s) Artículo(s) a un Plan Separe Activo (Con o Sin Abono Adicional)
   const [modalAgregarItem, setModalAgregarItem] = useState<{
@@ -1649,6 +1667,89 @@ ${itemsTexto || '• Artículos apartados'}
     }
   };
 
+  // Abrir modal para editar precio, cantidad o descripción de un artículo del separe
+  const abrirModalEditarItemSepare = (sep: any, itemIndex: number) => {
+    const it = (sep.items || [])[itemIndex];
+    if (!it) return;
+    const prodId = it.idProducto || it.productoId || null;
+    const prodInv = prodId ? mapaInventario[prodId] : null;
+    const esDeInventario = Boolean(prodId);
+    const stockBodega = (esDeInventario && prodInv && prodInv.tipoProducto !== 'servicio' && prodInv.inventariable !== false)
+      ? Number(prodInv.stock || 0)
+      : null;
+
+    setEditDescripcionItem(String(it.descripcion || ""));
+    setEditValorUnitarioItem(Math.round(Number(it.valor || 0)).toLocaleString('es-CO'));
+    setEditCantidadItem(Math.max(1, Math.round(Number(it.cantidad || 1))));
+    setMotivoEditarItem("Error al digitar precio libre / valor");
+    setMotivoEditarPersonalizado("");
+    setDestinoExcedenteEditar("saldo_favor");
+    setModalEditarItem({
+      visible: true,
+      separe: sep,
+      itemIndex,
+      item: it,
+      esDeInventario,
+      stockDisponibleBodega: stockBodega
+    });
+  };
+
+  // Ejecutar corrección de precio / cantidad / descripción del artículo
+  const ejecutarEditarItemSepare = async () => {
+    if (!modalEditarItem || procesandoEditarItem) return;
+    const { separe, itemIndex, esDeInventario } = modalEditarItem;
+    const nuevoValorUnitario = Math.round(Number(editValorUnitarioItem.replace(/\D/g, '')) || 0);
+    const nuevaCantidad = Math.max(1, Math.round(Number(editCantidadItem || 1)));
+    const nuevaDescripcion = esDeInventario
+      ? String(modalEditarItem.item?.descripcion || "")
+      : (editDescripcionItem.trim() || String(modalEditarItem.item?.descripcion || ""));
+
+    if (nuevoValorUnitario <= 0) {
+      toast.error("El precio unitario debe ser mayor a $0.");
+      return;
+    }
+
+    const motivoFinal = motivoEditarItem === "Otro"
+      ? (motivoEditarPersonalizado.trim() || "Corrección manual de precio/artículo")
+      : motivoEditarItem;
+
+    setProcesandoEditarItem(true);
+    try {
+      const token = await auth.currentUser?.getIdToken();
+      if (!token) throw new Error("No se pudo autenticar la sesión.");
+
+      const res = await fetch('/api/separes/editar-item', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          separeId: separe.id,
+          itemIndex,
+          nuevoValorUnitario,
+          nuevaCantidad,
+          nuevaDescripcion,
+          motivo: motivoFinal,
+          destinoExcedente: destinoExcedenteEditar
+        })
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || "Error al corregir el artículo.");
+      }
+
+      toast.success(`Artículo "${nuevaDescripcion}" actualizado y saldos recalibrados.`);
+      setModalEditarItem(null);
+    } catch (error: any) {
+      console.error("Error al editar item:", error);
+      toast.error(error.message || "Error al corregir el artículo del separe.");
+    } finally {
+      setProcesandoEditarItem(false);
+    }
+  };
+
   // Lista única de productos activos en inventario para autocompletar al anexar artículo
   const listaProductosInventario = Object.entries(mapaInventario)
     .filter(([key, val]) => val && val.id === key && val.activo !== false)
@@ -2198,22 +2299,44 @@ ${itemsTexto || '• Artículos apartados'}
                                     </button>
                                   ))}
                                 </div>
-                                <div className="flex items-center gap-1.5 shrink-0">
-                                  <span className="font-bold text-slate-900 dark:text-slate-100">
+                                <div className="flex items-center gap-1 shrink-0">
+                                  <span className="font-bold text-slate-900 dark:text-slate-100 mr-0.5">
                                     ${((Number(it.valor) || 0) * cantTotal).toLocaleString('es-CO')}
                                   </span>
                                   {!esCompletado && !esCancelado && cantEnt === 0 && (
-                                    <button
-                                      type="button"
-                                      onClick={() => abrirModalEliminarItemSepare(sep, idx)}
-                                      className="p-1 text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded-lg transition-colors cursor-pointer"
-                                      title="Quitar este artículo (agregado por error)"
-                                    >
-                                      <Trash2 size={12} />
-                                    </button>
+                                    <>
+                                      {puedeEditarItemSepare && (
+                                        <button
+                                          type="button"
+                                          onClick={() => abrirModalEditarItemSepare(sep, idx)}
+                                          className="p-1 text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950/40 rounded-lg transition-colors cursor-pointer"
+                                          title="Corregir precio, cantidad o nombre de este artículo"
+                                        >
+                                          <Edit3 size={12} />
+                                        </button>
+                                      )}
+                                      <button
+                                        type="button"
+                                        onClick={() => abrirModalEliminarItemSepare(sep, idx)}
+                                        className="p-1 text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded-lg transition-colors cursor-pointer"
+                                        title="Quitar este artículo (agregado por error)"
+                                      >
+                                        <Trash2 size={12} />
+                                      </button>
+                                    </>
                                   )}
                                 </div>
                               </div>
+
+                              {/* Badge de Artículo Editado / Corregido */}
+                              {it.ultimaEdicion && (
+                                <div className="mt-1 flex items-center gap-1">
+                                  <span className="text-[9.5px] font-bold px-1.5 py-0.5 rounded-md bg-blue-50 text-blue-700 dark:bg-blue-950/50 dark:text-blue-300 border border-blue-200/50 dark:border-blue-800/40 inline-flex items-center gap-1">
+                                    <Edit3 size={9} />
+                                    Corregido (${Number(it.ultimaEdicion.valorAnterior || 0).toLocaleString('es-CO')} → ${Number(it.ultimaEdicion.valorNuevo || 0).toLocaleString('es-CO')})
+                                  </span>
+                                </div>
+                              )}
 
                               {/* Badge de Entrega Parcial por Producto */}
                               {cantEnt > 0 && (
@@ -2972,6 +3095,40 @@ ${itemsTexto || '• Artículos apartados'}
                 ))
               )}
             </div>
+
+            {/* Historial de Ediciones de Precio/Cantidad en el Separe */}
+            {separeSeleccionado.historialEdicionesItems && separeSeleccionado.historialEdicionesItems.length > 0 && (
+              <div className="pt-2.5 border-t border-slate-200/80 dark:border-slate-800 space-y-2 shrink-0">
+                <div className="flex items-center gap-1.5 text-xs font-bold text-blue-600 dark:text-blue-400">
+                  <Edit3 size={13} />
+                  <span>Correcciones de Precio / Cantidad ({separeSeleccionado.historialEdicionesItems.length})</span>
+                </div>
+                <div className="space-y-1.5 max-h-36 overflow-y-auto pr-0.5">
+                  {separeSeleccionado.historialEdicionesItems.map((ed: any, eIdx: number) => (
+                    <div key={eIdx} className="p-2.5 bg-blue-50/70 dark:bg-blue-950/30 border border-blue-200/60 dark:border-blue-900/40 rounded-2xl flex justify-between items-center text-xs gap-2">
+                      <div className="space-y-0.5 min-w-0 flex-1">
+                        <p className="font-bold text-slate-800 dark:text-slate-200 truncate">
+                          {ed.descripcionNueva}
+                          {ed.descripcionAnterior !== ed.descripcionNueva && (
+                            <span className="text-[10px] text-slate-400 font-normal ml-1">(antes: {ed.descripcionAnterior})</span>
+                          )}
+                        </p>
+                        <p className="text-[10.5px] text-blue-700 dark:text-blue-300 font-semibold">
+                          Unitario: ${Number(ed.valorUnitarioAnterior || 0).toLocaleString('es-CO')} → ${Number(ed.valorUnitarioNuevo || 0).toLocaleString('es-CO')}
+                          {ed.cantidadAnterior !== ed.cantidadNueva && ` • Cant: ${ed.cantidadAnterior} → ${ed.cantidadNueva}`}
+                        </p>
+                        <p className="text-[10px] text-slate-500 dark:text-slate-400">
+                          {ed.fecha ? formatearFecha(ed.fecha) : ''} • Por: {ed.autor || 'Usuario'} • {ed.motivo}
+                        </p>
+                      </div>
+                      <span className={`font-black text-xs shrink-0 ${Number(ed.diferenciaNeto) < 0 ? 'text-rose-600 dark:text-rose-400' : (Number(ed.diferenciaNeto) > 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-500')}`}>
+                        {Number(ed.diferenciaNeto) > 0 ? '+' : (Number(ed.diferenciaNeto) < 0 ? '-' : '')}${Math.abs(Number(ed.diferenciaNeto || 0)).toLocaleString('es-CO')}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {/* Artículos Retirados / Correcciones en el Historial del Separe */}
             {separeSeleccionado.itemsRetirados && separeSeleccionado.itemsRetirados.length > 0 && (
@@ -4532,6 +4689,341 @@ ${itemsTexto || '• Artículos apartados'}
                 </button>
               </div>
 
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* MODAL EDITAR PRECIO / CANTIDAD / NOMBRE DE ARTÍCULO EN PLAN SEPARE ACTIVO */}
+      {modalEditarItem?.visible && modalEditarItem.separe && modalEditarItem.item && (() => {
+        const sep = modalEditarItem.separe;
+        const it = modalEditarItem.item;
+        const esDeInv = modalEditarItem.esDeInventario;
+        const stockBodega = modalEditarItem.stockDisponibleBodega;
+
+        const valorUnitAnterior = Math.round(Number(it.valor || 0));
+        const cantAnterior = Math.max(1, Math.round(Number(it.cantidad || 1)));
+        const descAnterior = String(it.descripcion || "").trim();
+
+        const nuevoValorUnit = Math.round(Number(editValorUnitarioItem.replace(/\D/g, '')) || 0);
+        const nuevaCant = Math.max(1, Math.round(Number(editCantidadItem || 1)));
+        const nuevaDesc = esDeInv ? descAnterior : (editDescripcionItem.trim() || descAnterior);
+        const deltaCant = nuevaCant - cantAnterior;
+        const excedeStockBodega = esDeInv && stockBodega !== null && deltaCant > stockBodega;
+
+        const subtotalBrutoAnterior = valorUnitAnterior * cantAnterior;
+        const nuevoSubtotalBruto = nuevoValorUnit * nuevaCant;
+        const deltaBruto = nuevoSubtotalBruto - subtotalBrutoAnterior;
+
+        const totalBrutoActual = Number(sep.totalBruto || 0) || (sep.items || []).reduce((acc: number, itemObj: any) => acc + (Number(itemObj.valor) || 0) * (Number(itemObj.cantidad) || 1), 0);
+        const nuevoTotalBruto = Math.max(0, totalBrutoActual + deltaBruto);
+
+        const montoDescuentoActual = Number(sep.montoDescuento || 0);
+        let nuevoMontoDescuento = montoDescuentoActual;
+        if (montoDescuentoActual > 0) {
+          if (sep.descuentoTipo === 'porcentaje' && Number(sep.descuentoValor) > 0 && !it.anexadoPosteriormente) {
+            const pct = Math.min(100, Number(sep.descuentoValor)) / 100;
+            const deltaDesc = Math.round(deltaBruto * pct);
+            nuevoMontoDescuento = Math.max(0, Math.min(nuevoTotalBruto, montoDescuentoActual + deltaDesc));
+          } else {
+            nuevoMontoDescuento = Math.min(nuevoTotalBruto, montoDescuentoActual);
+          }
+        }
+
+        const totalActual = Number(sep.total || 0);
+        const nuevoTotal = Math.max(0, nuevoTotalBruto - nuevoMontoDescuento);
+        const diferenciaNeto = nuevoTotal - totalActual;
+
+        const pagadoActual = Number(sep.montoPagado || 0);
+        const montoExcedente = pagadoActual > nuevoTotal ? (pagadoActual - nuevoTotal) : 0;
+        const nuevoSaldoPendiente = pagadoActual > nuevoTotal ? 0 : Math.max(0, nuevoTotal - pagadoActual);
+
+        const hayCambios = (nuevoValorUnit > 0) && (
+          nuevoValorUnit !== valorUnitAnterior ||
+          nuevaCant !== cantAnterior ||
+          (!esDeInv && nuevaDesc !== descAnterior)
+        );
+
+        return (
+          <div
+            onClick={() => !procesandoEditarItem && setModalEditarItem(null)}
+            className="fixed inset-0 z-[999999] bg-black/75 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 animate-in fade-in duration-150"
+          >
+            <div
+              onClick={(e) => e.stopPropagation()}
+              className="bg-white dark:bg-[#0f172a] w-full max-w-md rounded-3xl p-4 sm:p-5 shadow-2xl border border-slate-200 dark:border-slate-800 space-y-3.5 max-h-[92vh] overflow-y-auto animate-in zoom-in-95 duration-200"
+            >
+              {/* Header */}
+              <div className="flex justify-between items-center gap-2">
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <div className="w-9 h-9 rounded-xl bg-blue-100 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 flex items-center justify-center shrink-0">
+                    <Edit3 size={18} />
+                  </div>
+                  <div className="min-w-0">
+                    <h3 className="text-sm sm:text-base font-black text-slate-900 dark:text-white leading-tight truncate">
+                      Corregir Artículo en Separe
+                    </h3>
+                    <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate">
+                      Cliente: <strong className="text-slate-700 dark:text-slate-200">{sep.clienteNombre}</strong>
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => !procesandoEditarItem && setModalEditarItem(null)}
+                  className="p-1.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors shrink-0 cursor-pointer"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+
+              {/* 1. Nombre / Descripción (Bloqueado si es de inventario, Editable si es libre) */}
+              <div className="space-y-1">
+                <div className="flex items-center justify-between">
+                  <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                    Nombre del Producto
+                  </label>
+                  {esDeInv ? (
+                    <span className="inline-flex items-center gap-1 text-[10px] font-bold text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/50 px-2 py-0.5 rounded-md border border-amber-200 dark:border-amber-800/50">
+                      <Lock size={10} /> Catálogo Inventario
+                    </span>
+                  ) : (
+                    <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400">
+                      Artículo Libre (Editable)
+                    </span>
+                  )}
+                </div>
+
+                {esDeInv ? (
+                  <div className="p-2.5 bg-slate-100 dark:bg-slate-900/90 rounded-xl border border-slate-200 dark:border-slate-800 space-y-1">
+                    <p className="text-xs font-black text-slate-800 dark:text-slate-200">
+                      {descAnterior}
+                    </p>
+                    <p className="text-[10px] text-slate-500 dark:text-slate-400 leading-snug">
+                      El nombre está protegido porque este producto descuenta stock de tu inventario. Si apartaste otra referencia por error, retíralo (🗑️) y anexa el correcto.
+                    </p>
+                  </div>
+                ) : (
+                  <input
+                    type="text"
+                    value={editDescripcionItem}
+                    onChange={(e) => setEditDescripcionItem(e.target.value)}
+                    placeholder="Nombre o descripción del artículo..."
+                    className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500/40"
+                  />
+                )}
+              </div>
+
+              {/* 2. Precio Unitario y Cantidad */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                {/* Precio Unitario */}
+                <div className="space-y-1">
+                  <div className="flex items-center justify-between">
+                    <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                      Precio Unitario
+                    </label>
+                    <span className="text-[10px] text-slate-400">
+                      Antes: ${valorUnitAnterior.toLocaleString('es-CO')}
+                    </span>
+                  </div>
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-black text-slate-400">$</span>
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      value={editValorUnitarioItem}
+                      onChange={(e) => {
+                        const soloDigitos = e.target.value.replace(/\D/g, '');
+                        setEditValorUnitarioItem(soloDigitos ? Number(soloDigitos).toLocaleString('es-CO') : '');
+                      }}
+                      placeholder="0"
+                      className="w-full pl-7 pr-3 py-2 bg-slate-50 dark:bg-slate-900 border border-blue-300 dark:border-blue-800 rounded-xl text-sm font-black text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                </div>
+
+                {/* Cantidad */}
+                <div className="space-y-1">
+                  <div className="flex items-center justify-between">
+                    <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                      Cantidad
+                    </label>
+                    {esDeInv && stockBodega !== null ? (
+                      <span className="text-[10px] text-violet-600 dark:text-violet-400 font-bold">
+                        Stock disp: {stockBodega}
+                      </span>
+                    ) : (
+                      <span className="text-[10px] text-slate-400">
+                        Antes: {cantAnterior}
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex items-center justify-between bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-2 py-1.5">
+                    <button
+                      type="button"
+                      disabled={nuevaCant <= 1}
+                      onClick={() => setEditCantidadItem(Math.max(1, nuevaCant - 1))}
+                      className="w-7 h-7 rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 flex items-center justify-center text-slate-700 dark:text-slate-200 disabled:opacity-40 cursor-pointer"
+                    >
+                      <Minus size={13} />
+                    </button>
+                    <span className="text-sm font-black text-slate-900 dark:text-white px-2">
+                      {nuevaCant}
+                    </span>
+                    <button
+                      type="button"
+                      disabled={esDeInv && stockBodega !== null && deltaCant >= stockBodega}
+                      onClick={() => setEditCantidadItem(nuevaCant + 1)}
+                      className="w-7 h-7 rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 flex items-center justify-center text-slate-700 dark:text-slate-200 disabled:opacity-40 cursor-pointer"
+                    >
+                      <Plus size={13} />
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Aviso de impacto en inventario si cambió la cantidad de un producto de catálogo */}
+              {esDeInv && deltaCant !== 0 && (
+                <div className={`p-2 rounded-xl border text-[11px] font-semibold flex items-center gap-2 ${
+                  excedeStockBodega
+                    ? 'bg-rose-50 dark:bg-rose-950/40 border-rose-200 dark:border-rose-800 text-rose-700 dark:text-rose-300'
+                    : 'bg-violet-50 dark:bg-violet-950/30 border-violet-200 dark:border-violet-800/50 text-violet-700 dark:text-violet-300'
+                }`}>
+                  <Package size={14} className="shrink-0" />
+                  <span>
+                    {excedeStockBodega
+                      ? `Stock insuficiente en bodega (solo quedan ${stockBodega} disponibles).`
+                      : deltaCant > 0
+                        ? `Se apartarán +${deltaCant} unidad(es) adicional(es) de tu inventario.`
+                        : `Se devolverán ${Math.abs(deltaCant)} unidad(es) al stock de tu inventario.`}
+                  </span>
+                </div>
+              )}
+
+              {/* 3. Resumen Matemático e Impacto Financiero en Tiempo Real */}
+              <div className="p-3 bg-slate-50 dark:bg-slate-900/80 rounded-2xl border border-slate-200/80 dark:border-slate-800 space-y-2">
+                <div className="flex justify-between items-center text-xs">
+                  <span className="text-slate-500 font-bold">Subtotal de este artículo:</span>
+                  <div className="flex items-center gap-1.5">
+                    {subtotalBrutoAnterior !== nuevoSubtotalBruto && (
+                      <span className="line-through text-slate-400 text-[11px]">${subtotalBrutoAnterior.toLocaleString('es-CO')}</span>
+                    )}
+                    <strong className="text-slate-900 dark:text-white font-black">${nuevoSubtotalBruto.toLocaleString('es-CO')}</strong>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2 pt-1.5 border-t border-slate-200/60 dark:border-slate-800/80 text-[11px]">
+                  <div className="bg-white dark:bg-slate-800/60 p-2 rounded-xl border border-slate-100 dark:border-slate-800">
+                    <span className="text-slate-400 text-[10px] block">Nuevo Total Separe</span>
+                    <div className="flex items-center gap-1 flex-wrap">
+                      <strong className="text-slate-900 dark:text-white font-black text-xs">${nuevoTotal.toLocaleString('es-CO')}</strong>
+                      {diferenciaNeto !== 0 && (
+                        <span className={`text-[9.5px] font-black px-1 py-0.2 rounded ${
+                          diferenciaNeto > 0
+                            ? 'bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300'
+                            : 'bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300'
+                        }`}>
+                          {diferenciaNeto > 0 ? `+${diferenciaNeto.toLocaleString('es-CO')}` : `-${Math.abs(diferenciaNeto).toLocaleString('es-CO')}`}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  <div className="bg-white dark:bg-slate-800/60 p-2 rounded-xl border border-slate-100 dark:border-slate-800">
+                    <span className="text-slate-400 text-[10px] block">Nuevo Saldo Pendiente</span>
+                    <strong className="text-violet-600 dark:text-violet-400 font-black text-xs">${nuevoSaldoPendiente.toLocaleString('es-CO')}</strong>
+                  </div>
+                </div>
+              </div>
+
+              {/* 4. Selector de Excedente de Dinero (si el precio bajó por debajo de lo ya abonado) */}
+              {montoExcedente > 0 && (
+                <div className="p-2.5 bg-amber-50/70 dark:bg-amber-950/30 rounded-2xl border border-amber-200 dark:border-amber-800/50 space-y-1.5">
+                  <div className="flex justify-between items-center text-xs">
+                    <span className="font-bold text-amber-800 dark:text-amber-300 flex items-center gap-1 text-[11px]">
+                      <Sparkles size={12} className="text-amber-600 shrink-0" /> Excedente abonado a favor:
+                    </span>
+                    <strong className="text-amber-900 dark:text-amber-200 font-black text-xs">${montoExcedente.toLocaleString('es-CO')}</strong>
+                  </div>
+                  <p className="text-[10px] text-amber-700 dark:text-amber-300/90 leading-tight">
+                    El cliente ya había abonado ${pagadoActual.toLocaleString('es-CO')}. ¿Cómo deseas manejar la diferencia de ${montoExcedente.toLocaleString('es-CO')}?
+                  </p>
+                  <div className="grid grid-cols-2 gap-1.5 pt-0.5">
+                    <button
+                      type="button"
+                      onClick={() => setDestinoExcedenteEditar('saldo_favor')}
+                      className={`py-1.5 px-2 rounded-xl text-[11px] font-bold border flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                        destinoExcedenteEditar === 'saldo_favor'
+                          ? 'bg-amber-600 text-white border-amber-600 shadow-sm'
+                          : 'bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 border-amber-200 dark:border-amber-800/40 hover:bg-amber-100/50'
+                      }`}
+                    >
+                      <Wallet size={12} />
+                      <span>Saldo a Favor</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setDestinoExcedenteEditar('efectivo')}
+                      className={`py-1.5 px-2 rounded-xl text-[11px] font-bold border flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                        destinoExcedenteEditar === 'efectivo'
+                          ? 'bg-amber-600 text-white border-amber-600 shadow-sm'
+                          : 'bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 border-amber-200 dark:border-amber-800/40 hover:bg-amber-100/50'
+                      }`}
+                    >
+                      <Banknote size={12} />
+                      <span>Devolver Caja</span>
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* 5. Motivo de la Corrección (Auditoría Obligatoria) */}
+              <div className="space-y-1">
+                <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                  Motivo de la corrección (Auditoría)
+                </label>
+                <select
+                  value={motivoEditarItem}
+                  onChange={(e) => setMotivoEditarItem(e.target.value)}
+                  className="w-full px-2.5 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-xs font-medium text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500/30"
+                >
+                  <option value="Error al digitar precio libre / valor">Error al digitar precio libre / valor</option>
+                  <option value="Ajuste comercial autorizado por administración">Ajuste comercial autorizado</option>
+                  <option value="Corrección de cantidad apartada">Corrección de cantidad apartada</option>
+                  <option value="Corrección en descripción de artículo manual">Corrección en descripción de artículo</option>
+                  <option value="Otro">Otro motivo...</option>
+                </select>
+
+                {motivoEditarItem === "Otro" && (
+                  <input
+                    type="text"
+                    value={motivoEditarPersonalizado}
+                    onChange={(e) => setMotivoEditarPersonalizado(e.target.value)}
+                    placeholder="Especifica el motivo de la corrección..."
+                    className="w-full mt-1.5 px-2.5 py-1.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500/30"
+                  />
+                )}
+              </div>
+
+              {/* Acciones */}
+              <div className="pt-1.5 flex gap-2">
+                <button
+                  type="button"
+                  disabled={procesandoEditarItem}
+                  onClick={() => setModalEditarItem(null)}
+                  className="flex-1 py-2.5 px-3 rounded-xl border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 font-bold text-xs transition-colors disabled:opacity-50 cursor-pointer"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  disabled={procesandoEditarItem || !hayCambios || nuevoValorUnit <= 0 || excedeStockBodega}
+                  onClick={ejecutarEditarItemSepare}
+                  className="flex-[1.5] py-2.5 px-3 rounded-xl bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-bold text-xs shadow-md transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+                >
+                  <Check size={14} />
+                  <span>{procesandoEditarItem ? "Guardando..." : "Guardar Corrección"}</span>
+                </button>
+              </div>
             </div>
           </div>
         );

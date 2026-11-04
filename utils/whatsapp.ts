@@ -51,7 +51,7 @@ export function abrirEnlaceWhatsApp(celular: string, texto: string) {
   }
 }
 
-export const NUMERO_WHATSAPP_FIABONO = "573128018444";
+export const NUMERO_WHATSAPP_FIABONO = "573118667058";
 
 export interface ParametrosContactoFiabono {
   nombreUsuario?: string;

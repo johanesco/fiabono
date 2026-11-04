@@ -986,6 +986,8 @@ Gracias por seguir con nosotros.
               mov.tipo === 'devolucion' ? '↩ DEVOLUCIÓN' :
               esEntregaSepare ? '📦 SEPARE ENTREGADO' :
               esSepare ? (
+                mov.subtipo === 'retiro_item_separe' || mov.subtipo === 'edicion_item_separe' ? '✏️ AJUSTE SEPARE' :
+                mov.subtipo === 'anexo_item_separe' ? '➕ ANEXO SEPARE' :
                 mov.subtipo === 'abono_inicial_separe' ? '🔖 SEPARE INICIAL' :
                 (mov.subtipo === 'apertura_separe_sin_abono' || mov.monto === 0 ? '🔖 NUEVO SEPARE' : '🔖 ABONO SEPARE')
               ) :
@@ -1054,13 +1056,13 @@ Gracias por seguir con nosotros.
                         (mov as any).anulado ? 'line-through text-slate-400 dark:text-slate-500 opacity-60' :
                         mov.tipo === 'anulacion' ? 'text-rose-600 dark:text-rose-400' :
                         mov.tipo === 'devolucion' || mov.tipo === 'egreso' ? 'text-amber-600 dark:text-amber-400' :
-                        mov.subtipo === 'retiro_item_separe' ? 'text-rose-600 dark:text-rose-400' :
+                        mov.subtipo === 'retiro_item_separe' || (mov.subtipo === 'edicion_item_separe' && Number((mov as any).diferenciaNeto) < 0) ? 'text-rose-600 dark:text-rose-400' :
                         esEntregaSepare ? 'text-purple-600 dark:text-purple-400' :
                         esSepare ? 'text-violet-600 dark:text-violet-400' :
                         mov.tipo === 'fiado' ? 'text-rose-500' : (mov.tipo === 'venta' ? 'text-emerald-500' : 'text-blue-500')
                       }`}>
                         {(mov as any).anulado ? `(Anulado) $${Math.round(mov.monto || 0).toLocaleString('es-CO')}` :
-                         mov.subtipo === 'retiro_item_separe' ? `-${Math.round(mov.monto || 0).toLocaleString('es-CO')}` : (esEntregaSepare ? 'Entregado' : (mov.subtipo === 'apertura_separe_sin_abono' || (mov.monto === 0 && esSepare) ? 'Reservado ($0)' : `${mov.tipo === 'fiado' || mov.tipo === 'egreso' || mov.tipo === 'devolucion' || mov.tipo === 'anulacion' ? '-' : '+'}${Math.round(mov.monto || 0).toLocaleString('es-CO')}`))}
+                         mov.subtipo === 'retiro_item_separe' || (mov.subtipo === 'edicion_item_separe' && Number((mov as any).diferenciaNeto) < 0) ? `-$${Math.round(mov.monto || 0).toLocaleString('es-CO')}` : (mov.subtipo === 'edicion_item_separe' && Number((mov as any).diferenciaNeto) === 0) ? 'Ajuste ($0)' : (esEntregaSepare ? 'Entregado' : (mov.subtipo === 'apertura_separe_sin_abono' || (mov.monto === 0 && esSepare) ? 'Reservado ($0)' : `${mov.tipo === 'fiado' || mov.tipo === 'egreso' || mov.tipo === 'devolucion' || mov.tipo === 'anulacion' ? '-' : '+'}${Math.round(mov.monto || 0).toLocaleString('es-CO')}`))}
                       </p>
                     )}
                     <span className={`text-[9.5px] font-black uppercase px-2 py-0.5 rounded-md mt-0.5 ${
@@ -1792,7 +1794,8 @@ Gracias por seguir con nosotros.
                           ) : esEntregaSepare ? (
                             '📦 SEPARE ENTREGADO'
                           ) : esSepare ? (
-                            mov.subtipo === 'retiro_item_separe' ? '⚠️ AJUSTE SEPARE' :
+                            mov.subtipo === 'retiro_item_separe' || mov.subtipo === 'edicion_item_separe' ? '✏️ AJUSTE SEPARE' :
+                            mov.subtipo === 'anexo_item_separe' ? '➕ ANEXO SEPARE' :
                             (mov.subtipo === 'abono_inicial_separe' ? '🔖 SEPARE INICIAL' :
                             (mov.subtipo === 'apertura_separe_sin_abono' || mov.monto === 0 ? '🔖 NUEVO SEPARE' : '🔖 ABONO SEPARE'))) : (mov.tipo === 'abono' ? 'ABONO CUENTA' : (mov.tipo === 'venta' && ((mov as any).subtipo === 'venta_parcial' || (mov as any).montoFiadoAsociado || (mov as any).fiarFaltante) ? 'ABONO INICIAL' : (mov.tipo === 'fiado' && ((mov as any).subtipo === 'fiado_con_abono' || (mov as any).abonoInicialAsociado) ? 'FIADO CON ABONO' : (mov.subtipo === 'traslado_separe_a_fiado' ? '📦 FIADO (DE SEPARE)' : mov.tipo))))}
                         </span>
