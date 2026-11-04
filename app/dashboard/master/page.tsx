@@ -742,8 +742,8 @@ export default function MasterPage() {
     } catch (e) {
       toast.error('Error al exportar CSV.');
     }
-  };
-
+  };
+
 
 
   const auditarActividadTienda = async (usuarioId: string) => {
@@ -762,7 +762,8 @@ export default function MasterPage() {
         }
       };
 
-      const fechaHace30d = Timestamp.fromDate(new Date(Date.now() - 30 * 24 * 3600 * 1000));
+      const ahoraMs = Date.now();
+      const hace30dMs = ahoraMs - (30 * 24 * 3600 * 1000);
 
       const [
         productos,
@@ -774,8 +775,7 @@ export default function MasterPage() {
         fiados,
         abonos,
         egresos,
-        movimientos30d,
-        snapUltimoMov
+        snapMuestraMovs
       ] = await Promise.all([
         contarSeguro(query(collection(db, "inventario"), where("usuarioId", "==", usuarioId))),
         contarSeguro(query(collection(db, "clientes"), where("usuarioId", "==", usuarioId))),
@@ -786,17 +786,34 @@ export default function MasterPage() {
         contarSeguro(query(collection(db, "movimientos"), where("usuarioId", "==", usuarioId), where("tipo", "==", "fiado"))),
         contarSeguro(query(collection(db, "movimientos"), where("usuarioId", "==", usuarioId), where("tipo", "==", "abono"))),
         contarSeguro(query(collection(db, "movimientos"), where("usuarioId", "==", usuarioId), where("tipo", "==", "egreso"))),
-        contarSeguro(query(collection(db, "movimientos"), where("usuarioId", "==", usuarioId), where("fecha", ">=", fechaHace30d))),
-        getDocs(query(collection(db, "movimientos"), where("usuarioId", "==", usuarioId), orderBy("fecha", "desc"), limit(1))).catch(() => null)
+        getDocs(query(collection(db, "movimientos"), where("usuarioId", "==", usuarioId), limit(500))).catch(() => null)
       ]);
 
-      let ultimoMovimientoTexto = movimientos > 0 ? "Registrado" : "Sin movimientos";
-      if (snapUltimoMov && !snapUltimoMov.empty) {
-        const fMov = snapUltimoMov.docs[0].data()?.fecha;
-        const tMov = fMov?.toDate ? fMov.toDate().getTime() : (fMov?.seconds ? fMov.seconds * 1000 : (fMov ? new Date(fMov).getTime() : 0));
-        if (tMov > 0) {
-          const diasMov = Math.floor((Date.now() - tMov) / (1000 * 3600 * 24));
-          ultimoMovimientoTexto = diasMov <= 0 ? "Hoy" : (diasMov === 1 ? "Ayer" : `Hace ${diasMov}d`);
+      let movimientos30d = 0;
+      let ultimoMovimientoTexto = movimientos > 0 ? "Sin fecha reciente" : "Sin movimientos";
+
+      if (snapMuestraMovs && !snapMuestraMovs.empty) {
+        let maxTime = 0;
+        snapMuestraMovs.docs.forEach(docSnap => {
+          const data = docSnap.data();
+          const f = data?.fecha;
+          const t = f?.toMillis ? f.toMillis() : (f?.seconds ? f.seconds * 1000 : (f ? new Date(f).getTime() : 0));
+          if (t > maxTime) maxTime = t;
+          if (t >= hace30dMs) movimientos30d++;
+        });
+
+        if (maxTime > 0) {
+          const diasDiff = Math.floor((ahoraMs - maxTime) / (1000 * 3600 * 24));
+          const horasDiff = Math.floor((ahoraMs - maxTime) / (1000 * 3600));
+          if (horasDiff < 1) {
+            ultimoMovimientoTexto = "Hace unos min";
+          } else if (horasDiff < 24 && diasDiff === 0) {
+            ultimoMovimientoTexto = `Hoy (-${horasDiff}h)`;
+          } else if (diasDiff === 1) {
+            ultimoMovimientoTexto = "Ayer";
+          } else {
+            ultimoMovimientoTexto = `Hace ${diasDiff}d`;
+          }
         }
       }
 
@@ -818,28 +835,6 @@ export default function MasterPage() {
           cargando: false
         }
       }));
-      if (false) {
-        const [snapInv, snapCli, snapMov] = await Promise.all([
-        getCountFromServer(query(collection(db, "inventario"), where("usuarioId", "==", usuarioId))),
-        getCountFromServer(query(collection(db, "clientes"), where("usuarioId", "==", usuarioId))),
-        getCountFromServer(query(collection(db, "movimientos"), where("usuarioId", "==", usuarioId)))
-      ]);
-
-      const productos = snapInv.data().count;
-      const clientes = snapCli.data().count;
-      const movimientos = snapMov.data().count;
-
-      setTelemetriaMap(prev => ({
-        ...prev,
-        [usuarioId]: {
-          productos,
-          clientes,
-          movimientos,
-          auditado: true,
-          cargando: false
-        }
-      }));
-      }
       toast.success("Actividad auditada en tiempo real.");
     } catch (err) {
       console.error("Error al auditar tienda:", err);
@@ -2155,79 +2150,105 @@ export default function MasterPage() {
                       </div>
                     </div>
 
-                    {/* Barra Inferior: Telemetría de Actividad + Extensiones Seguras con Aprobación */}
-                    <div className={`pt-3 border-t ${theme.border} flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 text-xs`}>
+                    {/* Barra Inferior: Actividad / Telemetría y Extensiones Seguras */}
+                    <div className={`pt-3.5 border-t ${theme.border} space-y-3.5`}>
                       
-                      {/* Telemetría / Salud */}
-                      <div className="flex items-center gap-2 flex-wrap">
-                        {tele?.auditado ? (
-                          <div className={`flex items-center gap-2 px-3 py-1.5 rounded-xl border text-[11px] ${theme.cardSubtle}`}>
-                            <span className={`w-2 h-2 rounded-full ${
-                              tele.movimientos > 0 ? 'bg-emerald-500' : (tele.productos > 0 ? 'bg-amber-500' : 'bg-rose-500')
-                            }`}></span>
-                            <span className={theme.textMuted}>Estado:</span>
-                            <span className={`font-bold ${theme.textMain}`}>
-                              {tele.movimientos > 0 ? 'Activo' : (tele.productos > 0 ? 'En Configuracion' : 'Inactivo')}
-                            </span>
-                            <span className="opacity-40">|</span>
-                            <span><strong>{tele.productos}</strong> productos</span>
-                            <span><strong>{tele.clientes}</strong> clientes</span>
-                            <span><strong>{tele.movimientos.toLocaleString('es-CO')}</strong> movs totales</span>
-                            <span className="opacity-40">|</span>
-                            <span className="text-emerald-600 dark:text-emerald-400 font-bold">
-                              Últimos 30d: <strong>{(tele.movimientos30d ?? 0).toLocaleString('es-CO')}</strong>
-                            </span>
-                            <span>
-                              Último mov: <strong className={theme.textMain}>{tele.ultimoMovimientoTexto || 'N/A'}</strong>
-                            </span>
-                            <span className="opacity-40">|</span>
-                            <span className="inline-flex flex-wrap items-center gap-1.5">
-                              <span className="px-1.5 py-0.5 rounded-md bg-emerald-500/10 text-emerald-600 dark:text-emerald-300 border border-emerald-500/20 font-semibold">
-                                Ventas: <strong>{(tele.ventas ?? 0).toLocaleString('es-CO')}</strong>
+                      {/* BLOQUE DE AUDITORÍA Y SALUD */}
+                      {tele?.auditado ? (
+                        <div className={`p-3.5 rounded-2xl border ${theme.cardSubtle} space-y-3 animate-in fade-in`}>
+                          {/* Fila 1: Estado y Pulso del Negocio */}
+                          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2.5 border-b border-slate-200/60 dark:border-slate-800/80 text-xs">
+                            <div className="flex items-center gap-2">
+                              <span className={`w-2.5 h-2.5 rounded-full ${
+                                tele.movimientos > 0 ? 'bg-emerald-500 shadow-xs shadow-emerald-500/50' : (tele.productos > 0 ? 'bg-amber-500' : 'bg-rose-500')
+                              }`}></span>
+                              <span className="font-bold">
+                                Estado: <strong className={tele.movimientos > 0 ? 'text-emerald-600 dark:text-emerald-400 font-black' : theme.textMain}>
+                                  {tele.movimientos > 0 ? 'Activo en Operación' : (tele.productos > 0 ? 'En Configuración' : 'Sin Actividad')}
+                                </strong>
                               </span>
-                              <span className="px-1.5 py-0.5 rounded-md bg-amber-500/10 text-amber-600 dark:text-amber-300 border border-amber-500/20 font-semibold">
-                                Fiados: <strong>{(tele.fiados ?? 0).toLocaleString('es-CO')}</strong>
+                            </div>
+
+                            <div className="flex flex-wrap items-center gap-2 text-[11px]">
+                              <span className={theme.textMuted}>
+                                Último mov: <strong className={theme.textMain}>{tele.ultimoMovimientoTexto || 'N/A'}</strong>
                               </span>
-                              <span className="px-1.5 py-0.5 rounded-md bg-blue-500/10 text-blue-600 dark:text-blue-300 border border-blue-500/20 font-semibold">
-                                Abonos: <strong>{(tele.abonos ?? 0).toLocaleString('es-CO')}</strong>
+                              <span className="opacity-30">|</span>
+                              <span className="text-emerald-600 dark:text-emerald-400 font-bold">
+                                Últimos 30 días: <strong>{(tele.movimientos30d ?? 0).toLocaleString('es-CO')} movs</strong>
                               </span>
-                              <span className="px-1.5 py-0.5 rounded-md bg-pink-500/10 text-pink-600 dark:text-pink-300 border border-pink-500/20 font-semibold">
-                                Separes: <strong>{(tele.separes ?? 0).toLocaleString('es-CO')}</strong>
+                              <button
+                                type="button"
+                                onClick={() => auditarActividadTienda(u.id)}
+                                title="Refrescar auditoría de actividad"
+                                className="p-1 rounded-lg hover:bg-slate-500/15 text-slate-400 hover:text-slate-200 transition cursor-pointer"
+                              >
+                                <RefreshCw size={12} className={tele?.cargando ? 'animate-spin text-amber-500' : ''} />
+                              </button>
+                            </div>
+                          </div>
+
+                          {/* Fila 2: Base Cuantitativa + Desglose por Módulos */}
+                          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-2.5 text-xs">
+                            {/* Base */}
+                            <div className={`flex items-center gap-2 text-[11px] ${theme.textMuted}`}>
+                              <span>Base:</span>
+                              <span className="font-medium">
+                                <strong className={theme.textMain}>{(tele.productos).toLocaleString('es-CO')}</strong> productos
                               </span>
-                              <span className="px-1.5 py-0.5 rounded-md bg-purple-500/10 text-purple-600 dark:text-purple-300 border border-purple-500/20 font-semibold">
-                                Cajas: <strong>{(tele.cierresCaja ?? 0).toLocaleString('es-CO')}</strong>
+                              <span className="opacity-30">·</span>
+                              <span className="font-medium">
+                                <strong className={theme.textMain}>{(tele.clientes).toLocaleString('es-CO')}</strong> clientes
+                              </span>
+                              <span className="opacity-30">·</span>
+                              <span className="font-medium">
+                                <strong className={theme.textMain}>{(tele.movimientos).toLocaleString('es-CO')}</strong> movs totales
+                              </span>
+                            </div>
+
+                            {/* Pastillas sobrias y ordenadas */}
+                            <div className="flex flex-wrap items-center gap-1.5 text-[11px]">
+                              <span className="px-2 py-0.5 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 font-medium">
+                                Ventas: <strong className="text-emerald-600 dark:text-emerald-400 font-black">{(tele.ventas ?? 0).toLocaleString('es-CO')}</strong>
+                              </span>
+                              <span className="px-2 py-0.5 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 font-medium">
+                                Fiados: <strong className="text-amber-600 dark:text-amber-400 font-black">{(tele.fiados ?? 0).toLocaleString('es-CO')}</strong>
+                              </span>
+                              <span className="px-2 py-0.5 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 font-medium">
+                                Abonos: <strong className="text-blue-600 dark:text-blue-400 font-black">{(tele.abonos ?? 0).toLocaleString('es-CO')}</strong>
+                              </span>
+                              <span className="px-2 py-0.5 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 font-medium">
+                                Separes: <strong className="text-pink-600 dark:text-pink-400 font-black">{(tele.separes ?? 0).toLocaleString('es-CO')}</strong>
+                              </span>
+                              <span className="px-2 py-0.5 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 font-medium">
+                                Cajas: <strong className="text-purple-600 dark:text-purple-400 font-black">{(tele.cierresCaja ?? 0).toLocaleString('es-CO')}</strong>
                               </span>
                               {(tele.egresos ?? 0) > 0 && (
-                                <span className="px-1.5 py-0.5 rounded-md bg-rose-500/10 text-rose-600 dark:text-rose-300 border border-rose-500/20 font-semibold">
-                                  Gastos: <strong>{(tele.egresos ?? 0).toLocaleString('es-CO')}</strong>
+                                <span className="px-2 py-0.5 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 font-medium">
+                                  Gastos: <strong className="text-rose-600 dark:text-rose-400 font-black">{(tele.egresos ?? 0).toLocaleString('es-CO')}</strong>
                                 </span>
                               )}
-                            </span>
-                            <button
-                              type="button"
-                              onClick={() => auditarActividadTienda(u.id)}
-                              title="Refrescar auditoría de actividad"
-                              className="ml-1 p-1 rounded-lg hover:bg-slate-500/15 transition cursor-pointer"
-                            >
-                              <RefreshCw size={11} className={tele?.cargando ? 'animate-spin text-amber-500' : ''} />
-                            </button>
+                            </div>
                           </div>
-                        ) : (
+                        </div>
+                      ) : (
+                        <div className="flex items-center justify-between gap-2">
                           <button
                             onClick={() => auditarActividadTienda(u.id)}
                             disabled={tele?.cargando}
-                            className={`px-3 py-1.5 rounded-xl font-bold text-[11px] flex items-center gap-1.5 border transition cursor-pointer active:scale-95 ${
+                            className={`px-3.5 py-1.5 rounded-xl font-bold text-xs flex items-center gap-1.5 border transition cursor-pointer active:scale-95 ${
                               modoOscuro 
-                                ? 'bg-slate-800/60 hover:bg-slate-800 text-slate-400 hover:text-slate-200 border-slate-800' 
-                                : 'bg-slate-100 hover:bg-slate-200 text-slate-600 border-slate-200'
+                                ? 'bg-slate-800/80 hover:bg-slate-800 text-slate-300 hover:text-white border-slate-700' 
+                                : 'bg-slate-100 hover:bg-slate-200 text-slate-700 border-slate-300'
                             }`}
                           >
-                            <Activity size={13} className={tele?.cargando ? 'animate-spin text-amber-500' : ''} />
-                            <span>{tele?.cargando ? 'Consultando...' : 'Auditar Actividad'}</span>
+                            <Activity size={13} className={tele?.cargando ? 'animate-spin text-amber-500' : 'text-amber-500'} />
+                            <span>{tele?.cargando ? 'Consultando datos...' : 'Auditar Actividad del Negocio'}</span>
                           </button>
-                        )}
-                      </div>
+                        </div>
+                      )}
 
+                      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
                       {/* Botones de Extensión Rápida SEGURA (Exigen confirmación previa) */}
                       <div className="flex items-center justify-between sm:justify-start gap-1.5 w-full sm:w-auto">
                         <span className={`text-[10px] uppercase font-bold ${theme.textMuted} mr-1`}>Extension Segura:</span>
@@ -2256,6 +2277,7 @@ export default function MasterPage() {
                             +1 Ano
                           </button>
                         </div>
+                      </div>
                       </div>
 
                     </div>
