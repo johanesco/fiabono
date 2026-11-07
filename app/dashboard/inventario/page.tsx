@@ -166,6 +166,8 @@ export default function InventarioPage() {
   const [stock, setStock] = useState("");
   const [precioVenta, setPrecioVenta] = useState("");
   const [costoCompra, setCostoCompra] = useState("");
+  const [modoEdicionProducto, setModoEdicionProducto] = useState<'surtir' | 'editar'>('editar');
+  const [cantidadSurtir, setCantidadSurtir] = useState("");
   
   // Estados para Fotos del Producto
   const [imagenUrl, setImagenUrl] = useState<string | null>(null);
@@ -1018,7 +1020,17 @@ export default function InventarioPage() {
     try {
       if (editandoId) {
         const esInventariable = tipoProducto === 'producto' && inventariable;
-        const cantStock = esInventariable ? Math.round(Number(stock) || 0) : 0;
+        const prodOriginal = inventario.find(p => p.id === editandoId);
+        const stockBaseOriginal = Math.round(Number(prodOriginal?.stock) || 0);
+        const cantSurtirNum = Math.round(Number(cantidadSurtir) || 0);
+        if (esInventariable && modoEdicionProducto === 'surtir' && cantSurtirNum <= 0) {
+          toast.error('Ingresa cuántas unidades nuevas vas a sumar (mayor a 0).');
+          setGuardando(false);
+          return;
+        }
+        const cantStock = esInventariable
+          ? (modoEdicionProducto === 'surtir' ? stockBaseOriginal + cantSurtirNum : Math.round(Number(stock) || 0))
+          : 0;
         const precioNum = Number(precioVenta.replace(/\D/g, '')) || 0;
         const costoNum = Number(costoCompra.replace(/\D/g, '')) || 0;
         const nombreGuardar = nombre.trim();
@@ -1096,7 +1108,9 @@ export default function InventarioPage() {
     }
   };
 
-  const abrirEdicion = (prod: any) => {
+  const abrirEdicion = (prod: any, modoInicial: 'surtir' | 'editar' = 'editar') => {
+    setModoEdicionProducto(modoInicial);
+    setCantidadSurtir("");
     if (datosSesion?.esGratis && inventario.length > 30) {
       setModalUpsell({
         visible: true,
@@ -1236,6 +1250,8 @@ export default function InventarioPage() {
 
   const limpiarFormulario = () => {
     setEditandoId(null);
+    setModoEdicionProducto('editar');
+    setCantidadSurtir("");
     setNombre("");
     setSku("");
     setStock("");
@@ -5335,7 +5351,48 @@ export default function InventarioPage() {
               <div className={`flex flex-col h-full overflow-y-auto lg:overflow-hidden p-2.5 sm:p-5 space-y-3 sm:space-y-4 ${tabMovilModal === 'formulario' ? 'flex' : 'hidden lg:flex'}`}>
                 
                 {/* Banner de Modo Edición Activo */}
+                {/* Selector de Modo cuando se selecciona un producto existente: Surtir vs Editar */}
                 {editandoId && (
+                  <div className="p-2.5 bg-slate-100/90 dark:bg-slate-900/90 border border-slate-200 dark:border-slate-800 rounded-xl space-y-2 shadow-xs shrink-0">
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="text-xs font-black text-slate-800 dark:text-slate-100 truncate">
+                        Producto: "{nombre || 'Sin nombre'}"
+                      </p>
+                      <button
+                        type="button"
+                        onClick={limpiarFormulario}
+                        className="px-2 py-0.5 text-[11px] font-bold bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-600 dark:text-slate-300 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-700 transition shrink-0 cursor-pointer"
+                      >
+                        Cancelar
+                      </button>
+                    </div>
+                    <div className="grid grid-cols-2 gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => setModoEdicionProducto('surtir')}
+                        className={`py-1.5 px-2.5 rounded-lg text-[11px] font-black flex items-center justify-center gap-1.5 transition cursor-pointer ${
+                          modoEdicionProducto === 'surtir'
+                            ? 'bg-emerald-600 text-white shadow-xs'
+                            : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 hover:bg-slate-50'
+                        }`}
+                      >
+                        <span>📦 Surtir (+ Unidades)</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setModoEdicionProducto('editar')}
+                        className={`py-1.5 px-2.5 rounded-lg text-[11px] font-black flex items-center justify-center gap-1.5 transition cursor-pointer ${
+                          modoEdicionProducto === 'editar'
+                            ? 'bg-amber-500 text-white shadow-xs'
+                            : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 hover:bg-slate-50'
+                        }`}
+                      >
+                        <span>✏️ Editar Producto</span>
+                      </button>
+                    </div>
+                  </div>
+                )}
+                {false && editandoId && (
                   <div className="p-2.5 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/50 rounded-xl flex items-center justify-between gap-2 shadow-xs shrink-0">
                     <div className="flex items-center gap-2 min-w-0">
                       <div className="w-6 h-6 rounded-lg bg-amber-500 text-white flex items-center justify-center shrink-0">
@@ -5446,7 +5503,7 @@ export default function InventarioPage() {
                               <button
                                 type="button"
                                 onClick={() => {
-                                  abrirEdicion(coincidencias[0]);
+                                  abrirEdicion(coincidencias[0], 'surtir');
                                   toast.success(`Cargado "${coincidencias[0].nombre}"`);
                                 }}
                                 className="px-2 py-0.5 bg-amber-500 hover:bg-amber-600 text-white font-bold rounded text-[10px] shrink-0 transition cursor-pointer"
@@ -5615,7 +5672,7 @@ export default function InventarioPage() {
                               <button
                                 type="button"
                                 onClick={() => {
-                                  abrirEdicion(coincidenciaSku);
+                                  abrirEdicion(coincidenciaSku, 'surtir');
                                   toast.success(`Cargado "${coincidenciaSku.nombre}"`, { icon: '✏️' });
                                 }}
                                 className="px-2 py-0.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded text-[10px] shrink-0 cursor-pointer shadow-xs"
@@ -5703,7 +5760,7 @@ export default function InventarioPage() {
                     {datosSesion?.esAdmin !== false && (
                       <div className="space-y-1">
                         <label className="text-[10px] sm:text-xs font-bold text-indigo-700 dark:text-indigo-300 uppercase tracking-wider block truncate">
-                          Costo Compra ($)
+                          {editandoId && modoEdicionProducto === 'surtir' ? 'Costo Nueva Compra ($)' : 'Costo Compra ($)'}
                         </label>
                         <input 
                           type="text" 
@@ -5719,9 +5776,22 @@ export default function InventarioPage() {
                     {/* Stock Inicial / Actual */}
                     <div className="space-y-1">
                       <label className="text-[10px] sm:text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider block truncate">
-                        {editandoId ? 'Stock Actual' : 'Stock Inicial'}
+                        {editandoId ? (modoEdicionProducto === 'surtir' ? `+ Sumar (Hay ${stock || 0} u.)` : 'Stock Actual') : 'Stock Inicial'}
                       </label>
-                      {tipoProducto === 'producto' && inventariable ? (
+                      {tipoProducto === 'producto' && inventariable && editandoId && modoEdicionProducto === 'surtir' ? (
+                        <input
+                          type="number"
+                          min="1"
+                          value={cantidadSurtir}
+                          onChange={(e) => {
+                            const raw = e.target.value;
+                            setCantidadSurtir(raw === '' ? '' : String(Math.max(0, Number(raw))));
+                            setErrores(prev => ({ ...prev, stock: '' }));
+                          }}
+                          placeholder="+ Ej. 20"
+                          className="w-full py-2 px-3 bg-emerald-50/60 dark:bg-emerald-950/30 border-2 border-emerald-500 rounded-xl outline-none font-black text-xs sm:text-sm text-emerald-900 dark:text-emerald-200"
+                        />
+                      ) : tipoProducto === 'producto' && inventariable ? (
                         <input 
                           type="number" 
                           min={editandoId ? undefined : "0"} 
@@ -5769,16 +5839,15 @@ export default function InventarioPage() {
                     const stockAnterior = prodRef ? Math.max(0, Number(prodRef.stock) || 0) : 0;
                     const costoAnterior = prodRef ? Number(prodRef.costoCompra) || 0 : 0;
                     const unidadesNuevas = prodRef
-                      ? (editandoId ? stockNum - stockAnterior : stockNum)
+                      ? (editandoId
+                          ? (modoEdicionProducto === 'surtir' ? Math.max(0, Number(cantidadSurtir) || 0) : stockNum - stockAnterior)
+                          : stockNum)
                       : 0;
 
-                    const hayCambioCostoConStock = Boolean(
+                    const mostrarDesgloseLotes = Boolean(
                       prodRef &&
-                      stockAnterior > 0 &&
-                      costoAnterior > 0 &&
-                      costoNum > 0 &&
-                      costoNum !== costoAnterior &&
-                      unidadesNuevas > 0
+                      ((editandoId && modoEdicionProducto === 'surtir') ||
+                        (stockAnterior > 0 && costoAnterior > 0 && costoNum > 0 && costoNum !== costoAnterior && unidadesNuevas > 0))
                     );
 
                     const soloCambioCostoSinSubirStock = Boolean(
@@ -5802,12 +5871,12 @@ export default function InventarioPage() {
                           </div>
                         )}
 
-                        {hayCambioCostoConStock && (
+                        {mostrarDesgloseLotes && (
                           <div className="p-2.5 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/60 rounded-xl text-[11px] space-y-1.5">
                             <div className="font-black text-amber-800 dark:text-amber-300 flex items-center justify-between">
-                              <span>📦 Nueva entrada con costo diferente (+{unidadesNuevas} u.)</span>
+                              <span>📦 {costoNum !== costoAnterior && costoNum > 0 && costoAnterior > 0 ? `Nuevo lote con costo diferente (+${unidadesNuevas} u.)` : `Resumen de entrada de mercancía (+${unidadesNuevas} u.)`}</span>
                               <span className="text-[10px] px-2 py-0.5 rounded-md bg-amber-100 dark:bg-amber-900/50 text-amber-900 dark:text-amber-200">
-                                Total: {stockAnterior + unidadesNuevas} u.
+                                Nuevo Total: {stockAnterior + Math.max(0, unidadesNuevas)} u.
                               </span>
                             </div>
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 pt-0.5">
@@ -5879,7 +5948,7 @@ export default function InventarioPage() {
                         disabled={guardando}
                         className="py-2.5 px-3 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-black rounded-xl shadow-md shadow-emerald-600/25 flex items-center justify-center gap-1.5 text-xs sm:text-sm transition active:scale-95 cursor-pointer"
                       >
-                        {guardando ? 'Actualizando...' : <>✓ Actualizar en Catálogo</>}
+                        {guardando ? 'Guardando...' : (modoEdicionProducto === 'surtir' ? <>✓ Sumar Entrada (+{Number(cantidadSurtir) || 0} u.)</> : <>✓ Actualizar en Catálogo</>)}
                       </button>
                     </div>
                   ) : (
