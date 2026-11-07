@@ -62,6 +62,34 @@ export async function POST(request: Request) {
       }
 
       transaction.update(productoRef, cambios);
+
+      // Historial de compras (Fase 1): si al editar el administrador SUBE el stock,
+      // se registra como "Entrada de Mercancía" con el costo pagado y el stock antes/después.
+      // No altera ventas, reportes ni ningún cálculo existente.
+      const stockAnterior = Number(productoActual.stock || 0);
+      if (esAdmin && inventariable && typeof cambios.stock === 'number' && Number.isFinite(stockAnterior) && cambios.stock > stockAnterior) {
+        const cantidad = cambios.stock - stockAnterior;
+        const costoAnterior = Number(productoActual.costoCompra || 0);
+        const costoUnitario = typeof cambios.costoCompra === 'number' && cambios.costoCompra > 0 ? cambios.costoCompra : costoAnterior;
+        const nombreProducto = cambios.nombre || productoActual.nombre || 'Producto';
+        transaction.create(adminDb.collection('movimientos').doc(), {
+          usuarioId: cuentaPrincipalId,
+          tipo: 'ingreso_inventario',
+          categoria: 'edicion_producto',
+          monto: 0,
+          descripcion: `Entrada por edición: +${cantidad} unidades de ${nombreProducto}`,
+          fecha: new Date(),
+          registradoPor: usuario.nombreUsuario || decodedToken.email || 'Usuario',
+          idProducto: productoId,
+          nombreProducto,
+          cantidadAgregada: cantidad,
+          costoUnitario,
+          costoAnterior,
+          stockAnterior,
+          stockNuevo: cambios.stock,
+          proveedor: null
+        });
+      }
       return { productoId, precioActualizado: modificarPrecios };
     });
 

@@ -2076,6 +2076,9 @@ Gracias por seguir con nosotros.
                   {esAdmin && Number((movimientoInventarioDetalle as any).costoUnitario) > 0 && (
                     <span className="text-xs font-bold text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/40 px-3 py-1.5 rounded-xl border border-amber-200 dark:border-amber-800/60">
                       Costo pagado: ${Number((movimientoInventarioDetalle as any).costoUnitario).toLocaleString('es-CO')} c/u
+                      {Number((movimientoInventarioDetalle as any).costoAnterior) > 0 && Number((movimientoInventarioDetalle as any).costoAnterior) !== Number((movimientoInventarioDetalle as any).costoUnitario) && (
+                        <span className="font-medium text-amber-600/80 dark:text-amber-400/80"> (antes ${Number((movimientoInventarioDetalle as any).costoAnterior).toLocaleString('es-CO')})</span>
+                      )}
                     </span>
                   )}
                   {esAdmin && (movimientoInventarioDetalle as any).stockAnterior !== undefined && (

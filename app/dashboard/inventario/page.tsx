@@ -5750,7 +5750,105 @@ export default function InventarioPage() {
                   </div>
 
                   {/* Resumen de ganancia estimada (si es admin y ambos tienen valor) */}
-                  {datosSesion?.esAdmin !== false && precioVenta && costoCompra && Number(precioVenta.replace(/\D/g, '')) > 0 && Number(costoCompra.replace(/\D/g, '')) > 0 && (
+                  {/* Resumen de ganancia estimada y detector inteligente de lotes / costos */}
+                  {(() => {
+                    if (datosSesion?.esAdmin === false) return null;
+                    const precioNum = Number((precioVenta || '').replace(/\D/g, '')) || 0;
+                    const costoNum = Number((costoCompra || '').replace(/\D/g, '')) || 0;
+                    const stockNum = Number(stock) || 0;
+
+                    const prodRef = editandoId
+                      ? inventario.find(p => p.id === editandoId)
+                      : (nombre.trim() || sku.trim())
+                        ? inventario.find(p =>
+                            (sku.trim() && (p.sku || '').trim().toUpperCase() === sku.trim().toUpperCase()) ||
+                            (nombre.trim() && (p.nombre || '').trim().toLowerCase() === nombre.trim().toLowerCase())
+                          )
+                        : null;
+
+                    const stockAnterior = prodRef ? Math.max(0, Number(prodRef.stock) || 0) : 0;
+                    const costoAnterior = prodRef ? Number(prodRef.costoCompra) || 0 : 0;
+                    const unidadesNuevas = prodRef
+                      ? (editandoId ? stockNum - stockAnterior : stockNum)
+                      : 0;
+
+                    const hayCambioCostoConStock = Boolean(
+                      prodRef &&
+                      stockAnterior > 0 &&
+                      costoAnterior > 0 &&
+                      costoNum > 0 &&
+                      costoNum !== costoAnterior &&
+                      unidadesNuevas > 0
+                    );
+
+                    const soloCambioCostoSinSubirStock = Boolean(
+                      prodRef &&
+                      editandoId &&
+                      stockAnterior > 0 &&
+                      costoAnterior > 0 &&
+                      costoNum > 0 &&
+                      costoNum !== costoAnterior &&
+                      unidadesNuevas === 0
+                    );
+
+                    return (
+                      <div className="space-y-2">
+                        {precioNum > 0 && costoNum > 0 && (
+                          <div className="p-2 bg-emerald-500/10 border border-emerald-500/20 rounded-xl text-xs flex items-center justify-between">
+                            <span className="text-emerald-700 dark:text-emerald-300 font-bold">Ganancia estimada por unidad:</span>
+                            <span className="text-emerald-700 dark:text-emerald-300 font-black">
+                              +${(precioNum - costoNum).toLocaleString('es-CO')}
+                            </span>
+                          </div>
+                        )}
+
+                        {hayCambioCostoConStock && (
+                          <div className="p-2.5 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/60 rounded-xl text-[11px] space-y-1.5">
+                            <div className="font-black text-amber-800 dark:text-amber-300 flex items-center justify-between">
+                              <span>📦 Nueva entrada con costo diferente (+{unidadesNuevas} u.)</span>
+                              <span className="text-[10px] px-2 py-0.5 rounded-md bg-amber-100 dark:bg-amber-900/50 text-amber-900 dark:text-amber-200">
+                                Total: {stockAnterior + unidadesNuevas} u.
+                              </span>
+                            </div>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 pt-0.5">
+                              <div className="p-2 rounded-lg bg-white dark:bg-slate-900 border border-amber-200/70 dark:border-slate-800">
+                                <span className="text-[10px] font-bold uppercase text-slate-400 block">Stock anterior</span>
+                                <span className="font-black text-slate-800 dark:text-white">
+                                  {stockAnterior} u. × ${costoAnterior.toLocaleString('es-CO')}
+                                </span>
+                                {precioNum > 0 && (
+                                  <span className="block text-[10px] font-bold text-emerald-600 dark:text-emerald-400">
+                                    Ganancia: +${(precioNum - costoAnterior).toLocaleString('es-CO')} c/u
+                                  </span>
+                                )}
+                              </div>
+                              <div className="p-2 rounded-lg bg-white dark:bg-slate-900 border border-amber-300 dark:border-amber-700/60">
+                                <span className="text-[10px] font-bold uppercase text-amber-600 dark:text-amber-400 block">Nueva compra (+{unidadesNuevas} u.)</span>
+                                <span className="font-black text-slate-800 dark:text-white">
+                                  {unidadesNuevas} u. × ${costoNum.toLocaleString('es-CO')}
+                                </span>
+                                {precioNum > 0 && (
+                                  <span className="block text-[10px] font-bold text-emerald-600 dark:text-emerald-400">
+                                    Ganancia: +${(precioNum - costoNum).toLocaleString('es-CO')} c/u
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                            <p className="text-[10px] text-amber-700 dark:text-amber-300/90 leading-snug">
+                              Se guardará esta entrada en el <strong>Historial → Entrada de Mercancía</strong> con su costo real (${costoNum.toLocaleString('es-CO')}) y el costo anterior (${costoAnterior.toLocaleString('es-CO')}).
+                            </p>
+                          </div>
+                        )}
+
+                        {soloCambioCostoSinSubirStock && (
+                          <div className="p-2 bg-indigo-50/70 dark:bg-indigo-950/30 border border-indigo-200 dark:border-indigo-800/50 rounded-xl text-[11px] text-indigo-800 dark:text-indigo-200">
+                            💡 <strong>Cambio de costo base:</strong> Estás cambiando el costo de <strong>${costoAnterior.toLocaleString('es-CO')}</strong> a <strong>${costoNum.toLocaleString('es-CO')}</strong> sin sumar unidades nuevas. Si estás ingresando mercancía nueva, sube también el <strong>Stock Actual</strong> (de {stockAnterior} a {stockAnterior}+unidades) para que quede registrada la entrada en el Historial.
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })()}
+                  {false && datosSesion?.esAdmin !== false && precioVenta && costoCompra && Number(precioVenta.replace(/\D/g, '')) > 0 && Number(costoCompra.replace(/\D/g, '')) > 0 && (
                     <div className="p-2 bg-emerald-500/10 border border-emerald-500/20 rounded-xl text-xs flex items-center justify-between">
                       <span className="text-emerald-700 dark:text-emerald-300 font-bold">Ganancia estimada por unidad:</span>
                       <span className="text-emerald-700 dark:text-emerald-300 font-black">
