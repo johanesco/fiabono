@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getAdminAuth, getAdminDb } from '@/lib/firebase-admin';
+import { agregarLoteEntrada } from '@/utils/lotesInventario';
 
 export async function POST(request: Request) {
   try {
@@ -69,7 +70,17 @@ export async function POST(request: Request) {
         if (puedeEditarPrecios && Number(producto.precioVenta) > 0) {
           camposActualizados.precioVenta = Number(producto.precioVenta);
         }
-        if (esAdmin && Number(producto.costoCompra) > 0) {
+        if (esAdmin && cantidadAplicada > 0) {
+          const costoEntrada = Number(producto.costoCompra) > 0 ? Number(producto.costoCompra) : Number(productoActual.costoCompra || 0);
+          const provEntrada = typeof producto.proveedor === 'string' && producto.proveedor.trim() ? producto.proveedor.trim().slice(0, 80) : null;
+          const { lotesActualizados, costoCompraActivo } = agregarLoteEntrada(productoActual, cantidadAplicada, costoEntrada, provEntrada);
+          camposActualizados.lotesCosto = lotesActualizados;
+          camposActualizados.costoCompra = costoCompraActivo;
+          if (provEntrada) camposActualizados.proveedor = provEntrada;
+        } else if (esAdmin && Number(producto.costoCompra) > 0) {
+          camposActualizados.costoCompra = Number(producto.costoCompra);
+        }
+        if (false && esAdmin && Number(producto.costoCompra) > 0) {
           camposActualizados.costoCompra = Number(producto.costoCompra);
         }
         if (typeof producto.categoria === 'string' && producto.categoria.trim()) {
@@ -116,6 +127,17 @@ export async function POST(request: Request) {
           stock: cantidadInicial,
           precioVenta: Number(producto.precioVenta) || 0,
           costoCompra: esAdmin ? (Number(producto.costoCompra) || 0) : 0,
+          lotesCosto: esInventariable && cantidadInicial > 0
+            ? [{
+                id: `lote_init_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+                cantidad: cantidadInicial,
+                cantidadInicial,
+                costoUnitario: esAdmin ? (Number(producto.costoCompra) || 0) : 0,
+                fecha: new Date().toISOString(),
+                ...(typeof producto.proveedor === 'string' && producto.proveedor.trim() ? { proveedor: producto.proveedor.trim().slice(0, 80) } : {})
+              }]
+            : [],
+          ...(typeof producto.proveedor === 'string' && producto.proveedor.trim() ? { proveedor: producto.proveedor.trim().slice(0, 80) } : {}),
           tipoProducto: producto.tipoProducto || 'producto',
           categoria: (producto.categoria || 'General').trim(),
           inventariable: esInventariable,

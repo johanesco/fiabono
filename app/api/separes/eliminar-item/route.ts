@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getAdminAuth, getAdminDb } from '@/lib/firebase-admin';
+import { restaurarLoteDevolucion } from '@/utils/lotesInventario';
 
 export async function POST(request: Request) {
   try {
@@ -101,8 +102,11 @@ export async function POST(request: Request) {
         if (prodSnap.exists && prodSnap.data()?.usuarioId === cuentaPrincipalId) {
           const prodData = prodSnap.data() as any;
           if (prodData.tipoProducto !== 'servicio' && prodData.inventariable !== false) {
+            const restaurado = restaurarLoteDevolucion(prodData, cantTotalItem, Number(itemRetirado.costoUnitario) || 0);
             transaction.update(prodRef, {
-              stock: Number(prodData.stock || 0) + cantTotalItem
+              stock: Number(prodData.stock || 0) + cantTotalItem,
+              lotesCosto: restaurado.lotesActualizados,
+              costoCompra: restaurado.nuevoCostoCompraActivo,
             });
           }
         }

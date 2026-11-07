@@ -399,9 +399,36 @@ export default function ReportesPage() {
       }
     });
 
-    const utilidad = Math.max(0, totalVentas - costoTotal);
-    const margen = totalVentas > 0 && costoTotal > 0 && itemsVendidosConCosto > 0
-      ? Math.round((utilidad / totalVentas) * 100) 
+    // Restar costo de devoluciones de ventas de contado para mantener exactitud con los lotes PEPS
+    const indiceMovs = new Map<string, any>();
+    todosMovimientos.forEach(m => indiceMovs.set(m.id, m));
+    movsDevoluciones
+      .filter(m => (m as any).origenTipo !== 'fiado' && Array.isArray(m.articulosDevueltos))
+      .forEach(m => {
+        const origen = m.movimientoOrigenId ? indiceMovs.get(m.movimientoOrigenId) : undefined;
+        (m.articulosDevueltos as any[]).forEach(art => {
+          const cantDev = Number(art?.cantidad) || 0;
+          if (cantDev <= 0) return;
+          const detOrigen = Array.isArray(origen?.detalles) && Number.isInteger(art?.detalleIndex)
+            ? origen.detalles[art.detalleIndex]
+            : undefined;
+          let costoUnit = Number(detOrigen?.costoUnitario) || 0;
+          if (!costoUnit) {
+            const prodId = art?.productoId || detOrigen?.productoId;
+            if (prodId && mapaCostosInventario.has(prodId)) {
+              costoUnit = mapaCostosInventario.get(prodId) || 0;
+            }
+          }
+          if (costoUnit > 0) {
+            costoTotal = Math.max(0, costoTotal - costoUnit * cantDev);
+            itemsVendidosConCosto = Math.max(0, itemsVendidosConCosto - cantDev);
+          }
+        });
+      });
+
+    const utilidad = Math.max(0, totalVentasNetas - costoTotal);
+    const margen = totalVentasNetas > 0 && costoTotal > 0 && itemsVendidosConCosto > 0
+      ? Math.round((utilidad / totalVentasNetas) * 100) 
       : 0;
 
     return {

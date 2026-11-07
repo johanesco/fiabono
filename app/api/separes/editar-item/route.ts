@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getAdminAuth, getAdminDb } from '@/lib/firebase-admin';
+import { consumirLotesPEPS, restaurarLoteDevolucion } from '@/utils/lotesInventario';
 
 export async function POST(request: Request) {
   try {
@@ -168,10 +169,25 @@ export async function POST(request: Request) {
 
       // 3. ESCRITURAS ATÓMICAS
       // 3.1 Actualizar stock en inventario si cambió la cantidad
-      if (actualizarStockInv && prodRef) {
-        transaction.update(prodRef, {
-          stock: nuevoStockInv
-        });
+      if (actualizarStockInv && prodRef && prodSnap?.exists) {
+        const prodData = prodSnap.data() as any;
+        if (deltaCantidad > 0) {
+          const consumo = consumirLotesPEPS(prodData, deltaCantidad);
+          transaction.update(prodRef, {
+            stock: nuevoStockInv,
+            lotesCosto: consumo.lotesActualizados,
+            costoCompra: consumo.nuevoCostoCompraActivo,
+          });
+        } else if (deltaCantidad < 0) {
+          const restaurado = restaurarLoteDevolucion(prodData, Math.abs(deltaCantidad), Number(itemActual.costoUnitario) || 0);
+          transaction.update(prodRef, {
+            stock: nuevoStockInv,
+            lotesCosto: restaurado.lotesActualizados,
+            costoCompra: restaurado.nuevoCostoCompraActivo,
+          });
+        } else {
+          transaction.update(prodRef, { stock: nuevoStockInv });
+        }
       }
 
       // 3.2 Gestionar excedente si lo abonado supera el nuevo total del separe

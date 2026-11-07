@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getAdminAuth, getAdminDb } from '@/lib/firebase-admin';
 import { emitirYGuardarNotaCredito } from '@/lib/notaCreditoServidor';
+import { restaurarLoteDevolucion } from '@/utils/lotesInventario';
 
 export async function POST(request: Request) {
   try {
@@ -126,7 +127,19 @@ export async function POST(request: Request) {
       );
       for (const { productoRef, productoSnap, cantidad } of productosLeidos) {
         if (productoSnap.exists && productoSnap.data()?.usuarioId === cuentaPrincipalId) {
-          transaction.update(productoRef, { stock: Number(productoSnap.data()?.stock || 0) + cantidad });
+          const prodData = productoSnap.data() as any;
+          const artRef = articulosValidados.find((a: any) => a.productoId === productoRef.id);
+          const detOrig = artRef && Number.isInteger(artRef.detalleIndex) ? detallesOrigen[artRef.detalleIndex] : null;
+          const { lotesActualizados, nuevoCostoCompraActivo } = restaurarLoteDevolucion(
+            prodData,
+            cantidad,
+            Number(detOrig?.costoUnitario) || 0
+          );
+          transaction.update(productoRef, {
+            stock: Number(prodData.stock || 0) + cantidad,
+            lotesCosto: lotesActualizados,
+            costoCompra: nuevoCostoCompraActivo,
+          });
         }
       }
 

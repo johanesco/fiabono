@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getAdminAuth, getAdminDb } from '@/lib/firebase-admin';
+import { consumirLotesPEPS } from '@/utils/lotesInventario';
 
 function parseMonto(valor: any): number {
   if (typeof valor === 'number' && Number.isFinite(valor)) return Math.round(valor);
@@ -137,10 +138,17 @@ export async function POST(request: Request) {
         nuevoSaldoCliente = deudaActual + cambioDeuda;
       }
 
+      const consumoPorProducto = new Map<string, ReturnType<typeof consumirLotesPEPS>>();
       for (const item of itemsStock) {
         const producto = stockDocs.get(item.productoId)!;
         if (producto.data.tipoProducto !== 'servicio' && producto.data.inventariable !== false) {
-          transaction.update(producto.ref, { stock: Number(producto.data.stock || 0) - Number(item.cantidad) });
+          const consumo = consumirLotesPEPS(producto.data, Number(item.cantidad));
+          consumoPorProducto.set(item.productoId, consumo);
+          transaction.update(producto.ref, {
+            stock: Number(producto.data.stock || 0) - Number(item.cantidad),
+            lotesCosto: consumo.lotesActualizados,
+            costoCompra: consumo.nuevoCostoCompraActivo,
+          });
         }
       }
       if (clienteRef && nuevoSaldoCliente !== undefined) {
@@ -149,9 +157,22 @@ export async function POST(request: Request) {
 
       let idTransaccionGenerada = '';
       const payloadSepare = body.payloadSepare;
-      const movimientoAbonoSepare = sanitizarMovimiento(body.movimientoAbonoSepare, orden, decodedToken.uid);
-      const movimientoPrincipal = sanitizarMovimiento(body.movimientoPrincipal, orden, decodedToken.uid);
-      const movimientoFiadoSecundario = sanitizarMovimiento(body.movimientoFiadoSecundario, orden, decodedToken.uid);
+      const enriquecerCostosDetalles = (mov: any) => {
+        if (!mov || !Array.isArray(mov.detalles)) return mov;
+        return {
+          ...mov,
+          detalles: mov.detalles.map((d: any) => {
+            const pId = d.productoId || d.idProducto;
+            const cUnit = pId && consumoPorProducto.has(pId)
+              ? consumoPorProducto.get(pId)!.costoUnitarioVenta
+              : (Number(d.costoUnitario) || 0);
+            return { ...d, ...(pId ? { productoId: pId } : {}), ...(cUnit > 0 ? { costoUnitario: cUnit } : {}) };
+          }),
+        };
+      };
+      const movimientoAbonoSepare = enriquecerCostosDetalles(sanitizarMovimiento(body.movimientoAbonoSepare, orden, decodedToken.uid));
+      const movimientoPrincipal = enriquecerCostosDetalles(sanitizarMovimiento(body.movimientoPrincipal, orden, decodedToken.uid));
+      const movimientoFiadoSecundario = enriquecerCostosDetalles(sanitizarMovimiento(body.movimientoFiadoSecundario, orden, decodedToken.uid));
 
       if (payloadSepare) {
         const separeRef = adminDb.collection('separes').doc();

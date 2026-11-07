@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getAdminAuth, getAdminDb } from '@/lib/firebase-admin';
+import { consumirLotesPEPS } from '@/utils/lotesInventario';
 
 const METODOS_PERMITIDOS = new Set(['efectivo', 'transferencia', 'datafono', 'credito_externo', 'fiado']);
 
@@ -94,6 +95,7 @@ export async function POST(request: Request) {
       }
 
       const productos = new Map<string, { ref: FirebaseFirestore.DocumentReference; data: any }>();
+      const consumoLotesPorProducto = new Map<string, ReturnType<typeof consumirLotesPEPS>>();
       for (const [productoId, cantidad] of cantidadesPorProducto) {
         const productoRef = adminDb.collection('inventario').doc(productoId);
         const productoSnap = await transaction.get(productoRef);
@@ -105,6 +107,9 @@ export async function POST(request: Request) {
         const stock = Number(producto.stock || 0);
         if (!Number.isFinite(stock)) throw new Error('STOCK_INVALIDO');
         productos.set(productoId, { ref: productoRef, data: producto });
+        if (producto.tipoProducto !== 'servicio' && producto.inventariable !== false) {
+          consumoLotesPorProducto.set(productoId, consumirLotesPEPS(producto, cantidad));
+        }
       }
 
       const detallesValidados = detalles.map((detalle: any) => {
@@ -130,7 +135,7 @@ export async function POST(request: Request) {
           cantidad,
           valorUnitario: precioUnitario,
           valor: precioUnitario * cantidad,
-          costoUnitario: producto ? Number(producto.data.costoCompra || 0) : Number(detalle?.costoUnitario || 0)
+          costoUnitario: producto ? (consumoLotesPorProducto.get(productoId!)?.costoUnitarioVenta ?? Number(producto.data.costoCompra || 0)) : Number(detalle?.costoUnitario || 0)
         };
         if (productoId) itemLimpiado.productoId = productoId;
         if (detalle?.descripcion) itemLimpiado.descripcion = String(detalle.descripcion).trim();
@@ -174,7 +179,11 @@ export async function POST(request: Request) {
       for (const [productoId, cantidad] of cantidadesPorProducto) {
         const producto = productos.get(productoId)!;
         if (producto.data.tipoProducto !== 'servicio' && producto.data.inventariable !== false) {
-          transaction.update(producto.ref, { stock: Number(producto.data.stock || 0) - cantidad });
+          const consumoLote = consumoLotesPorProducto.get(productoId);
+          transaction.update(producto.ref, {
+            stock: Number(producto.data.stock || 0) - cantidad,
+            ...(consumoLote ? { lotesCosto: consumoLote.lotesActualizados, costoCompra: consumoLote.nuevoCostoCompraActivo } : {})
+          });
         }
       }
       if (clienteRef && nuevoSaldoCliente !== undefined) {

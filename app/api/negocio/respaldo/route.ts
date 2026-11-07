@@ -169,6 +169,7 @@ export async function POST(request: Request) {
           stock: esServicio ? 0 : Number(data.stock) || 0,
           precioVenta: Number(data.precioVenta) || 0,
           costoCompra: Number(data.costoCompra) || 0,
+          lotesCosto: Array.isArray(data.lotesCosto) ? data.lotesCosto : [],
           fechaActualizacion: serializarFechaISO(data.fechaActualizacion || data.fechaCreacion),
         };
       })
@@ -283,7 +284,13 @@ export async function POST(request: Request) {
     const totalCarteraPorCobrar = clientes.reduce((acc, c) => acc + (c.deudaTotal > 0 ? c.deudaTotal : 0), 0);
     const totalSaldosAFavor = clientes.reduce((acc, c) => acc + (c.deudaTotal < 0 ? Math.abs(c.deudaTotal) : 0), 0);
     const valorInventarioVenta = inventario.reduce((acc, p) => acc + (p.inventariable ? Math.max(0, p.stock) * p.precioVenta : 0), 0);
-    const valorInventarioCosto = inventario.reduce((acc, p) => acc + (p.inventariable ? Math.max(0, p.stock) * p.costoCompra : 0), 0);
+    const valorInventarioCosto = inventario.reduce((acc, p) => {
+      if (!p.inventariable) return acc;
+      if (Array.isArray(p.lotesCosto) && p.lotesCosto.length > 0) {
+        return acc + p.lotesCosto.reduce((s: number, l: any) => s + Math.max(0, Number(l?.cantidad) || 0) * Math.max(0, Number(l?.costoUnitario) || 0), 0);
+      }
+      return acc + Math.max(0, p.stock) * p.costoCompra;
+    }, 0);
     const volumenHistoricoMovimientos = todosMovimientos
       .filter((m) => !m.anulado && (m.tipo === 'venta' || m.tipo === 'fiado' || m.tipo === 'entrega_separe'))
       .reduce((acc, m) => acc + (m.valorMercancia || m.monto || 0), 0);

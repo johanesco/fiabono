@@ -59,6 +59,7 @@ import {
 import { useAuth } from "@/hooks/AuthContext";
 import toast from "react-hot-toast";
 import EscanerInventarioModal from "@/components/EscanerInventarioModal";
+import { obtenerLotesNormalizados, ajustarLotesEnEdicionManual, LoteCostoItem } from "@/utils/lotesInventario";
 import { ItemTandaIngreso } from "@/types";
 import { QRCodeSVG } from 'qrcode.react';
 import { generarSvgCodigoBarras, generarDataUrlCodigoBarras } from '@/lib/codigoBarras';
@@ -66,6 +67,7 @@ import jsPDF from 'jspdf';
 import * as XLSX from 'xlsx';
 import ExcelJS from 'exceljs';
 import ModalUpsellSuscripcion from "@/components/ModalUpsellSuscripcion";
+import { usePistolaLaser } from "@/hooks/usePistolaLaser";
 
 type ColumnaOrden = 'categoria' | 'nombre' | 'sku' | 'stock' | 'precioVenta';
 type DireccionOrden = 'asc' | 'desc';
@@ -159,6 +161,11 @@ export default function InventarioPage() {
   const [opcionPrecio, setOpcionPrecio] = useState(true);
   const [opcionNegocio, setOpcionNegocio] = useState(true);
   const [opcionCategoria, setOpcionCategoria] = useState(false);
+  const [opcionFechaIngreso, setOpcionFechaIngreso] = useState(false);
+  const [opcionTopeRebaja, setOpcionTopeRebaja] = useState(false);
+  const [modoTopeRebaja, setModoTopeRebaja] = useState<'pesos' | 'porcentaje'>('pesos');
+  const [valorTopeRebaja, setValorTopeRebaja] = useState<string>('2.000');
+  const [formatoTopeEtiqueta, setFormatoTopeEtiqueta] = useState<'clave_rebaja' | 'clave_minimo' | 'explicito'>('clave_rebaja');
 
   // Estados del Formulario de Producto
   const [nombre, setNombre] = useState("");
@@ -168,6 +175,9 @@ export default function InventarioPage() {
   const [costoCompra, setCostoCompra] = useState("");
   const [modoEdicionProducto, setModoEdicionProducto] = useState<'surtir' | 'editar'>('editar');
   const [cantidadSurtir, setCantidadSurtir] = useState("");
+  const [proveedorEntrada, setProveedorEntrada] = useState("");
+  const [lotesEnEdicion, setLotesEnEdicion] = useState<LoteCostoItem[]>([]);
+  const [loteSeleccionadoIdx, setLoteSeleccionadoIdx] = useState<number>(0);
   
   // Estados para Fotos del Producto
   const [imagenUrl, setImagenUrl] = useState<string | null>(null);
@@ -788,6 +798,7 @@ export default function InventarioPage() {
         categoria: catFinalCarga || prodExistente.categoria || 'General',
         inventariable: prodExistente.inventariable !== false,
         imagen: imagenUrl || prodExistente.imagen || null,
+        ...(proveedorEntrada.trim() ? { proveedor: proveedorEntrada.trim() } : {}),
         enCarga: true,
       });
       toast.success(`"${prodExistente.nombre}" sumado a la cola (+${cantAgregada} un.) • Ver en pestaña "Cola"`, { duration: 3500 });
@@ -804,6 +815,7 @@ export default function InventarioPage() {
         categoria: catFinalCarga,
         inventariable: esInventariable,
         imagen: imagenUrl || null,
+        ...(proveedorEntrada.trim() ? { proveedor: proveedorEntrada.trim() } : {}),
         enCarga: true,
       };
 
@@ -816,6 +828,7 @@ export default function InventarioPage() {
     setStock('');
     setPrecioVenta('');
     setCostoCompra('');
+    setProveedorEntrada('');
     setCategoria('');
     setImagenUrl(null);
     setErrores({ nombre: '', categoria: '', stock: '', precio: '' });
@@ -849,6 +862,7 @@ export default function InventarioPage() {
           costoCompra: Number(prod.costoCompra) > 0 ? Number(prod.costoCompra) : copia[index].costoCompra,
           categoria: prod.categoria || copia[index].categoria,
           imagen: prod.imagen || copia[index].imagen,
+          proveedor: prod.proveedor || copia[index].proveedor,
         };
         return copia;
       }
@@ -917,6 +931,7 @@ export default function InventarioPage() {
         categoria: categoria.trim() || prodExistente.categoria || 'General',
         inventariable: prodExistente.inventariable !== false,
         imagen: imagenUrl || prodExistente.imagen || null,
+        ...(proveedorEntrada.trim() ? { proveedor: proveedorEntrada.trim() } : {}),
       };
     }
 
@@ -933,6 +948,7 @@ export default function InventarioPage() {
       categoria: (categoria.trim() || 'General'),
       inventariable: esInventariable,
       imagen: imagenUrl || null,
+      ...(proveedorEntrada.trim() ? { proveedor: proveedorEntrada.trim() } : {}),
       fechaCreacion: new Date(),
       fechaActualizacion: new Date()
     };
@@ -1029,7 +1045,11 @@ export default function InventarioPage() {
           return;
         }
         const cantStock = esInventariable
-          ? (modoEdicionProducto === 'surtir' ? stockBaseOriginal + cantSurtirNum : Math.round(Number(stock) || 0))
+          ? (modoEdicionProducto === 'surtir'
+              ? stockBaseOriginal + cantSurtirNum
+              : lotesEnEdicion.length > 1
+                ? lotesEnEdicion.reduce((acc, l) => acc + Math.max(0, Math.round(Number(l.cantidad) || 0)), 0)
+                : Math.round(Number(stock) || 0))
           : 0;
         const precioNum = Number(precioVenta.replace(/\D/g, '')) || 0;
         const costoNum = Number(costoCompra.replace(/\D/g, '')) || 0;
@@ -1049,7 +1069,9 @@ export default function InventarioPage() {
             tipoProducto,
             categoria: categoria.trim() || 'General',
             inventariable: esInventariable,
-            imagen: imagenUrl || null
+            imagen: imagenUrl || null,
+            ...(modoEdicionProducto === 'editar' && lotesEnEdicion.length > 0 ? { lotesEditados: lotesEnEdicion } : {}),
+            ...(proveedorEntrada.trim() ? { proveedor: proveedorEntrada.trim() } : {})
           })
         });
         if (!respuestaActualizacion.ok) throw new Error((await respuestaActualizacion.json()).error || 'No se pudo actualizar el producto.');
@@ -1111,6 +1133,10 @@ export default function InventarioPage() {
   const abrirEdicion = (prod: any, modoInicial: 'surtir' | 'editar' = 'editar') => {
     setModoEdicionProducto(modoInicial);
     setCantidadSurtir("");
+    const lotesNorm = obtenerLotesNormalizados(prod);
+    setLotesEnEdicion(lotesNorm);
+    setLoteSeleccionadoIdx(0);
+    setProveedorEntrada(modoInicial === 'editar' ? (lotesNorm[0]?.proveedor || prod.proveedor || "") : "");
     if (datosSesion?.esGratis && inventario.length > 30) {
       setModalUpsell({
         visible: true,
@@ -1126,12 +1152,109 @@ export default function InventarioPage() {
     setSku(prod.sku || "");
     setStock(prod.stock?.toString() || "0");
     setPrecioVenta(prod.precioVenta?.toString() || "");
-    setCostoCompra(prod.costoCompra ? prod.costoCompra.toString() : "");
+    const costoInicial = modoInicial === 'editar' && lotesNorm.length > 0
+      ? lotesNorm[0].costoUnitario
+      : prod.costoCompra;
+    setCostoCompra(costoInicial ? costoInicial.toString() : "");
     setTipoProducto(prod.tipoProducto === 'servicio' ? 'servicio' : 'producto');
     setCategoria(prod.categoria || 'General');
     setInventariable(prod.inventariable !== false);
     setModalProducto(true);
   };
+
+  // Manejador inteligente 24/7 para pistola láser USB / Bluetooth en Inventario
+  const manejarLecturaPistolaInventario = (codigoRaw: string) => {
+    const codigoLimpio = (codigoRaw || '').trim();
+    if (!codigoLimpio) return;
+
+    const codigoUpper = codigoLimpio.toUpperCase();
+    const codigoNorm = codigoUpper.replace(/^(SKU|REF|COD)[-_ ]*/i, '');
+
+    const prodCoincidente = inventario.find((p) => {
+      const pSku = (p.sku || '').trim().toUpperCase();
+      const pBar = (p.codigoBarras || '').trim().toUpperCase();
+      const pCod = (p.codigo || '').trim().toUpperCase();
+      const pSkuNorm = pSku.replace(/^(SKU|REF|COD)[-_ ]*/i, '');
+      const pBarNorm = pBar.replace(/^(SKU|REF|COD)[-_ ]*/i, '');
+      return (
+        pSku === codigoUpper ||
+        pBar === codigoUpper ||
+        pCod === codigoUpper ||
+        p.id === codigoLimpio ||
+        (codigoNorm && (pSkuNorm === codigoNorm || pBarNorm === codigoNorm))
+      );
+    });
+
+    reproducirSonidoCamara();
+
+    // Si en el modal ya había otro producto en modo 'surtir' con unidades (> 0) pendientes de encolar,
+    // lo pasamos automáticamente a la Cola de Recepción antes de cargar el nuevo código escaneado.
+    const autoEncolarSurtidoPrevioSiAplica = (nuevoProdId?: string) => {
+      if (
+        modalProducto &&
+        editandoId &&
+        modoEdicionProducto === 'surtir' &&
+        editandoId !== nuevoProdId &&
+        Number(cantidadSurtir) > 0
+      ) {
+        const prodPrevio = inventario.find((p) => p.id === editandoId);
+        if (prodPrevio) {
+          const cantPrev = Math.max(1, Number(cantidadSurtir) || 1);
+          agregarOActualizarProductoEnCarga({
+            id: `carga_${prodPrevio.id}`,
+            esExistente: true,
+            productoId: prodPrevio.id,
+            nombre: prodPrevio.nombre,
+            sku: prodPrevio.sku || prodPrevio.codigoBarras || sku.trim().toUpperCase(),
+            stock: cantPrev,
+            precioVenta: Number(precioVenta.replace(/\D/g, '')) || prodPrevio.precioVenta || 0,
+            costoCompra: Number(costoCompra.replace(/\D/g, '')) || prodPrevio.costoCompra || 0,
+            tipoProducto: prodPrevio.tipoProducto || tipoProducto,
+            categoria: categoria.trim() || prodPrevio.categoria || 'General',
+            inventariable: prodPrevio.inventariable !== false,
+            imagen: imagenUrl || prodPrevio.imagen || null,
+            ...(proveedorEntrada.trim() ? { proveedor: proveedorEntrada.trim() } : {}),
+            enCarga: true,
+          });
+        }
+      }
+    };
+
+    if (prodCoincidente) {
+      if (esAdmin || puedeEditarInventario) {
+        // Si ya estábamos surtiendo este mismo producto en el modal, cada disparo suma +1 a la cantidad a surtir
+        if (modalProducto && editandoId === prodCoincidente.id && modoEdicionProducto === 'surtir') {
+          const nuevaCant = (Number(cantidadSurtir) || 0) + 1;
+          setCantidadSurtir(String(nuevaCant));
+          toast.success(`📦 +1 unidad a surtir en "${prodCoincidente.nombre}" (Total: +${nuevaCant} u.)`, { id: `scan-inv-${prodCoincidente.id}` });
+        } else {
+          autoEncolarSurtidoPrevioSiAplica(prodCoincidente.id);
+          abrirEdicion(prodCoincidente, 'surtir');
+          setCantidadSurtir('1');
+          toast.success(`✓ "${prodCoincidente.nombre}" cargado para surtir (+1 u.)`, { icon: '📦', id: `scan-inv-${prodCoincidente.id}` });
+        }
+      } else {
+        setBusqueda(codigoLimpio);
+        toast.success(`✓ Encontrado: "${prodCoincidente.nombre}"`);
+      }
+    } else {
+      if (esAdmin || puedeEditarInventario) {
+        autoEncolarSurtidoPrevioSiAplica(undefined);
+        limpiarFormulario();
+        setSku(codigoUpper);
+        setModalProducto(true);
+        toast.success(`✨ Código nuevo "${codigoUpper}" listo para registrar`, { id: `scan-new-${codigoUpper}` });
+      } else {
+        setBusqueda(codigoLimpio);
+        toast.error(`Código "${codigoUpper}" no registrado en inventario`);
+      }
+    }
+  };
+
+  usePistolaLaser({
+    activo: !modalEscanerInventario && !modalExportarQR && !modalImportarExcel && !modalExportarExcel && !modalGestionCategorias && !productoAEliminar && !modalConfirmarDescarteCarga && !modalCamaraEnVivo && !fotoLightbox && !modalUpsell.visible,
+    onScan: (codigo) => manejarLecturaPistolaInventario(codigo),
+  });
 
   // ======== CÁMARA ========
   const reproducirSonidoCamara = () => {
@@ -1252,6 +1375,9 @@ export default function InventarioPage() {
     setEditandoId(null);
     setModoEdicionProducto('editar');
     setCantidadSurtir("");
+    setProveedorEntrada("");
+    setLotesEnEdicion([]);
+    setLoteSeleccionadoIdx(0);
     setNombre("");
     setSku("");
     setStock("");
@@ -1276,6 +1402,100 @@ export default function InventarioPage() {
       return skuLimpio;
     }
     return `SKU: ${skuLimpio}`;
+  };
+
+  // Obtiene la fecha de ingreso más reciente del producto (desde su último lote o creación) en formato compacto DD/MM/AA
+  const obtenerFechaIngresoEtiqueta = (prod?: any): string => {
+    if (!prod) {
+      const hoy = new Date();
+      return `${String(hoy.getDate()).padStart(2, '0')}/${String(hoy.getMonth() + 1).padStart(2, '0')}/${String(hoy.getFullYear()).slice(-2)}`;
+    }
+    let fechaRef: Date | null = null;
+    if (Array.isArray(prod.lotesCosto) && prod.lotesCosto.length > 0) {
+      const ultimoLote = prod.lotesCosto[prod.lotesCosto.length - 1];
+      if (ultimoLote?.fechaIngreso) {
+        const d = new Date(ultimoLote.fechaIngreso);
+        if (!isNaN(d.getTime())) fechaRef = d;
+      }
+    }
+    if (!fechaRef) {
+      const rawFecha = prod.ultimaRecepcionEn || prod.creadoEn || prod.fechaCreacion || prod.createdAt;
+      if (rawFecha) {
+        if (typeof rawFecha?.toDate === 'function') {
+          fechaRef = rawFecha.toDate();
+        } else if (typeof rawFecha?.seconds === 'number') {
+          fechaRef = new Date(rawFecha.seconds * 1000);
+        } else {
+          const d = new Date(rawFecha);
+          if (!isNaN(d.getTime())) fechaRef = d;
+        }
+      }
+    }
+    if (!fechaRef || isNaN(fechaRef.getTime())) fechaRef = new Date();
+    const dia = String(fechaRef.getDate()).padStart(2, '0');
+    const mes = String(fechaRef.getMonth() + 1).padStart(2, '0');
+    const anio = String(fechaRef.getFullYear()).slice(-2);
+    return `${dia}/${mes}/${anio}`;
+  };
+
+  // Calcula la rebaja máxima permitida y el precio mínimo protegiendo que NUNCA baje del costo del lote más caro
+  const calcularDatosTopeRebaja = (prod?: any) => {
+    const precio = Number(prod?.precioVenta) || 45000;
+    const lotes = prod ? obtenerLotesNormalizados(prod) : [];
+    const costoMaxLote = lotes.length > 0
+      ? Math.max(...lotes.map(l => Number(l.costoUnitario) || 0))
+      : (Number(prod?.costoCompra) || 0);
+
+    const numInput = Number(String(valorTopeRebaja).replace(/\D/g, '')) || 0;
+    const rebajaSolicitada = modoTopeRebaja === 'porcentaje'
+      ? Math.round((precio * Math.min(100, numInput)) / 100)
+      : numInput;
+
+    // Blindaje: nunca permitir rebajar por debajo del costo de compra registrado
+    const margenMaximoRebajable = costoMaxLote > 0 && precio > costoMaxLote
+      ? Math.max(0, precio - costoMaxLote)
+      : precio;
+
+    const rebajaReal = Math.min(rebajaSolicitada, margenMaximoRebajable);
+    const precioMinimo = Math.max(0, precio - rebajaReal);
+
+    const formatearMilesClave = (valorPesos: number) => {
+      if (valorPesos >= 1000) {
+        return String(Number((valorPesos / 1000).toFixed(1)));
+      }
+      return String(valorPesos);
+    };
+
+    let textoEtiqueta = '';
+    if (formatoTopeEtiqueta === 'clave_rebaja') {
+      textoEtiqueta = `R-${formatearMilesClave(rebajaReal)}`;
+    } else if (formatoTopeEtiqueta === 'clave_minimo') {
+      textoEtiqueta = `M-${formatearMilesClave(precioMinimo)}`;
+    } else {
+      textoEtiqueta = `Mín:$${precioMinimo.toLocaleString('es-CO')}`;
+    }
+
+    return {
+      precio,
+      costoMaxLote,
+      rebajaReal,
+      precioMinimo,
+      protegidoPorCosto: costoMaxLote > 0 && rebajaSolicitada > margenMaximoRebajable,
+      textoEtiqueta
+    };
+  };
+
+  // Construye la línea compacta combinada de Fecha de Ingreso + Tope de Rebaja para el sticker
+  const obtenerLineaMetaEtiqueta = (prod?: any): string => {
+    const partes: string[] = [];
+    if (opcionFechaIngreso) {
+      partes.push(`ING:${obtenerFechaIngresoEtiqueta(prod)}`);
+    }
+    if (opcionTopeRebaja) {
+      const { textoEtiqueta } = calcularDatosTopeRebaja(prod);
+      if (textoEtiqueta) partes.push(textoEtiqueta);
+    }
+    return partes.join(' • ');
   };
 
   // GENERAR PDF CON DISEÑO MULTI-TAMAÑO, IMPRESORA TÉRMICA (ROLLO) Y HOJA MULTI-ETIQUETA
@@ -1318,13 +1538,18 @@ export default function InventarioPage() {
           altoMM = Math.max(15, Number(altoPersonalizadoMM) || 30);
         }
 
-        // Si es IMPRESIÓN DIRECTA, usamos HTML con @page size en mm para que el driver de la impresora térmica llene el 100% de la etiqueta
+        // Si es IMPRESIÓN DIRECTA, usamos HTML con @page size en mm, diseño de esquinas sin cortar textos y 100% NEGRO PURO EN NEGRILLA
         if (modoAccion === 'imprimir') {
-          const ventanaImpresion = window.open('', '_blank', 'width=450,height=600');
+          const ventanaImpresion = window.open('', '_blank', 'width=480,height=640');
           if (!ventanaImpresion) {
             toast.dismiss(toastId);
             return toast.error("Tu navegador bloqueó la ventana de impresión. Permite las ventanas emergentes (popups) para Fiabono.");
           }
+
+          // Calibración óptica ISO para QR (lectura instantánea en cámara y pistola 2D sin robar espacio al texto)
+          const qrLadoMM = anchoMM <= 32 ? 11.5 : (altoMM <= 25 ? 13 : (anchoMM <= 42 ? 14 : (anchoMM <= 52 ? 15 : 18)));
+          // Calibración óptica para Código de Barras 1D (ancho completo para láser, altura optimizada)
+          const barcodeAltoMM = altoMM <= 25 ? 7.2 : (altoMM <= 30 ? 9.0 : 11.5);
 
           let htmlEtiquetas = '';
 
@@ -1345,41 +1570,69 @@ export default function InventarioPage() {
             const codigoValor = prod.sku || prod.codigoBarras || prod.id;
             let codigoSvgElement = '';
             if (formatoCodigoEtiqueta === 'barras') {
-              codigoSvgElement = generarSvgCodigoBarras(codigoValor, { width: 1.6, height: 35, displayValue: false });
+              codigoSvgElement = generarSvgCodigoBarras(codigoValor, { width: 1.7, height: 32, displayValue: false });
             } else {
               const svgElement = document.getElementById(`qr-svg-${prod.id}`);
               codigoSvgElement = svgElement ? svgElement.outerHTML : '';
             }
 
-            for (let i = 0; i < cantidadImprimir; i++) {
-              const esHorizontal = anchoMM >= 50 && altoMM <= 28;
-              const catLabel = normalizarCategoria(prod.categoria).toUpperCase();
+            const catLabel = normalizarCategoria(prod.categoria).toUpperCase();
+            const nombreProd = String(prod.nombre || 'Producto').trim();
+            const claseTamanoNombre = nombreProd.length > 42 ? 'nombre-xs' : (nombreProd.length > 24 ? 'nombre-sm' : 'nombre-lg');
+            const textoFecha = opcionFechaIngreso ? `ING:${obtenerFechaIngresoEtiqueta(prod)}` : '';
+            const textoTope = opcionTopeRebaja ? calcularDatosTopeRebaja(prod).textoEtiqueta : '';
+            const tieneCabeceraEsquinas = (opcionNegocio && Boolean(datosSesion?.nombreNegocio)) || opcionCategoria;
 
-              if (esHorizontal) {
+            for (let i = 0; i < cantidadImprimir; i++) {
+              if (formatoCodigoEtiqueta === 'qr') {
+                // DISEÑO BOUTIQUE QR: Esquinas superiores (Negocio Izq / Categoría Der) + Nombre 100% completo + Abajo (QR Izq / Precio + SKU + Meta en Esquina Der)
                 htmlEtiquetas += `
-                  <div class="sticker sticker-horizontal">
-                    <div class="${formatoCodigoEtiqueta === 'barras' ? 'barcode-col' : 'qr-col'}">${codigoSvgElement}</div>
-                    <div class="text-col">
-                      ${opcionNegocio && datosSesion?.nombreNegocio ? `<div class="negocio">${String(datosSesion.nombreNegocio).toUpperCase()}</div>` : ''}
-                      ${opcionCategoria ? `<div class="negocio">${catLabel}</div>` : ''}
-                      ${opcionNombre ? `<div class="nombre">${prod.nombre}</div>` : ''}
-                      ${opcionSku ? `<div class="sku">${formatearTextoSKU(prod.sku)}</div>` : ''}
-                      ${opcionPrecio ? `<div class="precio">${(prod.precioVenta || 0).toLocaleString('es-CO')}</div>` : ''}
+                  <div class="sticker">
+                    ${tieneCabeceraEsquinas ? `
+                      <div class="corner-header">
+                        <span class="corner-top-left">${opcionNegocio && datosSesion?.nombreNegocio ? String(datosSesion.nombreNegocio).toUpperCase() : ''}</span>
+                        <span class="corner-top-right">${opcionCategoria ? catLabel : ''}</span>
+                      </div>
+                    ` : ''}
+                    ${opcionNombre ? `<div class="nombre-full ${claseTamanoNombre}">${nombreProd}</div>` : ''}
+                    <div class="qr-split-body">
+                      <div class="qr-box">${codigoSvgElement}</div>
+                      <div class="qr-info-col">
+                        ${opcionSku ? `<div class="sku-right">${formatearTextoSKU(prod.sku)}</div>` : ''}
+                        ${opcionPrecio ? `<div class="precio-right">$${(prod.precioVenta || 0).toLocaleString('es-CO')}</div>` : ''}
+                        ${(textoFecha || textoTope) ? `
+                          <div class="meta-corner-right">
+                            ${textoFecha ? `<span class="meta-ing">${textoFecha}</span>` : ''}
+                            ${textoTope ? `<span class="meta-tope-badge">${textoTope}</span>` : ''}
+                          </div>
+                        ` : ''}
+                      </div>
                     </div>
                   </div>
                 `;
               } else {
+                // DISEÑO BOUTIQUE CÓDIGO DE BARRAS 1D: Esquinas superiores + Nombre 100% completo + Barras Ancho Completo + Esquinas Inferiores (SKU/Meta Izq | Precio Der)
                 htmlEtiquetas += `
-                  <div class="sticker sticker-vertical">
-                    <div class="info-top">
-                      ${opcionNegocio && datosSesion?.nombreNegocio ? `<div class="negocio">${String(datosSesion.nombreNegocio).toUpperCase()}</div>` : ''}
-                      ${opcionCategoria ? `<div class="negocio">${catLabel}</div>` : ''}
-                      ${opcionNombre ? `<div class="nombre">${prod.nombre}</div>` : ''}
-                      ${opcionSku ? `<div class="sku">${formatearTextoSKU(prod.sku)}</div>` : ''}
-                    </div>
-                    <div class="${formatoCodigoEtiqueta === 'barras' ? 'barcode-container' : 'qr-container'}">${codigoSvgElement}</div>
-                    <div class="info-bottom">
-                      ${opcionPrecio ? `<div class="precio">${(prod.precioVenta || 0).toLocaleString('es-CO')}</div>` : ''}
+                  <div class="sticker">
+                    ${tieneCabeceraEsquinas ? `
+                      <div class="corner-header">
+                        <span class="corner-top-left">${opcionNegocio && datosSesion?.nombreNegocio ? String(datosSesion.nombreNegocio).toUpperCase() : ''}</span>
+                        <span class="corner-top-right">${opcionCategoria ? catLabel : ''}</span>
+                      </div>
+                    ` : ''}
+                    ${opcionNombre ? `<div class="nombre-full ${claseTamanoNombre}">${nombreProd}</div>` : ''}
+                    <div class="barcode-full-row">${codigoSvgElement}</div>
+                    <div class="barcode-footer-corners">
+                      <div class="footer-left-col">
+                        ${opcionSku ? `<div class="sku-left">${formatearTextoSKU(prod.sku)}</div>` : ''}
+                        ${(textoFecha || textoTope) ? `
+                          <div class="meta-corner-left">
+                            ${textoFecha ? `<span class="meta-ing">${textoFecha}</span>` : ''}
+                            ${textoTope ? `<span class="meta-tope-badge">${textoTope}</span>` : ''}
+                          </div>
+                        ` : ''}
+                      </div>
+                      ${opcionPrecio ? `<div class="precio-corner-right">$${(prod.precioVenta || 0).toLocaleString('es-CO')}</div>` : ''}
                     </div>
                   </div>
                 `;
@@ -1391,7 +1644,7 @@ export default function InventarioPage() {
             <!DOCTYPE html>
             <html>
             <head>
-              <title>Imprimir Etiquetas QR - Fiabono</title>
+              <title>Imprimir Etiquetas - Fiabono</title>
               <meta charset="utf-8">
               <style>
                 @page {
@@ -1402,158 +1655,204 @@ export default function InventarioPage() {
                   box-sizing: border-box;
                   -webkit-print-color-adjust: exact;
                   print-color-adjust: exact;
+                  text-rendering: geometricPrecision;
+                  -webkit-font-smoothing: none;
                 }
                 html, body {
                   margin: 0;
                   padding: 0;
                   background: #ffffff;
                   color: #000000;
-                  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+                  font-family: Arial, Helvetica, "Segoe UI", sans-serif;
+                  font-weight: 900;
                 }
                 .sticker {
                   width: ${anchoMM}mm;
                   height: ${altoMM}mm;
                   max-width: ${anchoMM}mm;
                   max-height: ${altoMM}mm;
-                  padding: 1.2mm 1.5mm;
+                  padding: ${altoMM <= 25 ? '0.9mm 1.2mm' : '1.2mm 1.5mm'};
                   box-sizing: border-box;
                   page-break-after: always;
                   break-after: page;
                   page-break-inside: avoid;
                   overflow: hidden;
                   display: flex;
-                  background: #ffffff;
-                }
-                .sticker-vertical {
                   flex-direction: column;
-                  align-items: center;
                   justify-content: space-between;
-                  text-align: center;
+                  background: #ffffff;
+                  color: #000000;
                 }
-                .sticker-horizontal {
+                .corner-header {
+                  display: flex;
+                  align-items: baseline;
+                  justify-content: space-between;
+                  gap: 1.5mm;
+                  width: 100%;
+                  border-bottom: 0.3mm solid #000000;
+                  padding-bottom: 0.3mm;
+                  margin-bottom: 0.3mm;
+                  line-height: 1.05;
+                }
+                .corner-top-left {
+                  font-size: ${anchoMM <= 32 ? '5.8px' : (anchoMM <= 42 ? '6.8px' : '7.8px')};
+                  font-weight: 900;
+                  color: #000000;
+                  text-transform: uppercase;
+                  text-align: left;
+                  word-break: break-word;
+                }
+                .corner-top-right {
+                  font-size: ${anchoMM <= 32 ? '5.6px' : (anchoMM <= 42 ? '6.5px' : '7.5px')};
+                  font-weight: 900;
+                  color: #000000;
+                  text-transform: uppercase;
+                  text-align: right;
+                  word-break: break-word;
+                  margin-left: auto;
+                }
+                .nombre-full {
+                  width: 100%;
+                  font-weight: 900;
+                  color: #000000;
+                  text-align: left;
+                  white-space: normal;
+                  word-break: break-word;
+                  line-height: 1.06;
+                  margin: 0.2mm 0;
+                }
+                .nombre-lg {
+                  font-size: ${anchoMM <= 32 ? '7.8px' : (anchoMM <= 42 ? '9.2px' : '10.8px')};
+                }
+                .nombre-sm {
+                  font-size: ${anchoMM <= 32 ? '6.8px' : (anchoMM <= 42 ? '8.0px' : '9.4px')};
+                }
+                .nombre-xs {
+                  font-size: ${anchoMM <= 32 ? '6.0px' : (anchoMM <= 42 ? '7.0px' : '8.2px')};
+                }
+                .qr-split-body {
+                  display: flex;
                   flex-direction: row;
                   align-items: center;
                   justify-content: space-between;
-                  gap: 1.5mm;
-                  text-align: left;
+                  gap: 1.2mm;
+                  width: 100%;
+                  flex: 1;
+                  min-height: 0;
                 }
-                .info-top {
+                .qr-box {
+                  width: ${qrLadoMM}mm;
+                  height: ${qrLadoMM}mm;
+                  min-width: ${qrLadoMM}mm;
+                  min-height: ${qrLadoMM}mm;
+                  padding: 0.4mm;
+                  background: #ffffff;
+                  display: flex;
+                  align-items: center;
+                  justify-content: center;
+                  flex-shrink: 0;
+                }
+                .qr-box svg {
+                  width: 100%;
+                  height: 100%;
+                  display: block;
+                }
+                .qr-info-col {
+                  flex: 1;
+                  min-width: 0;
+                  height: 100%;
                   display: flex;
                   flex-direction: column;
+                  align-items: flex-end;
+                  justify-content: space-between;
+                  text-align: right;
+                  padding: 0.2mm 0;
+                }
+                .sku-right, .sku-left {
+                  font-size: ${anchoMM <= 32 ? '6.6px' : (anchoMM <= 42 ? '7.6px' : '8.6px')};
+                  font-weight: 900;
+                  color: #000000;
+                  line-height: 1.05;
+                  word-break: break-all;
+                }
+                .precio-right {
+                  font-size: ${anchoMM <= 32 ? '10px' : (anchoMM <= 42 ? '12px' : '14px')};
+                  font-weight: 900;
+                  color: #000000;
+                  line-height: 1;
+                  letter-spacing: -0.2px;
+                  margin: 0.3mm 0;
+                }
+                .meta-corner-right {
+                  display: flex;
+                  flex-wrap: wrap;
+                  align-items: center;
+                  justify-content: flex-end;
+                  gap: 0.8mm;
+                  line-height: 1;
+                }
+                .meta-corner-left {
+                  display: flex;
+                  flex-wrap: wrap;
                   align-items: center;
                   justify-content: flex-start;
-                  width: 100%;
-                  gap: 0.4mm;
-                  line-height: 1.1;
-                }
-                .negocio {
-                  font-size: ${anchoMM <= 32 ? '5.5px' : '6.5px'};
-                  font-weight: 700;
-                  color: #444444;
-                  text-transform: uppercase;
-                  white-space: nowrap;
-                  overflow: hidden;
-                  text-overflow: ellipsis;
-                  max-width: 100%;
+                  gap: 0.8mm;
                   line-height: 1;
+                  margin-top: 0.35mm;
                 }
-                .nombre {
-                  font-size: ${anchoMM <= 32 ? '7px' : (anchoMM <= 42 ? '8.5px' : '9.5px')};
+                .meta-ing {
+                  font-size: ${anchoMM <= 32 ? '6.4px' : (anchoMM <= 42 ? '7.4px' : '8.4px')};
                   font-weight: 900;
                   color: #000000;
-                  line-height: 1.1;
-                  white-space: nowrap;
-                  overflow: hidden;
-                  text-overflow: ellipsis;
-                  max-width: 100%;
                 }
-                .sku {
-                  font-size: ${anchoMM <= 32 ? '5.5px' : '6.5px'};
-                  font-family: monospace;
-                  font-weight: bold;
-                  color: #222222;
-                  line-height: 1;
-                  white-space: nowrap;
-                  overflow: hidden;
-                  text-overflow: ellipsis;
-                  max-width: 100%;
+                .meta-tope-badge {
+                  font-size: ${anchoMM <= 32 ? '6.8px' : (anchoMM <= 42 ? '7.8px' : '8.8px')};
+                  font-weight: 900;
+                  color: #000000;
+                  border: 0.4mm solid #000000;
+                  padding: 0.25mm 1mm;
+                  border-radius: 0.9mm;
+                  line-height: 1.05;
                 }
-                .info-bottom {
+                .barcode-full-row {
+                  width: 100%;
+                  height: ${barcodeAltoMM}mm;
                   display: flex;
                   align-items: center;
                   justify-content: center;
+                  padding: 0 1mm;
+                  overflow: hidden;
+                }
+                .barcode-full-row svg {
                   width: 100%;
-                }
-                .precio {
-                  font-size: ${anchoMM <= 32 ? '8px' : (anchoMM <= 42 ? '9.5px' : '11px')};
-                  font-weight: 900;
-                  color: #000000;
-                  line-height: 1;
-                }
-                .qr-container {
-                  display: flex;
-                  align-items: center;
-                  justify-content: center;
-                  flex: 1;
-                  width: 100%;
-                  min-height: 0;
-                  padding: 0.5mm 0;
-                }
-                .qr-container svg {
                   height: 100%;
-                  width: auto;
-                  max-width: 100%;
-                  max-height: 100%;
-                  object-fit: contain;
+                  max-height: ${barcodeAltoMM}mm;
                   display: block;
-                  margin: 0 auto;
                 }
-                .qr-col {
-                  width: 38%;
+                .barcode-footer-corners {
                   display: flex;
-                  align-items: center;
-                  justify-content: center;
-                }
-                .qr-col svg {
+                  flex-direction: row;
+                  align-items: flex-end;
+                  justify-content: space-between;
+                  gap: 1mm;
                   width: 100%;
-                  height: auto;
-                  max-height: ${altoMM - 2}mm;
+                  padding-top: 0.2mm;
                 }
-                .barcode-container {
-                  display: flex;
-                  align-items: center;
-                  justify-content: center;
-                  flex: 1;
-                  width: 100%;
-                  min-height: 0;
-                  padding: 0.5mm 0;
-                  overflow: hidden;
-                }
-                .barcode-container svg {
-                  width: 95%;
-                  height: auto;
-                  max-height: ${altoMM <= 25 ? '8mm' : '14mm'};
-                  display: block;
-                  margin: 0 auto;
-                }
-                .barcode-col {
-                  width: 44%;
-                  display: flex;
-                  align-items: center;
-                  justify-content: center;
-                  overflow: hidden;
-                }
-                .barcode-col svg {
-                  width: 100%;
-                  height: auto;
-                  max-height: ${altoMM - 4}mm;
-                }
-                .text-col {
-                  width: 62%;
+                .footer-left-col {
                   display: flex;
                   flex-direction: column;
-                  justify-content: center;
-                  gap: 0.5mm;
+                  align-items: flex-start;
+                  text-align: left;
+                  min-width: 0;
+                }
+                .precio-corner-right {
+                  font-size: ${anchoMM <= 32 ? '9.2px' : (anchoMM <= 42 ? '11px' : '13px')};
+                  font-weight: 900;
+                  color: #000000;
+                  line-height: 1;
+                  text-align: right;
+                  white-space: nowrap;
+                  margin-left: auto;
                 }
                 @media screen {
                   body {
@@ -1592,7 +1891,7 @@ export default function InventarioPage() {
           return;
         }
 
-        // Si es DESCARGAR PDF:
+        // Si es DESCARGAR PDF TÉRMICO (DISEÑO DE ESQUINAS SIN CORTAR TEXTOS, 100% NEGRO PURO Y NEGRILLA):
         const docPdf = new jsPDF({
           orientation: anchoMM >= altoMM ? 'landscape' : 'portrait',
           unit: 'mm',
@@ -1645,130 +1944,116 @@ export default function InventarioPage() {
             });
           }
 
+          const metaLineaPdf = obtenerLineaMetaEtiqueta(prod);
+          const catTextoPdf = normalizarCategoria(prod.categoria).toUpperCase();
+          const nombreCompletoPdf = String(prod.nombre || 'Producto').trim();
+
           for (let i = 0; i < cantidadImprimir; i++) {
             if (!esPrimeraPagina) {
               docPdf.addPage([anchoMM, altoMM], anchoMM >= altoMM ? 'landscape' : 'portrait');
             }
             esPrimeraPagina = false;
 
-            const esFormatoHorizontalAlargado = anchoMM >= 50 && altoMM <= 28;
-            const catTextoPdf = normalizarCategoria(prod.categoria).toUpperCase();
+            const padX = 1.5;
+            const anchoUtil = anchoMM - (padX * 2);
+            let curY = altoMM <= 25 ? 2.5 : 3.0;
 
-            if (esFormatoHorizontalAlargado) {
-              const qrTamano = Math.min(altoMM - 3, 20);
-              const qrX = 1.5;
-              const qrY = (altoMM - qrTamano) / 2;
+            docPdf.setTextColor(0, 0, 0);
+            docPdf.setDrawColor(0, 0, 0);
+            docPdf.setFont("helvetica", "bold");
 
-              if (qrDataUrl) {
-                docPdf.addImage(qrDataUrl, 'PNG', qrX, qrY, qrTamano, qrTamano);
+            // 1. FILA ESQUINAS SUPERIORES: Negocio (Izquierda) | Categoría (Derecha) — Cero colisión y cero textos cortados
+            const mostrarNeg = opcionNegocio && Boolean(datosSesion?.nombreNegocio);
+            if (mostrarNeg || opcionCategoria) {
+              const fontHeader = anchoMM <= 32 ? 5.2 : 6.0;
+              docPdf.setFontSize(fontHeader);
+              let lineasNeg: string[] = [];
+              if (mostrarNeg) {
+                const anchoMaxNeg = opcionCategoria ? anchoUtil * 0.62 : anchoUtil;
+                lineasNeg = docPdf.splitTextToSize(String(datosSesion?.nombreNegocio).toUpperCase(), anchoMaxNeg).slice(0, 2);
+                docPdf.text(lineasNeg, padX, curY, { align: 'left' });
               }
-
-              const textoX = qrX + qrTamano + 2;
-              const textoAnchoMax = anchoMM - textoX - 1.5;
-              let curY = 4;
-
-              if (opcionNegocio && datosSesion?.nombreNegocio) {
-                docPdf.setFontSize(5.5);
-                docPdf.setFont("helvetica", "normal");
-                docPdf.setTextColor(90, 90, 90);
-                docPdf.text(String(datosSesion.nombreNegocio).toUpperCase().substring(0, 18), textoX, curY);
-                curY += 2.6;
-                docPdf.setTextColor(0, 0, 0);
-              }
-
               if (opcionCategoria) {
-                docPdf.setFontSize(5.2);
-                docPdf.setFont("helvetica", "normal");
-                docPdf.setTextColor(90, 90, 90);
-                docPdf.text(catTextoPdf.substring(0, 18), textoX, curY);
-                curY += 2.5;
-                docPdf.setTextColor(0, 0, 0);
+                docPdf.text(catTextoPdf, anchoMM - padX, curY, { align: 'right' });
+              }
+              const extraLineasNeg = lineasNeg.length > 1 ? (lineasNeg.length - 1) * (fontHeader * 0.36) : 0;
+              curY += extraLineasNeg + 0.8;
+              docPdf.setLineWidth(0.2);
+              docPdf.line(padX, curY, anchoMM - padX, curY);
+              curY += (altoMM <= 25 ? 2.1 : 2.5);
+            }
+
+            // 2. NOMBRE DEL PRODUCTO COMPLETO (100% ancho, multilínea sin puntos suspensivos)
+            if (opcionNombre) {
+              let fontNombre = anchoMM <= 32 ? 6.8 : (anchoMM <= 42 ? 7.8 : 9.0);
+              docPdf.setFontSize(fontNombre);
+              let lineasNombre = docPdf.splitTextToSize(nombreCompletoPdf, anchoUtil);
+              if (lineasNombre.length > 2) {
+                fontNombre = Math.max(5.2, fontNombre - 1.3);
+                docPdf.setFontSize(fontNombre);
+                lineasNombre = docPdf.splitTextToSize(nombreCompletoPdf, anchoUtil);
+              }
+              const maxLineas = Math.min(lineasNombre.length, 3);
+              docPdf.text(lineasNombre.slice(0, maxLineas), padX, curY);
+              curY += (maxLineas * (fontNombre * 0.37)) + 0.5;
+            }
+
+            // 3. CUERPO INFERIOR: QR a la izquierda + Datos en esquina derecha, O Código de Barras 1D + Esquinas inferiores
+            const espacioVerticalRestante = Math.max(8, altoMM - curY - 1.2);
+
+            if (formatoCodigoEtiqueta === 'qr') {
+              // Tamaño óptico ideal para QR (entre 11mm y 16mm)
+              const qrLado = Math.min(espacioVerticalRestante, anchoMM * 0.42, anchoMM <= 32 ? 11.5 : (anchoMM <= 42 ? 13.8 : 16));
+              const qrY = curY + Math.max(0, (espacioVerticalRestante - qrLado) / 2);
+              if (qrDataUrl) {
+                docPdf.addImage(qrDataUrl, 'PNG', padX, qrY, qrLado, qrLado);
               }
 
-              if (opcionNombre) {
-                docPdf.setFontSize(6.5);
-                docPdf.setFont("helvetica", "bold");
-                const lineasNombre = docPdf.splitTextToSize(prod.nombre, textoAnchoMax);
-                docPdf.text(lineasNombre.slice(0, 2), textoX, curY);
-                curY += (Math.min(lineasNombre.length, 2) * 2.8);
-              }
+              const rightEdgeX = anchoMM - padX;
+              let infoY = curY + 2.0;
 
               if (opcionSku) {
-                docPdf.setFontSize(5.5);
-                docPdf.setFont("helvetica", "normal");
-                docPdf.text(formatearTextoSKU(prod.sku), textoX, curY);
-                curY += 2.8;
+                docPdf.setFontSize(anchoMM <= 32 ? 5.6 : 6.5);
+                docPdf.text(formatearTextoSKU(prod.sku), rightEdgeX, infoY, { align: 'right' });
+                infoY += (anchoMM <= 32 ? 3.2 : 3.8);
               }
 
               if (opcionPrecio) {
-                docPdf.setFontSize(7.5);
-                docPdf.setFont("helvetica", "bold");
-                docPdf.text(`$${(prod.precioVenta || 0).toLocaleString('es-CO')}`, textoX, Math.min(curY + 0.5, altoMM - 2));
+                const fontPrecio = anchoMM <= 32 ? 8.5 : (anchoMM <= 42 ? 10.2 : 12.0);
+                docPdf.setFontSize(fontPrecio);
+                const yPrecio = Math.min(Math.max(infoY + 1.0, altoMM - (metaLineaPdf ? 4.2 : 2.0)), altoMM - (metaLineaPdf ? 4.0 : 1.6));
+                docPdf.text(`$${(prod.precioVenta || 0).toLocaleString('es-CO')}`, rightEdgeX, yPrecio, { align: 'right' });
               }
 
+              if (metaLineaPdf) {
+                docPdf.setFontSize(anchoMM <= 32 ? 5.4 : 6.2);
+                docPdf.text(metaLineaPdf, rightEdgeX, altoMM - 1.3, { align: 'right' });
+              }
             } else {
-              let curY = altoMM <= 25 ? 2.2 : 3.0;
-              const centerX = anchoMM / 2;
-
-              if (opcionNegocio && datosSesion?.nombreNegocio && altoMM >= 25) {
-                docPdf.setFontSize(anchoMM <= 32 ? 4.8 : 5.8);
-                docPdf.setFont("helvetica", "normal");
-                docPdf.setTextColor(90, 90, 90);
-                docPdf.text(String(datosSesion.nombreNegocio).toUpperCase(), centerX, curY, { align: 'center' });
-                curY += (anchoMM <= 32 ? 2.1 : 2.5);
-                docPdf.setTextColor(0, 0, 0);
+              // MODO CÓDIGO DE BARRAS 1D: Altura optimizada para láser + Esquinas inferiores
+              const barcodeDataUrl = generarDataUrlCodigoBarras(prod.sku || prod.codigoBarras || prod.id, { width: 2, height: 35 });
+              const altoPie = (opcionSku || metaLineaPdf || opcionPrecio) ? (altoMM <= 25 ? 4.2 : 5.2) : 1.0;
+              const barcodeAlto = Math.min(Math.max(5.5, espacioVerticalRestante - altoPie), altoMM <= 25 ? 7.5 : 9.5);
+              if (barcodeDataUrl) {
+                docPdf.addImage(barcodeDataUrl, 'PNG', padX + 0.5, curY, anchoUtil - 1.0, barcodeAlto);
               }
 
-              if (opcionCategoria && altoMM >= 25) {
-                docPdf.setFontSize(anchoMM <= 32 ? 4.5 : 5.4);
-                docPdf.setFont("helvetica", "normal");
-                docPdf.setTextColor(90, 90, 90);
-                docPdf.text(catTextoPdf, centerX, curY, { align: 'center' });
-                curY += (anchoMM <= 32 ? 2.0 : 2.4);
-                docPdf.setTextColor(0, 0, 0);
+              // Esquina Inferior Izquierda: SKU + ING/Tope
+              let leftBottomY = altoMM - (metaLineaPdf && opcionSku ? 3.2 : 1.4);
+              if (opcionSku) {
+                docPdf.setFontSize(anchoMM <= 32 ? 5.4 : 6.2);
+                docPdf.text(formatearTextoSKU(prod.sku), padX, leftBottomY, { align: 'left' });
+                leftBottomY += 2.0;
+              }
+              if (metaLineaPdf) {
+                docPdf.setFontSize(anchoMM <= 32 ? 5.2 : 5.8);
+                docPdf.text(metaLineaPdf, padX, altoMM - 1.2, { align: 'left' });
               }
 
-              if (opcionNombre) {
-                const fuenteNombre = anchoMM <= 32 ? 5.5 : (anchoMM <= 42 ? 6.8 : 8.0);
-                docPdf.setFontSize(fuenteNombre);
-                docPdf.setFont("helvetica", "bold");
-                const maxChars = anchoMM <= 32 ? 14 : (anchoMM <= 42 ? 20 : 28);
-                const nombreCorto = prod.nombre.length > maxChars ? prod.nombre.substring(0, maxChars - 2) + '...' : prod.nombre;
-                docPdf.text(nombreCorto, centerX, curY, { align: 'center' });
-                curY += (anchoMM <= 32 ? 2.4 : 2.9);
-              }
-
-              if (opcionSku && altoMM >= 24) {
-                docPdf.setFontSize(anchoMM <= 32 ? 4.5 : 5.2);
-                docPdf.setFont("helvetica", "normal");
-                docPdf.text(formatearTextoSKU(prod.sku), centerX, curY, { align: 'center' });
-                curY += (anchoMM <= 32 ? 2.0 : 2.5);
-              }
-
-              const espacioRestanteY = altoMM - curY - (opcionPrecio ? (altoMM <= 25 ? 3.5 : 4.5) : 1);
-              if (formatoCodigoEtiqueta === 'barras') {
-                const barcodeDataUrl = generarDataUrlCodigoBarras(prod.sku || prod.codigoBarras || prod.id, { width: 2, height: 40 });
-                const barcodeAlto = Math.min(espacioRestanteY, altoMM <= 25 ? 9 : 14);
-                const barcodeAncho = anchoMM - 6;
-                const barcodeX = 3;
-                if (barcodeDataUrl && barcodeAlto > 4) {
-                  docPdf.addImage(barcodeDataUrl, 'PNG', barcodeX, curY + 0.5, barcodeAncho, barcodeAlto);
-                  curY += barcodeAlto + (altoMM <= 25 ? 1 : 1.5);
-                }
-              } else {
-                const qrTamano = Math.min(espacioRestanteY, anchoMM - 4, altoMM <= 25 ? 12 : 18);
-                const qrX = (anchoMM - qrTamano) / 2;
-                if (qrDataUrl && qrTamano > 8) {
-                  docPdf.addImage(qrDataUrl, 'PNG', qrX, curY + 0.5, qrTamano, qrTamano);
-                  curY += qrTamano + (altoMM <= 25 ? 1 : 1.5);
-                }
-              }
-
+              // Esquina Inferior Derecha: Precio Grande
               if (opcionPrecio) {
-                const fuentePrecio = anchoMM <= 32 ? 6.5 : (anchoMM <= 42 ? 8 : 9.5);
-                docPdf.setFontSize(fuentePrecio);
-                docPdf.setFont("helvetica", "bold");
-                docPdf.text(`$${(prod.precioVenta || 0).toLocaleString('es-CO')}`, centerX, Math.min(curY + 1.5, altoMM - 1.5), { align: 'center' });
+                docPdf.setFontSize(anchoMM <= 32 ? 8.2 : (anchoMM <= 42 ? 9.8 : 11.5));
+                docPdf.text(`$${(prod.precioVenta || 0).toLocaleString('es-CO')}`, anchoMM - padX, altoMM - 1.3, { align: 'right' });
               }
             }
           }
@@ -1780,7 +2065,7 @@ export default function InventarioPage() {
 
       } else {
         // =========================================================================
-        // MODO 2: HOJA CARTA / A4 MULTI-ETIQUETA (IMPRESORA DE OFICINA)
+        // MODO 2: HOJA CARTA / A4 MULTI-ETIQUETA (DISEÑO BOUTIQUE DE ESQUINAS SIN CORTAR TEXTOS)
         // =========================================================================
         const docPdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'letter' });
         
@@ -1789,7 +2074,7 @@ export default function InventarioPage() {
         let margenX = 8;
         let margenY = 8;
         let colsPorFila = 3;
-        let qrSize = 22;
+        let qrSize = 18;
         let startX = 14;
         let startY = 16;
         let maxPageY = 262;
@@ -1800,7 +2085,7 @@ export default function InventarioPage() {
           margenX = 5;
           margenY = 6;
           colsPorFila = 4;
-          qrSize = 16;
+          qrSize = 14.5;
           startX = 12;
           startY = 16;
           maxPageY = 265;
@@ -1810,7 +2095,7 @@ export default function InventarioPage() {
           margenX = 10;
           margenY = 10;
           colsPorFila = 2;
-          qrSize = 28;
+          qrSize = 22;
           startX = 13;
           startY = 16;
           maxPageY = 258;
@@ -1821,6 +2106,7 @@ export default function InventarioPage() {
         let contadorCol = 0;
 
         docPdf.setFont("helvetica", "bold");
+        docPdf.setTextColor(0, 0, 0);
         docPdf.setFontSize(11);
         docPdf.text(`Etiquetas QR - Hoja Carta (${productosParaExportarQR.length} referencias, ${totalEtiquetasCalculadas} etiquetas)`, startX, 10);
 
@@ -1851,8 +2137,8 @@ export default function InventarioPage() {
               const img = new Image();
               img.onload = () => {
                 const canvas = document.createElement('canvas');
-                canvas.width = 180;
-                canvas.height = 180;
+                canvas.width = 200;
+                canvas.height = 200;
                 const ctx = canvas.getContext('2d');
                 if (ctx) {
                   ctx.fillStyle = '#FFFFFF';
@@ -1868,6 +2154,10 @@ export default function InventarioPage() {
             });
           }
 
+          const metaLineaHoja = obtenerLineaMetaEtiqueta(prod);
+          const catTextoHoja = normalizarCategoria(prod.categoria).toUpperCase();
+          const nombreCompletoHoja = String(prod.nombre || 'Producto').trim();
+
           for (let i = 0; i < cantidadImprimir; i++) {
             if (y + altoEtiqueta > maxPageY) {
               docPdf.addPage();
@@ -1876,66 +2166,101 @@ export default function InventarioPage() {
               contadorCol = 0;
             }
 
-            // Borde guía suave
-            docPdf.setDrawColor(210, 210, 210);
-            docPdf.setLineWidth(0.2);
+            // Borde guía firme
+            docPdf.setDrawColor(160, 160, 160);
+            docPdf.setLineWidth(0.25);
             docPdf.rect(x, y, anchoEtiqueta, altoEtiqueta);
 
-            let cursorY = y + (tamanoEtiqueta === 'compacto' ? 4 : 5.5);
+            docPdf.setTextColor(0, 0, 0);
+            docPdf.setFont("helvetica", "bold");
 
-            if (opcionNegocio && datosSesion?.nombreNegocio) {
-              docPdf.setFontSize(tamanoEtiqueta === 'compacto' ? 5.5 : 6.5);
-              docPdf.setFont("helvetica", "normal");
-              docPdf.setTextColor(110, 110, 110);
-              docPdf.text(String(datosSesion.nombreNegocio).toUpperCase(), x + (anchoEtiqueta / 2), cursorY, { align: 'center' });
-              cursorY += (tamanoEtiqueta === 'compacto' ? 2.5 : 3.5);
-              docPdf.setTextColor(0, 0, 0);
-            }
+            const padInterno = tamanoEtiqueta === 'compacto' ? 2.2 : 3.0;
+            const anchoUtilHoja = anchoEtiqueta - (padInterno * 2);
+            let cursorY = y + (tamanoEtiqueta === 'compacto' ? 3.5 : 4.5);
 
-            if (opcionCategoria) {
-              docPdf.setFontSize(tamanoEtiqueta === 'compacto' ? 5.5 : 6.5);
-              docPdf.setFont("helvetica", "normal");
-              docPdf.setTextColor(110, 110, 110);
-              const catTexto = normalizarCategoria(prod.categoria).toUpperCase();
-              docPdf.text(catTexto, x + (anchoEtiqueta / 2), cursorY, { align: 'center' });
+            // 1. Esquinas Superiores: Negocio (Izq) | Categoría (Der) — Cero colisión y cero textos cortados
+            const mostrarNegHoja = opcionNegocio && Boolean(datosSesion?.nombreNegocio);
+            if (mostrarNegHoja || opcionCategoria) {
+              const fontHeaderHoja = tamanoEtiqueta === 'compacto' ? 6.0 : (tamanoEtiqueta === 'grande' ? 8.0 : 7.0);
+              docPdf.setFontSize(fontHeaderHoja);
+              let lineasNegHoja: string[] = [];
+              if (mostrarNegHoja) {
+                const anchoMaxNegHoja = opcionCategoria ? anchoUtilHoja * 0.62 : anchoUtilHoja;
+                lineasNegHoja = docPdf.splitTextToSize(String(datosSesion?.nombreNegocio).toUpperCase(), anchoMaxNegHoja).slice(0, 2);
+                docPdf.text(lineasNegHoja, x + padInterno, cursorY, { align: 'left' });
+              }
+              if (opcionCategoria) {
+                docPdf.text(catTextoHoja, x + anchoEtiqueta - padInterno, cursorY, { align: 'right' });
+              }
+              const extraNegHoja = lineasNegHoja.length > 1 ? (lineasNegHoja.length - 1) * (fontHeaderHoja * 0.36) : 0;
+              cursorY += extraNegHoja + 1.0;
+              docPdf.setDrawColor(0, 0, 0);
+              docPdf.setLineWidth(0.2);
+              docPdf.line(x + padInterno, cursorY, x + anchoEtiqueta - padInterno, cursorY);
               cursorY += (tamanoEtiqueta === 'compacto' ? 2.8 : 3.5);
-              docPdf.setTextColor(0, 0, 0);
             }
 
+            // 2. Nombre del Producto Completo (100% ancho, sin puntos suspensivos)
             if (opcionNombre) {
-              docPdf.setFontSize(tamanoEtiqueta === 'compacto' ? 7 : (tamanoEtiqueta === 'grande' ? 10.5 : 8.5));
-              docPdf.setFont("helvetica", "bold");
-              const maxChars = tamanoEtiqueta === 'compacto' ? 20 : (tamanoEtiqueta === 'grande' ? 36 : 24);
-              const nombreCorto = prod.nombre.length > maxChars ? prod.nombre.substring(0, maxChars - 2) + '...' : prod.nombre;
-              docPdf.text(nombreCorto, x + (anchoEtiqueta / 2), cursorY, { align: 'center' });
-              cursorY += (tamanoEtiqueta === 'compacto' ? 3.5 : 4.5);
+              let fontNomHoja = tamanoEtiqueta === 'compacto' ? 7.8 : (tamanoEtiqueta === 'grande' ? 11.0 : 9.2);
+              docPdf.setFontSize(fontNomHoja);
+              let lineasNomHoja = docPdf.splitTextToSize(nombreCompletoHoja, anchoUtilHoja);
+              if (lineasNomHoja.length > 2) {
+                fontNomHoja = Math.max(6.2, fontNomHoja - 1.2);
+                docPdf.setFontSize(fontNomHoja);
+                lineasNomHoja = docPdf.splitTextToSize(nombreCompletoHoja, anchoUtilHoja);
+              }
+              const maxLin = Math.min(lineasNomHoja.length, 3);
+              docPdf.text(lineasNomHoja.slice(0, maxLin), x + padInterno, cursorY);
+              cursorY += (maxLin * (fontNomHoja * 0.38)) + 1.0;
             }
 
-            if (opcionSku) {
-              docPdf.setFontSize(tamanoEtiqueta === 'compacto' ? 6 : (tamanoEtiqueta === 'grande' ? 8.5 : 7.5));
-              docPdf.setFont("helvetica", "normal");
-              docPdf.text(formatearTextoSKU(prod.sku), x + (anchoEtiqueta / 2), cursorY, { align: 'center' });
-              cursorY += (tamanoEtiqueta === 'compacto' ? 3.5 : 4);
-            }
-
-            if (opcionPrecio) {
-              docPdf.setFontSize(tamanoEtiqueta === 'compacto' ? 7 : (tamanoEtiqueta === 'grande' ? 9.5 : 8.5));
-              docPdf.setFont("helvetica", "bold");
-              docPdf.text(`$${(prod.precioVenta || 0).toLocaleString('es-CO')}`, x + (anchoEtiqueta / 2), cursorY, { align: 'center' });
-              cursorY += (tamanoEtiqueta === 'compacto' ? 1.5 : 2);
-            }
+            // 3. Cuerpo Inferior en Esquinas
+            const bottomY = y + altoEtiqueta - padInterno;
+            const espacioVertHoja = Math.max(10, bottomY - cursorY);
 
             if (formatoCodigoEtiqueta === 'barras') {
-              const barcodeDataUrl = generarDataUrlCodigoBarras(prod.sku || prod.codigoBarras || prod.id, { width: 2, height: 40 });
-              if (barcodeDataUrl) {
-                const barWidth = Math.min(anchoEtiqueta - 8, 48);
-                const barHeight = Math.min(qrSize * 0.65, 14);
-                const barX = x + (anchoEtiqueta - barWidth) / 2;
-                docPdf.addImage(barcodeDataUrl, 'PNG', barX, cursorY + 1, barWidth, barHeight);
+              const barcodeDataUrl = generarDataUrlCodigoBarras(prod.sku || prod.codigoBarras || prod.id, { width: 2, height: 36 });
+              const barHeight = Math.min(espacioVertHoja - 6, tamanoEtiqueta === 'compacto' ? 8.5 : 11.5);
+              if (barcodeDataUrl && barHeight > 4) {
+                docPdf.addImage(barcodeDataUrl, 'PNG', x + padInterno, cursorY, anchoUtilHoja, barHeight);
               }
-            } else if (qrDataUrl) {
-              const qrX = x + (anchoEtiqueta - qrSize) / 2;
-              docPdf.addImage(qrDataUrl, 'PNG', qrX, cursorY + 1, qrSize, qrSize);
+              let yIzq = bottomY - (metaLineaHoja && opcionSku ? 3.2 : 0.5);
+              if (opcionSku) {
+                docPdf.setFontSize(tamanoEtiqueta === 'compacto' ? 6.2 : 7.5);
+                docPdf.text(formatearTextoSKU(prod.sku), x + padInterno, yIzq, { align: 'left' });
+              }
+              if (metaLineaHoja) {
+                docPdf.setFontSize(tamanoEtiqueta === 'compacto' ? 5.8 : 7.0);
+                docPdf.text(metaLineaHoja, x + padInterno, bottomY, { align: 'left' });
+              }
+              if (opcionPrecio) {
+                docPdf.setFontSize(tamanoEtiqueta === 'compacto' ? 9.0 : (tamanoEtiqueta === 'grande' ? 13.0 : 11.0));
+                docPdf.text(`$${(prod.precioVenta || 0).toLocaleString('es-CO')}`, x + anchoEtiqueta - padInterno, bottomY, { align: 'right' });
+              }
+            } else {
+              const qrLadoHoja = Math.min(qrSize, espacioVertHoja);
+              const qrYHoja = cursorY + Math.max(0, (espacioVertHoja - qrLadoHoja) / 2);
+              if (qrDataUrl) {
+                docPdf.addImage(qrDataUrl, 'PNG', x + padInterno, qrYHoja, qrLadoHoja, qrLadoHoja);
+              }
+
+              const xDerHoja = x + anchoEtiqueta - padInterno;
+              let yDerCursor = cursorY + 2.5;
+              if (opcionSku) {
+                docPdf.setFontSize(tamanoEtiqueta === 'compacto' ? 6.5 : (tamanoEtiqueta === 'grande' ? 8.8 : 7.6));
+                docPdf.text(formatearTextoSKU(prod.sku), xDerHoja, yDerCursor, { align: 'right' });
+                yDerCursor += 4.2;
+              }
+              if (opcionPrecio) {
+                docPdf.setFontSize(tamanoEtiqueta === 'compacto' ? 9.5 : (tamanoEtiqueta === 'grande' ? 14.0 : 11.5));
+                const yPrecioHoja = Math.min(Math.max(yDerCursor + 1.5, bottomY - (metaLineaHoja ? 4.2 : 1.0)), bottomY - (metaLineaHoja ? 3.8 : 0.5));
+                docPdf.text(`$${(prod.precioVenta || 0).toLocaleString('es-CO')}`, xDerHoja, yPrecioHoja, { align: 'right' });
+              }
+              if (metaLineaHoja) {
+                docPdf.setFontSize(tamanoEtiqueta === 'compacto' ? 6.0 : (tamanoEtiqueta === 'grande' ? 8.0 : 7.0));
+                docPdf.text(metaLineaHoja, xDerHoja, bottomY, { align: 'right' });
+              }
             }
 
             contadorCol++;
@@ -2469,16 +2794,22 @@ export default function InventarioPage() {
           if (prod.accion === 'actualizar' && prod.prodExistenteId) {
             actualizados++;
             const docRef = doc(db, "inventario", prod.prodExistenteId);
+            const prodActualInv = inventario.find(it => it.id === prod.prodExistenteId);
             const stockFinal = modoActualizacionStock === 'sumar'
               ? (Number(prod.stockAnterior) || 0) + (Number(prod.stock) || 0)
               : (Number(prod.stock) || 0);
+            const stockGuardar = prod.tipoProducto === 'servicio' || !prod.inventariable ? 0 : stockFinal;
+            const lotesSync = prodActualInv && prod.tipoProducto !== 'servicio' && prod.inventariable
+              ? ajustarLotesEnEdicionManual(prodActualInv, stockGuardar, Number(prodActualInv.costoCompra) || 0)
+              : null;
 
             batch.update(docRef, {
               nombre: prod.nombre,
               categoria: normalizarCategoria(prod.categoria),
               tipoProducto: prod.tipoProducto,
               inventariable: prod.inventariable,
-              stock: prod.tipoProducto === 'servicio' || !prod.inventariable ? 0 : stockFinal,
+              stock: stockGuardar,
+              ...(lotesSync ? { lotesCosto: lotesSync.lotesActualizados, costoCompra: lotesSync.costoCompraActivo } : {}),
               precioVenta: prod.precioVenta,
               fechaActualizacion: new Date()
             });
@@ -2486,6 +2817,7 @@ export default function InventarioPage() {
             creados++;
             const docRef = doc(collection(db, "inventario"));
             const skuGenerado = (prod.sku || `SKU-${docRef.id.slice(0, 6).toUpperCase()}`).trim().toUpperCase();
+            const stockGuardar = prod.tipoProducto === 'servicio' || !prod.inventariable ? 0 : prod.stock;
             batch.set(docRef, {
               usuarioId: cuentaPrincipalId,
               nombre: prod.nombre,
@@ -2494,9 +2826,16 @@ export default function InventarioPage() {
               codigoBarras: skuGenerado,
               tipoProducto: prod.tipoProducto,
               inventariable: prod.inventariable,
-              stock: prod.tipoProducto === 'servicio' || !prod.inventariable ? 0 : prod.stock,
+              stock: stockGuardar,
               precioVenta: prod.precioVenta,
               costoCompra: 0,
+              lotesCosto: stockGuardar > 0 ? [{
+                id: `lote_excel_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+                cantidad: stockGuardar,
+                cantidadInicial: stockGuardar,
+                costoUnitario: 0,
+                fecha: new Date().toISOString()
+              }] : [],
               activo: true,
               fechaCreacion: new Date(),
               fechaActualizacion: new Date()
@@ -3215,7 +3554,25 @@ export default function InventarioPage() {
                 type="text" 
                 value={busqueda} 
                 onChange={(e) => setBusqueda(e.target.value)} 
-                placeholder="Buscar por nombre, SKU o categoría..." 
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && busqueda.trim()) {
+                    const qUpper = busqueda.trim().toUpperCase();
+                    const qNorm = qUpper.replace(/^(SKU|REF|COD)[-_ ]*/i, '');
+                    const matchExacto = inventario.find((p) => {
+                      const pSku = (p.sku || '').trim().toUpperCase();
+                      const pBar = (p.codigoBarras || '').trim().toUpperCase();
+                      const pSkuNorm = pSku.replace(/^(SKU|REF|COD)[-_ ]*/i, '');
+                      const pBarNorm = pBar.replace(/^(SKU|REF|COD)[-_ ]*/i, '');
+                      return pSku === qUpper || pBar === qUpper || (qNorm && (pSkuNorm === qNorm || pBarNorm === qNorm));
+                    });
+                    if (matchExacto && (esAdmin || puedeEditarInventario)) {
+                      e.preventDefault();
+                      setBusqueda('');
+                      manejarLecturaPistolaInventario(qUpper);
+                    }
+                  }
+                }}
+                placeholder="Buscar por nombre, SKU, categoría o disparar lector..." 
                 className="w-full py-2.5 pl-10 pr-9 bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-800 rounded-2xl font-bold outline-none focus:border-emerald-500 shadow-sm transition-colors text-sm text-slate-900 dark:text-white" 
               />
               {busqueda && (
@@ -3462,7 +3819,7 @@ export default function InventarioPage() {
           {/* QR OCULTOS PARA GENERAR EL PDF CORRECTAMENTE */}
           <div className="hidden">
             {inventario.map(prod => (
-              <QRCodeSVG key={prod.id} id={`qr-svg-${prod.id}`} value={prod.sku || prod.id} size={128} />
+              <QRCodeSVG key={prod.id} id={`qr-svg-${prod.id}`} value={prod.sku || prod.codigoBarras || prod.id} size={128} />
             ))}
           </div>
 
@@ -5134,9 +5491,14 @@ export default function InventarioPage() {
 
               {/* PASO 5: Información a incluir en cada etiqueta */}
               <div className="space-y-3">
-                <label className="text-xs font-black uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
-                  <Tag size={14} className="text-emerald-500" /> 6. Datos impresos en el sticker
-                </label>
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <label className="text-xs font-black uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
+                    <Tag size={14} className="text-emerald-500" /> 6. Datos impresos en el sticker
+                  </label>
+                  <span className="text-[10px] font-black bg-slate-900 text-white dark:bg-white dark:text-slate-900 px-2 py-0.5 rounded-full">
+                    Impresión Nítida: 100% Negrilla + Negro Puro
+                  </span>
+                </div>
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
                   
                   <label className="flex items-center gap-2 p-2.5 bg-slate-50 dark:bg-slate-900/40 rounded-xl cursor-pointer border border-slate-200 dark:border-slate-800 select-none">
@@ -5164,53 +5526,260 @@ export default function InventarioPage() {
                     <span className="font-bold text-slate-800 dark:text-slate-200 text-xs">Categoría</span>
                   </label>
 
+                  <label className={`flex items-center gap-2 p-2.5 rounded-xl cursor-pointer border select-none transition-colors ${opcionFechaIngreso ? 'bg-emerald-50/70 dark:bg-emerald-950/30 border-emerald-500' : 'bg-slate-50 dark:bg-slate-900/40 border-slate-200 dark:border-slate-800'}`}>
+                    <input type="checkbox" checked={opcionFechaIngreso} onChange={(e) => setOpcionFechaIngreso(e.target.checked)} className="w-4 h-4 accent-emerald-600 rounded" />
+                    <span className="font-bold text-slate-800 dark:text-slate-200 text-xs">Fecha de Ingreso</span>
+                  </label>
+
+                  <label className={`flex items-center justify-between gap-2 p-2.5 rounded-xl cursor-pointer border select-none transition-colors col-span-2 sm:col-span-3 ${opcionTopeRebaja ? 'bg-amber-50/80 dark:bg-amber-950/30 border-amber-500 ring-1 ring-amber-500/20' : 'bg-slate-50 dark:bg-slate-900/40 border-slate-200 dark:border-slate-800'}`}>
+                    <div className="flex items-center gap-2">
+                      <input type="checkbox" checked={opcionTopeRebaja} onChange={(e) => setOpcionTopeRebaja(e.target.checked)} className="w-4 h-4 accent-amber-600 rounded" />
+                      <span className="font-black text-slate-900 dark:text-white text-xs">Tope de Rebaja para Vendedores (Clave Discreta o Explícito)</span>
+                    </div>
+                    <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-800 dark:text-amber-300 shrink-0">
+                      Nuevo
+                    </span>
+                  </label>
+
                 </div>
+
+                {/* Panel configurable de Tope de Rebaja con explicación de Clave Discreta */}
+                {opcionTopeRebaja && (
+                  <div className="p-3.5 sm:p-4 bg-amber-50/60 dark:bg-amber-950/20 rounded-2xl border border-amber-200/80 dark:border-amber-800/60 space-y-3 animate-in fade-in duration-150">
+                    <div className="grid grid-cols-1 sm:grid-cols-12 gap-3 items-end">
+                      {/* Selector $ vs % y Valor */}
+                      <div className="sm:col-span-5 space-y-1">
+                        <label className="text-[11px] font-black text-slate-700 dark:text-slate-200 block">
+                          ¿Cuánto es el máximo a rebajar?
+                        </label>
+                        <div className="flex items-center gap-1.5">
+                          <div className="flex bg-white dark:bg-[#0f172a] p-0.5 rounded-xl border border-slate-200 dark:border-slate-700 shrink-0">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setModoTopeRebaja('pesos');
+                                if (Number(String(valorTopeRebaja).replace(/\D/g, '')) <= 100) {
+                                  setValorTopeRebaja('2.000');
+                                }
+                              }}
+                              className={`px-2.5 py-1 rounded-lg text-xs font-black transition cursor-pointer ${modoTopeRebaja === 'pesos' ? 'bg-amber-500 text-white shadow-xs' : 'text-slate-500 hover:text-slate-800 dark:hover:text-white'}`}
+                            >
+                              $ Pesos
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setModoTopeRebaja('porcentaje');
+                                if (Number(String(valorTopeRebaja).replace(/\D/g, '')) > 100) {
+                                  setValorTopeRebaja('10');
+                                }
+                              }}
+                              className={`px-2.5 py-1 rounded-lg text-xs font-black transition cursor-pointer ${modoTopeRebaja === 'porcentaje' ? 'bg-amber-500 text-white shadow-xs' : 'text-slate-500 hover:text-slate-800 dark:hover:text-white'}`}
+                            >
+                              % Porc.
+                            </button>
+                          </div>
+                          <input
+                            type="text"
+                            inputMode="numeric"
+                            value={valorTopeRebaja}
+                            onChange={(e) => {
+                              const limpio = e.target.value.replace(/\D/g, '');
+                              if (modoTopeRebaja === 'porcentaje') {
+                                const num = Math.min(90, Number(limpio || 0));
+                                setValorTopeRebaja(limpio ? String(num) : '');
+                              } else {
+                                setValorTopeRebaja(formatearMonedaInput(limpio));
+                              }
+                            }}
+                            placeholder={modoTopeRebaja === 'pesos' ? 'Ej. 3.000' : 'Ej. 10'}
+                            className="w-full py-1.5 px-2.5 bg-white dark:bg-[#0f172a] border border-amber-300 dark:border-amber-700 rounded-xl font-black text-xs text-slate-900 dark:text-white outline-none focus:border-amber-500"
+                          />
+                        </div>
+                      </div>
+
+                      {/* Selector de Formato: Clave Discreta R-X vs Clave M-X vs Explícito */}
+                      <div className="sm:col-span-7 space-y-1">
+                        <label className="text-[11px] font-black text-slate-700 dark:text-slate-200 block">
+                          ¿Cómo mostrarlo en el sticker?
+                        </label>
+                        <div className="grid grid-cols-3 gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => setFormatoTopeEtiqueta('clave_rebaja')}
+                            className={`p-2 rounded-xl border text-left transition cursor-pointer ${
+                              formatoTopeEtiqueta === 'clave_rebaja'
+                                ? 'bg-white dark:bg-slate-900 border-amber-500 ring-2 ring-amber-500/20 shadow-xs'
+                                : 'bg-white/60 dark:bg-slate-900/40 border-slate-200 dark:border-slate-800 hover:border-amber-300'
+                            }`}
+                          >
+                            <span className="text-[11px] font-black text-slate-900 dark:text-white block">🔒 Clave R-X</span>
+                            <span className="text-[10px] text-slate-500 dark:text-slate-400 block truncate">Ej: R-3 (Rebaja 3mil)</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setFormatoTopeEtiqueta('clave_minimo')}
+                            className={`p-2 rounded-xl border text-left transition cursor-pointer ${
+                              formatoTopeEtiqueta === 'clave_minimo'
+                                ? 'bg-white dark:bg-slate-900 border-amber-500 ring-2 ring-amber-500/20 shadow-xs'
+                                : 'bg-white/60 dark:bg-slate-900/40 border-slate-200 dark:border-slate-800 hover:border-amber-300'
+                            }`}
+                          >
+                            <span className="text-[11px] font-black text-slate-900 dark:text-white block">🔒 Clave M-X</span>
+                            <span className="text-[10px] text-slate-500 dark:text-slate-400 block truncate">Ej: M-22 (Mín 22mil)</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setFormatoTopeEtiqueta('explicito')}
+                            className={`p-2 rounded-xl border text-left transition cursor-pointer ${
+                              formatoTopeEtiqueta === 'explicito'
+                                ? 'bg-white dark:bg-slate-900 border-amber-500 ring-2 ring-amber-500/20 shadow-xs'
+                                : 'bg-white/60 dark:bg-slate-900/40 border-slate-200 dark:border-slate-800 hover:border-amber-300'
+                            }`}
+                          >
+                            <span className="text-[11px] font-black text-slate-900 dark:text-white block">👁️ Explícito</span>
+                            <span className="text-[10px] text-slate-500 dark:text-slate-400 block truncate">Mín: $22.000</span>
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Explicación clara con ejemplo en vivo para que el usuario y sus vendedores entiendan la clave */}
+                    {(() => {
+                      const prodEjemplo = productosParaExportarQR[0] || { nombre: 'Camiseta Básica Pro', precioVenta: 25000, costoCompra: 15000 };
+                      const calculo = calcularDatosTopeRebaja(prodEjemplo);
+                      return (
+                        <div className="p-2.5 bg-white/90 dark:bg-slate-900/90 rounded-xl border border-amber-200/70 dark:border-amber-800/50 text-[11px] text-slate-700 dark:text-slate-300 leading-relaxed">
+                          {formatoTopeEtiqueta === 'clave_rebaja' && (
+                            <p>
+                              💡 <strong>¿Cómo lee tu vendedor la Clave <span className="font-mono font-black text-slate-900 dark:text-white px-1 py-0.5 bg-amber-100 dark:bg-amber-900/50 rounded">{calculo.textoEtiqueta}</span>?</strong>{' '}
+                              La <strong>"R"</strong> significa <strong>Rebaja máxima en miles</strong>. En <em>"{prodEjemplo.nombre}"</em> (${calculo.precio.toLocaleString('es-CO')}), al ver <strong>{calculo.textoEtiqueta}</strong> tu vendedor sabe que puede rebajar hasta <strong>${calculo.rebajaReal.toLocaleString('es-CO')}</strong> (cobrando mínimo <strong>${calculo.precioMinimo.toLocaleString('es-CO')}</strong>), sin que el cliente sospeche que tiene descuento.
+                            </p>
+                          )}
+                          {formatoTopeEtiqueta === 'clave_minimo' && (
+                            <p>
+                              💡 <strong>¿Cómo lee tu vendedor la Clave <span className="font-mono font-black text-slate-900 dark:text-white px-1 py-0.5 bg-amber-100 dark:bg-amber-900/50 rounded">{calculo.textoEtiqueta}</span>?</strong>{' '}
+                              La <strong>"M"</strong> significa <strong>Precio Mínimo en miles</strong>. En <em>"{prodEjemplo.nombre}"</em> (${calculo.precio.toLocaleString('es-CO')}), al ver <strong>{calculo.textoEtiqueta}</strong> tu vendedor sabe que lo mínimo en que puede dejarlo es <strong>${calculo.precioMinimo.toLocaleString('es-CO')}</strong>, sin que el cliente lo descifre.
+                            </p>
+                          )}
+                          {formatoTopeEtiqueta === 'explicito' && (
+                            <p>
+                              👁️ <strong>Modo Explícito (<span className="font-mono font-black text-slate-900 dark:text-white px-1 py-0.5 bg-amber-100 dark:bg-amber-900/50 rounded">{calculo.textoEtiqueta}</span>):</strong>{' '}
+                              Se imprimirá el precio mínimo visible directamente en la etiqueta. Ideal si tus etiquetas van en catálogo interno o ventas mayoristas.
+                            </p>
+                          )}
+                          {calculo.protegidoPorCosto && (
+                            <p className="mt-1 text-[10px] font-bold text-emerald-700 dark:text-emerald-400">
+                              🛡️ Protección activa: El tope se ajustó automáticamente para nunca bajar del costo del lote más caro (${calculo.costoMaxLote.toLocaleString('es-CO')}).
+                            </p>
+                          )}
+                        </div>
+                      );
+                    })()}
+                  </div>
+                )}
               </div>
 
               {/* VISTA PREVIA EN VIVO (LIVE PREVIEW) */}
               <div className="p-4 bg-slate-100 dark:bg-slate-900/80 rounded-2xl border border-slate-200 dark:border-slate-800 flex flex-col items-center justify-center gap-2">
                 <span className="text-[11px] font-black uppercase tracking-wider text-slate-400">
-                  Vista Previa del Sticker
+                  Vista Previa del Sticker (Diseño Boutique de Esquinas • Cero Textos Cortados)
                 </span>
                 
-                {/* Contenedor simulado del sticker */}
-                <div className="bg-white text-slate-900 p-3 rounded-xl shadow-md border border-slate-300 flex flex-col items-center text-center max-w-[220px] w-full">
-                  {opcionNegocio && (
-                    <span className="text-[9px] font-medium text-slate-500 uppercase leading-tight truncate max-w-full">
-                      {datosSesion?.nombreNegocio || "MI NEGOCIO"}
-                    </span>
-                  )}
-                  {opcionNombre && (
-                    <span className="text-[11px] font-black leading-snug line-clamp-1">
-                      {productosParaExportarQR[0]?.nombre || "Camiseta Básica Pro"}
-                    </span>
-                  )}
-                  {opcionSku && (
-                    <span className="text-[9px] text-slate-500 font-mono leading-none my-0.5">
-                      {formatearTextoSKU(productosParaExportarQR[0]?.sku || "CAM-001")}
-                    </span>
-                  )}
-                  {opcionCategoria && (
-                    <span className="text-[8px] font-semibold text-slate-400 uppercase tracking-wider leading-none mt-0.5 truncate max-w-full">
-                      {productosParaExportarQR[0]?.categoria || "General"}
-                    </span>
-                  )}
-                  {formatoCodigoEtiqueta === 'barras' ? (
-                    <div 
-                      className="my-1.5 w-full flex items-center justify-center overflow-hidden py-1" 
-                      dangerouslySetInnerHTML={{ 
-                        __html: generarSvgCodigoBarras(productosParaExportarQR[0]?.sku || "CAM-001", { width: 1.5, height: 32, displayValue: false }) 
-                      }} 
-                    />
-                  ) : (
-                    <div className="my-1.5 p-1 bg-white border border-slate-200 rounded-lg">
-                      <QrCode size={46} className="text-slate-900" />
+                {/* Contenedor simulado del sticker en proporción real 4:3 (100% negro puro y negrilla) */}
+                <div
+                  style={{ width: '250px', maxWidth: '100%' }}
+                  className="bg-white text-black p-3.5 rounded-xl shadow-md border-2 border-slate-300 flex flex-col justify-between gap-1.5 mx-auto"
+                >
+                  {/* Fila 1: Esquinas Superiores (Negocio Izq | Categoría Der) */}
+                  {(opcionNegocio || opcionCategoria) && (
+                    <div className="flex items-baseline justify-between gap-2 w-full border-b border-black pb-1">
+                      <span className="text-[9.5px] font-black text-black uppercase leading-tight text-left break-words">
+                        {opcionNegocio ? (datosSesion?.nombreNegocio || "MI NEGOCIO") : ""}
+                      </span>
+                      <span className="text-[9px] font-black text-black uppercase tracking-wider leading-tight text-right break-words ml-auto">
+                        {opcionCategoria ? normalizarCategoria(productosParaExportarQR[0]?.categoria || "General") : ""}
+                      </span>
                     </div>
                   )}
-                  {opcionPrecio && (
-                    <span className="text-xs font-black text-slate-900 leading-none">
-                      ${(productosParaExportarQR[0]?.precioVenta || 45000).toLocaleString('es-CO')}
-                    </span>
+
+                  {/* Fila 2: Nombre del Producto Completo (100% ancho sin cortar) */}
+                  {opcionNombre && (
+                    <div className="text-xs font-black text-black leading-tight text-left break-words w-full">
+                      {productosParaExportarQR[0]?.nombre || "Camisa Polo Manga Corta Gris"}
+                    </div>
+                  )}
+
+                  {/* Fila 3: Cuerpo Inferior Asimétrico (QR Izq + Datos Der) o Barras Ancho Completo + Esquinas Inferiores */}
+                  {formatoCodigoEtiqueta === 'qr' ? (
+                    <div className="flex items-center justify-between gap-2.5 w-full pt-0.5">
+                      <div className="p-1 bg-white border border-slate-200 rounded-lg shrink-0">
+                        <QrCode size={52} className="text-black" />
+                      </div>
+                      <div className="flex-1 flex flex-col items-end justify-between text-right min-w-0 gap-1">
+                        {opcionSku && (
+                          <span className="text-[10px] font-black text-black leading-none break-all">
+                            {formatearTextoSKU(productosParaExportarQR[0]?.sku || "SKU-7773")}
+                          </span>
+                        )}
+                        {opcionPrecio && (
+                          <span className="text-base font-black text-black leading-none tracking-tight my-0.5">
+                            ${(productosParaExportarQR[0]?.precioVenta || 25000).toLocaleString('es-CO')}
+                          </span>
+                        )}
+                        {(opcionFechaIngreso || opcionTopeRebaja) && (
+                          <div className="flex flex-wrap items-center justify-end gap-1 leading-none">
+                            {opcionFechaIngreso && (
+                              <span className="text-[9.5px] font-black text-black">
+                                ING:{obtenerFechaIngresoEtiqueta(productosParaExportarQR[0])}
+                              </span>
+                            )}
+                            {opcionTopeRebaja && (
+                              <span className="text-[9.5px] font-black text-black border border-black px-1 py-0.5 rounded">
+                                {calcularDatosTopeRebaja(productosParaExportarQR[0]).textoEtiqueta}
+                              </span>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex flex-col w-full gap-1 pt-0.5">
+                      <div 
+                        className="w-full flex items-center justify-center overflow-hidden" 
+                        dangerouslySetInnerHTML={{ 
+                          __html: generarSvgCodigoBarras(productosParaExportarQR[0]?.sku || "SKU-7773", { width: 1.5, height: 26, displayValue: false }) 
+                        }} 
+                      />
+                      <div className="flex items-end justify-between gap-2 w-full pt-0.5">
+                        <div className="flex flex-col items-start text-left min-w-0 gap-0.5">
+                          {opcionSku && (
+                            <span className="text-[9.5px] font-black text-black leading-none break-all">
+                              {formatearTextoSKU(productosParaExportarQR[0]?.sku || "SKU-7773")}
+                            </span>
+                          )}
+                          {(opcionFechaIngreso || opcionTopeRebaja) && (
+                            <div className="flex flex-wrap items-center gap-1 leading-none">
+                              {opcionFechaIngreso && (
+                                <span className="text-[9px] font-black text-black">
+                                  ING:{obtenerFechaIngresoEtiqueta(productosParaExportarQR[0])}
+                                </span>
+                              )}
+                              {opcionTopeRebaja && (
+                                <span className="text-[9px] font-black text-black border border-black px-1 py-0.5 rounded">
+                                  {calcularDatosTopeRebaja(productosParaExportarQR[0]).textoEtiqueta}
+                                </span>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                        {opcionPrecio && (
+                          <span className="text-sm font-black text-black leading-none text-right shrink-0 ml-auto">
+                            ${(productosParaExportarQR[0]?.precioVenta || 25000).toLocaleString('es-CO')}
+                          </span>
+                        )}
+                      </div>
+                    </div>
                   )}
                 </div>
               </div>
@@ -5281,10 +5850,10 @@ export default function InventarioPage() {
                 </div>
                 <div className="min-w-0">
                   <h3 className="text-xs sm:text-lg font-black text-slate-900 dark:text-white flex items-center gap-1.5 truncate">
-                    {editandoId ? 'Editar' : 'Inventario'}
+                    {editandoId ? (modoEdicionProducto === 'surtir' ? 'Surtir Producto' : 'Editar Producto') : 'Inventario'}
                   </h3>
                   <p className="text-[10px] sm:text-[11px] text-slate-500 dark:text-slate-400 truncate hidden sm:block">
-                    {editandoId ? `Modificando referencia seleccionada` : `${inventario.length} referencias en catálogo`}
+                    {editandoId ? (modoEdicionProducto === 'surtir' ? 'Sumando nuevas unidades sin mezclar costos anteriores' : 'Modificando datos del producto') : `${inventario.length} referencias en catálogo`}
                   </p>
                 </div>
               </div>
@@ -5318,10 +5887,10 @@ export default function InventarioPage() {
                       setModalProducto(false);
                       setModalEscanerInventario(true);
                     }}
-                    className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] sm:text-xs font-black shadow-md shadow-emerald-600/25 transition active:scale-95 cursor-pointer shrink-0"
-                    title="Abrir el escáner de cámara"
+                    className="flex items-center gap-1.5 px-2.5 sm:px-3 lg:px-2.5 py-1 sm:py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 lg:bg-emerald-500/15 lg:hover:bg-emerald-500/25 lg:text-emerald-700 dark:lg:text-emerald-300 lg:border lg:border-emerald-500/30 text-white text-[11px] sm:text-xs font-black shadow-md lg:shadow-none shadow-emerald-600/25 transition active:scale-95 cursor-pointer shrink-0"
+                    title="Abrir cámara web • Si usas pistola láser, dispara directo en cualquier momento sin hacer clic aquí"
                   >
-                    <ScanLine size={14} /> <span>Escanear</span>
+                    <ScanLine size={14} /> <span className="lg:hidden">Escanear</span>
                   </button>
                 )}
                 
@@ -5348,29 +5917,25 @@ export default function InventarioPage() {
             <div className="flex-1 overflow-hidden grid grid-cols-1 lg:grid-cols-[1.15fr_0.85fr] xl:grid-cols-[1.2fr_0.8fr]">
               
               {/* COLUMNA IZQUIERDA: FORMULARIO DE INGRESO Y EDICIÓN COMPACTO SIN SCROLL */}
-              <div className={`flex flex-col h-full overflow-y-auto lg:overflow-hidden p-2.5 sm:p-5 space-y-3 sm:space-y-4 ${tabMovilModal === 'formulario' ? 'flex' : 'hidden lg:flex'}`}>
+              <div className={`flex flex-col h-full overflow-y-auto lg:overflow-hidden p-2.5 sm:p-4 space-y-2 sm:space-y-2.5 ${tabMovilModal === 'formulario' ? 'flex' : 'hidden lg:flex'}`}>
                 
                 {/* Banner de Modo Edición Activo */}
                 {/* Selector de Modo cuando se selecciona un producto existente: Surtir vs Editar */}
                 {editandoId && (
-                  <div className="p-2.5 bg-slate-100/90 dark:bg-slate-900/90 border border-slate-200 dark:border-slate-800 rounded-xl space-y-2 shadow-xs shrink-0">
-                    <div className="flex items-center justify-between gap-2">
-                      <p className="text-xs font-black text-slate-800 dark:text-slate-100 truncate">
-                        Producto: "{nombre || 'Sin nombre'}"
-                      </p>
+                  <div className="p-2 bg-slate-100/90 dark:bg-slate-900/90 border border-slate-200 dark:border-slate-800 rounded-xl flex flex-wrap items-center justify-between gap-2 shadow-xs shrink-0">
+                    <div className="flex items-center gap-1.5 min-w-0">
                       <button
                         type="button"
-                        onClick={limpiarFormulario}
-                        className="px-2 py-0.5 text-[11px] font-bold bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-600 dark:text-slate-300 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-700 transition shrink-0 cursor-pointer"
-                      >
-                        Cancelar
-                      </button>
-                    </div>
-                    <div className="grid grid-cols-2 gap-1.5">
-                      <button
-                        type="button"
-                        onClick={() => setModoEdicionProducto('surtir')}
-                        className={`py-1.5 px-2.5 rounded-lg text-[11px] font-black flex items-center justify-center gap-1.5 transition cursor-pointer ${
+                        onClick={() => {
+                          setModoEdicionProducto('surtir');
+                          setProveedorEntrada('');
+                          const prodOrig = inventario.find(p => p.id === editandoId);
+                          if (prodOrig) {
+                            setStock(String(prodOrig.stock ?? '0'));
+                            setCostoCompra(prodOrig.costoCompra ? String(prodOrig.costoCompra) : '');
+                          }
+                        }}
+                        className={`py-1.5 px-3 rounded-lg text-[11px] font-black flex items-center gap-1.5 transition cursor-pointer ${
                           modoEdicionProducto === 'surtir'
                             ? 'bg-emerald-600 text-white shadow-xs'
                             : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 hover:bg-slate-50'
@@ -5380,8 +5945,19 @@ export default function InventarioPage() {
                       </button>
                       <button
                         type="button"
-                        onClick={() => setModoEdicionProducto('editar')}
-                        className={`py-1.5 px-2.5 rounded-lg text-[11px] font-black flex items-center justify-center gap-1.5 transition cursor-pointer ${
+                        onClick={() => {
+                          setModoEdicionProducto('editar');
+                          const prodOrig = inventario.find(p => p.id === editandoId);
+                          const lotesNorm = prodOrig ? obtenerLotesNormalizados(prodOrig) : [];
+                          setLotesEnEdicion(lotesNorm);
+                          setLoteSeleccionadoIdx(0);
+                          if (lotesNorm.length > 0) {
+                            setCostoCompra(lotesNorm[0].costoUnitario ? String(lotesNorm[0].costoUnitario) : '');
+                            setProveedorEntrada(lotesNorm[0].proveedor || prodOrig?.proveedor || '');
+                            setStock(String(lotesNorm.reduce((acc, l) => acc + l.cantidad, 0)));
+                          }
+                        }}
+                        className={`py-1.5 px-3 rounded-lg text-[11px] font-black flex items-center gap-1.5 transition cursor-pointer ${
                           modoEdicionProducto === 'editar'
                             ? 'bg-amber-500 text-white shadow-xs'
                             : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 hover:bg-slate-50'
@@ -5390,6 +5966,13 @@ export default function InventarioPage() {
                         <span>✏️ Editar Producto</span>
                       </button>
                     </div>
+                    <button
+                      type="button"
+                      onClick={limpiarFormulario}
+                      className="px-2.5 py-1 text-[11px] font-bold bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-600 dark:text-slate-300 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-700 transition shrink-0 cursor-pointer"
+                    >
+                      Cancelar
+                    </button>
                   </div>
                 )}
                 {false && editandoId && (
@@ -5636,7 +6219,7 @@ export default function InventarioPage() {
                               setModalProducto(false);
                               setModalEscanerInventario(true);
                             }}
-                            className="text-[10px] sm:text-[11px] font-bold text-emerald-600 dark:text-emerald-400 hover:underline flex items-center gap-0.5 cursor-pointer"
+                            className="lg:hidden text-[10px] sm:text-[11px] font-bold text-emerald-600 dark:text-emerald-400 hover:underline flex items-center gap-0.5 cursor-pointer"
                           >
                             <ScanLine size={10} /> Escanear
                           </button>
@@ -5646,6 +6229,26 @@ export default function InventarioPage() {
                         type="text" 
                         value={sku} 
                         onChange={(e) => setSku(e.target.value)} 
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' && sku.trim()) {
+                            const sUpper = sku.trim().toUpperCase();
+                            const sNorm = sUpper.replace(/^(SKU|REF|COD)[-_ ]*/i, '');
+                            const coincidenciaSku = inventario.find(p => {
+                              const pSku = (p.sku || '').trim().toUpperCase();
+                              const pBar = (p.codigoBarras || '').trim().toUpperCase();
+                              const pSkuNorm = pSku.replace(/^(SKU|REF|COD)[-_ ]*/i, '');
+                              const pBarNorm = pBar.replace(/^(SKU|REF|COD)[-_ ]*/i, '');
+                              return pSku === sUpper || pBar === sUpper || (sNorm && (pSkuNorm === sNorm || pBarNorm === sNorm));
+                            });
+                            if (coincidenciaSku) {
+                              e.preventDefault();
+                              reproducirSonidoCamara();
+                              abrirEdicion(coincidenciaSku, 'surtir');
+                              setCantidadSurtir('1');
+                              toast.success(`✓ "${coincidenciaSku.nombre}" cargado automáticamente para surtir (+1 u.)`, { icon: '📦' });
+                            }
+                          }
+                        }}
                         placeholder="Código de barras o ref." 
                         className="w-full py-2 px-3 bg-white dark:bg-[#020617] border border-slate-200 dark:border-slate-700 rounded-xl outline-none font-mono font-bold text-xs sm:text-sm focus:border-emerald-500 text-slate-900 dark:text-white transition-all shadow-xs" 
                       />
@@ -5733,13 +6336,15 @@ export default function InventarioPage() {
                       </div>
                     </div>
                   </div>
+                    </div>{/* end flex-1 space-y-3 */}
+                  </div>{/* end flex flex-col sm:flex-row (photo row) */}
 
-                  {/* Fila 3: Precio Venta, Costo Compra y Stock (Todo en 1 fila) */}
-                  <div className={`grid ${datosSesion?.esAdmin !== false ? 'grid-cols-3 sm:grid-cols-3' : 'grid-cols-2 sm:grid-cols-2'} gap-2 sm:gap-3`}>
+                  {/* Fila 3: Precio Venta, Costo Compra, Stock y Proveedor (Ancho completo del formulario sin cortar texto y sin scroll) */}
+                  <div className={`grid ${datosSesion?.esAdmin !== false ? 'grid-cols-2 sm:grid-cols-4' : 'grid-cols-2 sm:grid-cols-3'} gap-2 sm:gap-2.5`}>
                     
                     {/* Precio Venta */}
                     <div className="space-y-1">
-                      <label className="text-[10px] sm:text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider block truncate">
+                      <label className="text-[10px] sm:text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-tight block whitespace-nowrap">
                         Precio Venta ($) *
                       </label>
                       <input 
@@ -5759,24 +6364,39 @@ export default function InventarioPage() {
                     {/* Costo Compra (Solo Admin) */}
                     {datosSesion?.esAdmin !== false && (
                       <div className="space-y-1">
-                        <label className="text-[10px] sm:text-xs font-bold text-indigo-700 dark:text-indigo-300 uppercase tracking-wider block truncate">
-                          {editandoId && modoEdicionProducto === 'surtir' ? 'Costo Nueva Compra ($)' : 'Costo Compra ($)'}
+                        <label className="text-[10px] sm:text-[11px] font-bold text-indigo-700 dark:text-indigo-300 uppercase tracking-tight block whitespace-nowrap">
+                          {editandoId && modoEdicionProducto === 'editar' && lotesEnEdicion.length > 1
+                            ? `Costo Lote ${loteSeleccionadoIdx + 1} ($)`
+                            : 'Costo Compra ($)'}
                         </label>
                         <input 
                           type="text" 
                           inputMode="decimal" pattern="[0-9]*" 
                           value={formatearMonedaInput(costoCompra)} 
-                          onChange={(e) => setCostoCompra(e.target.value.replace(/\D/g, ''))} 
+                          onChange={(e) => {
+                            const limpio = e.target.value.replace(/\D/g, '');
+                            setCostoCompra(limpio);
+                            if (editandoId && modoEdicionProducto === 'editar' && lotesEnEdicion.length > 0) {
+                              const nuevoCosto = Number(limpio) || 0;
+                              setLotesEnEdicion(prev => prev.map((l, idx) => idx === loteSeleccionadoIdx ? { ...l, costoUnitario: nuevoCosto } : l));
+                            }
+                          }} 
                           placeholder="$0 (opcional)" 
                           className="w-full py-2 px-3 bg-white dark:bg-[#020617] border border-indigo-200 dark:border-indigo-800 rounded-xl outline-none font-bold text-xs sm:text-sm text-slate-900 dark:text-white focus:border-indigo-500" 
                         />
                       </div>
                     )}
 
-                    {/* Stock Inicial / Actual */}
+                    {/* Stock Inicial / Actual / Cantidad Lote */}
                     <div className="space-y-1">
-                      <label className="text-[10px] sm:text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider block truncate">
-                        {editandoId ? (modoEdicionProducto === 'surtir' ? `+ Sumar (Hay ${stock || 0} u.)` : 'Stock Actual') : 'Stock Inicial'}
+                      <label className="text-[10px] sm:text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-tight block whitespace-nowrap">
+                        {editandoId
+                          ? (modoEdicionProducto === 'surtir'
+                              ? `+ Sumar (Hay ${stock || 0} u.)`
+                              : lotesEnEdicion.length > 1
+                                ? `Cant. Lote ${loteSeleccionadoIdx + 1} (u.)`
+                                : 'Stock Actual')
+                          : 'Stock Inicial'}
                       </label>
                       {tipoProducto === 'producto' && inventariable && editandoId && modoEdicionProducto === 'surtir' ? (
                         <input
@@ -5791,6 +6411,24 @@ export default function InventarioPage() {
                           placeholder="+ Ej. 20"
                           className="w-full py-2 px-3 bg-emerald-50/60 dark:bg-emerald-950/30 border-2 border-emerald-500 rounded-xl outline-none font-black text-xs sm:text-sm text-emerald-900 dark:text-emerald-200"
                         />
+                      ) : tipoProducto === 'producto' && inventariable && editandoId && modoEdicionProducto === 'editar' && lotesEnEdicion.length > 1 ? (
+                        <input
+                          type="number"
+                          min="0"
+                          value={lotesEnEdicion[loteSeleccionadoIdx]?.cantidad ?? 0}
+                          onChange={(e) => {
+                            const nuevaCant = Math.max(0, Math.round(Number(e.target.value) || 0));
+                            setLotesEnEdicion(prev => {
+                              const actualizados = prev.map((l, idx) => idx === loteSeleccionadoIdx ? { ...l, cantidad: nuevaCant } : l);
+                              const sumaTotal = actualizados.reduce((acc, l) => acc + l.cantidad, 0);
+                              setStock(String(sumaTotal));
+                              return actualizados;
+                            });
+                            setErrores(prev => ({ ...prev, stock: '' }));
+                          }}
+                          placeholder="0"
+                          className="w-full py-2 px-3 bg-amber-50/50 dark:bg-amber-950/20 border border-amber-400 dark:border-amber-700 rounded-xl outline-none font-black text-xs sm:text-sm text-slate-900 dark:text-white focus:border-amber-500"
+                        />
                       ) : tipoProducto === 'producto' && inventariable ? (
                         <input 
                           type="number" 
@@ -5802,7 +6440,11 @@ export default function InventarioPage() {
                               setStock(raw);
                             } else {
                               const valor = Number(raw);
-                              setStock(String(editandoId ? valor : Math.max(0, valor)));
+                              const nuevoStockStr = String(editandoId ? valor : Math.max(0, valor));
+                              setStock(nuevoStockStr);
+                              if (editandoId && modoEdicionProducto === 'editar' && lotesEnEdicion.length === 1) {
+                                setLotesEnEdicion(prev => prev.map((l, idx) => idx === 0 ? { ...l, cantidad: Math.max(0, Math.round(valor)) } : l));
+                              }
                             }
                             setErrores(prev => ({ ...prev, stock: '' })); 
                           }} 
@@ -5817,9 +6459,30 @@ export default function InventarioPage() {
                       {errores.stock && <p className="text-[9px] text-rose-500 font-bold leading-tight">⚠️ {errores.stock}</p>}
                     </div>
 
+                    {/* Proveedor (Opcional) — integrado con la misma estética de los demás campos y 0 scroll */}
+                    <div className="space-y-1">
+                      <label className="text-[10px] sm:text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-tight block whitespace-nowrap">
+                        {editandoId && modoEdicionProducto === 'editar' && lotesEnEdicion.length > 1
+                          ? `Proveedor Lote ${loteSeleccionadoIdx + 1}`
+                          : 'Proveedor (Opcional)'}
+                      </label>
+                      <input
+                        type="text"
+                        value={proveedorEntrada}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setProveedorEntrada(val);
+                          if (editandoId && modoEdicionProducto === 'editar' && lotesEnEdicion.length > 0) {
+                            setLotesEnEdicion(prev => prev.map((l, idx) => idx === loteSeleccionadoIdx ? { ...l, proveedor: val.trim() || undefined } : l));
+                          }
+                        }}
+                        placeholder="Ej. Fábrica / Distr."
+                        className="w-full py-2 px-3 bg-white dark:bg-[#020617] border border-slate-200 dark:border-slate-700 rounded-xl outline-none font-semibold text-xs sm:text-sm text-slate-900 dark:text-white focus:border-emerald-500 placeholder:text-slate-400"
+                      />
+                    </div>
+
                   </div>
 
-                  {/* Resumen de ganancia estimada (si es admin y ambos tienen valor) */}
                   {/* Resumen de ganancia estimada y detector inteligente de lotes / costos */}
                   {(() => {
                     if (datosSesion?.esAdmin === false) return null;
@@ -5838,21 +6501,31 @@ export default function InventarioPage() {
 
                     const stockAnterior = prodRef ? Math.max(0, Number(prodRef.stock) || 0) : 0;
                     const costoAnterior = prodRef ? Number(prodRef.costoCompra) || 0 : 0;
+                    const esEdicionConMultiLotes = Boolean(editandoId && modoEdicionProducto === 'editar' && lotesEnEdicion.length > 1);
                     const unidadesNuevas = prodRef
                       ? (editandoId
-                          ? (modoEdicionProducto === 'surtir' ? Math.max(0, Number(cantidadSurtir) || 0) : stockNum - stockAnterior)
+                          ? (modoEdicionProducto === 'surtir'
+                              ? Math.max(0, Number(cantidadSurtir) || 0)
+                              : esEdicionConMultiLotes
+                                ? 0
+                                : stockNum - stockAnterior)
                           : stockNum)
                       : 0;
 
+                    const lotesBase = (editandoId && modoEdicionProducto === 'editar' && lotesEnEdicion.length > 0)
+                      ? lotesEnEdicion
+                      : (prodRef ? obtenerLotesNormalizados(prodRef) : []);
                     const mostrarDesgloseLotes = Boolean(
                       prodRef &&
                       ((editandoId && modoEdicionProducto === 'surtir') ||
+                        lotesBase.length > 1 ||
                         (stockAnterior > 0 && costoAnterior > 0 && costoNum > 0 && costoNum !== costoAnterior && unidadesNuevas > 0))
                     );
 
                     const soloCambioCostoSinSubirStock = Boolean(
                       prodRef &&
                       editandoId &&
+                      lotesBase.length <= 1 &&
                       stockAnterior > 0 &&
                       costoAnterior > 0 &&
                       costoNum > 0 &&
@@ -5862,7 +6535,7 @@ export default function InventarioPage() {
 
                     return (
                       <div className="space-y-2">
-                        {precioNum > 0 && costoNum > 0 && (
+                        {precioNum > 0 && costoNum > 0 && !mostrarDesgloseLotes && (
                           <div className="p-2 bg-emerald-500/10 border border-emerald-500/20 rounded-xl text-xs flex items-center justify-between">
                             <span className="text-emerald-700 dark:text-emerald-300 font-bold">Ganancia estimada por unidad:</span>
                             <span className="text-emerald-700 dark:text-emerald-300 font-black">
@@ -5871,43 +6544,85 @@ export default function InventarioPage() {
                           </div>
                         )}
 
-                        {mostrarDesgloseLotes && (
-                          <div className="p-2.5 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/60 rounded-xl text-[11px] space-y-1.5">
-                            <div className="font-black text-amber-800 dark:text-amber-300 flex items-center justify-between">
-                              <span>📦 {costoNum !== costoAnterior && costoNum > 0 && costoAnterior > 0 ? `Nuevo lote con costo diferente (+${unidadesNuevas} u.)` : `Resumen de entrada de mercancía (+${unidadesNuevas} u.)`}</span>
-                              <span className="text-[10px] px-2 py-0.5 rounded-md bg-amber-100 dark:bg-amber-900/50 text-amber-900 dark:text-amber-200">
-                                Nuevo Total: {stockAnterior + Math.max(0, unidadesNuevas)} u.
-                              </span>
-                            </div>
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 pt-0.5">
-                              <div className="p-2 rounded-lg bg-white dark:bg-slate-900 border border-amber-200/70 dark:border-slate-800">
-                                <span className="text-[10px] font-bold uppercase text-slate-400 block">Stock anterior</span>
-                                <span className="font-black text-slate-800 dark:text-white">
-                                  {stockAnterior} u. × ${costoAnterior.toLocaleString('es-CO')}
+                        {mostrarDesgloseLotes && (() => {
+                          const totalUnidadesMostradas = editandoId && modoEdicionProducto === 'editar'
+                            ? lotesBase.reduce((acc, l) => acc + Math.max(0, Number(l.cantidad) || 0), 0)
+                            : stockAnterior + Math.max(0, unidadesNuevas);
+                          const puedeSeleccionarLote = Boolean(editandoId && modoEdicionProducto === 'editar' && lotesBase.length > 1);
+
+                          return (
+                            <div className="p-2 bg-amber-50/90 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/60 rounded-xl text-[11px] space-y-1.5">
+                              <div className="font-black text-amber-800 dark:text-amber-300 flex items-center justify-between gap-2">
+                                <span>
+                                  📦 {unidadesNuevas > 0
+                                    ? (costoNum !== costoAnterior && costoNum > 0 && costoAnterior > 0 ? `Lotes separados sin mezclar (+${unidadesNuevas} u.)` : `Entrada de mercancía (+${unidadesNuevas} u.)`)
+                                    : puedeSeleccionarLote
+                                      ? `Lotes activos (${lotesBase.length}) — Toca un lote para editarlo`
+                                      : `Lotes activos en inventario (${lotesBase.length} lotes)`}
                                 </span>
-                                {precioNum > 0 && (
-                                  <span className="block text-[10px] font-bold text-emerald-600 dark:text-emerald-400">
-                                    Ganancia: +${(precioNum - costoAnterior).toLocaleString('es-CO')} c/u
-                                  </span>
+                                <span className="text-[10px] px-2 py-0.5 rounded-md bg-amber-100 dark:bg-amber-900/50 text-amber-900 dark:text-amber-200 shrink-0">
+                                  Total: {totalUnidadesMostradas} u.
+                                </span>
+                              </div>
+                              <div className="grid grid-cols-2 gap-1.5">
+                                {lotesBase.map((lote, idxLote) => {
+                                  const esSeleccionado = puedeSeleccionarLote && idxLote === loteSeleccionadoIdx;
+                                  return (
+                                    <button
+                                      type="button"
+                                      key={lote.id || idxLote}
+                                      disabled={!puedeSeleccionarLote}
+                                      onClick={() => {
+                                        if (!puedeSeleccionarLote) return;
+                                        setLoteSeleccionadoIdx(idxLote);
+                                        setCostoCompra(lote.costoUnitario ? String(lote.costoUnitario) : '');
+                                        setProveedorEntrada(lote.proveedor || '');
+                                      }}
+                                      className={`px-2.5 py-1 rounded-lg text-left flex items-center justify-between gap-1 transition ${
+                                        esSeleccionado
+                                          ? 'bg-amber-100/90 dark:bg-amber-900/60 border-2 border-amber-500 ring-2 ring-amber-500/20 shadow-xs cursor-pointer'
+                                          : puedeSeleccionarLote
+                                            ? 'bg-white dark:bg-slate-900 border border-amber-200/80 dark:border-slate-800 hover:border-amber-400 cursor-pointer opacity-85 hover:opacity-100'
+                                            : 'bg-white dark:bg-slate-900 border border-amber-200/70 dark:border-slate-800 cursor-default'
+                                      }`}
+                                    >
+                                      <div className="min-w-0">
+                                        <span className={`text-[9px] font-bold uppercase block leading-tight break-words ${esSeleccionado ? 'text-amber-800 dark:text-amber-300' : 'text-slate-400'}`}>
+                                          Lote {idxLote + 1}{lote.proveedor ? ` • ${lote.proveedor}` : ' (Actual)'}{esSeleccionado ? ' • ✏️ Editando' : ''}
+                                        </span>
+                                        <span className="font-black text-slate-800 dark:text-white text-[11px]">
+                                          {lote.cantidad} u. × ${Number(lote.costoUnitario || 0).toLocaleString('es-CO')}
+                                        </span>
+                                      </div>
+                                      {precioNum > 0 && (
+                                        <span className="text-[10px] font-black text-emerald-600 dark:text-emerald-400 shrink-0">
+                                          +${(precioNum - Number(lote.costoUnitario || 0)).toLocaleString('es-CO')}
+                                        </span>
+                                      )}
+                                    </button>
+                                  );
+                                })}
+                                {unidadesNuevas > 0 && (
+                                  <div className="px-2.5 py-1 rounded-lg bg-white dark:bg-slate-900 border border-amber-300 dark:border-amber-700/60 flex items-center justify-between gap-1">
+                                    <div className="min-w-0">
+                                      <span className="text-[9px] font-bold uppercase text-amber-600 dark:text-amber-400 block leading-tight break-words">
+                                        Lote {lotesBase.length + 1}{proveedorEntrada.trim() ? ` • ${proveedorEntrada.trim()}` : ' (Nuevo)'}
+                                      </span>
+                                      <span className="font-black text-slate-800 dark:text-white text-[11px]">
+                                        +{unidadesNuevas} u. × ${costoNum.toLocaleString('es-CO')}
+                                      </span>
+                                    </div>
+                                    {precioNum > 0 && (
+                                      <span className="text-[10px] font-black text-emerald-600 dark:text-emerald-400 shrink-0">
+                                        +${(precioNum - costoNum).toLocaleString('es-CO')}
+                                      </span>
+                                    )}
+                                  </div>
                                 )}
                               </div>
-                              <div className="p-2 rounded-lg bg-white dark:bg-slate-900 border border-amber-300 dark:border-amber-700/60">
-                                <span className="text-[10px] font-bold uppercase text-amber-600 dark:text-amber-400 block">Nueva compra (+{unidadesNuevas} u.)</span>
-                                <span className="font-black text-slate-800 dark:text-white">
-                                  {unidadesNuevas} u. × ${costoNum.toLocaleString('es-CO')}
-                                </span>
-                                {precioNum > 0 && (
-                                  <span className="block text-[10px] font-bold text-emerald-600 dark:text-emerald-400">
-                                    Ganancia: +${(precioNum - costoNum).toLocaleString('es-CO')} c/u
-                                  </span>
-                                )}
-                              </div>
                             </div>
-                            <p className="text-[10px] text-amber-700 dark:text-amber-300/90 leading-snug">
-                              Se guardará esta entrada en el <strong>Historial → Entrada de Mercancía</strong> con su costo real (${costoNum.toLocaleString('es-CO')}) y el costo anterior (${costoAnterior.toLocaleString('es-CO')}).
-                            </p>
-                          </div>
-                        )}
+                          );
+                        })()}
 
                         {soloCambioCostoSinSubirStock && (
                           <div className="p-2 bg-indigo-50/70 dark:bg-indigo-950/30 border border-indigo-200 dark:border-indigo-800/50 rounded-xl text-[11px] text-indigo-800 dark:text-indigo-200">
@@ -5926,21 +6641,18 @@ export default function InventarioPage() {
                     </div>
                   )}
 
-                    </div>{/* end flex-1 space-y-3 */}
-                  </div>{/* end flex flex-col sm:flex-row (photo row) */}
-
                 </div>{/* end form container */}
 
                 {/* Botones de Acción integrados directamente con el formulario */}
-                <div className="shrink-0 space-y-2">
-                  {editandoId ? (
+                <div className="shrink-0 sticky bottom-0 bg-white dark:bg-[#0b1329] pt-1.5 pb-1 z-10 space-y-1.5">
+                  {editandoId && modoEdicionProducto === 'editar' ? (
                     <div className="grid grid-cols-2 gap-2 sm:gap-3">
                       <button
                         type="button"
                         onClick={limpiarFormulario}
                         className="py-2.5 px-3 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-700 dark:text-slate-300 font-bold rounded-xl text-xs sm:text-sm transition cursor-pointer"
                       >
-                        Cancelar Edición
+                        Cancelar
                       </button>
                       <button
                         type="button"
@@ -5948,8 +6660,60 @@ export default function InventarioPage() {
                         disabled={guardando}
                         className="py-2.5 px-3 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-black rounded-xl shadow-md shadow-emerald-600/25 flex items-center justify-center gap-1.5 text-xs sm:text-sm transition active:scale-95 cursor-pointer"
                       >
-                        {guardando ? 'Guardando...' : (modoEdicionProducto === 'surtir' ? <>✓ Sumar Entrada (+{Number(cantidadSurtir) || 0} u.)</> : <>✓ Actualizar en Catálogo</>)}
+                        {guardando ? 'Guardando...' : <>✓ Guardar Cambios</>}
                       </button>
+                    </div>
+                  ) : editandoId && modoEdicionProducto === 'surtir' ? (
+                    <div className="space-y-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const cantAdd = Math.round(Number(cantidadSurtir) || 0);
+                          if (cantAdd <= 0) {
+                            toast.error('Ingresa cuántas unidades nuevas vas a sumar.');
+                            return;
+                          }
+                          const prodOrig = inventario.find(p => p.id === editandoId);
+                          if (!prodOrig) return;
+                          agregarOActualizarProductoEnCarga({
+                            id: `carga_${prodOrig.id}`,
+                            esExistente: true,
+                            productoId: prodOrig.id,
+                            nombre: nombre.trim() || prodOrig.nombre,
+                            sku: sku.trim() || prodOrig.sku || prodOrig.codigoBarras || '',
+                            stock: cantAdd,
+                            precioVenta: Number((precioVenta || '').replace(/\D/g, '')) || prodOrig.precioVenta || 0,
+                            costoCompra: Number((costoCompra || '').replace(/\D/g, '')) || prodOrig.costoCompra || 0,
+                            tipoProducto: prodOrig.tipoProducto || tipoProducto,
+                            categoria: categoria.trim() || prodOrig.categoria || 'General',
+                            inventariable: prodOrig.inventariable !== false,
+                            imagen: imagenUrl || prodOrig.imagen || null,
+                            ...(proveedorEntrada.trim() ? { proveedor: proveedorEntrada.trim() } : {}),
+                            enCarga: true,
+                          });
+                          toast.success(`"${prodOrig.nombre}" agregado a la lista (+${cantAdd} u.)`);
+                          limpiarFormulario();
+                        }}
+                        disabled={guardando}
+                        className="w-full py-2.5 sm:py-3 px-4 bg-sky-600 hover:bg-sky-700 disabled:opacity-50 text-white font-black rounded-xl shadow-md text-xs sm:text-sm flex items-center justify-center gap-2 active:scale-98 transition cursor-pointer"
+                        title="Agrega este surtido a la lista de la derecha para guardarlo en el inventario"
+                      >
+                        ➕ Agregar Surtido a la Lista (+{Number(cantidadSurtir) || 0} u.)
+                      </button>
+
+                      {productosEnCarga.length > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => setTabMovilModal('lista')}
+                          className="lg:hidden w-full py-1.5 px-3 bg-sky-50 hover:bg-sky-100 dark:bg-sky-950/40 dark:hover:bg-sky-900/50 border border-sky-200 dark:border-sky-800 text-sky-700 dark:text-sky-300 font-bold rounded-xl text-xs flex items-center justify-between transition cursor-pointer"
+                        >
+                          <span className="flex items-center gap-1.5">
+                            <LayoutList size={13} className="text-sky-600 dark:text-sky-400" />
+                            <span>{productosEnCarga.length} producto(s) en la cola</span>
+                          </span>
+                          <span className="text-[11px] underline font-black">Ver cola →</span>
+                        </button>
+                      )}
                     </div>
                   ) : (
                     <div className="space-y-2">
@@ -6033,7 +6797,7 @@ export default function InventarioPage() {
                           Tu cola de carga está vacía
                         </p>
                         <p className="text-[11px] text-slate-400 leading-relaxed">
-                          Diligencia el formulario a la izquierda y presiona <strong className="text-sky-600 dark:text-sky-400">"Encolar y Seguir Agregando"</strong> o usa el <strong className="text-emerald-600 dark:text-emerald-400">Escáner</strong>. Aquí irás viendo todo en tiempo real antes de guardarlo en tu inventario.
+                          Diligencia el formulario a la izquierda y presiona <strong className="text-sky-600 dark:text-sky-400">"Encolar y Seguir Agregando"</strong> o <strong className="text-emerald-600 dark:text-emerald-400">dispara tu pistola lectora / usa la cámara</strong>. Aquí irás viendo todo en tiempo real antes de guardarlo en tu inventario.
                         </p>
                       </div>
                       <button
@@ -6043,8 +6807,9 @@ export default function InventarioPage() {
                           setModalEscanerInventario(true);
                         }}
                         className="mt-2 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 text-xs font-bold transition cursor-pointer"
+                        title="Abrir cámara web para escanear códigos"
                       >
-                        <ScanLine size={14} /> Abrir Escáner de Códigos
+                        <ScanLine size={14} /> <span className="lg:hidden">Abrir Escáner de Códigos</span><span className="hidden lg:inline">Usar Cámara Web</span>
                       </button>
                     </div>
                   ) : (

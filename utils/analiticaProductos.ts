@@ -14,6 +14,12 @@ import { Movimiento } from "@/types";
  *  - Los abonos NO se atribuyen a productos (pagan deuda global del cliente).
  */
 
+export interface LoteVendidoStat {
+  costoUnitario: number;
+  unidades: number;
+  ingresos: number;
+}
+
 export interface ProductoStat {
   clave: string;
   productoId: string | null;
@@ -34,6 +40,8 @@ export interface ProductoStat {
   utilidad: number | null;
   /** Porcentaje 0-100. null si no hay base de costo */
   margen: number | null;
+  /** Desglose por lote/costo unitario vendido en el periodo */
+  lotesVendidos: LoteVendidoStat[];
 }
 
 export interface ResumenProductos {
@@ -113,6 +121,7 @@ function acumular(
       ingresosConCosto: 0,
       utilidad: null,
       margen: null,
+      lotesVendidos: [],
     };
     ctx.acc.set(clave, st);
   }
@@ -137,6 +146,18 @@ function acumular(
   if (costoUnit > 0) {
     st.costo += s * costoUnit * o.cantidad;
     st.ingresosConCosto += s * o.ingresos;
+    const costoRedondeado = Math.round(costoUnit);
+    const existente = st.lotesVendidos.find(l => l.costoUnitario === costoRedondeado);
+    if (existente) {
+      existente.unidades += s * o.cantidad;
+      existente.ingresos += s * o.ingresos;
+    } else {
+      st.lotesVendidos.push({
+        costoUnitario: costoRedondeado,
+        unidades: s * o.cantidad,
+        ingresos: s * o.ingresos,
+      });
+    }
   }
 }
 
@@ -247,7 +268,8 @@ export function calcularRendimientoProductos(
     .map(p => {
       const utilidad = p.ingresosConCosto > 0 ? p.ingresosConCosto - p.costo : null;
       const margen = utilidad !== null && p.ingresosConCosto > 0 ? (utilidad / p.ingresosConCosto) * 100 : null;
-      return { ...p, utilidad, margen };
+      const lotesVendidos = p.lotesVendidos.filter(l => l.unidades > 0);
+      return { ...p, utilidad, margen, lotesVendidos };
     });
 
   const totalIngresos = productos.reduce((a, p) => a + p.ingresos, 0);

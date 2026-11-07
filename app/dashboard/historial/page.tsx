@@ -2105,6 +2105,14 @@ Gracias por seguir con nosotros.
                     </span>
                   </div>
                 )}
+                {(movimientoInventarioDetalle as any).proveedor && (
+                  <div className="flex items-center justify-between">
+                    <span className="text-slate-400 font-bold">Proveedor / Nota:</span>
+                    <span className="font-black text-amber-700 dark:text-amber-300">
+                      {(movimientoInventarioDetalle as any).proveedor}
+                    </span>
+                  </div>
+                )}
                 <div className="flex items-center justify-between">
                   <span className="text-slate-400 font-bold">Fecha y Hora:</span>
                   <span className="font-medium text-slate-700 dark:text-slate-300 inline-flex items-center gap-1">

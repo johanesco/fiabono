@@ -180,9 +180,16 @@ export default function PanelProductosEstrella({ resumen, periodoLabel }: Props)
 
                       <div className="min-w-0 flex-1">
                         <p className="font-black text-slate-900 dark:text-slate-100 text-sm sm:text-base break-words leading-tight">{p.nombre}</p>
-                        <span className="inline-block mt-1 text-[10px] font-extrabold uppercase text-slate-500 dark:text-slate-400 bg-slate-200/70 dark:bg-slate-800 px-2 py-0.5 rounded-md break-words">
-                          {p.categoria}
-                        </span>
+                        <div className="flex flex-wrap items-center gap-1.5 mt-1">
+                          <span className="inline-block text-[10px] font-extrabold uppercase text-slate-500 dark:text-slate-400 bg-slate-200/70 dark:bg-slate-800 px-2 py-0.5 rounded-md break-words">
+                            {p.categoria}
+                          </span>
+                          {p.lotesVendidos && p.lotesVendidos.length > 1 && (
+                            <span className="inline-block text-[10px] font-bold text-amber-700 dark:text-amber-300 bg-amber-100/80 dark:bg-amber-950/50 border border-amber-200/80 dark:border-amber-800/60 px-2 py-0.5 rounded-md">
+                              📦 {p.lotesVendidos.length} lotes costeados
+                            </span>
+                          )}
+                        </div>
                         <div className="mt-2 h-1.5 rounded-full bg-slate-200 dark:bg-slate-800 overflow-hidden">
                           <div
                             className={`h-full rounded-full ${i === 0 ? "bg-gradient-to-r from-amber-400 to-amber-500" : "bg-gradient-to-r from-emerald-400 to-emerald-500"}`}
@@ -214,6 +221,38 @@ export default function PanelProductosEstrella({ resumen, periodoLabel }: Props)
                             </div>
                           ))}
                         </div>
+
+                        {p.lotesVendidos && p.lotesVendidos.length > 1 && (
+                          <div className="mt-2.5 bg-amber-50/80 dark:bg-amber-950/25 rounded-xl p-3 border border-amber-200/70 dark:border-amber-800/50">
+                            <p className="text-[10px] font-extrabold uppercase text-amber-800 dark:text-amber-300 mb-1.5">
+                              📦 Desglose real por lote vendido (PEPS / FIFO)
+                            </p>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+                              {p.lotesVendidos.map((lv, idxLv) => {
+                                const costoTotalLote = lv.unidades * lv.costoUnitario;
+                                const utilidadLote = lv.ingresos - costoTotalLote;
+                                return (
+                                  <div
+                                    key={`${lv.costoUnitario}_${idxLv}`}
+                                    className="px-2.5 py-1.5 rounded-lg bg-white dark:bg-[#0f172a] border border-amber-200/60 dark:border-slate-800 flex items-center justify-between gap-2 text-xs"
+                                  >
+                                    <div>
+                                      <span className="text-[10px] font-bold uppercase text-slate-400 block">
+                                        Lote de costo {dinero(lv.costoUnitario)} c/u
+                                      </span>
+                                      <span className="font-black text-slate-800 dark:text-white">
+                                        {Math.round(lv.unidades).toLocaleString("es-CO")} un. vendidas (Costo: {dinero(costoTotalLote)})
+                                      </span>
+                                    </div>
+                                    <span className="font-black text-emerald-600 dark:text-emerald-400 shrink-0">
+                                      +{dinero(utilidadLote)}
+                                    </span>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        )}
 
                         <div className="mt-2.5 grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                           <div className="bg-white dark:bg-[#0f172a] rounded-xl p-3 border border-slate-100 dark:border-slate-800/60">

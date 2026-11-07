@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getAdminAuth, getAdminDb } from '@/lib/firebase-admin';
+import { consumirLotesPEPS } from '@/utils/lotesInventario';
 
 const METODOS_PERMITIDOS = new Set(['efectivo', 'transferencia', 'datafono', 'credito_externo', 'saldo_interno']);
 
@@ -129,18 +130,31 @@ export async function POST(request: Request) {
       const fechaAhora = new Date();
       const autorNombre = usuario.nombreUsuario || decodedToken.email || 'Usuario';
 
+      const consumoPorProducto = new Map<string, ReturnType<typeof consumirLotesPEPS>>();
+      for (const [prodId, infoProd] of Array.from(productosLeidos.entries())) {
+        if (infoProd.data.tipoProducto !== 'servicio' && infoProd.data.inventariable !== false) {
+          consumoPorProducto.set(prodId, consumirLotesPEPS(infoProd.data, infoProd.cantidadRequerida));
+        }
+      }
+
       // Preparar los items que se guardan en separe.items
-      const nuevosItemsParaGuardar = nuevosItemsLimpios.map((it: any) => ({
-        descripcion: it.descripcion,
-        valor: it.valor,
-        cantidad: it.cantidad,
-        cantidadEntregada: 0,
-        idProducto: it.idProducto,
-        fotoUrl: it.fotoUrl,
-        anexadoPosteriormente: true,
-        fechaAnexo: fechaAhora.toISOString(),
-        anexadoPor: autorNombre
-      }));
+      const nuevosItemsParaGuardar = nuevosItemsLimpios.map((it: any) => {
+        const cUnit = it.idProducto && consumoPorProducto.has(it.idProducto)
+          ? consumoPorProducto.get(it.idProducto)!.costoUnitarioVenta
+          : 0;
+        return {
+          descripcion: it.descripcion,
+          valor: it.valor,
+          cantidad: it.cantidad,
+          cantidadEntregada: 0,
+          idProducto: it.idProducto,
+          fotoUrl: it.fotoUrl,
+          ...(cUnit > 0 ? { costoUnitario: cUnit } : {}),
+          anexadoPosteriormente: true,
+          fechaAnexo: fechaAhora.toISOString(),
+          anexadoPor: autorNombre
+        };
+      });
 
       const itemsActualizados = [...itemsActuales, ...nuevosItemsParaGuardar];
 
@@ -192,10 +206,12 @@ export async function POST(request: Request) {
 
       // 3. TODAS LAS ESCRITURAS
       // 3.1 Descontar stock de productos inventariables
-      for (const [, infoProd] of Array.from(productosLeidos.entries())) {
+      for (const [prodId, infoProd] of Array.from(productosLeidos.entries())) {
         if (infoProd.data.tipoProducto !== 'servicio' && infoProd.data.inventariable !== false) {
+          const consumo = consumoPorProducto.get(prodId);
           transaction.update(infoProd.ref, {
-            stock: Number(infoProd.data.stock || 0) - infoProd.cantidadRequerida
+            stock: Number(infoProd.data.stock || 0) - infoProd.cantidadRequerida,
+            ...(consumo ? { lotesCosto: consumo.lotesActualizados, costoCompra: consumo.nuevoCostoCompraActivo } : {}),
           });
         }
       }

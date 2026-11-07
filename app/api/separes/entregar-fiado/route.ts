@@ -84,7 +84,9 @@ export async function POST(request: Request) {
           descripcion: item.descripcion,
           valor: (Number(item.valor) || 0) * (item.cantidad || 1),
           cantidad: item.cantidad || 1,
-          valorUnitario: Number(item.valor) || 0
+          valorUnitario: Number(item.valor) || 0,
+          ...(item.idProducto || item.productoId ? { productoId: item.idProducto || item.productoId } : {}),
+          ...(Number(item.costoUnitario) > 0 ? { costoUnitario: Number(item.costoUnitario) } : {}),
         })),
         fecha: new Date(),
         registradoPor: responsable,

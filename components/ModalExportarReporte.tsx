@@ -180,14 +180,37 @@ export default function ModalExportarReporte({
     const saldoPendienteSepares = separesActivos.reduce((acc, s) => acc + (s.saldoPendiente || 0), 0);
     const abonosSeparesActivos = separesActivos.reduce((acc, s) => acc + (s.montoPagado || 0), 0);
 
-    // Cálculo de utilidad y costos a partir de movimientos con detalle
+    // Cálculo de utilidad y costos a partir de movimientos con detalle (PEPS / lotes exactos)
     let costoTotalMercancia = 0;
+    const indiceMovs = new Map<string, any>();
+    todosMovimientos.forEach((m: any) => indiceMovs.set(m.id, m));
+
     movimientosFiltrados.forEach(m => {
       if (m.tipo === 'venta' && Array.isArray(m.detalles)) {
         m.detalles.forEach((det: any) => {
-          const prod = inventario.find((i: any) => i.nombre === det.descripcion || i.id === det.id);
-          const costoUnit = prod?.precioCosto || 0;
-          costoTotalMercancia += costoUnit * (det.cantidad || 1);
+          const prod = inventario.find(
+            (i: any) =>
+              (det.productoId && i.id === det.productoId) ||
+              (det.id && i.id === det.id) ||
+              (i.nombre && det.descripcion && i.nombre.trim().toLowerCase() === String(det.descripcion).trim().toLowerCase())
+          );
+          const costoUnit = Number(det.costoUnitario) || Number(prod?.costoCompra) || Number(prod?.precioCosto) || 0;
+          costoTotalMercancia += costoUnit * (Number(det.cantidad) || 1);
+        });
+      } else if (m.tipo === 'devolucion' && (m as any).origenTipo !== 'fiado' && Array.isArray((m as any).articulosDevueltos)) {
+        const origen = (m as any).movimientoOrigenId ? indiceMovs.get((m as any).movimientoOrigenId) : undefined;
+        ((m as any).articulosDevueltos as any[]).forEach((art: any) => {
+          const cantDev = Number(art?.cantidad) || 0;
+          if (cantDev <= 0) return;
+          const detOrigen = Array.isArray(origen?.detalles) && Number.isInteger(art?.detalleIndex)
+            ? origen.detalles[art.detalleIndex]
+            : undefined;
+          const prodId = art?.productoId || detOrigen?.productoId;
+          const prod = inventario.find((i: any) => (prodId && i.id === prodId) || (i.nombre && art?.descripcion && i.nombre.trim().toLowerCase() === String(art.descripcion).trim().toLowerCase()));
+          const costoUnit = Number(detOrigen?.costoUnitario) || Number(prod?.costoCompra) || 0;
+          if (costoUnit > 0) {
+            costoTotalMercancia = Math.max(0, costoTotalMercancia - costoUnit * cantDev);
+          }
         });
       }
     });

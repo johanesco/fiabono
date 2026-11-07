@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getAdminAuth, getAdminDb } from '@/lib/firebase-admin';
 import { FieldValue } from 'firebase-admin/firestore';
+import { restaurarLoteDevolucion } from '@/utils/lotesInventario';
 
 /**
  * Endpoint de Anulación de Ventas y Fiados por Error (Reversión Atómica).
@@ -85,14 +86,25 @@ export async function POST(request: Request) {
           const prodId = d.productoId || d.id;
           const cant = Number(d.cantidad) || 0;
           if (prodId && cant > 0) {
-            const prodRef = adminDb.collection('productos').doc(prodId);
-            const prodSnap = await transaction.get(prodRef);
+            let prodRef = adminDb.collection('inventario').doc(prodId);
+            let prodSnap = await transaction.get(prodRef);
+            if (!prodSnap.exists) {
+              prodRef = adminDb.collection('productos').doc(prodId);
+              prodSnap = await transaction.get(prodRef);
+            }
             if (prodSnap.exists) {
               const prodData = prodSnap.data() as any;
               if (prodData.usuarioId === cuentaPrincipalId) {
                 const stockActual = Number(prodData.stock) || 0;
+                const { lotesActualizados, nuevoCostoCompraActivo } = restaurarLoteDevolucion(
+                  prodData,
+                  cant,
+                  Number(d.costoUnitario) || 0
+                );
                 transaction.update(prodRef, {
                   stock: stockActual + cant,
+                  lotesCosto: lotesActualizados,
+                  costoCompra: nuevoCostoCompraActivo,
                   actualizadoEl: new Date()
                 });
                 productosAfectados.push({

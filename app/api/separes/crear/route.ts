@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getAdminAuth, getAdminDb } from '@/lib/firebase-admin';
+import { consumirLotesPEPS } from '@/utils/lotesInventario';
 
 const METODOS_PERMITIDOS = new Set(['efectivo', 'transferencia', 'datafono', 'credito_externo', 'saldo_interno']);
 
@@ -70,10 +71,28 @@ export async function POST(request: Request) {
         productos.set(item.productoId, { ref: productoRef, data: producto });
       }
 
+      const consumoPorProducto = new Map<string, ReturnType<typeof consumirLotesPEPS>>();
+      for (const item of itemsInventario) {
+        const producto = productos.get(item.productoId)!;
+        if (producto.data.tipoProducto !== 'servicio' && producto.data.inventariable !== false) {
+          const consumo = consumirLotesPEPS(producto.data, Number(item.cantidad));
+          consumoPorProducto.set(item.productoId, consumo);
+        }
+      }
+
+      const itemsConCosto = (separeData.items || []).map((it: any) => {
+        const pId = it.idProducto || it.productoId;
+        const cUnit = pId && consumoPorProducto.has(pId)
+          ? consumoPorProducto.get(pId)!.costoUnitarioVenta
+          : (Number(it.costoUnitario) || 0);
+        return { ...it, ...(cUnit > 0 ? { costoUnitario: cUnit } : {}) };
+      });
+
       const separeRef = adminDb.collection('separes').doc();
       const fechaLimite = separeData.fechaLimite ? new Date(separeData.fechaLimite) : null;
       const payload = {
         ...separeData,
+        items: itemsConCosto,
         usuarioId: cuentaPrincipalId,
         clienteId: separeData.clienteId,
         clienteNombre: clienteSnap.data()?.nombre || separeData.clienteNombre || 'Cliente',
@@ -99,7 +118,11 @@ export async function POST(request: Request) {
       for (const item of itemsInventario) {
         const producto = productos.get(item.productoId)!;
         if (producto.data.tipoProducto !== 'servicio' && producto.data.inventariable !== false) {
-          transaction.update(producto.ref, { stock: Number(producto.data.stock || 0) - Number(item.cantidad) });
+          const consumo = consumoPorProducto.get(item.productoId);
+          transaction.update(producto.ref, {
+            stock: Number(producto.data.stock || 0) - Number(item.cantidad),
+            ...(consumo ? { lotesCosto: consumo.lotesActualizados, costoCompra: consumo.nuevoCostoCompraActivo } : {}),
+          });
         }
       }
 

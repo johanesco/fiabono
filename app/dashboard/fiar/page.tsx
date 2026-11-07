@@ -18,6 +18,7 @@ import TicketFacturaModal from "@/components/TicketFacturaModal";
 import ModalNuevoCliente from "@/components/ModalNuevoCliente";
 import { abrirEnlaceWhatsApp } from "@/utils/whatsapp";
 import { agregarMediosPagoAlEstado } from "@/utils/mediosPago";
+import { usePistolaLaser } from "@/hooks/usePistolaLaser";
 
 export default function FiarPage() {
     return (
@@ -752,9 +753,12 @@ function FiarContenido() {
             return;
         }
 
+        const skuNorm = skuLimpio.replace(/^(sku|ref|cod)[-_ ]*/i, '');
         const productoEncontrado = inventario.find(
-            p => (p.sku && p.sku.toLowerCase() === skuLimpio) || 
-                 (p.codigo && p.codigo.toLowerCase() === skuLimpio) || 
+            p => (p.sku && p.sku.toLowerCase().trim() === skuLimpio) || 
+                 (p.codigo && p.codigo.toLowerCase().trim() === skuLimpio) || 
+                 (p.codigoBarras && p.codigoBarras.toLowerCase().trim() === skuLimpio) ||
+                 (skuNorm && p.sku && p.sku.toLowerCase().trim().replace(/^(sku|ref|cod)[-_ ]*/i, '') === skuNorm) ||
                  p.id === skuScaneado
         );
 
@@ -824,6 +828,12 @@ function FiarContenido() {
             return nuevasFilas;
         });
     };
+
+    // Detector global 24/7 para pistola láser USB / Bluetooth en Fiar
+    usePistolaLaser({
+        activo: !modalEscanner && !modalExito?.visible && !modalTicketFactura.visible && !modalNuevoCliente && !modalFaltaCliente,
+        onScan: (codigo) => manejarProductoScaneado(codigo),
+    });
 
     const agregarProductoVisual = (producto: any) => {
         // Verificar stock primero (optimista)
@@ -922,9 +932,26 @@ function FiarContenido() {
                   <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
                   <input 
                     type="text" 
-                    placeholder="Buscar producto..." 
+                    placeholder="Buscar producto o disparar lector..." 
                     value={busquedaVisual}
                     onChange={(e) => setBusquedaVisual(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && busquedaVisual.trim()) {
+                        const q = busquedaVisual.trim().toLowerCase();
+                        const qNorm = q.replace(/^(sku|ref|cod)[-_ ]*/i, '');
+                        const matchExacto = inventario.find(
+                          p => (p.sku && p.sku.toLowerCase().trim() === q) ||
+                               (p.codigo && p.codigo.toLowerCase().trim() === q) ||
+                               (p.codigoBarras && p.codigoBarras.toLowerCase().trim() === q) ||
+                               (qNorm && p.sku && p.sku.toLowerCase().trim().replace(/^(sku|ref|cod)[-_ ]*/i, '') === qNorm)
+                        );
+                        if (matchExacto) {
+                          e.preventDefault();
+                          setBusquedaVisual('');
+                          manejarProductoScaneado(matchExacto.sku || matchExacto.codigo || matchExacto.id);
+                        }
+                      }
+                    }}
                     className="w-full bg-slate-100 dark:bg-[#020617] border-none outline-none py-1.5 pl-8 pr-3 text-xs font-bold rounded-lg text-slate-700 dark:text-slate-200 placeholder:font-normal"
                   />
                   {busquedaVisual && (
@@ -1837,14 +1864,14 @@ Estamos atentos para cualquier consulta.
                         </div>
                     )}
 
-                    {/* Escanear QR */}
+                    {/* Escanear QR / Código (En móvil: botón completo • En escritorio: icono discreto + soporte pistola láser 24/7) */}
                     <button
                         onClick={abrirEscanner}
-                        className="bg-white text-rose-700 hover:bg-rose-50 px-2.5 sm:px-3 py-1.5 sm:py-2 rounded-xl font-black text-xs sm:text-sm flex items-center gap-1.5 shadow-md transition-transform active:scale-95 cursor-pointer shrink-0"
-                        title="Escanear Código QR"
+                        className="bg-white text-rose-700 hover:bg-rose-50 lg:bg-white/15 lg:hover:bg-white/25 lg:text-white lg:border lg:border-white/25 px-2.5 sm:px-3 lg:px-2.5 py-1.5 sm:py-2 rounded-xl font-black text-xs sm:text-sm flex items-center gap-1.5 shadow-md lg:shadow-none transition-all active:scale-95 cursor-pointer shrink-0"
+                        title="Abrir cámara web • Si usas pistola láser, dispara directo en cualquier momento sin hacer clic aquí"
                     >
                         <QrCode size={15} className="shrink-0" /> 
-                        <span>Escanear</span>
+                        <span className="lg:hidden">Escanear</span>
                     </button>
 
                     {/* Toggle Modo Visual */}
@@ -1979,6 +2006,29 @@ Estamos atentos para cualquier consulta.
                                                     }}
                                                     onKeyDown={(e) => {
                                                         if (e.key === 'Enter') {
+                                                            const textoLim = fila.descripcion.trim().toLowerCase();
+                                                            const textoNorm = textoLim.replace(/^(sku|ref|cod)[-_ ]*/i, '');
+                                                            const matchPorCodigo = textoLim ? inventario.find(
+                                                                p => (p.sku && p.sku.toLowerCase().trim() === textoLim) ||
+                                                                     (p.codigo && p.codigo.toLowerCase().trim() === textoLim) ||
+                                                                     (p.codigoBarras && p.codigoBarras.toLowerCase().trim() === textoLim) ||
+                                                                     (textoNorm && p.sku && p.sku.toLowerCase().trim().replace(/^(sku|ref|cod)[-_ ]*/i, '') === textoNorm)
+                                                            ) : null;
+
+                                                            if (matchPorCodigo) {
+                                                                e.preventDefault();
+                                                                setBusquedaProductoIndex(null);
+                                                                setFilasRegistro(prev => {
+                                                                    const copia = [...prev];
+                                                                    if (copia[index]) {
+                                                                        copia[index] = { ...copia[index], descripcion: '', valor: '' };
+                                                                    }
+                                                                    return copia;
+                                                                });
+                                                                manejarProductoScaneado(matchPorCodigo.sku || matchPorCodigo.codigo || matchPorCodigo.id);
+                                                                return;
+                                                            }
+
                                                             if (busquedaProductoIndex === index && productosFiltradosInventario.length > 0) {
                                                                  e.preventDefault();
                                                                  const p = productosFiltradosInventario[0];

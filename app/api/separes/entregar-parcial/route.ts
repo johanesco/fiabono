@@ -84,7 +84,9 @@ export async function POST(request: Request) {
           descripcion: itemActual.descripcion || 'Artículo',
           cantidad: cant,
           valorUnitario: valorUnitarioNeto,
-          valor: subtotalItemHoy
+          valor: subtotalItemHoy,
+          ...(itemActual.idProducto || itemActual.productoId ? { productoId: itemActual.idProducto || itemActual.productoId } : {}),
+          ...(Number(itemActual.costoUnitario) > 0 ? { costoUnitario: Number(itemActual.costoUnitario) } : {}),
         });
       }
 

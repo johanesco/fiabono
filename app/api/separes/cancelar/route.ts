@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getAdminAuth, getAdminDb } from '@/lib/firebase-admin';
+import { restaurarLoteDevolucion } from '@/utils/lotesInventario';
 
 const METODOS_PERMITIDOS = new Set(['efectivo', 'transferencia', 'datafono', 'credito_externo', 'saldo_interno']);
 
@@ -87,9 +88,17 @@ export async function POST(request: Request) {
         montoPagadoAlCancelar: montoDevuelto
       });
 
-      for (const [, prodInfo] of productos) {
+      for (const [prodId, prodInfo] of productos) {
         if (prodInfo.data.tipoProducto !== 'servicio' && prodInfo.data.inventariable !== false && prodInfo.cantidadReintegrar > 0) {
-          transaction.update(prodInfo.ref, { stock: Number(prodInfo.data.stock || 0) + prodInfo.cantidadReintegrar });
+          const itemSep = Array.isArray(separe.items)
+            ? separe.items.find((it: any) => (it.idProducto || it.productoId) === prodId)
+            : null;
+          const restaurado = restaurarLoteDevolucion(prodInfo.data, prodInfo.cantidadReintegrar, Number(itemSep?.costoUnitario) || 0);
+          transaction.update(prodInfo.ref, {
+            stock: Number(prodInfo.data.stock || 0) + prodInfo.cantidadReintegrar,
+            lotesCosto: restaurado.lotesActualizados,
+            costoCompra: restaurado.nuevoCostoCompraActivo,
+          });
         }
       }
 
