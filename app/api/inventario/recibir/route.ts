@@ -29,7 +29,17 @@ export async function POST(request: Request) {
       let actualizados = 0;
       let creados = 0;
       const idsCreados: string[] = [];
-      const movimientos: Array<{ productoId: string; nombre: string; cantidad: number }> = [];
+      // Cada entrada queda como historial de compra (Fase 1 de costos por lote): cantidad, costo pagado y stock/costo antes y después.
+      const movimientos: Array<{
+        productoId: string;
+        nombre: string;
+        cantidad: number;
+        costoUnitario: number | null;
+        costoAnterior: number | null;
+        stockAnterior: number;
+        stockNuevo: number;
+        proveedor: string | null;
+      }> = [];
 
       // 1. LECTURAS PREVIAS (Requisito estricto de Firestore: todos los gets antes de cualquier set/update/create)
       const productosExistentesSnaps: Array<{ producto: any; snap: any; ref: any }> = [];
@@ -70,7 +80,20 @@ export async function POST(request: Request) {
         }
 
         transaction.update(ref, camposActualizados);
-        if (cantidadAplicada > 0) movimientos.push({ productoId: producto.productoId, nombre: productoActual.nombre || producto.nombre || 'Producto', cantidad: cantidadAplicada });
+        if (cantidadAplicada > 0) {
+          const costoAnterior = Number(productoActual.costoCompra || 0);
+          movimientos.push({
+            productoId: producto.productoId,
+            nombre: productoActual.nombre || producto.nombre || 'Producto',
+            cantidad: cantidadAplicada,
+            // Solo el administrador conoce/registra costos; para cajeros se guarda null (no se inventa un costo)
+            costoUnitario: esAdmin ? (Number(producto.costoCompra) > 0 ? Number(producto.costoCompra) : costoAnterior) : null,
+            costoAnterior: esAdmin ? costoAnterior : null,
+            stockAnterior: stockActual,
+            stockNuevo: stockActual + cantidadAplicada,
+            proveedor: typeof producto.proveedor === 'string' && producto.proveedor.trim() ? producto.proveedor.trim().slice(0, 80) : null
+          });
+        }
         actualizados++;
       }
 
@@ -102,7 +125,18 @@ export async function POST(request: Request) {
           fechaActualizacion: new Date()
         });
         idsCreados.push(productoRef.id);
-        if (cantidadInicial > 0) movimientos.push({ productoId: productoRef.id, nombre: producto.nombre.trim(), cantidad: cantidadInicial });
+        if (cantidadInicial > 0) {
+          movimientos.push({
+            productoId: productoRef.id,
+            nombre: producto.nombre.trim(),
+            cantidad: cantidadInicial,
+            costoUnitario: esAdmin ? (Number(producto.costoCompra) || 0) : null,
+            costoAnterior: null,
+            stockAnterior: 0,
+            stockNuevo: cantidadInicial,
+            proveedor: typeof producto.proveedor === 'string' && producto.proveedor.trim() ? producto.proveedor.trim().slice(0, 80) : null
+          });
+        }
         creados++;
       }
 
@@ -119,7 +153,13 @@ export async function POST(request: Request) {
           registradoPor: usuario.nombreUsuario || decodedToken.email || 'Usuario',
           idProducto: movimiento.productoId,
           nombreProducto: movimiento.nombre,
-          cantidadAgregada: movimiento.cantidad
+          cantidadAgregada: movimiento.cantidad,
+          // Historial de compra (no altera ningún cálculo existente)
+          costoUnitario: movimiento.costoUnitario,
+          costoAnterior: movimiento.costoAnterior,
+          stockAnterior: movimiento.stockAnterior,
+          stockNuevo: movimiento.stockNuevo,
+          proveedor: movimiento.proveedor
         });
       }
       return { actualizados, creados, idsCreados };

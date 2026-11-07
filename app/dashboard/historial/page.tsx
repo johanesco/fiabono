@@ -2073,6 +2073,16 @@ Gracias por seguir con nosotros.
                   <span className="inline-flex items-center gap-1 font-black text-xs px-3 py-1.5 rounded-xl bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300">
                     +{movimientoInventarioDetalle.cantidadAgregada || 1} unidades añadidas
                   </span>
+                  {esAdmin && Number((movimientoInventarioDetalle as any).costoUnitario) > 0 && (
+                    <span className="text-xs font-bold text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/40 px-3 py-1.5 rounded-xl border border-amber-200 dark:border-amber-800/60">
+                      Costo pagado: ${Number((movimientoInventarioDetalle as any).costoUnitario).toLocaleString('es-CO')} c/u
+                    </span>
+                  )}
+                  {esAdmin && (movimientoInventarioDetalle as any).stockAnterior !== undefined && (
+                    <span className="text-xs font-bold text-slate-600 dark:text-slate-300 bg-white dark:bg-slate-800 px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700">
+                      Stock: {Number((movimientoInventarioDetalle as any).stockAnterior)} → {Number((movimientoInventarioDetalle as any).stockNuevo)}
+                    </span>
+                  )}
                   {movimientoInventarioDetalle.monto > 0 && (
                     <span className="text-xs font-bold text-slate-600 dark:text-slate-300 bg-white dark:bg-slate-800 px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700">
                       Costo: ${movimientoInventarioDetalle.monto.toLocaleString('es-CO')}
