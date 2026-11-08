@@ -70,6 +70,16 @@ export async function POST(request: Request) {
         if (puedeEditarPrecios && Number(producto.precioVenta) > 0) {
           camposActualizados.precioVenta = Number(producto.precioVenta);
         }
+        if (puedeEditarPrecios) {
+          if (producto.precioFiado !== undefined) {
+            const pf = Number(producto.precioFiado);
+            camposActualizados.precioFiado = Number.isFinite(pf) && pf > 0 ? pf : null;
+          }
+          if (producto.precioSepare !== undefined) {
+            const ps = Number(producto.precioSepare);
+            camposActualizados.precioSepare = Number.isFinite(ps) && ps > 0 ? ps : null;
+          }
+        }
         if (esAdmin && cantidadAplicada > 0) {
           const costoEntrada = Number(producto.costoCompra) > 0 ? Number(producto.costoCompra) : Number(productoActual.costoCompra || 0);
           const provEntrada = typeof producto.proveedor === 'string' && producto.proveedor.trim() ? producto.proveedor.trim().slice(0, 80) : null;
@@ -126,6 +136,8 @@ export async function POST(request: Request) {
           codigoBarras: producto.codigoBarras || skuGenerado,
           stock: cantidadInicial,
           precioVenta: Number(producto.precioVenta) || 0,
+          precioFiado: producto.precioFiado && Number(producto.precioFiado) > 0 ? Number(producto.precioFiado) : null,
+          precioSepare: producto.precioSepare && Number(producto.precioSepare) > 0 ? Number(producto.precioSepare) : null,
           costoCompra: esAdmin ? (Number(producto.costoCompra) || 0) : 0,
           lotesCosto: esInventariable && cantidadInicial > 0
             ? [{

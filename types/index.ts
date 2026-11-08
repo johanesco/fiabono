@@ -401,6 +401,8 @@ export interface ItemTandaIngreso {
   stockActual: number;
   cantidadAIngresar: number;
   precioVenta: number;
+  precioFiado?: number | null;
+  precioSepare?: number | null;
   categoria: string;
   tipoProducto?: 'producto' | 'servicio';
   inventariable?: boolean;

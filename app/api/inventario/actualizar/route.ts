@@ -54,6 +54,15 @@ export async function POST(request: Request) {
         }
         cambios.precioVenta = precioVenta;
         cambios.costoCompra = costoCompra;
+
+        if (body.precioFiado !== undefined) {
+          const pf = Number(body.precioFiado);
+          cambios.precioFiado = Number.isFinite(pf) && pf > 0 ? pf : null;
+        }
+        if (body.precioSepare !== undefined) {
+          const ps = Number(body.precioSepare);
+          cambios.precioSepare = Number.isFinite(ps) && ps > 0 ? ps : null;
+        }
       }
 
       if (esAdmin) {

@@ -172,6 +172,9 @@ export default function InventarioPage() {
   const [sku, setSku] = useState("");
   const [stock, setStock] = useState("");
   const [precioVenta, setPrecioVenta] = useState("");
+  const [precioFiado, setPrecioFiado] = useState("");
+  const [precioSepare, setPrecioSepare] = useState("");
+  const [mostrarPreciosDiferenciados, setMostrarPreciosDiferenciados] = useState(false);
   const [costoCompra, setCostoCompra] = useState("");
   const [modoEdicionProducto, setModoEdicionProducto] = useState<'surtir' | 'editar'>('editar');
   const [cantidadSurtir, setCantidadSurtir] = useState("");
@@ -451,7 +454,7 @@ export default function InventarioPage() {
     }
     const items = productosValidos.map(p => ({
       descripcion: p.nombre,
-      valor: String(p.precioVenta || 0),
+      valor: String(Number(p.precioFiado) > 0 ? p.precioFiado : (p.precioVenta || 0)),
       cantidad: 1,
       idProducto: p.id,
       fotoUrl: p.imagen || p.imagenUrl || p.foto || p.fotoUrl || null
@@ -469,7 +472,7 @@ export default function InventarioPage() {
     }
     const items = productosValidos.map(p => ({
       descripcion: p.nombre,
-      valor: String(p.precioVenta || 0),
+      valor: String(Number(p.precioSepare) > 0 ? p.precioSepare : (p.precioVenta || 0)),
       cantidad: 1,
       idProducto: p.id,
       fotoUrl: p.imagen || p.imagenUrl || p.foto || p.fotoUrl || null
@@ -793,6 +796,8 @@ export default function InventarioPage() {
         sku: prodExistente.sku || prodExistente.codigoBarras || skuLimpio,
         stock: cantAgregada,
         precioVenta: Number(precioVenta.replace(/\D/g, '')) || prodExistente.precioVenta || 0,
+        precioFiado: precioFiado.trim() ? (Number(precioFiado.replace(/\D/g, '')) || null) : (prodExistente.precioFiado || null),
+        precioSepare: precioSepare.trim() ? (Number(precioSepare.replace(/\D/g, '')) || null) : (prodExistente.precioSepare || null),
         costoCompra: Number(costoCompra.replace(/\D/g, '')) || prodExistente.costoCompra || 0,
         tipoProducto: prodExistente.tipoProducto || tipoProducto,
         categoria: catFinalCarga || prodExistente.categoria || 'General',
@@ -810,6 +815,8 @@ export default function InventarioPage() {
         sku: (skuLimpio || `SKU-${Math.floor(1000 + Math.random() * 9000)}`).toUpperCase(),
         stock: esInventariable ? Math.max(0, Number(stock) || 0) : 0,
         precioVenta: Number(precioVenta.replace(/\D/g, '')) || 0,
+        precioFiado: precioFiado.trim() ? (Number(precioFiado.replace(/\D/g, '')) || null) : null,
+        precioSepare: precioSepare.trim() ? (Number(precioSepare.replace(/\D/g, '')) || null) : null,
         costoCompra: Number(costoCompra.replace(/\D/g, '')) || 0,
         tipoProducto,
         categoria: catFinalCarga,
@@ -827,6 +834,9 @@ export default function InventarioPage() {
     setSku('');
     setStock('');
     setPrecioVenta('');
+    setPrecioFiado('');
+    setPrecioSepare('');
+    setMostrarPreciosDiferenciados(false);
     setCostoCompra('');
     setProveedorEntrada('');
     setCategoria('');
@@ -859,6 +869,8 @@ export default function InventarioPage() {
           ...copia[index],
           stock: (Number(copia[index].stock) || 0) + (Number(prod.stock) || 1),
           precioVenta: Number(prod.precioVenta) > 0 ? Number(prod.precioVenta) : copia[index].precioVenta,
+          precioFiado: prod.precioFiado !== undefined ? prod.precioFiado : copia[index].precioFiado,
+          precioSepare: prod.precioSepare !== undefined ? prod.precioSepare : copia[index].precioSepare,
           costoCompra: Number(prod.costoCompra) > 0 ? Number(prod.costoCompra) : copia[index].costoCompra,
           categoria: prod.categoria || copia[index].categoria,
           imagen: prod.imagen || copia[index].imagen,
@@ -926,6 +938,8 @@ export default function InventarioPage() {
         sku: prodExistente.sku || prodExistente.codigoBarras || skuLimpio,
         stock: cantStock,
         precioVenta: Number(precioVenta.replace(/\D/g, '')) || prodExistente.precioVenta || 0,
+        precioFiado: precioFiado.trim() ? (Number(precioFiado.replace(/\D/g, '')) || null) : (prodExistente.precioFiado || null),
+        precioSepare: precioSepare.trim() ? (Number(precioSepare.replace(/\D/g, '')) || null) : (prodExistente.precioSepare || null),
         costoCompra: Number(costoCompra.replace(/\D/g, '')) || prodExistente.costoCompra || 0,
         tipoProducto: prodExistente.tipoProducto || tipoProducto,
         categoria: categoria.trim() || prodExistente.categoria || 'General',
@@ -943,6 +957,8 @@ export default function InventarioPage() {
       codigoBarras: skuLimpio,
       stock: cantStock,
       precioVenta: Number(precioVenta.replace(/\D/g, '')) || 0,
+      precioFiado: precioFiado.trim() ? (Number(precioFiado.replace(/\D/g, '')) || null) : null,
+      precioSepare: precioSepare.trim() ? (Number(precioSepare.replace(/\D/g, '')) || null) : null,
       costoCompra: Number(costoCompra.replace(/\D/g, '')) || 0,
       tipoProducto,
       categoria: (categoria.trim() || 'General'),
@@ -1052,6 +1068,8 @@ export default function InventarioPage() {
                 : Math.round(Number(stock) || 0))
           : 0;
         const precioNum = Number(precioVenta.replace(/\D/g, '')) || 0;
+        const precioFiadoNum = precioFiado.trim() ? (Number(precioFiado.replace(/\D/g, '')) || null) : null;
+        const precioSepareNum = precioSepare.trim() ? (Number(precioSepare.replace(/\D/g, '')) || null) : null;
         const costoNum = Number(costoCompra.replace(/\D/g, '')) || 0;
         const nombreGuardar = nombre.trim();
         const token = await auth.currentUser?.getIdToken();
@@ -1065,6 +1083,8 @@ export default function InventarioPage() {
             sku: sku.trim() || `SKU-${Math.floor(1000 + Math.random() * 9000)}`,
             stock: cantStock,
             precioVenta: precioNum,
+            precioFiado: precioFiadoNum,
+            precioSepare: precioSepareNum,
             costoCompra: costoNum,
             tipoProducto,
             categoria: categoria.trim() || 'General',
@@ -1152,6 +1172,9 @@ export default function InventarioPage() {
     setSku(prod.sku || "");
     setStock(prod.stock?.toString() || "0");
     setPrecioVenta(prod.precioVenta?.toString() || "");
+    setPrecioFiado(prod.precioFiado ? prod.precioFiado.toString() : "");
+    setPrecioSepare(prod.precioSepare ? prod.precioSepare.toString() : "");
+    setMostrarPreciosDiferenciados(Boolean(prod.precioFiado || prod.precioSepare));
     const costoInicial = modoInicial === 'editar' && lotesNorm.length > 0
       ? lotesNorm[0].costoUnitario
       : prod.costoCompra;
@@ -1382,6 +1405,9 @@ export default function InventarioPage() {
     setSku("");
     setStock("");
     setPrecioVenta("");
+    setPrecioFiado("");
+    setPrecioSepare("");
+    setMostrarPreciosDiferenciados(false);
     setCostoCompra("");
     setImagenUrl(null);
     setTipoProducto('producto');
@@ -3877,9 +3903,23 @@ export default function InventarioPage() {
                         </div>
 
                         <div className="text-right shrink-0">
-                          <span className="font-black text-sm text-emerald-600 dark:text-emerald-400">
-                            $${(prod.precioVenta || 0).toLocaleString('es-CO')}
+                          <span className="font-black text-sm text-emerald-600 dark:text-emerald-400 block">
+                            ${(prod.precioVenta || 0).toLocaleString('es-CO')}
                           </span>
+                          {(prod.precioFiado || prod.precioSepare) && (
+                            <div className="flex flex-col items-end gap-0.5 mt-0.5">
+                              {prod.precioFiado && (
+                                <span className="text-[9px] font-bold text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/40 px-1 rounded border border-amber-200 dark:border-amber-800">
+                                  Fiado: ${Number(prod.precioFiado).toLocaleString('es-CO')}
+                                </span>
+                              )}
+                              {prod.precioSepare && (
+                                <span className="text-[9px] font-bold text-purple-700 dark:text-purple-400 bg-purple-50 dark:bg-purple-950/40 px-1 rounded border border-purple-200 dark:border-purple-800">
+                                  Separe: ${Number(prod.precioSepare).toLocaleString('es-CO')}
+                                </span>
+                              )}
+                            </div>
+                          )}
                         </div>
                       </div>
 
@@ -4126,8 +4166,24 @@ export default function InventarioPage() {
                             </td>
 
                             {/* Precio */}
-                            <td className="py-2.5 px-3 whitespace-nowrap font-black text-sm text-emerald-600 dark:text-emerald-400">
-                              ${(prod.precioVenta || 0).toLocaleString('es-CO')}
+                            <td className="py-2.5 px-3 whitespace-nowrap">
+                              <span className="font-black text-sm text-emerald-600 dark:text-emerald-400 block">
+                                ${(prod.precioVenta || 0).toLocaleString('es-CO')}
+                              </span>
+                              {(prod.precioFiado || prod.precioSepare) && (
+                                <div className="flex items-center gap-1 mt-0.5 flex-wrap">
+                                  {prod.precioFiado && (
+                                    <span className="text-[9px] font-bold text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/40 px-1 rounded border border-amber-200 dark:border-amber-800" title="Precio especial para fiar">
+                                      Fiado: ${Number(prod.precioFiado).toLocaleString('es-CO')}
+                                    </span>
+                                  )}
+                                  {prod.precioSepare && (
+                                    <span className="text-[9px] font-bold text-purple-700 dark:text-purple-400 bg-purple-50 dark:bg-purple-950/40 px-1 rounded border border-purple-200 dark:border-purple-800" title="Precio especial para plan separe">
+                                      Separe: ${Number(prod.precioSepare).toLocaleString('es-CO')}
+                                    </span>
+                                  )}
+                                </div>
+                              )}
                             </td>
 
                             {/* Acciones: Vender, Fiar, Separe, y si es Admin: Editar, Eliminar */}
@@ -6481,6 +6537,61 @@ export default function InventarioPage() {
                       />
                     </div>
 
+                  </div>
+
+                  {/* Selector / Desplegable Opcional: Precios Diferenciados (Fiado / Separe) */}
+                  <div className="pt-0.5">
+                    <button
+                      type="button"
+                      onClick={() => setMostrarPreciosDiferenciados(!mostrarPreciosDiferenciados)}
+                      className="inline-flex items-center gap-1.5 text-xs font-bold text-emerald-600 dark:text-emerald-400 hover:text-emerald-700 dark:hover:text-emerald-300 transition-colors py-1"
+                    >
+                      <Tag className="w-3.5 h-3.5" />
+                      <span>{mostrarPreciosDiferenciados ? "− Ocultar Precios Diferenciados" : "+ Precios Diferenciados (Fiado y Separe)"}</span>
+                      {(precioFiado || precioSepare) && !mostrarPreciosDiferenciados && (
+                        <span className="ml-1 px-1.5 py-0.5 rounded-full text-[10px] font-black bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-700">
+                          Activo
+                        </span>
+                      )}
+                    </button>
+
+                    {mostrarPreciosDiferenciados && (
+                      <div className="mt-1.5 p-2.5 rounded-xl bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-800 grid grid-cols-1 sm:grid-cols-2 gap-2.5 animate-in fade-in duration-150">
+                        <div className="space-y-1">
+                          <label className="text-[10px] sm:text-[11px] font-bold text-amber-700 dark:text-amber-400 uppercase tracking-tight block whitespace-nowrap">
+                            Precio Fiado / Crédito ($)
+                          </label>
+                          <input
+                            type="text"
+                            inputMode="decimal" pattern="[0-9]*"
+                            value={formatearMonedaInput(precioFiado)}
+                            onChange={(e) => setPrecioFiado(e.target.value.replace(/\D/g, ""))}
+                            placeholder={precioVenta ? ("Hereda $" + (Number(precioVenta.replace(/\D/g, "")) || 0).toLocaleString("es-CO")) : "$0 (opcional)"}
+                            className="w-full py-1.5 px-3 bg-white dark:bg-[#020617] border border-amber-300 dark:border-amber-700 rounded-xl outline-none font-bold text-xs sm:text-sm text-slate-900 dark:text-white focus:border-amber-500 placeholder:text-slate-400"
+                          />
+                          <p className="text-[9px] text-slate-500 dark:text-slate-400 leading-tight">
+                            Aplica automáticamente al fiar este producto.
+                          </p>
+                        </div>
+
+                        <div className="space-y-1">
+                          <label className="text-[10px] sm:text-[11px] font-bold text-purple-700 dark:text-purple-400 uppercase tracking-tight block whitespace-nowrap">
+                            Precio Plan Separe ($)
+                          </label>
+                          <input
+                            type="text"
+                            inputMode="decimal" pattern="[0-9]*"
+                            value={formatearMonedaInput(precioSepare)}
+                            onChange={(e) => setPrecioSepare(e.target.value.replace(/\D/g, ""))}
+                            placeholder={precioVenta ? ("Hereda $" + (Number(precioVenta.replace(/\D/g, "")) || 0).toLocaleString("es-CO")) : "$0 (opcional)"}
+                            className="w-full py-1.5 px-3 bg-white dark:bg-[#020617] border border-purple-300 dark:border-purple-700 rounded-xl outline-none font-bold text-xs sm:text-sm text-slate-900 dark:text-white focus:border-purple-500 placeholder:text-slate-400"
+                          />
+                          <p className="text-[9px] text-slate-500 dark:text-slate-400 leading-tight">
+                            Aplica automáticamente al apartar en Plan Separe.
+                          </p>
+                        </div>
+                      </div>
+                    )}
                   </div>
 
                   {/* Resumen de ganancia estimada y detector inteligente de lotes / costos */}

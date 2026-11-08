@@ -937,7 +937,7 @@ function SepareContenido() {
       }
     }
 
-    const precio = prod.precioVenta !== undefined ? prod.precioVenta : (prod.precio || 0);
+    const precio = Number(prod.precioSepare) > 0 ? Number(prod.precioSepare) : (prod.precioVenta !== undefined ? prod.precioVenta : (prod.precio || 0));
     setFilas(prev => {
       const copia = [...prev];
       copia[index] = {
@@ -980,13 +980,14 @@ function SepareContenido() {
       }
 
       const fotoProd = producto.imagen || producto.imagenUrl || producto.foto || producto.fotoUrl || null;
+      const precioEfectivo = Number(producto.precioSepare) > 0 ? Number(producto.precioSepare) : (producto.precioVenta || producto.precio || 0);
       const indexVacia = nuevas.findIndex(f => f.descripcion.trim() === '' && (f.valor.trim() === '' || f.valor === '0'));
       if (indexVacia >= 0) {
-        nuevas[indexVacia] = { ...nuevas[indexVacia], descripcion: producto.nombre, valor: (producto.precioVenta || producto.precio || 0).toString(), cantidad: 1, esDeInventario: true, fotoUrl: fotoProd, idProducto: producto.id || null };
+        nuevas[indexVacia] = { ...nuevas[indexVacia], descripcion: producto.nombre, valor: precioEfectivo.toString(), cantidad: 1, esDeInventario: true, fotoUrl: fotoProd, idProducto: producto.id || null };
         return nuevas;
       }
 
-      nuevas.push({ id: Date.now().toString(), descripcion: producto.nombre, valor: (producto.precioVenta || producto.precio || 0).toString(), cantidad: 1, fotoUrl: fotoProd, esDeInventario: true, idProducto: producto.id || null });
+      nuevas.push({ id: Date.now().toString(), descripcion: producto.nombre, valor: precioEfectivo.toString(), cantidad: 1, fotoUrl: fotoProd, esDeInventario: true, idProducto: producto.id || null });
       return nuevas;
     });
   };
@@ -1156,8 +1157,15 @@ function SepareContenido() {
                   )}
 
                   {/* Badge de Precio Flotante */}
-                  <div className="absolute bottom-1 right-1 bg-white/95 dark:bg-black/90 backdrop-blur-sm px-1.5 py-0.5 rounded-lg shadow-sm border border-slate-200/50 dark:border-slate-700/50 z-10 pointer-events-none">
-                    <span className="text-[11px] font-black text-slate-900 dark:text-white leading-none">${Number(prod.precioVenta || prod.precio || 0).toLocaleString('es-CO')}</span>
+                  <div className="absolute bottom-1 right-1 bg-white/95 dark:bg-black/90 backdrop-blur-sm px-1.5 py-0.5 rounded-lg shadow-sm border border-slate-200/50 dark:border-slate-700/50 z-10 pointer-events-none flex items-center gap-1">
+                    <span className="text-[11px] font-black text-slate-900 dark:text-white leading-none">
+                      ${(Number(prod.precioSepare) > 0 ? Number(prod.precioSepare) : Number(prod.precioVenta || prod.precio || 0)).toLocaleString('es-CO')}
+                    </span>
+                    {Number(prod.precioSepare) > 0 && Number(prod.precioSepare) !== Number(prod.precioVenta || prod.precio || 0) && (
+                      <span className="text-[8px] font-bold text-purple-700 dark:text-purple-400 bg-purple-100 dark:bg-purple-950/70 px-1 rounded">
+                        Separe
+                      </span>
+                    )}
                   </div>
                 </div>
 
@@ -1741,7 +1749,7 @@ function SepareContenido() {
       reproducirSonidoScan();
       setFlashExito(true);
 
-      const precioUnit = prod.precioVenta !== undefined ? prod.precioVenta : (prod.precio || 0);
+      const precioUnit = Number(prod.precioSepare) > 0 ? Number(prod.precioSepare) : (prod.precioVenta !== undefined ? prod.precioVenta : (prod.precio || 0));
 
       setFilas(prev => {
         const idxExistente = prev.findIndex(f => f.descripcion.toLowerCase() === prod.nombre.toLowerCase());
@@ -2755,7 +2763,7 @@ Estamos atentos para cualquier consulta.
                         {busquedaProductoIndex === index && fila.descripcion.trim().length > 0 && productosSugeridos.length > 0 && (
                           <div className="absolute top-full left-0 right-0 mt-1.5 bg-white dark:bg-[#0f172a] border border-slate-200/80 dark:border-slate-800 rounded-2xl shadow-2xl z-50 overflow-hidden max-h-60 overflow-y-auto divide-y divide-slate-100 dark:divide-slate-800/60 backdrop-blur-md">
                             {productosSugeridos.map(p => {
-                              const precioP = p.precioVenta !== undefined ? p.precioVenta : (p.precio || 0);
+                              const precioP = Number(p.precioSepare) > 0 ? Number(p.precioSepare) : (p.precioVenta !== undefined ? p.precioVenta : (p.precio || 0));
                               const esInv = p.tipoProducto !== 'servicio' && p.inventariable !== false;
                               const cantEnOtras = filas.reduce((acc, f, i) => i !== index && f.descripcion.toLowerCase().trim() === p.nombre.toLowerCase().trim() ? acc + f.cantidad : acc, 0);
                               const stockDisp = (p.stock || 0) - cantEnOtras;
@@ -2811,9 +2819,16 @@ Estamos atentos para cualquier consulta.
                                     </div>
                                   </div>
 
-                                  <span className="font-black shrink-0 text-violet-600 dark:text-violet-400">
-                                    ${precioP.toLocaleString('es-CO')}
-                                  </span>
+                                  <div className="flex flex-col items-end shrink-0">
+                                    <span className="font-black text-violet-600 dark:text-violet-400">
+                                      ${precioP.toLocaleString('es-CO')}
+                                    </span>
+                                    {Number(p.precioSepare) > 0 && Number(p.precioSepare) !== Number(p.precioVenta || p.precio || 0) && (
+                                      <span className="text-[9px] font-bold text-purple-600 dark:text-purple-400">
+                                        Precio Separe
+                                      </span>
+                                    )}
+                                  </div>
                                 </div>
                               );
                             })}

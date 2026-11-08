@@ -797,17 +797,18 @@ function FiarContenido() {
                 }
             } else {
                 const indexVacio = nuevasFilas.findIndex(f => f.descripcion.trim() === "" && (parseFloat(f.valor || "0") === 0 || f.valor === ""));
+                const precioEfectivoFiado = Number(productoEncontrado.precioFiado) > 0 ? Number(productoEncontrado.precioFiado) : (Number(productoEncontrado.precioVenta) || 0);
 
                 if (indexVacio !== -1) {
                     nuevasFilas[indexVacio] = {
                         descripcion: productoEncontrado.nombre,
-                        valor: (productoEncontrado.precioVenta || 0).toString(),
+                        valor: precioEfectivoFiado.toString(),
                         cantidad: 1
                     };
                 } else {
                     nuevasFilas.push({
                         descripcion: productoEncontrado.nombre,
-                        valor: (productoEncontrado.precioVenta || 0).toString(),
+                        valor: precioEfectivoFiado.toString(),
                         cantidad: 1
                     });
                 }
@@ -819,9 +820,10 @@ function FiarContenido() {
                 }
             }
 
+            const precioFinalScan = Number(productoEncontrado.precioFiado) > 0 ? Number(productoEncontrado.precioFiado) : (Number(productoEncontrado.precioVenta) || 0);
             setUltimoProductoEscaneado({
                 nombre: productoEncontrado.nombre,
-                precio: Number(productoEncontrado.precioVenta) || 0,
+                precio: precioFinalScan,
                 cantidad: cantResultante
             });
 
@@ -858,13 +860,14 @@ function FiarContenido() {
             return nuevas;
           }
 
+          const precioEfectivo = Number(producto.precioFiado) > 0 ? Number(producto.precioFiado) : (Number(producto.precioVenta) || 0);
           const indexVacia = nuevas.findIndex(f => f.descripcion.trim() === '' && (f.valor.trim() === '' || f.valor === '0'));
           if (indexVacia >= 0) {
-            nuevas[indexVacia] = { descripcion: producto.nombre, valor: producto.precioVenta.toString(), cantidad: 1 };
+            nuevas[indexVacia] = { descripcion: producto.nombre, valor: precioEfectivo.toString(), cantidad: 1 };
             return nuevas;
           }
 
-          nuevas.push({ descripcion: producto.nombre, valor: producto.precioVenta.toString(), cantidad: 1 });
+          nuevas.push({ descripcion: producto.nombre, valor: precioEfectivo.toString(), cantidad: 1 });
           return nuevas;
         });
       };
@@ -1019,8 +1022,15 @@ function FiarContenido() {
                       )}
 
                       {/* Badge de Precio Flotante */}
-                      <div className="absolute bottom-1 right-1 bg-white/95 dark:bg-black/90 backdrop-blur-sm px-1.5 py-0.5 rounded-lg shadow-sm border border-slate-200/50 dark:border-slate-700/50 z-10 pointer-events-none">
-                        <span className="text-[11px] font-black text-slate-900 dark:text-white leading-none">${Number(prod.precioVenta || 0).toLocaleString('es-CO')}</span>
+                      <div className="absolute bottom-1 right-1 bg-white/95 dark:bg-black/90 backdrop-blur-sm px-1.5 py-0.5 rounded-lg shadow-sm border border-slate-200/50 dark:border-slate-700/50 z-10 pointer-events-none flex items-center gap-1">
+                        <span className="text-[11px] font-black text-slate-900 dark:text-white leading-none">
+                          ${(Number(prod.precioFiado) > 0 ? Number(prod.precioFiado) : Number(prod.precioVenta || 0)).toLocaleString('es-CO')}
+                        </span>
+                        {Number(prod.precioFiado) > 0 && Number(prod.precioFiado) !== Number(prod.precioVenta) && (
+                          <span className="text-[8px] font-bold text-amber-700 dark:text-amber-400 bg-amber-100 dark:bg-amber-950/70 px-1 rounded">
+                            Crédito
+                          </span>
+                        )}
                       </div>
                     </div>
 
@@ -2042,7 +2052,7 @@ Estamos atentos para cualquier consulta.
 
                                                                  const nuevas = [...filasRegistro];
                                                                  nuevas[index].descripcion = p.nombre;
-                                                                 nuevas[index].valor = p.precioVenta.toString();
+                                                                 nuevas[index].valor = (Number(p.precioFiado) > 0 ? Number(p.precioFiado) : (Number(p.precioVenta) || 0)).toString();
                                                                  nuevas[index].cantidad = 1;
                                                                  setFilasRegistro(nuevas);
                                                                  setBusquedaProductoIndex(null);
@@ -2076,7 +2086,7 @@ Estamos atentos para cualquier consulta.
                                                                         }
                                                                         const nuevas = [...filasRegistro];
                                                                         nuevas[index].descripcion = p.nombre;
-                                                                        nuevas[index].valor = p.precioVenta.toString();
+                                                                        nuevas[index].valor = (Number(p.precioFiado) > 0 ? Number(p.precioFiado) : (Number(p.precioVenta) || 0)).toString();
                                                                         nuevas[index].cantidad = 1;
                                                                         setFilasRegistro(nuevas);
                                                                         setBusquedaProductoIndex(null);
@@ -2127,9 +2137,16 @@ Estamos atentos para cualquier consulta.
                                                                             )}
                                                                         </div>
                                                                     </div>
-                                                                    <span className="font-black shrink-0 text-rose-600 dark:text-rose-400">
-                                                                        ${p.precioVenta.toLocaleString('es-CO')}
-                                                                    </span>
+                                                                    <div className="flex flex-col items-end shrink-0">
+                                                                        <span className="font-black text-rose-600 dark:text-rose-400">
+                                                                            ${(Number(p.precioFiado) > 0 ? Number(p.precioFiado) : (Number(p.precioVenta) || 0)).toLocaleString('es-CO')}
+                                                                        </span>
+                                                                        {Number(p.precioFiado) > 0 && Number(p.precioFiado) !== Number(p.precioVenta) && (
+                                                                            <span className="text-[9px] font-bold text-amber-600 dark:text-amber-400">
+                                                                                Precio Crédito
+                                                                            </span>
+                                                                        )}
+                                                                    </div>
                                                                 </div>
                                                             );
                                                         })}
