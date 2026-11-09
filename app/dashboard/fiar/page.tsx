@@ -51,11 +51,19 @@ function FiarContenido() {
     const [nombreNuevoVendedor, setNombreNuevoVendedor] = useState("");
 
     // Estructura de Pestañas Multi-Fiado en Vivo
+    interface FilaFiadoItem {
+        descripcion: string;
+        valor: string;
+        cantidad: number;
+        idProducto?: string | null;
+        fotoUrl?: string | null;
+    }
+
     interface PestanaFiado {
         id: string;
         nombre: string;
         vendedor: string;
-        filas: { descripcion: string; valor: string; cantidad: number }[];
+        filas: FilaFiadoItem[];
         cliente: any | null;
         mostrarDescuento: boolean;
         tipoDescuento: 'porcentaje' | 'fijo';
@@ -78,7 +86,7 @@ function FiarContenido() {
 
     const [clientes, setClientes] = useState<any[]>([]);
     const [inventario, setInventario] = useState<any[]>([]);
-    const [filasRegistro, setFilasRegistro] = useState<{ descripcion: string; valor: string; cantidad: number }[]>([{ descripcion: "", valor: "", cantidad: 1 }]);
+    const [filasRegistro, setFilasRegistro] = useState<FilaFiadoItem[]>([{ descripcion: "", valor: "", cantidad: 1 }]);
 
     // Estados para Descuento Comercial en Fiados
     const [mostrarDescuento, setMostrarDescuento] = useState(false);
@@ -123,7 +131,7 @@ function FiarContenido() {
         abonoInicial?: number;
         metodoPagoAbono?: string;
         ticketDatos?: any;
-        filasGuardadas?: { descripcion: string; valor: string; cantidad: number }[];
+        filasGuardadas?: FilaFiadoItem[];
         montoDescuentoTotal?: number;
         subtotalBruto?: number;
         tipoDescuento?: 'porcentaje' | 'fijo';
@@ -2088,6 +2096,8 @@ Estamos atentos para cualquier consulta.
                                                                         nuevas[index].descripcion = p.nombre;
                                                                         nuevas[index].valor = (Number(p.precioFiado) > 0 ? Number(p.precioFiado) : (Number(p.precioVenta) || 0)).toString();
                                                                         nuevas[index].cantidad = 1;
+                                                                        nuevas[index].idProducto = p.id || null;
+                                                                        nuevas[index].fotoUrl = p.imagen || p.foto || null;
                                                                         setFilasRegistro(nuevas);
                                                                         setBusquedaProductoIndex(null);
                                                                         setTimeout(() => {
@@ -2326,7 +2336,31 @@ Estamos atentos para cualquier consulta.
                             if (itemsValidos.length === 0) return null;
 
                             const manejarTraslado = (destino: 'vender' | 'separe') => {
-                                sessionStorage.setItem('fiabono_productos_precargados', JSON.stringify(itemsValidos));
+                                const itemsAjustados = itemsValidos.map(item => {
+                                    const descLimpia = (item.descripcion || '').trim().toLowerCase();
+                                    const prodInv = inventario.find(p => 
+                                        (item.idProducto && p.id === item.idProducto) ||
+                                        (p.nombre && p.nombre.trim().toLowerCase() === descLimpia) ||
+                                        (p.sku && p.sku.trim().toLowerCase() === descLimpia) ||
+                                        (p.codigoBarras && p.codigoBarras.trim().toLowerCase() === descLimpia)
+                                    );
+                                    if (!prodInv) return item;
+                                    let nuevoValor = item.valor;
+                                    if (destino === 'vender') {
+                                        const pv = Number(prodInv.precioVenta);
+                                        nuevoValor = pv > 0 ? String(pv) : String(item.valor);
+                                    } else if (destino === 'separe') {
+                                        const ps = Number(prodInv.precioSepare);
+                                        nuevoValor = ps > 0 ? String(ps) : String(prodInv.precioVenta || prodInv.precio || item.valor);
+                                    }
+                                    return {
+                                        ...item,
+                                        valor: nuevoValor,
+                                        idProducto: prodInv.id || item.idProducto || null,
+                                        fotoUrl: item.fotoUrl || prodInv.imagen || prodInv.foto || null
+                                    };
+                                });
+                                sessionStorage.setItem('fiabono_productos_precargados', JSON.stringify(itemsAjustados));
                                 if (clienteTransaccion) {
                                     sessionStorage.setItem('fiabono_cliente_precargado', JSON.stringify(clienteTransaccion));
                                 }

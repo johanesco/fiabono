@@ -53,7 +53,7 @@ function VenderContenido() {
     id: string;
     nombre: string;
     vendedor: string;
-    filas: { descripcion: string; valor: string; cantidad: number }[];
+    filas: { descripcion: string; valor: string; cantidad: number; idProducto?: string | null; fotoUrl?: string | null }[];
     cliente: any | null;
     pagoCliente: string;
     metodoPago: 'efectivo' | 'transferencia' | 'datafono' | 'credito_externo';
@@ -84,7 +84,7 @@ function VenderContenido() {
 
   const [clientes, setClientes] = useState<any[]>([]);
   const [inventario, setInventario] = useState<any[]>([]);
-  const [filasRegistro, setFilasRegistro] = useState<{ descripcion: string; valor: string; cantidad: number }[]>([{ descripcion: "", valor: "", cantidad: 1 }]);
+  const [filasRegistro, setFilasRegistro] = useState<{ descripcion: string; valor: string; cantidad: number; idProducto?: string | null; fotoUrl?: string | null }[]>([{ descripcion: "", valor: "", cantidad: 1 }]);
   const [pagoCliente, setPagoCliente] = useState(""); 
   const [metodoPago, setMetodoPago] = useState<'efectivo' | 'transferencia' | 'datafono' | 'credito_externo'>('efectivo');
   const [subMetodoPago, setSubMetodoPago] = useState<string>('');
@@ -720,6 +720,19 @@ function VenderContenido() {
       const listaI: any[] = [];
       snapI.forEach((doc) => listaI.push({ id: doc.id, ...doc.data() }));
       setInventario(listaI);
+      setFilasRegistro(prev => prev.map(f => {
+        if (!f.descripcion || !f.descripcion.trim()) return f;
+        const d = f.descripcion.trim().toLowerCase();
+        const prod = listaI.find(p => 
+          (f.idProducto && p.id === f.idProducto) ||
+          (p.nombre && p.nombre.trim().toLowerCase() === d) ||
+          (p.sku && p.sku.trim().toLowerCase() === d)
+        );
+        if (prod && Number(prod.precioVenta) > 0 && Number(f.valor) !== Number(prod.precioVenta)) {
+          return { ...f, valor: String(prod.precioVenta), idProducto: prod.id, fotoUrl: f.fotoUrl || prod.imagen || null };
+        }
+        return f;
+      }));
     } catch (error) { console.error(error); }
   };
 
@@ -902,17 +915,22 @@ function VenderContenido() {
         const indexVacio = nuevasFilas.findIndex(f => f.descripcion.trim() === "" && (parseFloat(f.valor || "0") === 0 || f.valor === ""));
         const sinStockSistema = productoEncontrado.tipoProducto !== 'servicio' && productoEncontrado.inventariable !== false && (productoEncontrado.stock || 0) <= 0;
 
+        const fotoPScan = productoEncontrado.imagen || productoEncontrado.foto || null;
         if (indexVacio !== -1) {
           nuevasFilas[indexVacio] = {
             descripcion: productoEncontrado.nombre,
             valor: (productoEncontrado.precioVenta || 0).toString(),
-            cantidad: 1
+            cantidad: 1,
+            idProducto: productoEncontrado.id || null,
+            fotoUrl: fotoPScan
           };
         } else {
           nuevasFilas.push({
             descripcion: productoEncontrado.nombre,
             valor: (productoEncontrado.precioVenta || 0).toString(),
-            cantidad: 1
+            cantidad: 1,
+            idProducto: productoEncontrado.id || null,
+            fotoUrl: fotoPScan
           });
         }
         cantResultante = 1;
@@ -1663,13 +1681,14 @@ Estamos atentos para cualquier consulta.
         return nuevas;
       }
 
+      const fotoPVisual = producto.imagen || producto.foto || null;
       const indexVacia = nuevas.findIndex(f => f.descripcion.trim() === '' && (f.valor.trim() === '' || f.valor === '0'));
       if (indexVacia >= 0) {
-        nuevas[indexVacia] = { descripcion: producto.nombre, valor: producto.precioVenta.toString(), cantidad: 1 };
+        nuevas[indexVacia] = { descripcion: producto.nombre, valor: producto.precioVenta.toString(), cantidad: 1, idProducto: producto.id || null, fotoUrl: fotoPVisual };
         return nuevas;
       }
 
-      nuevas.push({ descripcion: producto.nombre, valor: producto.precioVenta.toString(), cantidad: 1 });
+      nuevas.push({ descripcion: producto.nombre, valor: producto.precioVenta.toString(), cantidad: 1, idProducto: producto.id || null, fotoUrl: fotoPVisual });
       return nuevas;
     });
   };
@@ -2086,7 +2105,31 @@ Estamos atentos para cualquier consulta.
       toast.error("El carrito está vacío");
       return;
     }
-    sessionStorage.setItem('fiabono_productos_precargados', JSON.stringify(itemsValidos));
+    const itemsAjustados = itemsValidos.map(item => {
+      const descLimpia = (item.descripcion || '').trim().toLowerCase();
+      const prodInv = inventario.find(p => 
+        (item.idProducto && p.id === item.idProducto) ||
+        (p.nombre && p.nombre.trim().toLowerCase() === descLimpia) ||
+        (p.sku && p.sku.trim().toLowerCase() === descLimpia) ||
+        (p.codigoBarras && p.codigoBarras.trim().toLowerCase() === descLimpia)
+      );
+      if (!prodInv) return item;
+      let nuevoValor = item.valor;
+      if (destino === 'fiar') {
+        const pf = Number(prodInv.precioFiado);
+        nuevoValor = pf > 0 ? String(pf) : String(prodInv.precioVenta || item.valor);
+      } else if (destino === 'separe') {
+        const ps = Number(prodInv.precioSepare);
+        nuevoValor = ps > 0 ? String(ps) : String(prodInv.precioVenta || prodInv.precio || item.valor);
+      }
+      return {
+        ...item,
+        valor: nuevoValor,
+        idProducto: prodInv.id || item.idProducto || null,
+        fotoUrl: item.fotoUrl || prodInv.imagen || prodInv.foto || null
+      };
+    });
+    sessionStorage.setItem('fiabono_productos_precargados', JSON.stringify(itemsAjustados));
     if (clienteTransaccion) {
       sessionStorage.setItem('fiabono_cliente_precargado', JSON.stringify(clienteTransaccion));
     }
@@ -2881,6 +2924,8 @@ Estamos atentos para cualquier consulta.
                               nuevas[index].descripcion = p.nombre;
                               nuevas[index].valor = p.precioVenta.toString();
                               nuevas[index].cantidad = 1;
+                              nuevas[index].idProducto = p.id || null;
+                              nuevas[index].fotoUrl = p.imagen || p.foto || null;
                               setFilasRegistro(nuevas);
                               setBusquedaProductoIndex(null);
                               setTimeout(() => {
@@ -2924,6 +2969,8 @@ Estamos atentos para cualquier consulta.
                                   nuevas[index].descripcion = p.nombre;
                                   nuevas[index].valor = p.precioVenta.toString();
                                   nuevas[index].cantidad = 1;
+                                  nuevas[index].idProducto = p.id || null;
+                                  nuevas[index].fotoUrl = p.imagen || p.foto || null;
                                   setFilasRegistro(nuevas);
                                   setBusquedaProductoIndex(null);
                                   setTimeout(() => {

@@ -757,6 +757,19 @@ function SepareContenido() {
         lista.push({ id: docSnap.id, ...docSnap.data() });
       });
       setInventario(lista);
+      setFilas(prev => prev.map(f => {
+        if (!f.descripcion || !f.descripcion.trim()) return f;
+        const d = f.descripcion.trim().toLowerCase();
+        const prod = lista.find(p => 
+          (f.idProducto && p.id === f.idProducto) ||
+          (p.nombre && p.nombre.trim().toLowerCase() === d) ||
+          (p.sku && p.sku.trim().toLowerCase() === d)
+        );
+        if (prod && Number(prod.precioSepare) > 0 && Number(f.valor) !== Number(prod.precioSepare)) {
+          return { ...f, valor: String(prod.precioSepare), idProducto: prod.id, fotoUrl: f.fotoUrl || prod.imagen || null, esDeInventario: true };
+        }
+        return f;
+      }));
     } catch (e) {
       console.error("Error cargando inventario:", e);
     }
@@ -1904,14 +1917,26 @@ function SepareContenido() {
   const saldoPendiente = Math.max(0, totalSepare - abonoInicialNum);
 
   const transferirAFiado = () => {
-    const itemsValidos = filas.filter(f => f.descripcion.trim().length > 0 && parseFloat(f.valor) > 0).map(f => ({
-      descripcion: f.descripcion.trim(),
-      valor: f.valor,
-      cantidad: f.cantidad
-    }));
-    
-    if (itemsValidos.length > 0) {
-      sessionStorage.setItem('fiabono_productos_precargados', JSON.stringify(itemsValidos));
+    const itemsValidos = filas.filter(f => f.descripcion.trim().length > 0 && parseFloat(f.valor) > 0);
+    const itemsAjustados = itemsValidos.map(f => {
+      const descLimpia = f.descripcion.trim().toLowerCase();
+      const prodInv = inventario.find(p => 
+        (f.idProducto && p.id === f.idProducto) ||
+        (p.nombre && p.nombre.trim().toLowerCase() === descLimpia) ||
+        (p.sku && p.sku.trim().toLowerCase() === descLimpia)
+      );
+      const pf = prodInv ? Number(prodInv.precioFiado) : 0;
+      const nuevoValor = pf > 0 ? String(pf) : (prodInv ? String(prodInv.precioVenta || f.valor) : f.valor);
+      return {
+        descripcion: f.descripcion.trim(),
+        valor: nuevoValor,
+        cantidad: f.cantidad,
+        idProducto: prodInv?.id || f.idProducto || null,
+        fotoUrl: f.fotoUrl || prodInv?.imagen || null
+      };
+    });
+    if (itemsAjustados.length > 0) {
+      sessionStorage.setItem('fiabono_productos_precargados', JSON.stringify(itemsAjustados));
     }
     if (clienteSeleccionado) {
       sessionStorage.setItem('fiabono_cliente_precargado', JSON.stringify(clienteSeleccionado));
@@ -3091,7 +3116,30 @@ Estamos atentos para cualquier consulta.
                 if (itemsValidos.length === 0) return null;
 
                 const manejarTraslado = (destino: 'vender' | 'fiar') => {
-                    sessionStorage.setItem('fiabono_productos_precargados', JSON.stringify(itemsValidos));
+                    const itemsAjustados = itemsValidos.map(item => {
+                        const descLimpia = (item.descripcion || '').trim().toLowerCase();
+                        const prodInv = inventario.find(p => 
+                            (item.idProducto && p.id === item.idProducto) ||
+                            (p.nombre && p.nombre.trim().toLowerCase() === descLimpia) ||
+                            (p.sku && p.sku.trim().toLowerCase() === descLimpia)
+                        );
+                        if (!prodInv) return item;
+                        let nuevoValor = item.valor;
+                        if (destino === 'vender') {
+                            const pv = Number(prodInv.precioVenta);
+                            nuevoValor = pv > 0 ? String(pv) : String(item.valor);
+                        } else if (destino === 'fiar') {
+                            const pf = Number(prodInv.precioFiado);
+                            nuevoValor = pf > 0 ? String(pf) : String(prodInv.precioVenta || item.valor);
+                        }
+                        return {
+                            ...item,
+                            valor: nuevoValor,
+                            idProducto: prodInv.id || item.idProducto || null,
+                            fotoUrl: item.fotoUrl || prodInv.imagen || prodInv.foto || null
+                        };
+                    });
+                    sessionStorage.setItem('fiabono_productos_precargados', JSON.stringify(itemsAjustados));
                     if (clienteSeleccionado) {
                         sessionStorage.setItem('fiabono_cliente_precargado', JSON.stringify(clienteSeleccionado));
                     }
