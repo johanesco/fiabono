@@ -5171,10 +5171,11 @@ ${itemsTexto || '• Artículos apartados'}
                                           if (sinStock) {
                                             toast(`⚠️ "${prod.nombre}" sin stock en sistema — Añadido en déficit temporal.`);
                                           }
+                                          const precioSepareUnit = Number(prod.precioSepare) > 0 ? Number(prod.precioSepare) : Number(prod.precioVenta || prod.precio || 0);
                                           setItemsAnexar(prev => prev.map(it => it.id === fila.id ? {
                                             ...it,
                                             descripcion: prod.nombre || "",
-                                            valor: String(prod.precioVenta || prod.precio || 0),
+                                            valor: String(precioSepareUnit),
                                             idProducto: prod.id,
                                             fotoUrl: prod.fotoUrl || prod.imagenUrl || prod.foto || null
                                           } : it));
@@ -5190,9 +5191,16 @@ ${itemsTexto || '• Artículos apartados'}
                                               : `Stock: ${prod.stock ?? 0} disp.`}
                                           </p>
                                         </div>
-                                        <span className="font-black text-violet-600 dark:text-violet-400 shrink-0">
-                                          ${Number(prod.precioVenta || prod.precio || 0).toLocaleString('es-CO')}
-                                        </span>
+                                        <div className="flex flex-col items-end shrink-0">
+                                          <span className="font-black text-violet-600 dark:text-violet-400">
+                                            ${(Number(prod.precioSepare) > 0 ? Number(prod.precioSepare) : Number(prod.precioVenta || prod.precio || 0)).toLocaleString('es-CO')}
+                                          </span>
+                                          {Number(prod.precioSepare) > 0 && Number(prod.precioSepare) !== Number(prod.precioVenta || prod.precio || 0) && (
+                                            <span className="text-[9px] font-bold text-purple-600 dark:text-purple-400">
+                                              Precio Separe
+                                            </span>
+                                          )}
+                                        </div>
                                       </button>
                                     );
                                   })}

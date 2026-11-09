@@ -2695,12 +2695,24 @@ export default function InventarioPage() {
           return;
         }
 
-        // Detectar índice del encabezado (busca fila con 'nombre' o 'tipo')
+        // Detectar índice del encabezado y mapeo dinámico de columnas
         let headerRowIndex = 0;
+        let colFiado = -1;
+        let colSepare = -1;
+        let colStock = 6;
+        let colPrecio = 5;
         for (let i = 0; i < Math.min(5, data.length); i++) {
-          const rowText = (data[i] || []).join(' ').toLowerCase();
+          const rowArr = data[i] || [];
+          const rowText = rowArr.join(' ').toLowerCase();
           if (rowText.includes('nombre') || rowText.includes('tipo') || rowText.includes('sku')) {
             headerRowIndex = i;
+            rowArr.forEach((col: any, cIdx: number) => {
+              const colStr = String(col || '').toLowerCase();
+              if (colStr.includes('fiado') || colStr.includes('crédito') || colStr.includes('credito')) colFiado = cIdx;
+              else if (colStr.includes('separe')) colSepare = cIdx;
+              else if (colStr.includes('stock') || colStr.includes('cant')) colStock = cIdx;
+              else if (colStr.includes('precio') && !colStr.includes('total') && !colStr.includes('fiado') && !colStr.includes('separe')) colPrecio = cIdx;
+            });
             break;
           }
         }
@@ -2730,9 +2742,6 @@ export default function InventarioPage() {
           const nombreVal = String(row[3] || '').trim();
           const invRaw = String(row[4] || (esServicio ? 'No' : 'Si')).trim().toLowerCase();
           const inventariableVal = esServicio ? false : (!invRaw.startsWith('n') && invRaw !== '0');
-          const precioVal = parsearNumeroExcel(row[5]);
-          const stockVal = esServicio || !inventariableVal ? 0 : parsearNumeroExcel(row[6]);
-
           // Si no tiene nombre se ignora
           if (!nombreVal) continue;
 
@@ -2744,6 +2753,11 @@ export default function InventarioPage() {
             return matchSku || matchBar || matchNombre;
           });
 
+          const precioVal = parsearNumeroExcel(row[colPrecio !== -1 ? colPrecio : 5]);
+          const precioFiadoVal = colFiado !== -1 ? parsearNumeroExcel(row[colFiado]) : (prodExistente?.precioFiado || null);
+          const precioSepareVal = colSepare !== -1 ? parsearNumeroExcel(row[colSepare]) : (prodExistente?.precioSepare || null);
+          const stockVal = esServicio || !inventariableVal ? 0 : parsearNumeroExcel(row[colStock !== -1 ? colStock : 6]);
+
           productosParseados.push({
             tipoProducto: esServicio ? 'servicio' : 'producto',
             categoria: categoriaVal,
@@ -2751,6 +2765,8 @@ export default function InventarioPage() {
             nombre: nombreVal,
             inventariable: inventariableVal,
             precioVenta: precioVal,
+            precioFiado: precioFiadoVal && precioFiadoVal > 0 ? precioFiadoVal : null,
+            precioSepare: precioSepareVal && precioSepareVal > 0 ? precioSepareVal : null,
             stock: stockVal,
             filaExcel: i + 1,
             accion: prodExistente ? 'actualizar' : 'crear',
@@ -2837,6 +2853,8 @@ export default function InventarioPage() {
               stock: stockGuardar,
               ...(lotesSync ? { lotesCosto: lotesSync.lotesActualizados, costoCompra: lotesSync.costoCompraActivo } : {}),
               precioVenta: prod.precioVenta,
+              ...(prod.precioFiado ? { precioFiado: prod.precioFiado } : {}),
+              ...(prod.precioSepare ? { precioSepare: prod.precioSepare } : {}),
               fechaActualizacion: new Date()
             });
           } else {
@@ -2854,6 +2872,8 @@ export default function InventarioPage() {
               inventariable: prod.inventariable,
               stock: stockGuardar,
               precioVenta: prod.precioVenta,
+              precioFiado: prod.precioFiado || null,
+              precioSepare: prod.precioSepare || null,
               costoCompra: 0,
               lotesCosto: stockGuardar > 0 ? [{
                 id: `lote_excel_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
