@@ -993,11 +993,11 @@ export default function LandingPage() {
           </div>
 
           <h1 className="text-4xl sm:text-6xl md:text-7xl font-black tracking-tight text-slate-900 dark:text-white mb-6 leading-[1.1] sm:leading-[1.06]">
-            Para Almacenes y Tiendas: <span className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-500">Vende, Fía, Abona y Separa</span> sin perder plata ni enredarte.
+            Cobra tus fiados por WhatsApp y <span className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-500">controla tu caja</span> sin cuadernos.
           </h1>
 
           <p className="text-base sm:text-xl text-slate-600 dark:text-slate-300 max-w-3xl mx-auto mb-6 font-medium leading-relaxed">
-            Control total en tu mostrador <strong>desde tu celular, tablet o computador</strong> sin gastar en equipos costosos: usa la cámara de tu dispositivo para <strong>escanear códigos de barras y QR</strong>, registrar inventario y cobrar en 1 segundo. Notifica <strong>ventas, fiados, abonos y Plan Separe con fotos directamente por WhatsApp</strong>, con estados de cuenta claros que evitan malas cuentas, discusiones y malos entendidos con tus clientes.
+            El punto de venta más ágil para <strong>tiendas de barrio y almacenes de ropa</strong> en Colombia. Registra ventas al contado o fiadas, maneja <strong>Plan Separe con fotos</strong> y cuadra caja con Nequi y efectivo al centavo <strong>desde tu celular o computador</strong>.
           </p>
 
           {/* Chips Interactivos de Nicho en el Hero (Quick Discovery) */}
@@ -1034,7 +1034,7 @@ export default function LandingPage() {
               onClick={() => abrirRegistroConPlan('gratis')} 
               className="w-full sm:w-auto bg-emerald-600 hover:bg-emerald-700 text-white text-base sm:text-lg font-black py-4 px-8 rounded-2xl shadow-xl shadow-emerald-600/30 transition-transform active:scale-95 flex items-center justify-center gap-2 cursor-pointer"
             >
-              <span>🚀 Crear mi Cuenta Gratis</span>
+              <span>🚀 Probar 14 Días Gratis</span>
               <ArrowRight size={20}/>
             </button>
             <button 
@@ -1049,7 +1049,10 @@ export default function LandingPage() {
           {/* Trust Bar Pills */}
           <div className="mt-8 flex flex-wrap items-center justify-center gap-3 sm:gap-6 text-xs font-bold text-slate-500 dark:text-slate-400">
             <div className="flex items-center gap-1.5 bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 px-3 py-1.5 rounded-full border border-emerald-200/50">
-              <CheckCircle2 size={15} className="text-emerald-500" /> Sin tarjeta de crédito
+              <CheckCircle2 size={15} className="text-emerald-500" /> 14 días gratis sin tarjeta
+            </div>
+            <div className="flex items-center gap-1.5 bg-blue-50 dark:bg-blue-500/10 text-blue-700 dark:text-blue-300 px-3 py-1.5 rounded-full border border-blue-200/50">
+              <CheckCircle2 size={15} className="text-blue-500" /> Precios Contado vs Fiado automáticos
             </div>
             <div className="flex items-center gap-1.5 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 px-3 py-1.5 rounded-full border border-slate-200 dark:border-slate-700">
               <Smartphone size={15} className="text-emerald-600" /> Multi-dispositivo y ligero (sin descargas pesadas)
@@ -1859,6 +1862,10 @@ export default function LandingPage() {
                 </li>
                 <li className="flex items-start gap-2">
                   <CheckCircle2 size={15} className="text-blue-600 shrink-0 mt-0.5" />
+                  <span><strong>Precios diferenciados automáticos:</strong> fija un precio de contado y otro de fiado o separe sin calcular a mano.</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <CheckCircle2 size={15} className="text-blue-600 shrink-0 mt-0.5" />
                   <span><strong>Vende y fía en 1 toque</strong> con control de cupo por cliente.</span>
                 </li>
                 <li className="flex items-start gap-2">
@@ -1906,7 +1913,11 @@ export default function LandingPage() {
                 </li>
                 <li className="flex items-start gap-2">
                   <CheckCircle2 size={15} className="text-emerald-600 shrink-0 mt-0.5" />
-                  <span><strong>Escaneo con cámara:</strong> cobra con el lector de barras o código QR desde el móvil.</span>
+                  <span><strong>Escáner con Cámara o Pistola Láser:</strong> cobra con la cámara del celular o conecta lectores de código de barras USB/Bluetooth 24/7.</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <CheckCircle2 size={15} className="text-emerald-600 shrink-0 mt-0.5" />
+                  <span><strong>Control de Lotes PEPS:</strong> sabe el costo y margen real sin mezclar inventario viejo con nuevo.</span>
                 </li>
               </ul>
             </div>
@@ -2534,8 +2545,8 @@ export default function LandingPage() {
               a: "Sí, totalmente. Puedes registrarte y usar el Plan Gratuito para siempre. Si deseas probar las herramientas avanzadas de Comercio o PRO, disfrutas de 14 días de prueba completa sin necesidad de ingresar tarjeta de crédito."
             },
             {
-              q: "¿Cómo me contacto con el equipo de soporte si tengo dudas o necesito ayuda?",
-              a: "Nuestro equipo de atención está disponible para ayudarte. Puedes escribirnos directamente al correo oficial de soporte y atención: fiabono.app@gmail.com para resolver cualquier inquietud sobre tu cuenta, planes o configuración."
+              q: "¿Cómo recibo ayuda o soporte si tengo dudas con mi negocio?",
+              a: "Cuentas con atención directa por WhatsApp en Colombia. Con solo tocar el botón flotante de WhatsApp en pantalla, hablas directamente con un asesor para ayudarte a configurar tu negocio, cargar tus productos o resolver cualquier duda en minutos, sin formularios lentos ni correos."
             }
           ].map((item, idx) => (
             <div 
