@@ -7,6 +7,7 @@ import { auth, db } from "../firebase";
 import { generarSlugNegocio } from "@/utils/slug";
 import { detectarModoApp } from "@/lib/modoApp";
 import { NUMERO_WHATSAPP_FIABONO, abrirEnlaceWhatsApp } from "@/utils/whatsapp";
+import { PLANES_PRECIOS, ETIQUETA_LANZAMIENTO, NOTA_TARIFA_CONGELADA } from "@/constants/planes";
 import { 
   CheckCircle2, ChevronRight, Star, BookX, PenTool, 
   MessageCircle, ShieldAlert, Store, Wallet, Shirt, Lock, 
@@ -2042,11 +2043,43 @@ export default function LandingPage() {
           </p>
         </div>
 
-        {/* Banner Informativo de Planes */}
-        <div className="flex items-center justify-center gap-2 mb-8">
-          <div className="inline-flex items-center gap-2 px-5 py-2.5 rounded-2xl bg-blue-50 dark:bg-blue-500/10 border border-blue-200 dark:border-blue-500/20 text-blue-700 dark:text-blue-300 text-xs sm:text-sm font-black tracking-wide shadow-xs">
-            <Sparkles size={16} className="text-amber-500 fill-current shrink-0" />
-            <span>Planes flexibles para cada tipo de negocio • Empieza gratis hoy • ¡14 días de prueba completa sin tarjeta!</span>
+        {/* Banner Informativo de Planes + Selector Mensual / Anual */}
+        <div className="flex flex-col items-center justify-center gap-4 mb-8">
+          <div className="inline-flex items-center gap-2 px-5 py-2.5 rounded-2xl bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/20 text-emerald-800 dark:text-emerald-300 text-xs sm:text-sm font-black tracking-wide shadow-xs">
+            <Flame size={16} className="text-amber-500 fill-current shrink-0" />
+            <span>{ETIQUETA_LANZAMIENTO} • {NOTA_TARIFA_CONGELADA} • ¡14 días gratis sin tarjeta!</span>
+          </div>
+
+          <div className="inline-flex items-center p-1.5 rounded-2xl bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-inner">
+            <button
+              type="button"
+              onClick={() => setCicloFacturacion('mensual')}
+              className={`px-5 py-2 rounded-xl text-xs sm:text-sm font-black transition-all cursor-pointer ${
+                cicloFacturacion === 'mensual'
+                  ? 'bg-white dark:bg-slate-800 text-slate-900 dark:text-white shadow-sm'
+                  : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
+              }`}
+            >
+              Pago Mensual
+            </button>
+            <button
+              type="button"
+              onClick={() => setCicloFacturacion('anual')}
+              className={`px-5 py-2 rounded-xl text-xs sm:text-sm font-black transition-all cursor-pointer flex items-center gap-2 ${
+                cicloFacturacion === 'anual'
+                  ? 'bg-emerald-600 text-white shadow-sm'
+                  : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
+              }`}
+            >
+              <span>Pago Anual</span>
+              <span className={`text-[10px] px-2 py-0.5 rounded-full font-black uppercase tracking-wider ${
+                cicloFacturacion === 'anual'
+                  ? 'bg-white/20 text-white'
+                  : 'bg-emerald-100 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300'
+              }`}>
+                2 meses gratis
+              </span>
+            </button>
           </div>
         </div>
 
@@ -2165,12 +2198,27 @@ export default function LandingPage() {
             <p className="text-emerald-100 text-xs mb-6 h-8">La solución para negocios de mostrador con alto volumen diario.</p>
             
             <div className="mb-6">
-              <div className="flex items-baseline gap-2">
-                <span className="text-2xl sm:text-3xl font-black text-white">
-                  Próximamente
+              <div className="flex items-center gap-2 mb-1">
+                <span className="text-xs font-bold line-through text-emerald-200/80">
+                  {cicloFacturacion === 'anual' ? PLANES_PRECIOS.comercio.precioRegularAnualTexto : PLANES_PRECIOS.comercio.precioRegularMensualTexto}
+                </span>
+                <span className="text-[10px] font-black uppercase tracking-wider bg-amber-400 text-slate-900 px-2 py-0.5 rounded-full">
+                  {PLANES_PRECIOS.comercio.descuentoLanzamiento} {ETIQUETA_LANZAMIENTO}
                 </span>
               </div>
-              <span className="text-xs text-emerald-100 font-bold block mt-1">Tarifa accesible por negocio • 14 días de prueba completa sin tarjeta</span>
+              <div className="flex items-baseline gap-1.5">
+                <span className="text-3xl sm:text-4xl font-black text-white tracking-tight">
+                  {cicloFacturacion === 'anual' ? PLANES_PRECIOS.comercio.precioLanzamientoAnualTexto : PLANES_PRECIOS.comercio.precioLanzamientoMensualTexto}
+                </span>
+                <span className="text-xs font-bold text-emerald-100">
+                  COP / {cicloFacturacion === 'anual' ? 'año' : 'mes'}
+                </span>
+              </div>
+              <span className="text-xs text-emerald-100 font-bold block mt-1">
+                {cicloFacturacion === 'anual'
+                  ? `Equivale a ${PLANES_PRECIOS.comercio.equivalenteMensualAnualTexto}/mes • 14 días gratis sin tarjeta`
+                  : `Menos de ${PLANES_PRECIOS.comercio.costoDiarioTexto} • 14 días de prueba gratis sin tarjeta`}
+              </span>
             </div>
 
             <ul className="flex flex-col gap-3 mb-8 flex-1 text-xs font-bold text-white">
@@ -2211,12 +2259,27 @@ export default function LandingPage() {
             <p className="text-slate-500 dark:text-slate-400 text-xs mb-6 h-8">Módulo Separe, etiquetas QR y hasta 4 colaboradores.</p>
             
             <div className="mb-6">
-              <div className="flex items-baseline gap-2">
-                <span className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-white">
-                  Próximamente
+              <div className="flex items-center gap-2 mb-1">
+                <span className="text-xs font-bold line-through text-slate-400 dark:text-slate-500">
+                  {cicloFacturacion === 'anual' ? PLANES_PRECIOS.pro.precioRegularAnualTexto : PLANES_PRECIOS.pro.precioRegularMensualTexto}
+                </span>
+                <span className="text-[10px] font-black uppercase tracking-wider bg-amber-100 dark:bg-amber-500/20 text-amber-800 dark:text-amber-300 px-2 py-0.5 rounded-full">
+                  {PLANES_PRECIOS.pro.descuentoLanzamiento} {ETIQUETA_LANZAMIENTO}
                 </span>
               </div>
-              <span className="text-xs text-purple-600 dark:text-purple-400 font-bold block mt-1">Tarifa accesible por negocio • 14 días de prueba completa sin tarjeta</span>
+              <div className="flex items-baseline gap-1.5">
+                <span className="text-3xl sm:text-4xl font-black text-slate-900 dark:text-white tracking-tight">
+                  {cicloFacturacion === 'anual' ? PLANES_PRECIOS.pro.precioLanzamientoAnualTexto : PLANES_PRECIOS.pro.precioLanzamientoMensualTexto}
+                </span>
+                <span className="text-xs font-bold text-slate-500 dark:text-slate-400">
+                  COP / {cicloFacturacion === 'anual' ? 'año' : 'mes'}
+                </span>
+              </div>
+              <span className="text-xs text-purple-600 dark:text-purple-400 font-bold block mt-1">
+                {cicloFacturacion === 'anual'
+                  ? `Equivale a ${PLANES_PRECIOS.pro.equivalenteMensualAnualTexto}/mes • 14 días gratis sin tarjeta`
+                  : `Menos de ${PLANES_PRECIOS.pro.costoDiarioTexto} • 14 días de prueba gratis sin tarjeta`}
+              </span>
             </div>
 
             <ul className="flex flex-col gap-3 mb-8 flex-1 text-xs font-bold text-slate-700 dark:text-slate-300">
@@ -3610,6 +3673,9 @@ export default function LandingPage() {
                               <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">
                                 Comprobantes WhatsApp, ventas y 1 caja.
                               </div>
+                              <div className="text-[11px] font-black text-emerald-600 dark:text-emerald-400 mt-1.5">
+                                Luego {PLANES_PRECIOS.comercio.precioLanzamientoMensualTexto}/mes <span className="line-through text-slate-400 font-bold">{PLANES_PRECIOS.comercio.precioRegularMensualTexto}</span>
+                              </div>
                             </div>
                             <div className="text-[10px] font-bold text-blue-600 dark:text-blue-400 mt-3 flex items-center gap-1">
                               <Check size={12}/> Recomendado
@@ -3633,6 +3699,9 @@ export default function LandingPage() {
                               <div className="font-black text-sm text-slate-900 dark:text-white">Plan PRO</div>
                               <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">
                                 Plan Separe con fotos, hasta 4 cajeros y reportes top.
+                              </div>
+                              <div className="text-[11px] font-black text-purple-600 dark:text-purple-400 mt-1.5">
+                                Luego {PLANES_PRECIOS.pro.precioLanzamientoMensualTexto}/mes <span className="line-through text-slate-400 font-bold">{PLANES_PRECIOS.pro.precioRegularMensualTexto}</span>
                               </div>
                             </div>
                             <div className="text-[10px] font-bold text-purple-600 dark:text-purple-400 mt-3 flex items-center gap-1">

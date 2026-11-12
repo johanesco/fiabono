@@ -53,6 +53,7 @@ import {
   Wrench
 } from "lucide-react";
 import ModalSuscripcion from "@/components/ModalSuscripcion";
+import { PLANES_PRECIOS } from "@/constants/planes";
 
 export default function OrdenesPage() {
   const { datosSesion } = useAuth();
@@ -1656,7 +1657,8 @@ Muchas gracias por tu compra. Estamos atentos para cualquier consulta.
                   <Users className="text-blue-500" size={20} /> Plan Comercio
                 </h4>
                 <span className="text-[11px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-500/10 px-2.5 py-0.5 rounded-full border border-emerald-200/60 dark:border-emerald-500/20">
-                  Próximamente • 14 Días Gratis
+                  <span className="line-through opacity-60 mr-1">{PLANES_PRECIOS.comercio.precioRegularMensualTexto}</span>
+                  {PLANES_PRECIOS.comercio.precioLanzamientoMensualTexto}/mes • 14 Días Gratis
                 </span>
               </div>
               <p className="text-xs text-slate-500 dark:text-slate-400">
@@ -1688,7 +1690,8 @@ Muchas gracias por tu compra. Estamos atentos para cualquier consulta.
                   <Crown className="text-amber-500 fill-current" size={20} /> Plan PRO Almacén
                 </h4>
                 <span className="text-[11px] font-bold text-purple-600 dark:text-purple-400 bg-purple-50 dark:bg-purple-500/10 px-2.5 py-0.5 rounded-full border border-purple-200/60 dark:border-purple-500/20">
-                  Próximamente • 14 Días Gratis
+                  <span className="line-through opacity-60 mr-1">{PLANES_PRECIOS.pro.precioRegularMensualTexto}</span>
+                  {PLANES_PRECIOS.pro.precioLanzamientoMensualTexto}/mes • 14 Días Gratis
                 </span>
               </div>
               <p className="text-xs text-slate-500 dark:text-slate-400">

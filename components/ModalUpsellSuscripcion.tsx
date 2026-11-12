@@ -4,6 +4,7 @@ import { X, CheckCircle2, Sparkles, Crown, Store, ArrowRight } from "lucide-reac
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/hooks/AuthContext";
 import ModalSuscripcion from "./ModalSuscripcion";
+import { PLANES_PRECIOS, ETIQUETA_LANZAMIENTO } from "@/constants/planes";
 
 export interface ModalUpsellProps {
   visible: boolean;
@@ -91,9 +92,22 @@ export default function ModalUpsellSuscripcion({
               <div className="flex items-center gap-1.5 text-blue-600 dark:text-blue-400 font-black text-xs uppercase mb-1">
                 <Store size={14} /> Plan Comercio
               </div>
-              <div className="flex items-baseline gap-2 mb-1">
-                <span className="text-lg font-black text-slate-900 dark:text-white">Próximamente</span>
-                <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-500/10 px-2 py-0.5 rounded-full">14 Días Gratis</span>
+              <div className="mb-1.5">
+                <div className="flex items-center gap-1.5 mb-0.5">
+                  <span className="text-[11px] font-bold line-through text-slate-400">
+                    {PLANES_PRECIOS.comercio.precioRegularMensualTexto}
+                  </span>
+                  <span className="text-[9px] font-black uppercase tracking-wider bg-amber-100 dark:bg-amber-500/20 text-amber-700 dark:text-amber-300 px-1.5 py-0.5 rounded-full">
+                    {PLANES_PRECIOS.comercio.descuentoLanzamiento} {ETIQUETA_LANZAMIENTO}
+                  </span>
+                </div>
+                <div className="flex items-baseline gap-1.5 flex-wrap">
+                  <span className="text-lg font-black text-slate-900 dark:text-white">
+                    {PLANES_PRECIOS.comercio.precioLanzamientoMensualTexto}
+                  </span>
+                  <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400">/ mes</span>
+                  <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-500/10 px-2 py-0.5 rounded-full">14 Días Gratis</span>
+                </div>
               </div>
               <ul className="mt-3 space-y-1.5 text-xs font-medium text-slate-600 dark:text-slate-300">
                 <li className="flex items-center gap-1.5"><CheckCircle2 size={13} className="text-emerald-500 shrink-0" /> Clientes e Inv. Ilimitados</li>
@@ -112,9 +126,22 @@ export default function ModalUpsellSuscripcion({
               <div className="flex items-center gap-1.5 text-purple-600 dark:text-purple-400 font-black text-xs uppercase mb-1">
                 <Crown size={14} className="text-amber-500" /> Plan PRO Almacén
               </div>
-              <div className="flex items-baseline gap-2 mb-1">
-                <span className="text-lg font-black text-slate-900 dark:text-white">Próximamente</span>
-                <span className="text-[10px] font-bold text-purple-600 dark:text-purple-400 bg-purple-50 dark:bg-purple-500/10 px-2 py-0.5 rounded-full">14 Días Gratis</span>
+              <div className="mb-1.5">
+                <div className="flex items-center gap-1.5 mb-0.5">
+                  <span className="text-[11px] font-bold line-through text-slate-400">
+                    {PLANES_PRECIOS.pro.precioRegularMensualTexto}
+                  </span>
+                  <span className="text-[9px] font-black uppercase tracking-wider bg-amber-100 dark:bg-amber-500/20 text-amber-700 dark:text-amber-300 px-1.5 py-0.5 rounded-full">
+                    {PLANES_PRECIOS.pro.descuentoLanzamiento} {ETIQUETA_LANZAMIENTO}
+                  </span>
+                </div>
+                <div className="flex items-baseline gap-1.5 flex-wrap">
+                  <span className="text-lg font-black text-slate-900 dark:text-white">
+                    {PLANES_PRECIOS.pro.precioLanzamientoMensualTexto}
+                  </span>
+                  <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400">/ mes</span>
+                  <span className="text-[10px] font-bold text-purple-600 dark:text-purple-400 bg-purple-50 dark:bg-purple-500/10 px-2 py-0.5 rounded-full">14 Días Gratis</span>
+                </div>
               </div>
               <ul className="mt-3 space-y-1.5 text-xs font-medium text-slate-600 dark:text-slate-300">
                 <li className="flex items-center gap-1.5"><CheckCircle2 size={13} className="text-purple-500 shrink-0" /> Módulo PLAN SEPARE Completo</li>

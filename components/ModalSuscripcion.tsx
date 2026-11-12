@@ -7,6 +7,7 @@ import { doc, updateDoc, collection, getDocs, query, where } from "firebase/fire
 import { auth, db } from "../firebase";
 import { useAuth } from "@/hooks/AuthContext";
 import { contactarFiabonoWhatsApp } from "@/utils/whatsapp";
+import { PLANES_PRECIOS, ETIQUETA_LANZAMIENTO, NOTA_TARIFA_CONGELADA } from "@/constants/planes";
 
 interface ModalSuscripcionProps {
   isOpen: boolean;
@@ -264,9 +265,43 @@ export default function ModalSuscripcion({ isOpen, onClose, cuentaPrincipalId, p
               Desbloquea clientes e inventario ilimitados, colaboradores y herramientas profesionales.
             </p>
 
-            {/* Banner de Precios */}
-            <div className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 text-xs font-black uppercase tracking-wider mt-4 border border-emerald-200/60 dark:border-emerald-500/20">
-              <Sparkles size={13} className="fill-current" /> Tarifas de lanzamiento próximamente disponibles
+            {/* Banner de Precios + Selector Mensual / Anual */}
+            <div className="mt-4 flex flex-col items-center gap-3">
+              <div className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 text-[11px] font-black tracking-wide border border-emerald-200/60 dark:border-emerald-500/20">
+                <Sparkles size={13} className="fill-current shrink-0" /> {ETIQUETA_LANZAMIENTO} • {NOTA_TARIFA_CONGELADA}
+              </div>
+
+              <div className="inline-flex items-center p-1 rounded-xl bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => setCiclo('mensual')}
+                  className={`px-3.5 py-1.5 rounded-lg text-xs font-black transition-all cursor-pointer ${
+                    ciclo === 'mensual'
+                      ? 'bg-white dark:bg-slate-800 text-slate-900 dark:text-white shadow-xs'
+                      : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
+                  }`}
+                >
+                  Mensual
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setCiclo('anual')}
+                  className={`px-3.5 py-1.5 rounded-lg text-xs font-black transition-all cursor-pointer flex items-center gap-1.5 ${
+                    ciclo === 'anual'
+                      ? 'bg-emerald-600 text-white shadow-xs'
+                      : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
+                  }`}
+                >
+                  <span>Anual</span>
+                  <span className={`text-[9px] px-1.5 py-0.5 rounded-full font-black uppercase ${
+                    ciclo === 'anual'
+                      ? 'bg-white/20 text-white'
+                      : 'bg-emerald-100 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300'
+                  }`}>
+                    2 meses gratis
+                  </span>
+                </button>
+              </div>
             </div>
           </div>
 
@@ -289,8 +324,17 @@ export default function ModalSuscripcion({ isOpen, onClose, cuentaPrincipalId, p
                   {planSeleccionado === 'comercio' && <CheckCircle2 size={16} className="text-blue-600 dark:text-blue-400" />}
                 </div>
                 <div className="my-1">
-                  <p className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white">
-                    Próximamente
+                  <div className="flex items-center gap-1.5 mb-0.5">
+                    <span className="text-xs font-bold line-through text-slate-400">
+                      {ciclo === 'anual' ? PLANES_PRECIOS.comercio.precioRegularAnualTexto : PLANES_PRECIOS.comercio.precioRegularMensualTexto}
+                    </span>
+                    <span className="text-[9px] font-black uppercase bg-amber-100 dark:bg-amber-500/20 text-amber-800 dark:text-amber-300 px-1.5 py-0.5 rounded-full">
+                      {PLANES_PRECIOS.comercio.descuentoLanzamiento} Lanzamiento
+                    </span>
+                  </div>
+                  <p className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white flex items-baseline gap-1">
+                    <span>{ciclo === 'anual' ? PLANES_PRECIOS.comercio.precioLanzamientoAnualTexto : PLANES_PRECIOS.comercio.precioLanzamientoMensualTexto}</span>
+                    <span className="text-xs font-bold text-slate-500 dark:text-slate-400">/ {ciclo === 'anual' ? 'año' : 'mes'}</span>
                   </p>
                   {puedeActivarPruebaGratis ? (
                     <span className="text-[11px] font-bold text-emerald-600 dark:text-emerald-400">14 días de prueba gratis</span>
@@ -334,8 +378,17 @@ export default function ModalSuscripcion({ isOpen, onClose, cuentaPrincipalId, p
                   {planSeleccionado === 'pro' && <CheckCircle2 size={16} className="text-purple-600 dark:text-purple-400" />}
                 </div>
                 <div className="my-1">
-                  <p className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white">
-                    Próximamente
+                  <div className="flex items-center gap-1.5 mb-0.5">
+                    <span className="text-xs font-bold line-through text-slate-400">
+                      {ciclo === 'anual' ? PLANES_PRECIOS.pro.precioRegularAnualTexto : PLANES_PRECIOS.pro.precioRegularMensualTexto}
+                    </span>
+                    <span className="text-[9px] font-black uppercase bg-amber-100 dark:bg-amber-500/20 text-amber-800 dark:text-amber-300 px-1.5 py-0.5 rounded-full">
+                      {PLANES_PRECIOS.pro.descuentoLanzamiento} Lanzamiento
+                    </span>
+                  </div>
+                  <p className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white flex items-baseline gap-1">
+                    <span>{ciclo === 'anual' ? PLANES_PRECIOS.pro.precioLanzamientoAnualTexto : PLANES_PRECIOS.pro.precioLanzamientoMensualTexto}</span>
+                    <span className="text-xs font-bold text-slate-500 dark:text-slate-400">/ {ciclo === 'anual' ? 'año' : 'mes'}</span>
                   </p>
                   {puedeActivarPruebaGratis ? (
                     <span className="text-[11px] font-bold text-purple-600 dark:text-purple-400">14 días de prueba gratis</span>
