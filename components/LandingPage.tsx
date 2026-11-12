@@ -997,7 +997,7 @@ export default function LandingPage() {
           </h1>
 
           <p className="text-base sm:text-xl text-slate-600 dark:text-slate-300 max-w-3xl mx-auto mb-6 font-medium leading-relaxed">
-            El punto de venta más ágil para <strong>tiendas de barrio y almacenes de ropa</strong> en Colombia. Registra ventas al contado o fiadas, maneja <strong>Plan Separe con fotos</strong> y cuadra caja con Nequi y efectivo al centavo <strong>desde tu celular o computador</strong>.
+            El punto de venta más ágil para <strong>tiendas de barrio y almacenes de ropa</strong> en Colombia. Registra ventas al contado o fiadas, maneja <strong>Plan Separe con fotos</strong> y cuadra caja de transacciones o efectivo al centavo <strong>desde tu celular o computador</strong>.
           </p>
 
           {/* Chips Interactivos de Nicho en el Hero (Quick Discovery) */}
@@ -1069,10 +1069,10 @@ export default function LandingPage() {
                 <ShoppingCart size={18} />
               </div>
               <h4 className="font-black text-sm text-slate-900 dark:text-white flex items-center gap-1.5">
-                1. Vende & Fía en 1 toque
+                1. Vende, Fía & Controla Inventario
               </h4>
               <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1 leading-snug">
-                Cobro rápido en efectivo, transferencias o datáfono. Asigna cupos de fiado para no sobreendeudar a tus clientes.
+                Cobro ágil en efectivo o transferencias con descarga de existencias en tiempo real y cupos de fiado por cliente.
               </p>
             </div>
 
@@ -1905,7 +1905,7 @@ export default function LandingPage() {
                 </li>
                 <li className="flex items-start gap-2">
                   <CheckCircle2 size={15} className="text-emerald-600 shrink-0 mt-0.5" />
-                  <span><strong>Etiquetas adhesivas QR:</strong> genera e imprime para rollos térmicos o PDF carta.</span>
+                  <span><strong>Etiquetas adhesivas QR y Código de Barras:</strong> genera e imprime códigos 1D o QR para rollos térmicos o PDF carta.</span>
                 </li>
                 <li className="flex items-start gap-2">
                   <CheckCircle2 size={15} className="text-emerald-600 shrink-0 mt-0.5" />
