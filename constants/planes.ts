@@ -1,5 +1,9 @@
 export type PlanPagoId = 'comercio' | 'pro';
 
+export const LIMITE_MOVIMIENTOS_MES_GRATIS = 30;
+export const LIMITE_CLIENTES_GRATIS = 15;
+export const LIMITE_PRODUCTOS_GRATIS = 30;
+
 export interface InfoPrecioPlan {
   nombre: string;
   precioRegularMensual: number;

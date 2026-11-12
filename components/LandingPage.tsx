@@ -997,7 +997,7 @@ export default function LandingPage() {
           </h1>
 
           <p className="text-base sm:text-xl text-slate-600 dark:text-slate-300 max-w-3xl mx-auto mb-6 font-medium leading-relaxed">
-            El punto de venta más ágil para <strong>tiendas de barrio y almacenes de ropa</strong> en Colombia. Registra ventas al contado o fiadas, maneja <strong>Plan Separe con fotos</strong> y cuadra caja de transacciones o efectivo al centavo <strong>desde tu celular o computador</strong>.
+            El punto de venta más ágil para <strong>tiendas de barrio y almacenes de ropa</strong> en Colombia. Registra ventas al contado o fiadas, maneja <strong>Plan Separe con fotos</strong> y cuadra tu caja de transacciones o efectivo <strong>desde tu celular o computador</strong>.
           </p>
 
           {/* Chips Interactivos de Nicho en el Hero (Quick Discovery) */}
@@ -1062,17 +1062,29 @@ export default function LandingPage() {
             </div>
           </div>
 
-          {/* 4 Acciones Clave de Mostrador (Hook Visual Inmediato) */}
-          <div className="mt-10 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5 w-full text-left">
+          {/* 5 Acciones Clave de Mostrador (Hook Visual Inmediato) */}
+          <div className="mt-10 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3.5 w-full text-left">
             <div className="bg-white dark:bg-[#0f172a] p-4 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-sm hover:border-emerald-400 transition-colors">
               <div className="w-9 h-9 rounded-xl bg-emerald-100 dark:bg-emerald-500/20 text-emerald-600 flex items-center justify-center mb-2.5">
                 <ShoppingCart size={18} />
               </div>
               <h4 className="font-black text-sm text-slate-900 dark:text-white flex items-center gap-1.5">
-                1. Vende, Fía & Controla Inventario
+                1. Vende & Fía en 1 Toque
               </h4>
               <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1 leading-snug">
-                Cobro ágil en efectivo o transferencias con descarga de existencias en tiempo real y cupos de fiado por cliente.
+                Cobro ágil en efectivo o digital. Fija cupos de fiado para no sobreendeudar a tus clientes de confianza.
+              </p>
+            </div>
+
+            <div className="bg-white dark:bg-[#0f172a] p-4 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-sm hover:border-teal-400 transition-colors">
+              <div className="w-9 h-9 rounded-xl bg-teal-100 dark:bg-teal-500/20 text-teal-600 flex items-center justify-center mb-2.5">
+                <Tag size={18} />
+              </div>
+              <h4 className="font-black text-sm text-slate-900 dark:text-white flex items-center gap-1.5">
+                2. Control de Inventario
+              </h4>
+              <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1 leading-snug">
+                Alertas de stock bajo, cálculo de costos y precios diferenciados de contado vs fiado automáticos.
               </p>
             </div>
 
@@ -1081,10 +1093,10 @@ export default function LandingPage() {
                 <Shirt size={18} />
               </div>
               <h4 className="font-black text-sm text-slate-900 dark:text-white flex items-center gap-1.5">
-                2. Plan Separe con Fotos
+                3. Plan Separe con Fotos
               </h4>
               <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1 leading-snug">
-                Aparta prendas con foto real, fija fecha límite y registra abonos. Cero mercancía estancada ni vestidos embolatados.
+                Aparta prendas con foto real, fija fecha límite y registra abonos. Cero mercancía estancada en bodega.
               </p>
             </div>
 
@@ -1093,10 +1105,10 @@ export default function LandingPage() {
                 <MessageCircle size={18} />
               </div>
               <h4 className="font-black text-sm text-slate-900 dark:text-white flex items-center gap-1.5">
-                3. Recibos por WhatsApp
+                4. Recibos por WhatsApp
               </h4>
               <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1 leading-snug">
-                Envía comprobantes de venta, abonos y estados de cuenta al instante. Formalidad que evita malas cuentas y reclamos.
+                Envía comprobantes de venta, abonos y extractos de deuda al instante con saldo vivo.
               </p>
             </div>
 
@@ -1105,10 +1117,10 @@ export default function LandingPage() {
                 <Camera size={18} />
               </div>
               <h4 className="font-black text-sm text-slate-900 dark:text-white flex items-center gap-1.5">
-                4. Tu Cámara es tu Escáner
+                5. Escáner con Cámara
               </h4>
               <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1 leading-snug">
-                Escanea códigos de barras y QR con la cámara de tu dispositivo. Registra existencias y cobra rápido sin comprar lectores externos.
+                Usa la cámara de tu celular o conecta pistolas de código de barras USB/Bluetooth para cobrar en 1 segundo.
               </p>
             </div>
           </div>
@@ -2179,7 +2191,7 @@ export default function LandingPage() {
               <li className="flex items-center gap-2.5"><CheckCircle2 size={16} className="text-emerald-500 shrink-0"/> 1 Usuario Administrador</li>
               <li className="flex items-center gap-2.5"><CheckCircle2 size={16} className="text-emerald-500 shrink-0"/> Hasta 15 clientes registrados</li>
               <li className="flex items-center gap-2.5"><CheckCircle2 size={16} className="text-emerald-500 shrink-0"/> Hasta 30 productos en catálogo</li>
-              <li className="flex items-center gap-2.5"><CheckCircle2 size={16} className="text-emerald-500 shrink-0"/> Registro de ventas, fiados y abonos esenciales</li>
+              <li className="flex items-center gap-2.5"><CheckCircle2 size={16} className="text-emerald-500 shrink-0"/> Hasta 30 ventas, fiados o abonos al mes</li>
               <li className="flex items-center gap-2.5"><CheckCircle2 size={16} className="text-emerald-500 shrink-0"/> Comprobantes y extractos por WhatsApp</li>
               <li className="flex items-center gap-2.5"><CheckCircle2 size={16} className="text-emerald-500 shrink-0"/> Control de existencias en tiempo real</li>
               <li className="flex items-center gap-2.5"><CheckCircle2 size={16} className="text-emerald-500 shrink-0"/> 1 Respaldo Básico al mes en Excel (.xlsx)</li>
@@ -2354,7 +2366,7 @@ export default function LandingPage() {
                 </tr>
                 <tr className="hover:bg-slate-50 dark:hover:bg-slate-800/30">
                   <td className="py-3.5 px-4 text-slate-800 dark:text-slate-200 font-bold">Ventas, fiados y abonos registrados</td>
-                  <td className="py-3.5 px-4 text-center text-emerald-500 font-bold">✓ Incluido</td>
+                  <td className="py-3.5 px-4 text-center font-bold text-slate-600 dark:text-slate-400">Hasta 30 / mes</td>
                   <td className="py-3.5 px-4 text-center font-bold text-emerald-600">ILIMITADOS</td>
                   <td className="py-3.5 px-4 text-center font-bold text-purple-600">ILIMITADOS</td>
                 </tr>
@@ -3736,7 +3748,7 @@ export default function LandingPage() {
                               </span>
                               <div className="font-black text-sm text-slate-900 dark:text-white">Plan Básico</div>
                               <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">
-                                Registro de cuentas y fiados esenciales.
+                                Hasta 30 movimientos/mes, 15 clientes y 30 productos.
                               </div>
                             </div>
                             <div className="text-[10px] font-bold text-slate-500 mt-3">

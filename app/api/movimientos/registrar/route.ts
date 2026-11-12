@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getAdminAuth, getAdminDb } from '@/lib/firebase-admin';
+import { validarLimiteMovimientosGratis } from '@/lib/limitePlanGratis';
 
 const TIPOS_PERMITIDOS = new Set(['abono', 'egreso']);
 const METODOS_PERMITIDOS = new Set(['efectivo', 'transferencia', 'datafono', 'credito_externo', 'ajuste_contable']);
@@ -40,6 +41,16 @@ export async function POST(request: Request) {
     const cuentaPrincipalId = esAdmin ? decodedToken.uid : usuario.adminId;
     if (!cuentaPrincipalId) {
       return NextResponse.json({ error: 'La cuenta principal no es válida.' }, { status: 403 });
+    }
+
+    const validacionLimite = await validarLimiteMovimientosGratis(adminDb, cuentaPrincipalId);
+    if (!validacionLimite.permitido) {
+      return NextResponse.json({
+        error: `Tu Plan Gratuito alcanzó el límite de ${validacionLimite.limite} movimientos este mes. Pasa a Plan Comercio o PRO para registros ilimitados.`,
+        limiteAlcanzado: true,
+        limite: validacionLimite.limite,
+        totalMes: validacionLimite.totalMes
+      }, { status: 403 });
     }
 
     const body = await request.json();

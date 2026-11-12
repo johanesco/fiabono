@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getAdminAuth, getAdminDb } from '@/lib/firebase-admin';
 import { consumirLotesPEPS } from '@/utils/lotesInventario';
+import { validarLimiteMovimientosGratis } from '@/lib/limitePlanGratis';
 
 const METODOS_PERMITIDOS = new Set(['efectivo', 'transferencia', 'datafono', 'credito_externo', 'fiado']);
 
@@ -46,6 +47,16 @@ export async function POST(request: Request) {
     }
     if (!esAdmin && usuario.permisos?.ventaDirecta !== true) {
       return NextResponse.json({ error: 'No tienes permiso para confirmar ventas directamente.' }, { status: 403 });
+    }
+
+    const validacionLimite = await validarLimiteMovimientosGratis(adminDb, cuentaPrincipalId);
+    if (!validacionLimite.permitido) {
+      return NextResponse.json({
+        error: `Tu Plan Gratuito alcanzó el límite de ${validacionLimite.limite} movimientos este mes. Pasa a Plan Comercio o PRO para ventas ilimitadas.`,
+        limiteAlcanzado: true,
+        limite: validacionLimite.limite,
+        totalMes: validacionLimite.totalMes
+      }, { status: 403 });
     }
 
     const body = await request.json();
