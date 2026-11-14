@@ -960,6 +960,10 @@ function FiarContenido() {
                           e.preventDefault();
                           setBusquedaVisual('');
                           manejarProductoScaneado(matchExacto.sku || matchExacto.codigo || matchExacto.id);
+                        } else if (productosFiltrados.length > 0) {
+                          e.preventDefault();
+                          agregarProductoVisual(productosFiltrados[0]);
+                          setBusquedaVisual('');
                         }
                       }
                     }}

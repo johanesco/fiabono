@@ -13,6 +13,7 @@ import ModalSuscripcion from "@/components/ModalSuscripcion";
 import ModalAjustarImagen from "@/components/ModalAjustarImagen";
 import ModalConfirmarCerrarSesion from "@/components/modals/ModalConfirmarCerrarSesion";
 import ToggleNotificacionesPush from "@/components/ToggleNotificacionesPush";
+import { manejarEnterSiguienteCampo } from "@/utils/tecladoFormulario";
 import { MediosPagoNegocio, PermisosColaborador } from "@/types";
 import { generarSlugNegocio, limpiarUsuarioColaborador } from "@/utils/slug";
 import { RUBROS_NEGOCIOS } from "@/constants/rubrosCategorias";
@@ -5074,7 +5075,7 @@ export default function PerfilPage() {
             </div>
 
             {/* Form */}
-            <form onSubmit={enviarSolicitudDian} className="p-5 space-y-4">
+            <form onSubmit={enviarSolicitudDian} onKeyDown={(e) => manejarEnterSiguienteCampo(e)} className="p-5 space-y-4">
               <div className={`p-3.5 rounded-2xl text-xs border ${
                 datosSesion?.facturacionDianHabilitada
                   ? "bg-emerald-50/60 dark:bg-emerald-950/20 border-emerald-100 dark:border-emerald-900/40 text-emerald-800 dark:text-emerald-300"

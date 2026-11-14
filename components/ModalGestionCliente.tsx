@@ -9,6 +9,7 @@ import { API_DB } from "../servicios/db";
 import { Cliente } from "../types";
 import toast from "react-hot-toast";
 import { notificar } from "@/utils/notificaciones";
+import { manejarEnterSiguienteCampo } from "@/utils/tecladoFormulario";
 import { 
   Lock, 
   User, 
@@ -424,7 +425,7 @@ export default function ModalGestionCliente({
 
         {/* CASO 1: MODO EDITAR (FORMULARIO LIMPIO CON PRE-GUARDADO) */}
         {modo === 'editar' && (
-          <form onSubmit={handlePreGuardar} className="flex flex-col flex-1 min-h-0 overflow-hidden animate-in fade-in duration-200">
+          <form onSubmit={handlePreGuardar} onKeyDown={(e) => manejarEnterSiguienteCampo(e)} className="flex flex-col flex-1 min-h-0 overflow-hidden animate-in fade-in duration-200">
             <div className="p-5 sm:p-6 space-y-4 overflow-y-auto flex-1 scrollbar-thin">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
@@ -569,6 +570,7 @@ export default function ModalGestionCliente({
                 <input
                   type="text"
                   value={nuevaEtiqueta}
+                  data-no-enter-next="true"
                   onChange={(e) => setNuevaEtiqueta(e.target.value)}
                   onKeyDown={(e) => {
                     if (e.key === 'Enter') {

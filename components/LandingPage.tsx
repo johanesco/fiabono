@@ -8,6 +8,7 @@ import { generarSlugNegocio } from "@/utils/slug";
 import { detectarModoApp } from "@/lib/modoApp";
 import { NUMERO_WHATSAPP_FIABONO, abrirEnlaceWhatsApp } from "@/utils/whatsapp";
 import { PLANES_PRECIOS, ETIQUETA_LANZAMIENTO, NOTA_TARIFA_CONGELADA } from "@/constants/planes";
+import { manejarEnterSiguienteCampo } from "@/utils/tecladoFormulario";
 import { 
   CheckCircle2, ChevronRight, Star, BookX, PenTool, 
   MessageCircle, ShieldAlert, Store, Wallet, Shirt, Lock, 
@@ -2968,7 +2969,7 @@ export default function LandingPage() {
                   <div className="flex-1 h-px bg-slate-200 dark:bg-slate-800" />
                 </div>
 
-                <form onSubmit={manejarAuth} className="flex flex-col gap-3.5">
+                <form onSubmit={manejarAuth} onKeyDown={(e) => manejarEnterSiguienteCampo(e)} className="flex flex-col gap-3.5">
                   <div>
                     <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1">
                       {modalLandingInfo.tipo === 'login' ? "Correo o Usuario Colaborador" : "Correo Electrónico"}
@@ -3296,7 +3297,7 @@ export default function LandingPage() {
                 </div>
               </div>
             ) : (
-              <form onSubmit={completarOnboardingGoogle} className="space-y-4">
+              <form onSubmit={completarOnboardingGoogle} onKeyDown={(e) => manejarEnterSiguienteCampo(e)} className="space-y-4">
                 {/* ===================== PASO 1: IDENTIDAD DEL COMERCIO ===================== */}
                 {pasoGoogleOnboarding === 1 && (
                   <div className="space-y-4 animate-in fade-in duration-200">

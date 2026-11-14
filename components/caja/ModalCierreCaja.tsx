@@ -13,6 +13,7 @@ import {
 import { db } from '@/firebase';
 import { collection, query, where, orderBy, limit, getDocs, addDoc, serverTimestamp, Timestamp } from 'firebase/firestore';
 import { useAuth } from '@/hooks/AuthContext';
+import { manejarEnterSiguienteCampo } from '@/utils/tecladoFormulario';
 import { Movimiento, CierreCaja } from '@/types';
 import { 
   obtenerUltimoCierreCaja, 
@@ -758,7 +759,7 @@ export default function ModalCierreCaja({ isOpen, onClose, onCierreExitoso }: Mo
             </div>
           ) : (
             /* FORMULARIO DE CIERRE: 2 COLUMNAS EN DESKTOP (SIN SCROLL) */
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5 sm:gap-4 items-stretch">
+            <div data-enter-form="true" onKeyDown={(e) => manejarEnterSiguienteCampo(e)} className="grid grid-cols-1 md:grid-cols-2 gap-3.5 sm:gap-4 items-stretch">
               
               {/* COLUMNA IZQUIERDA: FLUJO Y MATEMÁTICA DEL TURNO */}
               <div className="space-y-3 flex flex-col justify-between">
@@ -1279,7 +1280,7 @@ export default function ModalCierreCaja({ isOpen, onClose, onCierreExitoso }: Mo
               </button>
             </div>
 
-            <div className="grid grid-cols-2 gap-2 max-h-[50vh] overflow-y-auto p-1">
+            <div data-enter-form="true" onKeyDown={(e) => manejarEnterSiguienteCampo(e, () => setMostrarModalDenominaciones(false))} className="grid grid-cols-2 gap-2 max-h-[50vh] overflow-y-auto p-1">
               {DENOMINACIONES_COP.map((d) => (
                 <div key={d.valor} className="bg-slate-50 dark:bg-[#020617] p-2 rounded-xl border border-slate-200/80 dark:border-slate-800">
                   <span className="text-[10px] font-bold text-slate-500 block truncate">{d.label}</span>

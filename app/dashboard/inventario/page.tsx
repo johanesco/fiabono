@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { collection, getDocs, getDoc, query, doc, updateDoc, deleteDoc, where, addDoc, writeBatch, increment } from "firebase/firestore";
 import { auth, db } from "../../../firebase";
 import { RUBROS_NEGOCIOS, CATEGORIAS_POR_DEFECTO_GENERAL } from "@/constants/rubrosCategorias";
+import { manejarEnterSiguienteCampo } from "@/utils/tecladoFormulario";
 import { 
   Package, 
   Plus, 
@@ -6074,7 +6075,7 @@ export default function InventarioPage() {
                 )}
 
                 {/* Contenedor Unificado del Formulario (Grilla Compacta) */}
-                <div className="bg-slate-50/80 dark:bg-slate-900/50 rounded-2xl border border-slate-200 dark:border-slate-800 p-3 sm:p-4 space-y-3 shadow-xs shrink-0">
+                <div data-enter-form="true" onKeyDown={(e) => manejarEnterSiguienteCampo(e)} className="bg-slate-50/80 dark:bg-slate-900/50 rounded-2xl border border-slate-200 dark:border-slate-800 p-3 sm:p-4 space-y-3 shadow-xs shrink-0">
                   
                   {/* Fila Foto + Fila 1 */}
                   <div className="flex flex-col sm:flex-row gap-3">

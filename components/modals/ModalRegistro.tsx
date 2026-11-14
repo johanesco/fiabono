@@ -1,6 +1,7 @@
 "use client";
 import { Search, ShoppingBag, Banknote, ShoppingCart, X, ChevronRight, UserCog, Minus, Plus, CheckCircle2 } from 'lucide-react';
 import { Cliente, DetalleMovimiento } from '../../types';
+import { manejarEnterSiguienteCampo } from '@/utils/tecladoFormulario';
 
 interface ModalRegistroProps {
   visible: boolean;
@@ -61,7 +62,27 @@ export default function ModalRegistro({
               <p className="font-bold text-slate-600 dark:text-slate-300 mb-5 text-lg">¿A qué cliente se le aplicará?</p>
               <div className="relative mb-6">
                 <Search className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
-                <input type="text" value={busqueda} onChange={(e) => setBusqueda(e.target.value)} placeholder="Buscar cliente..." className="w-full p-5 pl-14 bg-slate-50 dark:bg-[#020617] border border-slate-200 dark:border-slate-800/80 rounded-2xl outline-none focus:border-blue-500 dark:focus:border-blue-400 dark:text-white transition-all text-lg" />
+                <input
+                  type="text"
+                  value={busqueda}
+                  onChange={(e) => setBusqueda(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      if (clientesFiltrados.length > 0) {
+                        setClienteTransaccion(clientesFiltrados[0]);
+                        setPasoRegistro(2);
+                        setBusqueda("");
+                      } else if (busqueda.trim()) {
+                        setNombreNuevo(busqueda.trim());
+                        abrirModalNuevoCliente();
+                        setBusqueda("");
+                      }
+                    }
+                  }}
+                  placeholder="Buscar cliente..."
+                  className="w-full p-5 pl-14 bg-slate-50 dark:bg-[#020617] border border-slate-200 dark:border-slate-800/80 rounded-2xl outline-none focus:border-blue-500 dark:focus:border-blue-400 dark:text-white transition-all text-lg"
+                />
               </div>
               <div className="flex flex-col gap-3 pb-10">
                 {clientesFiltrados.map(c => (
@@ -91,7 +112,7 @@ export default function ModalRegistro({
                 )}
 
                 {/* LISTA DE FILAS */}
-                <div className="flex flex-col gap-4 pb-4">
+                <div data-enter-form="true" onKeyDown={(e) => manejarEnterSiguienteCampo(e)} className="flex flex-col gap-4 pb-4">
                   {filasRegistro.map((fila, index) => (
                     <div key={index} className="flex flex-col gap-3 p-4 bg-slate-50 dark:bg-[#020617] rounded-2xl border border-slate-100 dark:border-slate-800/80 shadow-sm relative">
                       {filasRegistro.length > 1 && (

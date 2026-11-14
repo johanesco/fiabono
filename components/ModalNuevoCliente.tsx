@@ -4,6 +4,7 @@ import { createPortal } from "react-dom";
 import { auth } from "../firebase";
 import { Cliente } from "../types";
 import toast from "react-hot-toast";
+import { manejarEnterSiguienteCampo } from "@/utils/tecladoFormulario";
 import { 
   UserPlus, 
   X, 
@@ -193,7 +194,7 @@ export default function ModalNuevoCliente({
         </div>
 
         {/* Formulario con cuerpo scrolleable y footer fijo */}
-        <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0 overflow-hidden">
+        <form onSubmit={handleSubmit} onKeyDown={(e) => manejarEnterSiguienteCampo(e)} className="flex flex-col flex-1 min-h-0 overflow-hidden">
           <div className="p-4 sm:p-5 overflow-y-auto flex-1 space-y-3.5 scrollbar-thin">
             {/* 1. NOMBRES Y APELLIDOS (ESENCIAL) */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
@@ -380,6 +381,7 @@ export default function ModalNuevoCliente({
                         <input
                           type="text"
                           value={inputEtiqueta}
+                          data-no-enter-next="true"
                           onChange={(e) => setInputEtiqueta(e.target.value)}
                           onKeyDown={(e) => {
                             if (e.key === 'Enter' || e.key === ',') {

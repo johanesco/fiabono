@@ -2,6 +2,7 @@
 import React, { useState, useEffect } from "react";
 import { createPortal } from "react-dom";
 import { UserCog, CheckCircle2 } from 'lucide-react';
+import { manejarEnterSiguienteCampo } from '@/utils/tecladoFormulario';
 
 interface ModalNuevoClienteProps {
   visible: boolean;
@@ -40,7 +41,11 @@ export default function ModalNuevoCliente({
           <UserCog size={28}/> Registrar Cliente
         </h3>
         
-        <div className="flex flex-col gap-4 mb-8">
+        <div
+          data-enter-form="true"
+          onKeyDown={(e) => manejarEnterSiguienteCampo(e, () => { if (!guardandoCliente) guardarClienteNuevo(); })}
+          className="flex flex-col gap-4 mb-8"
+        >
           <input 
             type="text" 
             value={nombreNuevo} 

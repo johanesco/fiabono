@@ -2179,6 +2179,12 @@ Gracias por seguir con nosotros.
             value={busqueda}
             onChange={(e) => setBusqueda(e.target.value)}
             placeholder="Buscar por nombre, teléfono, dirección o notas..."
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && clientesFiltrados.length > 0) {
+                e.preventDefault();
+                setClienteFicha(clientesFiltrados[0]);
+              }
+            }}
             className="w-full bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-800 rounded-2xl pl-10 pr-9 py-2.5 text-xs sm:text-sm font-semibold text-slate-800 dark:text-white placeholder:text-slate-400 shadow-2xs focus:ring-2 focus:ring-emerald-500 focus:outline-hidden"
           />
           {busqueda && (

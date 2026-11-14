@@ -2122,6 +2122,29 @@ ${itemsTexto || '• Artículos apartados'}
               value={busqueda}
               onChange={(e) => setBusqueda(e.target.value)}
               placeholder="Buscar por cliente o producto..."
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && separesFiltrados.length > 0) {
+                  e.preventDefault();
+                  const primero = separesFiltrados[0];
+                  const saldoPrimero = primero.saldoPendiente !== undefined
+                    ? primero.saldoPendiente
+                    : Math.max(0, (primero.total || 0) - (primero.montoPagado || 0));
+                  if (primero.estado !== 'completado' && primero.estado !== 'cancelado') {
+                    if (saldoPrimero > 0 && puedeAbonar) {
+                      abrirModalAbono(primero);
+                    } else if (saldoPrimero === 0) {
+                      setSepareSeleccionado(primero);
+                      setModalCompletar(true);
+                    } else {
+                      setSepareSeleccionado(primero);
+                      setModalHistorial(true);
+                    }
+                  } else {
+                    setSepareSeleccionado(primero);
+                    setModalHistorial(true);
+                  }
+                }
+              }}
               className="w-full pl-10 pr-4 py-2.5 bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-800 rounded-2xl text-xs font-bold text-slate-800 dark:text-white outline-none focus:border-violet-500 shadow-sm"
             />
           </div>
