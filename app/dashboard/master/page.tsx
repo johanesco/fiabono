@@ -14,6 +14,7 @@ import {
   Trash2, Power, Users, Phone, MessageCircle, TrendingUp, DollarSign, 
   AlertTriangle, Sparkles, FileText, Activity, RefreshCw, Send, 
   Store, Clock, ExternalLink, Check, UserCheck, Eye, ShieldCheck, ChevronRight,
+  ChevronDown, ChevronUp, LayoutGrid, List, ChevronsUpDown, ChevronsDownUp,
   Sun, Moon, CreditCard, KeyRound, Smartphone, Building, User, Mail, Hash, UserX, Download
 } from 'lucide-react';
 
@@ -55,6 +56,38 @@ export default function MasterPage() {
   const [busqueda, setBusqueda] = useState("");
   const [tabActiva, setTabActiva] = useState<'usuarios' | 'bonos' | 'anuncios'>('usuarios');
   const [filtroEstado, setFiltroEstado] = useState<'todos' | 'porVencer' | 'pro' | 'comercio' | 'gratis' | 'prueba' | 'vencidos' | 'recientes' | 'inactivos' | 'suspendidos' | 'conDian' | 'solicitudDian'>('todos');
+
+  // MODO VISTA: COLLAGE (POR DEFECTO) VS LISTA PARA EL FOUNDER
+  const [modoVista, setModoVista] = useState<'collage' | 'lista'>(() => {
+    if (typeof window !== 'undefined') {
+      return (localStorage.getItem('fiabono_master_modo_vista') as 'collage' | 'lista') || 'collage';
+    }
+    return 'collage';
+  });
+
+  // Negocios desplegados individualmente en el collage
+  const [negociosExpandidos, setNegociosExpandidos] = useState<Record<string, boolean>>({});
+
+  const toggleDesplegarNegocio = (id: string) => {
+    setNegociosExpandidos(prev => ({ ...prev, [id]: !prev[id] }));
+  };
+
+  const desplegarTodos = () => {
+    const todos: Record<string, boolean> = {};
+    usuariosFiltrados.forEach(u => { todos[u.id] = true; });
+    setNegociosExpandidos(todos);
+  };
+
+  const colapsarTodos = () => {
+    setNegociosExpandidos({});
+  };
+
+  const cambiarModoVista = (nuevoModo: 'collage' | 'lista') => {
+    setModoVista(nuevoModo);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('fiabono_master_modo_vista', nuevoModo);
+    }
+  };
 
   // Modal Gestión Facturación Electrónica DIAN
   const [modalDian, setModalDian] = useState<{
@@ -1908,389 +1941,505 @@ export default function MasterPage() {
               </div>
             </div>
 
-            {/* LISTADO DE TIENDAS */}
-            <div className="space-y-3">
+            {/* BARRA DE HERRAMIENTAS Y MODO DE VISTA PARA EL FOUNDER */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-1">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className={`text-xs font-bold ${theme.textMuted}`}>
+                  Mostrando <strong className={theme.textMain}>{usuariosFiltrados.length}</strong> de <strong className={theme.textMain}>{usuarios.length}</strong> negocios
+                </span>
+                {Object.values(negociosExpandidos).filter(Boolean).length > 0 && (
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-700 dark:text-amber-300 border border-amber-500/30">
+                    {Object.values(negociosExpandidos).filter(Boolean).length} desplegados
+                  </span>
+                )}
+              </div>
+
+              <div className="flex items-center gap-2 flex-wrap">
+                {/* Desplegar / Colapsar Todos */}
+                <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-800/80 p-0.5 rounded-xl border border-slate-200 dark:border-slate-700">
+                  <button
+                    type="button"
+                    onClick={desplegarTodos}
+                    title="Desplegar todos los negocios"
+                    className={`px-2.5 py-1 rounded-lg text-xs font-bold transition flex items-center gap-1 cursor-pointer ${
+                      modoOscuro ? 'hover:bg-slate-700 text-slate-300' : 'hover:bg-slate-200 text-slate-700'
+                    }`}
+                  >
+                    <ChevronsUpDown size={13} />
+                    <span className="hidden sm:inline">Desplegar todo</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={colapsarTodos}
+                    title="Colapsar todos los negocios"
+                    className={`px-2.5 py-1 rounded-lg text-xs font-bold transition flex items-center gap-1 cursor-pointer ${
+                      modoOscuro ? 'hover:bg-slate-700 text-slate-300' : 'hover:bg-slate-200 text-slate-700'
+                    }`}
+                  >
+                    <ChevronsDownUp size={13} />
+                    <span className="hidden sm:inline">Colapsar</span>
+                  </button>
+                </div>
+
+                {/* Selector de Modo de Vista */}
+                <div className="flex items-center bg-slate-100 dark:bg-slate-800/80 p-0.5 rounded-xl border border-slate-200 dark:border-slate-700">
+                  <button
+                    type="button"
+                    onClick={() => cambiarModoVista('collage')}
+                    className={`px-3 py-1 rounded-lg text-xs font-black transition flex items-center gap-1.5 cursor-pointer ${
+                      modoVista === 'collage'
+                        ? 'bg-amber-500 text-slate-950 shadow-xs'
+                        : (modoOscuro ? 'text-slate-400 hover:text-white' : 'text-slate-600 hover:text-slate-900')
+                    }`}
+                    title="Vista Collage (Cuadrícula ejecutiva limpia)"
+                  >
+                    <LayoutGrid size={13} />
+                    <span>Collage</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => cambiarModoVista('lista')}
+                    className={`px-3 py-1 rounded-lg text-xs font-black transition flex items-center gap-1.5 cursor-pointer ${
+                      modoVista === 'lista'
+                        ? 'bg-amber-500 text-slate-950 shadow-xs'
+                        : (modoOscuro ? 'text-slate-400 hover:text-white' : 'text-slate-600 hover:text-slate-900')
+                    }`}
+                    title="Vista Lista clásica"
+                  >
+                    <List size={13} />
+                    <span>Lista</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* LISTADO DE TIENDAS EN FORMATO COLLAGE O LISTA */}
+            <div className={modoVista === 'collage' ? "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-3 2xl:grid-cols-4 gap-4" : "space-y-3"}>
               {usuariosFiltrados.map(u => {
                 const estado = calcularEstadoPlan(u);
                 const infoInac = calcularInactividad(u);
                 const isPro = u.plan === 'pro';
                 const isComercio = u.plan === 'comercio';
                 const tele = telemetriaMap[u.id];
+                const estaDesplegado = Boolean(negociosExpandidos[u.id]);
 
                 return (
                   <div 
                     key={u.id} 
-                    className={`${theme.card} rounded-3xl p-4 sm:p-6 border transition-all shadow-sm space-y-4 hover:border-slate-700/60`}
+                    className={`${theme.card} rounded-3xl p-4 sm:p-5 border transition-all duration-200 shadow-xs flex flex-col justify-between hover:shadow-md hover:border-slate-600/80 relative overflow-hidden group ${
+                      isPro 
+                        ? 'border-purple-500/30' 
+                        : isComercio 
+                        ? 'border-blue-500/30' 
+                        : ''
+                    }`}
                   >
-                    {/* Fila Principal */}
-                    <div className="flex flex-col xl:flex-row justify-between xl:items-center gap-4">
-                      
-                      {/* Información de la Tienda */}
-                      <div className="flex items-start gap-3 min-w-0 flex-1">
-                        <div className={`p-3 rounded-2xl shrink-0 mt-0.5 ${
-                          isPro 
-                            ? 'bg-purple-500/15 text-purple-600 dark:text-purple-400 border border-purple-500/30' 
-                            : isComercio 
-                            ? 'bg-blue-500/15 text-blue-600 dark:text-blue-400 border border-blue-500/30' 
-                            : (modoOscuro ? 'bg-slate-800 text-slate-400' : 'bg-slate-100 text-slate-500')
-                        }`}>
-                          <Store size={22} />
-                        </div>
+                    {/* CABECERA DE LA TARJETA DEL COLLAGE */}
+                    <div className="space-y-3">
+                      <div className="flex items-start justify-between gap-2.5">
+                        <div className="flex items-start gap-2.5 min-w-0 flex-1">
+                          {/* Ícono de Tienda / Corona */}
+                          <div className={`p-2.5 rounded-2xl shrink-0 mt-0.5 transition-transform group-hover:scale-105 ${
+                            isPro 
+                              ? 'bg-purple-500/15 text-purple-600 dark:text-purple-400 border border-purple-500/30' 
+                              : isComercio 
+                              ? 'bg-blue-500/15 text-blue-600 dark:text-blue-400 border border-blue-500/30' 
+                              : (modoOscuro ? 'bg-slate-800 text-slate-400' : 'bg-slate-100 text-slate-500')
+                          }`}>
+                            {isPro ? <Crown size={20} className="fill-purple-500/20" /> : <Store size={20} />}
+                          </div>
 
-                        <div className="min-w-0 flex-1">
-                          <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
-                            <h3 className={`font-black ${theme.textMain} text-base sm:text-lg tracking-tight break-words`}>
+                          <div className="min-w-0 flex-1">
+                            <h3 
+                              className={`font-black ${theme.textMain} text-base tracking-tight truncate leading-snug cursor-pointer hover:text-amber-500 transition-colors`}
+                              title={u.nombreNegocio || "Negocio sin nombre"}
+                              onClick={() => toggleDesplegarNegocio(u.id)}
+                            >
                               {u.nombreNegocio || "Negocio sin nombre"}
                             </h3>
-                            <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider ${
-                              isPro 
-                                ? 'bg-purple-500/15 text-purple-700 dark:text-purple-300 border border-purple-500/30' 
-                                : isComercio 
-                                ? 'bg-blue-500/15 text-blue-700 dark:text-blue-300 border border-blue-500/30' 
-                                : (modoOscuro ? 'bg-slate-800 text-slate-400 border border-slate-700' : 'bg-slate-100 text-slate-600 border border-slate-200')
-                            }`}>
-                              {u.plan || 'gratis'}
-                            </span>
-                            <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-black ${estado.color}`}>
-                              {estado.label}
-                            </span>
-                            
-                            {/* BADGE DE SUSPENSIÓN */}
-                            {(u.activo === false || u.suspendido === true) && (
-                              <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-rose-500/20 text-rose-600 dark:text-rose-400 border border-rose-500/40 flex items-center gap-1">
-                                <ShieldAlert size={11} /> Suspendido
+
+                            {/* Badges de Estado Compactos */}
+                            <div className="flex flex-wrap items-center gap-1 mt-1">
+                              <span className={`px-2 py-0.2 rounded-full text-[9px] font-black uppercase tracking-wider ${
+                                isPro 
+                                  ? 'bg-purple-500/15 text-purple-700 dark:text-purple-300 border border-purple-500/30' 
+                                  : isComercio 
+                                  ? 'bg-blue-500/15 text-blue-700 dark:text-blue-300 border border-blue-500/30' 
+                                  : (modoOscuro ? 'bg-slate-800 text-slate-400 border border-slate-700' : 'bg-slate-100 text-slate-600 border border-slate-200')
+                              }`}>
+                                {u.plan || 'gratis'}
                               </span>
-                            )}
 
-                            {/* BADGE DE INACTIVIDAD */}
-                            {infoInac.esInactivo30d && (
-                              <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-rose-500/15 text-rose-700 dark:text-rose-400 border border-rose-500/30 flex items-center gap-1">
-                                <UserX size={11} /> Inactivo (+30d)
+                              <span className={`px-2 py-0.2 rounded-full text-[9px] font-black ${estado.color}`}>
+                                {estado.label}
                               </span>
-                            )}
 
-                            {(u.moduloSepare || (u.plan === 'pro' && u.moduloSepareActivo !== false)) && (
-                              <span className="px-2 py-0.5 rounded-full text-[9px] font-black bg-pink-500/15 text-pink-700 dark:text-pink-300 border border-pink-500/30">
-                                Plan Separe
-                              </span>
-                            )}
+                              {(u.activo === false || u.suspendido === true) && (
+                                <span className="px-2 py-0.2 rounded-full text-[9px] font-black uppercase tracking-wider bg-rose-500/20 text-rose-600 dark:text-rose-400 border border-rose-500/40 flex items-center gap-0.5">
+                                  <ShieldAlert size={10} /> Suspendido
+                                </span>
+                              )}
 
-                            {u.facturacionDianHabilitada && (
-                              <button
-                                onClick={() => abrirModalDian(u)}
-                                className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30 flex items-center gap-1 cursor-pointer hover:bg-emerald-500/25 transition"
-                                title="DIAN habilitada - Clic para gestionar"
-                              >
-                                <FileText size={11} /> DIAN Activa
-                              </button>
-                            )}
+                              {infoInac.esInactivo30d && (
+                                <span className="px-2 py-0.2 rounded-full text-[9px] font-bold bg-rose-500/15 text-rose-700 dark:text-rose-400 border border-rose-500/30 flex items-center gap-0.5">
+                                  <UserX size={10} /> +30d
+                                </span>
+                              )}
 
-                            {u.solicitudDian && u.solicitudDian.estado === 'pendiente' && !u.facturacionDianHabilitada && (
-                              <button
-                                onClick={() => abrirModalDian(u)}
-                                className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-amber-500/20 text-amber-800 dark:text-amber-300 border border-amber-500/40 flex items-center gap-1 animate-pulse cursor-pointer hover:bg-amber-500/30 transition"
-                                title="Solicitud DIAN pendiente de aprobacion - Clic para revisar"
-                              >
-                                <AlertTriangle size={11} /> Solicitud DIAN
-                              </button>
-                            )}
-                          </div>
+                              {u.facturacionDianHabilitada && (
+                                <span className="px-1.5 py-0.2 rounded-full text-[9px] font-black bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30">
+                                  DIAN
+                                </span>
+                              )}
 
-                          <div className={`flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs ${theme.textMuted} mt-1.5`}>
-                            <span className="flex items-center gap-1">
-                              <User size={12} className="shrink-0" /> <strong className={`${theme.textMain} break-words`}>{u.nombreUsuario || 'Sin usuario'}</strong>
-                            </span>
-                            <span className="flex items-center gap-1 break-words min-w-0">
-                              <Mail size={12} className="shrink-0" /> {u.email}
-                            </span>
-                            {(u.telefonoNegocio || u.celular) && (
-                              <span className="flex items-center gap-1 font-mono font-bold whitespace-nowrap">
-                                <Phone size={12} className="shrink-0" /> {u.telefonoNegocio || u.celular}
-                              </span>
-                            )}
-                            <span className="flex items-center gap-1 font-medium whitespace-nowrap">
-                              <Clock size={11} className="shrink-0" /> Ultimo acceso: <strong className={infoInac.esInactivo30d ? "text-rose-600 dark:text-rose-400 font-bold" : theme.textMain}>{infoInac.texto}</strong>
-                            </span>
-                            {u.plan !== 'gratis' && u.planVence && formatearFechaCortaMaster(u.planVence) && (
-                              <span className="flex items-center gap-1 font-medium whitespace-nowrap">
-                                <Calendar size={11} className="shrink-0 text-amber-500" />
-                                {calcularDiasRestantes(u) < 0 ? 'Venció:' : 'Vence:'}{' '}
-                                <strong className={calcularDiasRestantes(u) <= 3 ? "text-amber-600 dark:text-amber-400 font-bold" : theme.textMain}>
-                                  {formatearFechaCortaMaster(u.planVence)}
-                                </strong>
-                              </span>
-                            )}
-                            {(u.fechaRegistro || u.createdAt) && formatearFechaCortaMaster(u.fechaRegistro || u.createdAt) && (
-                              <span className="flex items-center gap-1 font-medium whitespace-nowrap">
-                                <Sparkles size={11} className="shrink-0 opacity-70" /> Creado: <strong className={theme.textMain}>{formatearFechaCortaMaster(u.fechaRegistro || u.createdAt)}</strong>
-                              </span>
-                            )}
-                            <span className="hidden">
-                            </span>
-                            <span className="text-[10px] opacity-70 font-mono whitespace-nowrap">
-                              ID: {u.id.slice(0, 8)}...
-                            </span>
-                          </div>
+                              {u.solicitudDian?.estado === 'pendiente' && !u.facturacionDianHabilitada && (
+                                <span className="px-1.5 py-0.2 rounded-full text-[9px] font-black bg-amber-500/20 text-amber-800 dark:text-amber-300 border border-amber-500/40 animate-pulse">
+                                  Sol. DIAN
+                                </span>
+                              )}
 
-                          {/* Previsualización de Nota Master si existe */}
-                          {u.notasMaster && (
-                            <div className="mt-2.5 text-xs bg-amber-500/15 border border-amber-500/30 text-amber-900 dark:text-amber-200 p-2.5 rounded-xl flex items-center gap-2">
-                              <FileText size={14} className="shrink-0 text-amber-500" />
-                              <p className="truncate"><strong>Nota Johan:</strong> {u.notasMaster}</p>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-
-                      {/* Botonera de Acciones Rápidas */}
-                      <div className={`grid grid-cols-2 sm:flex sm:flex-wrap items-center gap-2 pt-3 xl:pt-0 border-t xl:border-t-0 ${theme.border} w-full xl:w-auto xl:max-w-[46%] xl:justify-end`}>
-                        {/* WhatsApp CRM */}
-                        {(u.telefonoNegocio || u.celular) && (
-                          <button
-                            onClick={() => abrirModalWhatsApp(u)}
-                            className="col-span-2 sm:col-span-1 px-3.5 py-2.5 bg-[#25D366]/15 hover:bg-[#25D366]/25 text-[#128C7E] dark:text-[#25D366] font-black rounded-xl text-xs flex items-center justify-center gap-1.5 border border-[#25D366]/30 transition active:scale-95 cursor-pointer shadow-xs"
-                            title="Abrir WhatsApp con plantillas"
-                          >
-                            <MessageCircle size={15} />
-                            <span>WhatsApp CRM</span>
-                          </button>
-                        )}
-
-                        {/* Botón Gestionar Plan Completo */}
-                        <button 
-                          onClick={() => {
-                            const planActual = (u.plan === 'pro' || u.plan === 'comercio' || u.plan === 'gratis') ? u.plan : 'comercio';
-                            setFormPlan({ plan: planActual, dias: 30 });
-                            setModalPlan({ visible: true, usuario: u });
-                          }}
-                          className="px-3.5 py-2.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black rounded-xl text-xs flex items-center justify-center gap-1.5 shadow-md shadow-amber-500/20 transition active:scale-95 cursor-pointer"
-                        >
-                          <Edit2 size={14} />
-                          <span>Plan</span>
-                        </button>
-
-                        {/* Botón DIAN Master */}
-                        <button
-                          onClick={() => abrirModalDian(u)}
-                          className={`px-3 py-2.5 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition active:scale-95 cursor-pointer ${
-                            u.facturacionDianHabilitada
-                              ? 'bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30'
-                              : (u.solicitudDian && u.solicitudDian.estado === 'pendiente'
-                                  ? 'bg-amber-500/20 hover:bg-amber-500/30 text-amber-800 dark:text-amber-300 border border-amber-500/50 animate-pulse'
-                                  : (modoOscuro ? 'bg-slate-800 hover:bg-slate-700 text-slate-300' : 'bg-slate-100 hover:bg-slate-200 text-slate-700'))
-                          }`}
-                          title="Gestionar Facturacion Electronica DIAN"
-                        >
-                          <FileText size={14} className={u.facturacionDianHabilitada ? 'text-emerald-500' : (u.solicitudDian?.estado === 'pendiente' ? 'text-amber-500' : '')} />
-                          <span>DIAN</span>
-                        </button>
-
-                        {/* Botón Notas Master */}
-                        <button
-                          onClick={() => setModalNota({ visible: true, usuario: u, texto: u.notasMaster || "", guardando: false })}
-                          className={`px-3 py-2.5 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition active:scale-95 cursor-pointer ${
-                            u.notasMaster 
-                              ? 'bg-amber-500/20 text-amber-800 dark:text-amber-300 border border-amber-500/40' 
-                              : (modoOscuro ? 'bg-slate-800 hover:bg-slate-700 text-slate-300' : 'bg-slate-100 hover:bg-slate-200 text-slate-700')
-                          }`}
-                          title="Nota privada del Master"
-                        >
-                          <FileText size={14} />
-                          <span>{u.notasMaster ? 'Ver Nota' : 'Nota'}</span>
-                        </button>
-
-                        {/* Botón Ver Colaboradores */}
-                        <button 
-                          onClick={() => verCajeros(u.id, u.nombreNegocio || u.nombreUsuario)}
-                          className={`px-3 py-2.5 font-bold rounded-xl text-xs flex items-center justify-center gap-1.5 transition active:scale-95 cursor-pointer ${
-                            modoOscuro ? 'bg-slate-800 hover:bg-slate-700 text-slate-300' : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
-                          }`}
-                        >
-                          <Users size={14} />
-                          <span>Cajeros</span>
-                        </button>
-
-                        {/* Botón Restablecer Clave (Solo si tiene email) */}
-                        {u.email && u.email.includes('@') && !u.email.endsWith('@fiabono.internal') && !u.email.endsWith('@fiabono.caja') && (
-                          <button
-                            onClick={() => abrirModalResetPass(u)}
-                            className={`px-3 py-2.5 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition active:scale-95 cursor-pointer ${
-                              modoOscuro ? 'bg-slate-800 hover:bg-slate-700 text-slate-300' : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
-                            }`}
-                            title="Restablecer clave o generar enlace oficial"
-                          >
-                            <KeyRound size={14} />
-                            <span>Clave</span>
-                          </button>
-                        )}
-
-                        {/* Botón Suspender / Reactivar Cuenta */}
-                        <button
-                          onClick={() => toggleSuspensionNegocio(u)}
-                          className={`px-3 py-2.5 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition active:scale-95 cursor-pointer ${
-                            u.activo === false || u.suspendido === true
-                              ? 'bg-amber-500/15 hover:bg-amber-500/25 text-amber-600 dark:text-amber-400 border border-amber-500/30'
-                              : (modoOscuro ? 'bg-slate-800 hover:bg-slate-700 text-slate-300' : 'bg-slate-100 hover:bg-slate-200 text-slate-700')
-                          }`}
-                          title={u.activo === false || u.suspendido === true ? 'Reactivar acceso a la cuenta' : 'Suspender acceso a la cuenta'}
-                        >
-                          <Power size={14} className={u.activo === false || u.suspendido === true ? 'text-amber-500' : 'text-slate-400'} />
-                          <span>{u.activo === false || u.suspendido === true ? 'Reactivar' : 'Suspender'}</span>
-                        </button>
-
-                        {/* Botón Eliminar Definitivamente (Purga en cascada) */}
-                        <button
-                          onClick={() => abrirModalEliminar(u)}
-                          className="px-3 py-2.5 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition active:scale-95 cursor-pointer bg-rose-500/10 hover:bg-rose-500/20 text-rose-600 dark:text-rose-400 border border-rose-500/20"
-                          title="Eliminacion definitiva y purga en cascada"
-                        >
-                          <Trash2 size={14} />
-                          <span>Eliminar</span>
-                        </button>
-                      </div>
-                    </div>
-
-                    {/* Barra Inferior: Actividad / Telemetría y Extensiones Seguras */}
-                    <div className={`pt-3.5 border-t ${theme.border} space-y-3.5`}>
-                      
-                      {/* BLOQUE DE AUDITORÍA Y SALUD */}
-                      {tele?.auditado ? (
-                        <div className={`p-3.5 rounded-2xl border ${theme.cardSubtle} space-y-3 animate-in fade-in`}>
-                          {/* Fila 1: Estado y Pulso del Negocio */}
-                          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2.5 border-b border-slate-200/60 dark:border-slate-800/80 text-xs">
-                            <div className="flex items-center gap-2">
-                              <span className={`w-2.5 h-2.5 rounded-full ${
-                                tele.movimientos > 0 ? 'bg-emerald-500 shadow-xs shadow-emerald-500/50' : (tele.productos > 0 ? 'bg-amber-500' : 'bg-rose-500')
-                              }`}></span>
-                              <span className="font-bold">
-                                Estado: <strong className={tele.movimientos > 0 ? 'text-emerald-600 dark:text-emerald-400 font-black' : theme.textMain}>
-                                  {tele.movimientos > 0 ? 'Activo en Operación' : (tele.productos > 0 ? 'En Configuración' : 'Sin Actividad')}
-                                </strong>
-                              </span>
-                            </div>
-
-                            <div className="flex flex-wrap items-center gap-2 text-[11px]">
-                              <span className={theme.textMuted}>
-                                Último mov: <strong className={theme.textMain}>{tele.ultimoMovimientoTexto || 'N/A'}</strong>
-                              </span>
-                              <span className="opacity-30">|</span>
-                              <span className="text-emerald-600 dark:text-emerald-400 font-bold">
-                                Últimos 30 días: <strong>{(tele.movimientos30d ?? 0).toLocaleString('es-CO')} movs</strong>
-                              </span>
-                              <button
-                                type="button"
-                                onClick={() => auditarActividadTienda(u.id)}
-                                title="Refrescar auditoría de actividad"
-                                className="p-1 rounded-lg hover:bg-slate-500/15 text-slate-400 hover:text-slate-200 transition cursor-pointer"
-                              >
-                                <RefreshCw size={12} className={tele?.cargando ? 'animate-spin text-amber-500' : ''} />
-                              </button>
-                            </div>
-                          </div>
-
-                          {/* Fila 2: Base Cuantitativa + Desglose por Módulos */}
-                          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-2.5 text-xs">
-                            {/* Base */}
-                            <div className={`flex items-center gap-2 text-[11px] ${theme.textMuted}`}>
-                              <span>Base:</span>
-                              <span className="font-medium">
-                                <strong className={theme.textMain}>{(tele.productos).toLocaleString('es-CO')}</strong> productos
-                              </span>
-                              <span className="opacity-30">·</span>
-                              <span className="font-medium">
-                                <strong className={theme.textMain}>{(tele.clientes).toLocaleString('es-CO')}</strong> clientes
-                              </span>
-                              <span className="opacity-30">·</span>
-                              <span className="font-medium">
-                                <strong className={theme.textMain}>{(tele.movimientos).toLocaleString('es-CO')}</strong> movs totales
-                              </span>
-                            </div>
-
-                            {/* Pastillas sobrias y ordenadas */}
-                            <div className="flex flex-wrap items-center gap-1.5 text-[11px]">
-                              <span className="px-2 py-0.5 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 font-medium">
-                                Ventas: <strong className="text-emerald-600 dark:text-emerald-400 font-black">{(tele.ventas ?? 0).toLocaleString('es-CO')}</strong>
-                              </span>
-                              <span className="px-2 py-0.5 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 font-medium">
-                                Fiados: <strong className="text-amber-600 dark:text-amber-400 font-black">{(tele.fiados ?? 0).toLocaleString('es-CO')}</strong>
-                              </span>
-                              <span className="px-2 py-0.5 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 font-medium">
-                                Abonos: <strong className="text-blue-600 dark:text-blue-400 font-black">{(tele.abonos ?? 0).toLocaleString('es-CO')}</strong>
-                              </span>
-                              <span className="px-2 py-0.5 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 font-medium">
-                                Separes: <strong className="text-pink-600 dark:text-pink-400 font-black">{(tele.separes ?? 0).toLocaleString('es-CO')}</strong>
-                              </span>
-                              <span className="px-2 py-0.5 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 font-medium">
-                                Cajas: <strong className="text-purple-600 dark:text-purple-400 font-black">{(tele.cierresCaja ?? 0).toLocaleString('es-CO')}</strong>
-                              </span>
-                              {(tele.egresos ?? 0) > 0 && (
-                                <span className="px-2 py-0.5 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 font-medium">
-                                  Gastos: <strong className="text-rose-600 dark:text-rose-400 font-black">{(tele.egresos ?? 0).toLocaleString('es-CO')}</strong>
+                              {(u.moduloSepare || (u.plan === 'pro' && u.moduloSepareActivo !== false)) && (
+                                <span className="px-1.5 py-0.2 rounded-full text-[9px] font-black bg-pink-500/15 text-pink-700 dark:text-pink-300 border border-pink-500/30">
+                                  Separe
                                 </span>
                               )}
                             </div>
                           </div>
                         </div>
-                      ) : (
+
+                        {/* Botón rápido Chevron para abrir/cerrar */}
+                        <button
+                          type="button"
+                          onClick={() => toggleDesplegarNegocio(u.id)}
+                          className={`p-1.5 rounded-xl border transition cursor-pointer shrink-0 ${
+                            estaDesplegado
+                              ? 'bg-amber-500 text-slate-950 border-amber-500 shadow-xs'
+                              : (modoOscuro ? 'bg-slate-800/70 hover:bg-slate-800 text-slate-400 hover:text-white border-slate-700/60' : 'bg-slate-100 hover:bg-slate-200 text-slate-600 border-slate-200')
+                          }`}
+                          title={estaDesplegado ? "Colapsar ficha del negocio" : "Desplegar ficha del negocio"}
+                        >
+                          <ChevronDown size={14} className={`transition-transform duration-200 ${estaDesplegado ? 'rotate-180' : ''}`} />
+                        </button>
+                      </div>
+
+                      {/* INFORMACIÓN RESUMIDA (SIEMPRE VISIBLE EN EL COLLAGE) */}
+                      <div className={`space-y-1.5 text-xs ${theme.textMuted} pt-1 border-t ${theme.border}`}>
                         <div className="flex items-center justify-between gap-2">
-                          <button
-                            onClick={() => auditarActividadTienda(u.id)}
-                            disabled={tele?.cargando}
-                            className={`px-3.5 py-1.5 rounded-xl font-bold text-xs flex items-center gap-1.5 border transition cursor-pointer active:scale-95 ${
-                              modoOscuro 
-                                ? 'bg-slate-800/80 hover:bg-slate-800 text-slate-300 hover:text-white border-slate-700' 
-                                : 'bg-slate-100 hover:bg-slate-200 text-slate-700 border-slate-300'
-                            }`}
-                          >
-                            <Activity size={13} className={tele?.cargando ? 'animate-spin text-amber-500' : 'text-amber-500'} />
-                            <span>{tele?.cargando ? 'Consultando datos...' : 'Auditar Actividad del Negocio'}</span>
-                          </button>
+                          <span className="flex items-center gap-1.5 truncate">
+                            <User size={12} className="shrink-0 text-slate-400" />
+                            <strong className={`${theme.textMain} truncate`}>{u.nombreUsuario || 'Sin usuario'}</strong>
+                          </span>
+                          <span className="text-[10px] opacity-70 font-mono shrink-0">
+                            ID: {u.id.slice(0, 6)}...
+                          </span>
+                        </div>
+
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="flex items-center gap-1.5 truncate min-w-0" title={u.email}>
+                            <Mail size={12} className="shrink-0 text-slate-400" />
+                            <span className="truncate">{u.email}</span>
+                          </span>
+                          {(u.telefonoNegocio || u.celular) && (
+                            <button
+                              type="button"
+                              onClick={() => abrirModalWhatsApp(u)}
+                              className="inline-flex items-center gap-1 text-[11px] font-mono font-bold text-[#128C7E] dark:text-[#25D366] hover:underline shrink-0"
+                              title="Abrir WhatsApp directo"
+                            >
+                              <MessageCircle size={11} className="fill-[#25D366]/20" />
+                              <span>{u.telefonoNegocio || u.celular}</span>
+                            </button>
+                          )}
+                        </div>
+
+                        <div className="flex items-center justify-between gap-2 pt-0.5 text-[11px]">
+                          <span className="truncate">
+                            <Clock size={11} className="inline mr-1 opacity-70" />
+                            <span className={infoInac.esInactivo30d ? "text-rose-600 dark:text-rose-400 font-bold" : ""}>{infoInac.texto}</span>
+                          </span>
+                          {u.plan !== 'gratis' && u.planVence && (
+                            <span className="shrink-0 font-medium">
+                              <Calendar size={11} className="inline mr-1 text-amber-500" />
+                              <strong className={calcularDiasRestantes(u) <= 3 ? "text-amber-600 dark:text-amber-400 font-bold" : theme.textMain}>
+                                {calcularDiasRestantes(u) < 0 ? 'Venció' : `${calcularDiasRestantes(u)}d`}
+                              </strong>
+                            </span>
+                          )}
+                        </div>
+
+                        {/* Pulso express de actividad en la tarjeta del collage */}
+                        {tele?.auditado && (
+                          <div className="pt-1.5 flex items-center justify-between text-[11px] bg-slate-100/70 dark:bg-slate-950/40 px-2 py-1 rounded-xl border border-slate-200/60 dark:border-slate-800/60">
+                            <span className="text-emerald-600 dark:text-emerald-400 font-bold flex items-center gap-1">
+                              <Activity size={11} /> {(tele.movimientos30d ?? tele.movimientos).toLocaleString('es-CO')} movs 30d
+                            </span>
+                            <span className={theme.textMuted}>
+                              {(tele.productos).toLocaleString('es-CO')} prods · {(tele.clientes).toLocaleString('es-CO')} clis
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* BOTÓN INFERIOR DE DESPLIEGUE RÁPIDO */}
+                    <div className="pt-3">
+                      <button
+                        type="button"
+                        onClick={() => toggleDesplegarNegocio(u.id)}
+                        className={`w-full py-2 px-3 rounded-2xl text-xs font-black flex items-center justify-between transition cursor-pointer active:scale-[0.99] ${
+                          estaDesplegado
+                            ? 'bg-amber-500 text-slate-950 shadow-sm'
+                            : (modoOscuro ? 'bg-slate-800 hover:bg-slate-750 text-slate-200 hover:text-white border border-slate-700/80 shadow-2xs' : 'bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 shadow-2xs')
+                        }`}
+                      >
+                        <span className="flex items-center gap-1.5">
+                          {estaDesplegado ? 'Ocultar Opciones y Auditoría' : 'Desplegar Negocio (Acciones y Métricas)'}
+                        </span>
+                        <ChevronDown size={14} className={`transition-transform duration-200 ${estaDesplegado ? 'rotate-180' : ''}`} />
+                      </button>
+
+                      {/* SECCIÓN DESPLEGADA (ACCIONES COMPLETAS Y AUDITORÍA EN VIVO) */}
+                      {estaDesplegado && (
+                        <div className={`mt-3 pt-3 border-t ${theme.border} space-y-3.5 animate-in fade-in slide-in-from-top-1 duration-200`}>
+                          
+                          {/* Previsualización de Nota Master si existe */}
+                          {u.notasMaster && (
+                            <div className="text-xs bg-amber-500/15 border border-amber-500/30 text-amber-900 dark:text-amber-200 p-2.5 rounded-xl flex items-center gap-2">
+                              <FileText size={14} className="shrink-0 text-amber-500" />
+                              <p className="truncate"><strong>Nota Johan:</strong> {u.notasMaster}</p>
+                            </div>
+                          )}
+
+                          {/* Botonera de Acciones del Master */}
+                          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                            {/* WhatsApp CRM */}
+                            {(u.telefonoNegocio || u.celular) && (
+                              <button
+                                type="button"
+                                onClick={() => abrirModalWhatsApp(u)}
+                                className="col-span-2 sm:col-span-1 px-2.5 py-2 bg-[#25D366]/15 hover:bg-[#25D366]/25 text-[#128C7E] dark:text-[#25D366] font-black rounded-xl text-xs flex items-center justify-center gap-1.5 border border-[#25D366]/30 transition active:scale-95 cursor-pointer shadow-xs"
+                                title="Abrir WhatsApp con plantillas"
+                              >
+                                <MessageCircle size={13} />
+                                <span>WhatsApp CRM</span>
+                              </button>
+                            )}
+
+                            {/* Botón Gestionar Plan */}
+                            <button 
+                              type="button"
+                              onClick={() => {
+                                const planActual = (u.plan === 'pro' || u.plan === 'comercio' || u.plan === 'gratis') ? u.plan : 'comercio';
+                                setFormPlan({ plan: planActual, dias: 30 });
+                                setModalPlan({ visible: true, usuario: u });
+                              }}
+                              className="px-2.5 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black rounded-xl text-xs flex items-center justify-center gap-1.5 shadow-xs transition active:scale-95 cursor-pointer"
+                            >
+                              <Edit2 size={13} />
+                              <span>Plan</span>
+                            </button>
+
+                            {/* Botón DIAN Master */}
+                            <button
+                              type="button"
+                              onClick={() => abrirModalDian(u)}
+                              className={`px-2.5 py-2 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition active:scale-95 cursor-pointer ${
+                                u.facturacionDianHabilitada
+                                  ? 'bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30'
+                                  : (u.solicitudDian && u.solicitudDian.estado === 'pendiente'
+                                      ? 'bg-amber-500/20 hover:bg-amber-500/30 text-amber-800 dark:text-amber-300 border border-amber-500/50 animate-pulse'
+                                      : (modoOscuro ? 'bg-slate-800 hover:bg-slate-700 text-slate-300' : 'bg-slate-100 hover:bg-slate-200 text-slate-700'))
+                              }`}
+                              title="Gestionar Facturación Electrónica DIAN"
+                            >
+                              <FileText size={13} className={u.facturacionDianHabilitada ? 'text-emerald-500' : (u.solicitudDian?.estado === 'pendiente' ? 'text-amber-500' : '')} />
+                              <span>DIAN</span>
+                            </button>
+
+                            {/* Botón Notas Master */}
+                            <button
+                              type="button"
+                              onClick={() => setModalNota({ visible: true, usuario: u, texto: u.notasMaster || "", guardando: false })}
+                              className={`px-2.5 py-2 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition active:scale-95 cursor-pointer ${
+                                u.notasMaster 
+                                  ? 'bg-amber-500/20 text-amber-800 dark:text-amber-300 border border-amber-500/40' 
+                                  : (modoOscuro ? 'bg-slate-800 hover:bg-slate-700 text-slate-300' : 'bg-slate-100 hover:bg-slate-200 text-slate-700')
+                              }`}
+                              title="Nota privada del Master"
+                            >
+                              <FileText size={13} />
+                              <span>{u.notasMaster ? 'Ver Nota' : 'Nota'}</span>
+                            </button>
+
+                            {/* Botón Ver Colaboradores */}
+                            <button 
+                              type="button"
+                              onClick={() => verCajeros(u.id, u.nombreNegocio || u.nombreUsuario)}
+                              className={`px-2.5 py-2 font-bold rounded-xl text-xs flex items-center justify-center gap-1.5 transition active:scale-95 cursor-pointer ${
+                                modoOscuro ? 'bg-slate-800 hover:bg-slate-700 text-slate-300' : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
+                              }`}
+                            >
+                              <Users size={13} />
+                              <span>Cajeros</span>
+                            </button>
+
+                            {/* Botón Restablecer Clave */}
+                            {u.email && u.email.includes('@') && !u.email.endsWith('@fiabono.internal') && !u.email.endsWith('@fiabono.caja') && (
+                              <button
+                                type="button"
+                                onClick={() => abrirModalResetPass(u)}
+                                className={`px-2.5 py-2 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition active:scale-95 cursor-pointer ${
+                                  modoOscuro ? 'bg-slate-800 hover:bg-slate-700 text-slate-300' : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
+                                }`}
+                                title="Restablecer clave o generar enlace oficial"
+                              >
+                                <KeyRound size={13} />
+                                <span>Clave</span>
+                              </button>
+                            )}
+
+                            {/* Botón Suspender / Reactivar */}
+                            <button
+                              type="button"
+                              onClick={() => toggleSuspensionNegocio(u)}
+                              className={`px-2.5 py-2 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition active:scale-95 cursor-pointer ${
+                                u.activo === false || u.suspendido === true
+                                  ? 'bg-amber-500/15 hover:bg-amber-500/25 text-amber-600 dark:text-amber-400 border border-amber-500/30'
+                                  : (modoOscuro ? 'bg-slate-800 hover:bg-slate-700 text-slate-300' : 'bg-slate-100 hover:bg-slate-200 text-slate-700')
+                              }`}
+                              title={u.activo === false || u.suspendido === true ? 'Reactivar acceso a la cuenta' : 'Suspender acceso a la cuenta'}
+                            >
+                              <Power size={13} className={u.activo === false || u.suspendido === true ? 'text-amber-500' : 'text-slate-400'} />
+                              <span>{u.activo === false || u.suspendido === true ? 'Reactivar' : 'Suspender'}</span>
+                            </button>
+
+                            {/* Botón Eliminar */}
+                            <button
+                              type="button"
+                              onClick={() => abrirModalEliminar(u)}
+                              className="px-2.5 py-2 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition active:scale-95 cursor-pointer bg-rose-500/10 hover:bg-rose-500/20 text-rose-600 dark:text-rose-400 border border-rose-500/20"
+                              title="Eliminación definitiva y purga en cascada"
+                            >
+                              <Trash2 size={13} />
+                              <span>Eliminar</span>
+                            </button>
+                          </div>
+
+                          {/* BLOQUE DE AUDITORÍA Y SALUD */}
+                          {tele?.auditado ? (
+                            <div className={`p-3 rounded-2xl border ${theme.cardSubtle} space-y-2.5 text-xs`}>
+                              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 pb-2 border-b border-slate-200/60 dark:border-slate-800/80">
+                                <div className="flex items-center gap-1.5">
+                                  <span className={`w-2 h-2 rounded-full ${
+                                    tele.movimientos > 0 ? 'bg-emerald-500' : (tele.productos > 0 ? 'bg-amber-500' : 'bg-rose-500')
+                                  }`}></span>
+                                  <span className="font-bold">
+                                    <strong className={tele.movimientos > 0 ? 'text-emerald-600 dark:text-emerald-400 font-black' : theme.textMain}>
+                                      {tele.movimientos > 0 ? 'Activo en Operación' : (tele.productos > 0 ? 'En Configuración' : 'Sin Actividad')}
+                                    </strong>
+                                  </span>
+                                </div>
+
+                                <div className="flex items-center gap-2 text-[10px]">
+                                  <span className="text-emerald-600 dark:text-emerald-400 font-bold">
+                                    30d: <strong>{(tele.movimientos30d ?? 0).toLocaleString('es-CO')} movs</strong>
+                                  </span>
+                                  <button
+                                    type="button"
+                                    onClick={() => auditarActividadTienda(u.id)}
+                                    title="Refrescar auditoría de actividad"
+                                    className="p-0.5 rounded hover:bg-slate-500/15 text-slate-400 hover:text-slate-200 transition cursor-pointer"
+                                  >
+                                    <RefreshCw size={11} className={tele?.cargando ? 'animate-spin text-amber-500' : ''} />
+                                  </button>
+                                </div>
+                              </div>
+
+                              <div className="flex flex-wrap items-center gap-1 text-[10px]">
+                                <span className="px-1.5 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 font-medium">
+                                  Prods: <strong className={theme.textMain}>{(tele.productos).toLocaleString('es-CO')}</strong>
+                                </span>
+                                <span className="px-1.5 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 font-medium">
+                                  Clis: <strong className={theme.textMain}>{(tele.clientes).toLocaleString('es-CO')}</strong>
+                                </span>
+                                <span className="px-1.5 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 font-medium">
+                                  Ventas: <strong className="text-emerald-600 dark:text-emerald-400 font-black">{(tele.ventas ?? 0).toLocaleString('es-CO')}</strong>
+                                </span>
+                                <span className="px-1.5 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 font-medium">
+                                  Fiados: <strong className="text-amber-600 dark:text-amber-400 font-black">{(tele.fiados ?? 0).toLocaleString('es-CO')}</strong>
+                                </span>
+                                <span className="px-1.5 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 font-medium">
+                                  Abonos: <strong className="text-blue-600 dark:text-blue-400 font-black">{(tele.abonos ?? 0).toLocaleString('es-CO')}</strong>
+                                </span>
+                                <span className="px-1.5 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 font-medium">
+                                  Separes: <strong className="text-pink-600 dark:text-pink-400 font-black">{(tele.separes ?? 0).toLocaleString('es-CO')}</strong>
+                                </span>
+                                <span className="px-1.5 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 font-medium">
+                                  Cajas: <strong className="text-purple-600 dark:text-purple-400 font-black">{(tele.cierresCaja ?? 0).toLocaleString('es-CO')}</strong>
+                                </span>
+                              </div>
+                            </div>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => auditarActividadTienda(u.id)}
+                              disabled={tele?.cargando}
+                              className={`w-full py-1.5 px-3 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 border transition cursor-pointer active:scale-95 ${
+                                modoOscuro 
+                                  ? 'bg-slate-800/80 hover:bg-slate-800 text-slate-300 hover:text-white border-slate-700' 
+                                  : 'bg-slate-100 hover:bg-slate-200 text-slate-700 border-slate-300'
+                              }`}
+                            >
+                              <Activity size={12} className={tele?.cargando ? 'animate-spin text-amber-500' : 'text-amber-500'} />
+                              <span>{tele?.cargando ? 'Consultando datos...' : 'Auditar Actividad en Vivo'}</span>
+                            </button>
+                          )}
+
+                          {/* Extensiones Rápidas Seguras */}
+                          <div className="flex items-center justify-between gap-1 pt-1">
+                            <span className={`text-[10px] uppercase font-bold ${theme.textMuted}`}>Extender Plan:</span>
+                            <div className="flex items-center gap-1">
+                              <button
+                                type="button"
+                                onClick={() => autorizarExtensionSegura(u, 15)}
+                                className={`px-2 py-0.5 rounded-lg text-[10px] font-black border transition active:scale-95 cursor-pointer ${
+                                  modoOscuro ? 'bg-slate-800 hover:bg-slate-700 text-slate-300 border-slate-700' : 'bg-slate-100 hover:bg-slate-200 text-slate-800 border-slate-300'
+                                }`}
+                                title="Añade 15 días previa confirmación"
+                              >
+                                +15d
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => autorizarExtensionSegura(u, 30)}
+                                className="px-2 py-0.5 bg-purple-500/15 hover:bg-purple-500/25 text-purple-700 dark:text-purple-300 rounded-lg text-[10px] font-black border border-purple-500/30 transition active:scale-95 cursor-pointer"
+                                title="Añade 30 días previa confirmación"
+                              >
+                                +30d
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => autorizarExtensionSegura(u, 365)}
+                                className="px-2 py-0.5 bg-amber-500/15 hover:bg-amber-500/25 text-amber-800 dark:text-amber-300 rounded-lg text-[10px] font-black border border-amber-500/30 transition active:scale-95 cursor-pointer"
+                                title="Añade 1 año previa confirmación"
+                              >
+                                +1 Año
+                              </button>
+                            </div>
+                          </div>
+
                         </div>
                       )}
-
-                      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
-                      {/* Botones de Extensión Rápida SEGURA (Exigen confirmación previa) */}
-                      <div className="flex items-center justify-between sm:justify-start gap-1.5 w-full sm:w-auto">
-                        <span className={`text-[10px] uppercase font-bold ${theme.textMuted} mr-1`}>Extension Segura:</span>
-                        <div className="flex items-center gap-1.5">
-                          <button
-                            onClick={() => autorizarExtensionSegura(u, 15)}
-                            className={`px-2.5 py-1 rounded-lg text-[11px] font-black border transition active:scale-95 cursor-pointer ${
-                              modoOscuro ? 'bg-slate-800 hover:bg-slate-700 text-slate-300 border-slate-700' : 'bg-slate-100 hover:bg-slate-200 text-slate-800 border-slate-300'
-                            }`}
-                            title="Anade 15 dias previa confirmacion"
-                          >
-                            +15d
-                          </button>
-                          <button
-                            onClick={() => autorizarExtensionSegura(u, 30)}
-                            className="px-2.5 py-1 bg-purple-500/15 hover:bg-purple-500/25 text-purple-700 dark:text-purple-300 rounded-lg text-[11px] font-black border border-purple-500/30 transition active:scale-95 cursor-pointer"
-                            title="Anade 30 dias previa confirmacion"
-                          >
-                            +30d
-                          </button>
-                          <button
-                            onClick={() => autorizarExtensionSegura(u, 365)}
-                            className="px-2.5 py-1 bg-amber-500/15 hover:bg-amber-500/25 text-amber-800 dark:text-amber-300 rounded-lg text-[11px] font-black border border-amber-500/30 transition active:scale-95 cursor-pointer"
-                            title="Anade 1 ano previa confirmacion"
-                          >
-                            +1 Ano
-                          </button>
-                        </div>
-                      </div>
-                      </div>
-
                     </div>
                   </div>
                 );
               })}
-
+            </div>
               {usuariosFiltrados.length === 0 && (
                 <div className={`p-12 text-center font-bold rounded-3xl border ${theme.card}`}>
                   No se encontraron negocios con los filtros aplicados.
                 </div>
               )}
-            </div>
           </div>
         )}
 
