@@ -2167,6 +2167,20 @@ export default function MasterPage() {
                           )}
                         </div>
 
+                        <div className="flex items-center justify-between gap-2 text-[10.5px] opacity-90">
+                          <span className="truncate" title="Fecha en que inició la cuenta">
+                            Inicio: <strong className={theme.textMain}>{formatearFechaCortaMaster(u.fechaRegistro || u.createdAt || u.fechaCreacion) || 'Sin fecha'}</strong>
+                          </span>
+                          {u.plan !== 'gratis' && u.planVence && (
+                            <span className="shrink-0 truncate" title="Fecha hasta la que está activo el plan">
+                              {calcularDiasRestantes(u) < 0 ? 'Venció:' : 'Hasta:'}{' '}
+                              <strong className={calcularDiasRestantes(u) <= 3 ? "text-amber-600 dark:text-amber-400 font-bold" : theme.textMain}>
+                                {formatearFechaCortaMaster(u.planVence)}
+                              </strong>
+                            </span>
+                          )}
+                        </div>
+
                         {/* Pulso express de actividad en la tarjeta del collage */}
                         {tele?.auditado && (
                           <div className="pt-1.5 flex items-center justify-between text-[11px] bg-slate-100/70 dark:bg-slate-950/40 px-2 py-1 rounded-xl border border-slate-200/60 dark:border-slate-800/60">
