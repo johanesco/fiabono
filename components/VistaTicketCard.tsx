@@ -1,8 +1,8 @@
 "use client";
 import React from "react";
-import Image from "next/image";
 import { QRCodeSVG } from "qrcode.react";
 import { DetalleFacturaItem, DatosFacturaProps } from "./TicketFacturaModal";
+import { formatearCodigoComprobante } from "@/utils/comprobante";
 
 interface VistaTicketCardProps {
   datos: DatosFacturaProps;
@@ -19,7 +19,7 @@ function SeccionDivider({
 }) {
   if (label) {
     return (
-      <div className="flex items-center gap-1.5 my-2 px-0.5">
+      <div className="flex items-center gap-1.5 my-1.5">
         <div
           className={`flex-1 ${
             tipo === "fuerte"
@@ -27,7 +27,7 @@ function SeccionDivider({
               : "border-t border-slate-700"
           }`}
         />
-        <span className="text-[8.5px] font-black uppercase tracking-[0.16em] text-slate-900 px-1 shrink-0">
+        <span className="text-[8.5px] font-black uppercase tracking-[0.14em] text-slate-900 px-1 shrink-0">
           {label}
         </span>
         <div
@@ -41,12 +41,12 @@ function SeccionDivider({
     );
   }
   if (tipo === "fuerte")
-    return <div className="border-t-[1.5px] border-slate-900 my-2 mx-0.5" />;
+    return <div className="border-t-[1.5px] border-slate-900 my-1.5" />;
   if (tipo === "suave")
     return (
-      <div className="border-t border-dashed border-slate-400 my-1.5 mx-0.5" />
+      <div className="border-t border-dashed border-slate-400 my-1" />
     );
-  return <div className="border-t border-slate-600 my-1.5 mx-0.5" />;
+  return <div className="border-t border-slate-600 my-1.5" />;
 }
 
 /* ─── Fila de metadato (etiqueta: valor) ─────────────────────────────────── */
@@ -62,13 +62,13 @@ function FilaMeta({
   colorValor?: string;
 }) {
   return (
-    <div className="flex justify-between items-baseline gap-1 py-[1px]">
-      <span className="text-[10.5px] font-bold text-slate-900 shrink-0">
+    <div className="flex justify-between items-baseline gap-2 py-[1px] leading-snug">
+      <span className="text-[10.5px] font-semibold text-slate-700 shrink-0">
         {label}
       </span>
       <span
-        className={`text-[11px] text-right font-mono ${
-          negrita ? "font-black" : "font-bold"
+        className={`text-[11px] text-right tabular-nums break-words min-w-0 ${
+          negrita ? "font-extrabold" : "font-bold"
         } ${colorValor ?? "text-slate-900"}`}
       >
         {valor}
@@ -243,86 +243,87 @@ export default function VistaTicketCard({ datos, ticketRef }: VistaTicketCardPro
     );
   };
 
+  const codigoComprobante =
+    datos.facturaElectronica?.numeroFactura ||
+    (datos.numeroComprobante ? String(datos.numeroComprobante) : "") ||
+    formatearCodigoComprobante(datos.idTransaccion);
+
   return (
     <div
       id="seccion-ticket-impresion"
       ref={ticketRef}
       style={{ overflowAnchor: "none" }}
-      className="w-full max-w-[340px] h-fit bg-white text-slate-900 rounded-2xl shadow-md border border-slate-200 font-mono flex flex-col shrink-0 mx-auto my-0 overflow-hidden"
+      className="w-full max-w-[330px] h-fit bg-white text-slate-900 rounded-2xl shadow-md border border-slate-200 font-sans flex flex-col shrink-0 mx-auto my-0 overflow-hidden"
     >
       {/* ══════════════════════════════════════════════════════
-          ENCABEZADO — NEGOCIO (Alta resolución)
+          ENCABEZADO — NEGOCIO (Compacto y Nítido)
           ══════════════════════════════════════════════════════ */}
-      <div className="bg-white px-4 pt-5 pb-2 flex flex-col items-center text-center gap-1">
-        {/* LOGO — Nitidez máxima */}
+      <div className="bg-white px-4 pt-3.5 pb-1.5 flex flex-col items-center text-center gap-0.5">
         {datos.logoNegocio && (
-          <div className="flex justify-center mb-1.5">
+          <div className="flex justify-center mb-1">
             <img
               src={datos.logoNegocio}
               alt="Logo Negocio"
               crossOrigin="anonymous"
               loading="eager"
               decoding="sync"
-              className="h-20 max-w-[180px] w-auto object-contain filter grayscale contrast-[2.0] brightness-[0.8]"
+              className="h-16 max-w-[160px] w-auto object-contain filter grayscale contrast-[2.0] brightness-[0.8]"
             />
           </div>
         )}
 
-        {/* Nombre del negocio — Más grande y destacado */}
-        <h1 className="text-lg sm:text-xl font-black uppercase tracking-wider text-slate-900 leading-tight">
+        <h1 className="text-base sm:text-lg font-black uppercase tracking-wide text-slate-900 leading-tight">
           {datos.nombreNegocio || "MI NEGOCIO"}
         </h1>
 
-        {/* Info de contacto: 100% negro puro, sin grises tenue */}
-        <div className="flex flex-col items-center gap-0.5 text-[10.5px] text-slate-900 font-bold">
-          {datos.nitNegocio && (
-            <span>NIT / RUT: {datos.nitNegocio}</span>
+        <div className="flex flex-col items-center gap-0.5 text-[10px] text-slate-700 font-semibold leading-snug">
+          {(datos.nitNegocio || datos.telefonoNegocio) && (
+            <span className="flex flex-wrap justify-center gap-x-2">
+              {datos.nitNegocio && <span>NIT: {datos.nitNegocio}</span>}
+              {datos.telefonoNegocio && <span>Tel: {datos.telefonoNegocio}</span>}
+            </span>
           )}
           {datos.direccionNegocio && <span>{datos.direccionNegocio}</span>}
-          {datos.telefonoNegocio && (
-            <span>Tel / WhatsApp: {datos.telefonoNegocio}</span>
-          )}
           {datos.correoNegocio && <span>{datos.correoNegocio}</span>}
         </div>
       </div>
 
-      {/* ── TIPO DE COMPROBANTE ───────────────────────────────── */}
-      <div className="mx-3 mb-1">
-        <SeccionDivider tipo="fuerte" />
-        <div className="flex justify-center">
-          <div className="border-[1.5px] border-slate-900 rounded px-3 py-0.5 inline-flex items-center">
-            <span className="text-[9.5px] font-black uppercase tracking-[0.16em] text-slate-900">
-              {getTituloTipo()}
+      {/* ── BANDA TIPO DE COMPROBANTE + CONSECUTIVO LIMPIO ───── */}
+      <div className="px-4 pt-1 pb-1">
+        <div className="border-y-[1.5px] border-slate-900 py-1 flex items-center justify-between gap-2">
+          <span className="text-[10.5px] font-black uppercase tracking-wider text-slate-900">
+            {getTituloTipo()}
+          </span>
+          {codigoComprobante && (
+            <span className="text-[11px] font-black tabular-nums text-slate-900 shrink-0">
+              #{codigoComprobante}
             </span>
-          </div>
+          )}
         </div>
-        <SeccionDivider tipo="fuerte" />
+        <div className="flex justify-between items-center text-[10px] font-semibold text-slate-700 pt-1 tabular-nums">
+          <span>{formatearFecha(datos.fecha)}</span>
+          <span>{formatearHora(datos.fecha)}</span>
+        </div>
       </div>
 
       {/* ══════════════════════════════════════════════════════
-          SECCIÓN: DATOS DE LA TRANSACCIÓN
+          SECCIÓN: CLIENTE Y RESPONSABLE
           ══════════════════════════════════════════════════════ */}
       <div className="px-4 pb-1 space-y-0.5">
-        <SeccionDivider label="Información" />
-        <FilaMeta label="Fecha:" valor={formatearFecha(datos.fecha)} />
-        <FilaMeta label="Hora:" valor={formatearHora(datos.fecha)} />
         <SeccionDivider tipo="suave" />
         <FilaMeta
           label="Cliente:"
           valor={datos.nombreCliente || "Consumidor Final"}
           negrita
         />
+        {datos.documentoCliente && (
+          <FilaMeta label="CC / NIT:" valor={datos.documentoCliente} />
+        )}
         {datos.celularCliente && (
           <FilaMeta label="Tel. cliente:" valor={datos.celularCliente} />
         )}
         {datos.registradoPor && (
           <FilaMeta label="Atendido por:" valor={datos.registradoPor} />
-        )}
-        {datos.idTransaccion && (
-          <FilaMeta
-            label={datos.tipo === "venta" || datos.tipo === "fiado" || datos.tipo === "separe" ? "Factura #:" : "Comprobante #:"}
-            valor={datos.idTransaccion.slice(0, 8).toUpperCase()}
-          />
         )}
       </div>
 
@@ -330,7 +331,7 @@ export default function VistaTicketCard({ datos, ticketRef }: VistaTicketCardPro
           SECCIÓN: ARTÍCULOS / DETALLE
           ══════════════════════════════════════════════════════ */}
       <div className="px-4 pb-1">
-        <SeccionDivider label="Detalle" tipo="fuerte" />
+        <SeccionDivider tipo="fuerte" />
 
         {/* Cabecera de la tabla de ítems */}
         {datos.detalles && datos.detalles.length > 0 && (
@@ -347,8 +348,8 @@ export default function VistaTicketCard({ datos, ticketRef }: VistaTicketCardPro
       {/* ══════════════════════════════════════════════════════
           SECCIÓN: TOTALES Y PAGO
           ══════════════════════════════════════════════════════ */}
-      <div className="px-4 pb-2">
-        <SeccionDivider label="Resumen de pago" tipo="fuerte" />
+      <div className="px-4 pb-1.5">
+        <SeccionDivider tipo="fuerte" />
 
         <div className="space-y-0.5">
           {/* Descuento */}
@@ -451,7 +452,7 @@ export default function VistaTicketCard({ datos, ticketRef }: VistaTicketCardPro
           {datos.pagoRecibido !== undefined && (
             <FilaMeta
               label={datos.tipo === "separe" ? "Abono inicial:" : "Monto recibido:"}
-              valor={`${datos.pagoRecibido.toLocaleString("es-CO")}`}
+              valor={`$${datos.pagoRecibido.toLocaleString("es-CO")}`}
             />
           )}
           {datos.devuelta !== undefined && datos.devuelta > 0 && (
@@ -463,10 +464,7 @@ export default function VistaTicketCard({ datos, ticketRef }: VistaTicketCardPro
             />
           )}
 
-          {/* Saldo en cuenta inteligente:
-              - Si es venta directa y saldo es 0: NO mostrar (el cliente pagó de contado y no debe nada, no se satura el ticket).
-              - Si tiene deuda pendiente (> 0) o saldo a favor (< 0): SIEMPRE mostrar.
-              - Si la operación fue un Abono o Fiado: SIEMPRE mostrar para dar constancia de la cuenta. */}
+          {/* Estado de Cartera / Saldo en cuenta */}
           {datos.saldoNuevo !== undefined &&
             datos.nombreCliente !== "Venta de Mostrador" &&
             datos.nombreCliente !== "Mostrador" &&
@@ -474,18 +472,33 @@ export default function VistaTicketCard({ datos, ticketRef }: VistaTicketCardPro
             (datos.saldoNuevo !== 0 || datos.tipo === 'abono' || datos.tipo === 'abono_separe' || datos.tipo === 'fiado') && (
               <>
                 <SeccionDivider tipo="suave" />
+                {datos.saldoAnterior !== undefined &&
+                  (datos.tipo === 'abono' || datos.tipo === 'abono_separe' || datos.tipo === 'fiado') && (
+                    <FilaMeta
+                      label="Saldo anterior:"
+                      valor={`$${datos.saldoAnterior.toLocaleString("es-CO")}`}
+                    />
+                  )}
                 <FilaMeta
-                  label="Saldo en cuenta:"
+                  label={
+                    datos.saldoNuevo < 0
+                      ? "Saldo a favor:"
+                      : "Saldo pendiente:"
+                  }
                   valor={
                     datos.saldoNuevo === 0
-                      ? "$0 — Al dia"
-                      : datos.saldoNuevo < 0
-                      ? `A favor: $${Math.abs(datos.saldoNuevo).toLocaleString("es-CO")}`
-                      : `Pendiente: $${datos.saldoNuevo.toLocaleString("es-CO")}`
+                      ? "$0 — Al día"
+                      : `$${Math.abs(datos.saldoNuevo).toLocaleString("es-CO")}`
                   }
                   negrita
                   colorValor="text-slate-900 font-black"
                 />
+                {datos.cupoCredito !== undefined && datos.cupoCredito > 0 && (
+                  <FilaMeta
+                    label="Cupo disponible:"
+                    valor={`$${Math.max(0, datos.cupoCredito - Math.max(0, datos.saldoNuevo)).toLocaleString("es-CO")}`}
+                  />
+                )}
               </>
             )}
 
@@ -544,30 +557,36 @@ export default function VistaTicketCard({ datos, ticketRef }: VistaTicketCardPro
       </div>
 
       {/* ══════════════════════════════════════════════════════
-          PIE DEL TICKET — Nitidez negra 100%
+          PIE DEL TICKET — Compacto y Nitidez 100%
           ══════════════════════════════════════════════════════ */}
-      <div className="px-4 pb-4 pt-1 text-center">
+      <div className="px-4 pb-3 pt-0.5 text-center">
         <SeccionDivider tipo="fuerte" />
 
-        <p className="font-black text-slate-900 uppercase text-[10.5px] tracking-wide mt-2">
+        <p className="font-extrabold text-slate-900 uppercase text-[10px] tracking-wide mt-1">
           {datos.mensajePieTicket || "¡GRACIAS POR SU COMPRA!"}
         </p>
-        <p className="text-[9px] font-bold text-slate-900 mt-0.5">
+        <p className="text-[8.5px] font-semibold text-slate-700 mt-0.5">
           Conserve este comprobante para cualquier aclaración.
         </p>
 
-        {/* Sello Fiabono */}
-        <div className="mt-3 flex items-center justify-center gap-1.5">
-          <div className="w-4 h-4 rounded bg-slate-900 flex items-center justify-center overflow-hidden shrink-0">
-            <Image
-              src="/logo-verde-linea-blanca-grande.png"
-              alt="Fiabono"
-              width={16}
-              height={16}
-              className="w-full h-full object-contain"
-            />
-          </div>
-          <p className="text-[8.5px] text-slate-900 font-black tracking-tight">
+        {/* Sello Fiabono vectorial monocromático puro */}
+        <div className="mt-2 flex items-center justify-center gap-1">
+          <svg
+            width="12"
+            height="12"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2.5"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            className="text-slate-900 shrink-0"
+            aria-hidden="true"
+          >
+            <path d="M4 2v20l2-1 2 1 2-1 2 1 2-1 2 1 2-1 2 1V2l-2 1-2-1-2 1-2-1-2 1-2-1-2 1Z" />
+            <path d="M9 12l2 2 4-4" />
+          </svg>
+          <p className="text-[8.5px] text-slate-900 font-bold tracking-tight">
             Emitido con Fiabono POS • fiabono.com
           </p>
         </div>

@@ -26,6 +26,8 @@ export interface DatosFacturaProps {
   mensajePieTicket?: string;
   nombreCliente: string;
   celularCliente?: string;
+  documentoCliente?: string;
+  cupoCredito?: number;
   registradoPor?: string;
   fecha?: any;
   tipo: 'venta' | 'fiado' | 'abono' | 'separe' | 'abono_separe' | 'egreso' | 'entrega_separe' | 'devolucion';
@@ -37,6 +39,7 @@ export interface DatosFacturaProps {
   saldoAnterior?: number;
   saldoNuevo?: number;
   idTransaccion?: string;
+  numeroComprobante?: string | number;
   metodoPago?: 'efectivo' | 'transferencia' | 'datafono' | 'credito_externo' | 'fiado' | string;
   subMetodoPago?: string;
   referenciaPago?: string;
@@ -67,10 +70,24 @@ export default function TicketFacturaModal({ isOpen, onClose, datos, onFacturaEm
   const [generandoImagen, setGenerandoImagen] = useState(false);
   const [emitiendoDian, setEmitiendoDian] = useState(false);
   const [facturaDianLocal, setFacturaDianLocal] = useState<import("@/types").DatosFacturaElectronica | undefined>(datos?.facturaElectronica);
+  const [anchoPapel, setAnchoPapel] = useState<'58mm' | '80mm'>('58mm');
 
   useEffect(() => {
     setMontado(true);
+    try {
+      const saved = localStorage.getItem('fiabono_ticket_ancho_papel');
+      if (saved === '58mm' || saved === '80mm') {
+        setAnchoPapel(saved);
+      }
+    } catch {}
   }, []);
+
+  const cambiarAnchoPapel = (nuevo: '58mm' | '80mm') => {
+    setAnchoPapel(nuevo);
+    try {
+      localStorage.setItem('fiabono_ticket_ancho_papel', nuevo);
+    } catch {}
+  };
 
   useEffect(() => {
     setFacturaDianLocal(datos?.facturaElectronica);
@@ -636,17 +653,21 @@ Estamos atentos para cualquier consulta.
             left: auto !important;
             top: auto !important;
             width: 100% !important;
-            max-width: 76mm !important;
+            max-width: ${anchoPapel === '58mm' ? '50mm' : '74mm'} !important;
             margin: 0 auto !important;
-            padding: 0 !important;
+            padding: 1.5mm ${anchoPapel === '58mm' ? '3mm' : '3.5mm'} 3mm ${anchoPapel === '58mm' ? '3mm' : '3.5mm'} !important;
+            box-sizing: border-box !important;
             background: #ffffff !important;
             color: #000000 !important;
-            font-size: 12px !important;
-            line-height: 1.35 !important;
-            font-weight: 700 !important;
-            letter-spacing: 0.01em !important;
-            text-rendering: geometricPrecision !important;
-            -webkit-font-smoothing: antialiased !important;
+            font-family: Arial, Helvetica, "Liberation Sans", sans-serif !important;
+            font-variant-numeric: tabular-nums !important;
+            font-size: ${anchoPapel === '58mm' ? '10.5px' : '11.5px'} !important;
+            line-height: 1.3 !important;
+            font-weight: 600 !important;
+            letter-spacing: 0 !important;
+            text-rendering: optimizeSpeed !important;
+            -webkit-font-smoothing: none !important;
+            font-smooth: never !important;
             box-shadow: none !important;
             border: none !important;
             border-radius: 0 !important;
@@ -659,65 +680,75 @@ Estamos atentos para cualquier consulta.
             visibility: visible !important;
             opacity: 1 !important;
             color: #000000 !important;
+            font-family: Arial, Helvetica, "Liberation Sans", sans-serif !important;
+            font-variant-numeric: tabular-nums !important;
+            -webkit-font-smoothing: none !important;
+            font-smooth: never !important;
             -webkit-print-color-adjust: exact !important;
             print-color-adjust: exact !important;
             color-adjust: exact !important;
             text-shadow: none !important;
           }
+          /* Compactar paddings internos del card porque el contenedor ya tiene zona segura */
+          #seccion-ticket-impresion .px-4 {
+            padding-left: 0 !important;
+            padding-right: 0 !important;
+          }
           /* Rounded corners: eliminar en impresión */
           #seccion-ticket-impresion,
           #seccion-ticket-impresion .rounded-2xl,
           #seccion-ticket-impresion .rounded-lg,
+          #seccion-ticket-impresion .rounded-md,
           #seccion-ticket-impresion .rounded {
             border-radius: 0 !important;
           }
           /* Logo grande: respetar tamaño en impresión */
           #seccion-ticket-impresion img {
-            max-height: 22mm !important;
+            max-height: ${anchoPapel === '58mm' ? '16mm' : '20mm'} !important;
             width: auto !important;
             object-fit: contain !important;
           }
           /* Bloque total: en pantalla es negro con texto blanco, pero en impresora térmica
              un bloque totalmente negro borra el texto blanco por sangrado del cabezal térmico.
-             En impresión lo convertimos en un recuadro de borde negro grueso con texto negro limpio. */
+             En impresión lo convertimos en un recuadro de borde negro limpio con texto negro sólido. */
           #seccion-ticket-impresion .bg-slate-900 {
             background-color: #ffffff !important;
             color: #000000 !important;
-            border: 2px solid #000000 !important;
+            border: 1.5px solid #000000 !important;
             box-shadow: none !important;
+            padding: 4px 6px !important;
           }
           #seccion-ticket-impresion .bg-slate-900 * {
             color: #000000 !important;
-            font-weight: 900 !important;
+            font-weight: 700 !important;
           }
-          /* Textos pequeños: subir al mínimo legible en térmica */
+          /* Textos pequeños: tamaño legible en térmica sin desbordar */
           #seccion-ticket-impresion .text-\[7px\],
           #seccion-ticket-impresion .text-\[7\.5px\],
           #seccion-ticket-impresion .text-\[8px\],
           #seccion-ticket-impresion .text-\[8\.5px\],
           #seccion-ticket-impresion .text-\[9px\],
           #seccion-ticket-impresion .text-\[9\.5px\] {
-            font-size: 10px !important;
+            font-size: ${anchoPapel === '58mm' ? '9px' : '9.5px'} !important;
           }
           #seccion-ticket-impresion .text-\[10px\],
           #seccion-ticket-impresion .text-\[10\.5px\],
           #seccion-ticket-impresion .text-\[11px\] {
-            font-size: 11.5px !important;
+            font-size: ${anchoPapel === '58mm' ? '10px' : '11px'} !important;
           }
           #seccion-ticket-impresion .text-sm {
-            font-size: 12.5px !important;
+            font-size: ${anchoPapel === '58mm' ? '11.5px' : '12.5px'} !important;
           }
           #seccion-ticket-impresion .text-base {
-            font-size: 14px !important;
+            font-size: ${anchoPapel === '58mm' ? '12.5px' : '13.5px'} !important;
           }
           #seccion-ticket-impresion h1 {
-            font-size: 16px !important;
-            font-weight: 900 !important;
-            letter-spacing: 0.05em !important;
+            font-size: ${anchoPapel === '58mm' ? '13.5px' : '15.5px'} !important;
+            font-weight: 700 !important;
+            letter-spacing: 0.02em !important;
           }
           /* BLINDAJE MONOCROMÁTICO: Las impresoras térmicas NO tienen tinta gris.
-             Cualquier color gris (#444, #666, slate-400) se imprime como un entramado de puntos (semitonos)
-             que hace ver el texto borroso o transparente. Forzamos NEGRO PURO #000000 en TODO el texto. */
+             Forzamos NEGRO PURO #000000 en TODO el texto y evitamos peso 900 que rompe trazos a 203 DPI. */
           #seccion-ticket-impresion,
           #seccion-ticket-impresion *,
           #seccion-ticket-impresion span,
@@ -730,20 +761,26 @@ Estamos atentos para cualquier consulta.
           #seccion-ticket-impresion .text-slate-800,
           #seccion-ticket-impresion .text-slate-900,
           #seccion-ticket-impresion .text-emerald-700,
-          #seccion-ticket-impresion .text-rose-700,
-          #seccion-ticket-impresion .font-black {
+          #seccion-ticket-impresion .text-rose-700 {
             color: #000000 !important;
+          }
+          #seccion-ticket-impresion .font-black,
+          #seccion-ticket-impresion .font-extrabold {
+            font-weight: 700 !important;
           }
           /* Líneas y bordes: 100% negros para nitidez total */
           #seccion-ticket-impresion .border-slate-200,
           #seccion-ticket-impresion .border-slate-300,
           #seccion-ticket-impresion .border-slate-400,
-          #seccion-ticket-impresion .border-slate-800 {
+          #seccion-ticket-impresion .border-slate-600,
+          #seccion-ticket-impresion .border-slate-700,
+          #seccion-ticket-impresion .border-slate-800,
+          #seccion-ticket-impresion .border-slate-900 {
             border-color: #000000 !important;
           }
           @page {
             margin: 0;
-            size: 80mm auto;
+            size: ${anchoPapel === '58mm' ? '58mm auto' : '80mm auto'};
           }
         }
       `}</style>
@@ -756,19 +793,48 @@ Estamos atentos para cualquier consulta.
         <div className="ticket-print-modal-card bg-white dark:bg-[#0f172a] rounded-3xl sm:rounded-2xl w-full max-w-md lg:max-w-lg shadow-2xl border border-slate-100 dark:border-slate-800 flex flex-col h-[85dvh] sm:h-auto sm:max-h-[96vh] overflow-hidden my-auto">
           
           {/* HEADER DEL MODAL */}
-          <div className="ticket-print-hide p-3 sm:py-2.5 sm:px-4 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center bg-slate-50 dark:bg-slate-900/60 shrink-0">
-            <div className="flex items-center gap-2">
-              <div className="p-1.5 bg-blue-100 dark:bg-blue-500/20 text-blue-600 dark:text-blue-400 rounded-xl">
+          <div className="ticket-print-hide p-3 sm:py-2.5 sm:px-4 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center gap-2 bg-slate-50 dark:bg-slate-900/60 shrink-0">
+            <div className="flex items-center gap-2 min-w-0">
+              <div className="p-1.5 bg-blue-100 dark:bg-blue-500/20 text-blue-600 dark:text-blue-400 rounded-xl shrink-0">
                 <Receipt size={16} className="sm:w-4 sm:h-4" />
               </div>
-              <h3 className="font-black text-slate-900 dark:text-white text-xs sm:text-sm">Vista Previa de Factura / Comprobante</h3>
+              <h3 className="font-black text-slate-900 dark:text-white text-xs sm:text-sm truncate">Vista Previa</h3>
             </div>
-            <button
-              onClick={onClose}
-              className="p-1.5 text-slate-400 hover:text-slate-700 dark:hover:text-white rounded-full bg-slate-100 dark:bg-slate-800 transition-colors cursor-pointer"
-            >
-              <X size={16} />
-            </button>
+            <div className="flex items-center gap-2 shrink-0">
+              <div
+                className="flex items-center bg-slate-200/80 dark:bg-slate-800 p-0.5 rounded-lg border border-slate-300/60 dark:border-slate-700"
+                title="Selecciona el ancho del rollo de tu impresora térmica"
+              >
+                <button
+                  type="button"
+                  onClick={() => cambiarAnchoPapel('58mm')}
+                  className={`px-2 py-0.5 rounded-md text-[10px] font-black transition cursor-pointer ${
+                    anchoPapel === '58mm'
+                      ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs'
+                      : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                  }`}
+                >
+                  58mm
+                </button>
+                <button
+                  type="button"
+                  onClick={() => cambiarAnchoPapel('80mm')}
+                  className={`px-2 py-0.5 rounded-md text-[10px] font-black transition cursor-pointer ${
+                    anchoPapel === '80mm'
+                      ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs'
+                      : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                  }`}
+                >
+                  80mm
+                </button>
+              </div>
+              <button
+                onClick={onClose}
+                className="p-1.5 text-slate-400 hover:text-slate-700 dark:hover:text-white rounded-full bg-slate-100 dark:bg-slate-800 transition-colors cursor-pointer"
+              >
+                <X size={16} />
+              </button>
+            </div>
           </div>
 
           {/* CONTENIDO SCROLLEABLE - TICKET TÉRMICO */}
